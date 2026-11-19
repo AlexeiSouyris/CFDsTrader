@@ -8,7 +8,7 @@ Las reglas completas están en [CLAUDE.md](./CLAUDE.md) y valen igual para human
 4. **Contratos primero** si tu cambio cruza Rust, Python y UI (`contracts/`).
 5. **Programá + tests.** Actualizá el *Registro de módulos* en `docs/ARCHITECTURE.md` si creás o cambiás un módulo.
 6. `git rebase origin/main`, pasá los checks y abrí el PR con la plantilla (`Closes #nº`).
-7. **Revisión de la otra persona**, y merge con *squash*. Nadie mergea su propio PR.
+7. Cualquiera puede **revisar y comentar**. El **merge a `main` lo aprueba y lo hace el dueño del repo (Alexei)**, con *squash*. Nadie más mergea por su cuenta.
 
 ## Etiquetas
 
@@ -22,5 +22,5 @@ Las reglas completas están en [CLAUDE.md](./CLAUDE.md) y valen igual para human
 
 ## Configuración recomendada en GitHub (la hace el dueño del repo)
 
-- *Settings → Branches*: proteger `main` (exigir PR, 1 aprobación y checks en verde; prohibir *force push*).
+- *Settings → Branches*: proteger `main` (exigir PR y aprobación antes del merge; prohibir *force push*). Dejar el merge en manos del dueño.
 - *Settings → General*: permitir solo **Squash merge** y borrar las ramas automáticamente al mergear.

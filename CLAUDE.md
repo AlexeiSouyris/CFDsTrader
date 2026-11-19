@@ -53,7 +53,8 @@ Monorepo híbrido. Decisión registrada en `docs/decisions/0001-arquitectura-hib
 - Antes de abrir el PR: `git fetch origin && git rebase origin/main`, y que pasen los checks del punto 4.
 - Usá la plantilla de PR (`.github/pull_request_template.md`) y completá **todas** las secciones.
 - El cuerpo debe incluir `Closes #<nº>`.
-- **Nadie mergea su propio PR**: lo revisa la otra persona, o su agente y después la persona. Merge con **squash**.
+- **El merge a `main` lo aprueba y lo hace siempre el dueño del repo (Alexei).** Ni los agentes ni los colaboradores mergean por su cuenta: abren el PR, y queda esperando la aprobación del dueño. Merge con **squash**.
+- Cualquiera (persona o agente) puede **revisar y comentar** un PR para mejorarlo, pero la decisión de mergear es solo del dueño.
 - **Nunca** `git push --force` a `main` ni a la rama de otra persona.
 - Al mergear se borra la rama. Si el PR se abandona, quitá `in-progress` y desasignate del Issue.
 
