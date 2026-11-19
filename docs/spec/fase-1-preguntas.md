@@ -1,6 +1,6 @@
 # Fase 1 — Preguntas para cerrar la especificación
 
-Respondan **los dos** debajo de cada pregunta (o en el chat con su agente, que lo pasa acá).
+Respondan debajo de cada pregunta (o en el chat con su agente, que lo pasa acá).
 Cuando no queden preguntas abiertas, el agente redacta `docs/spec/fase-1-especificacion.md` con reglas en pseudocódigo para aprobar.
 Objetivo: **dos personas que lean la spec harían exactamente las mismas operaciones.**
 
@@ -10,66 +10,69 @@ Estado: ✅ respondida · ⏳ pendiente
 
 ## A. Mercado y broker
 1. ✅ **Instrumentos:** índices de EE. UU. (US Tech 100, US 500, Wall Street), acciones puntuales e índices de Europa/Asia. Todos como [CFD](../GLOSARIO.md#cfd).
-2. ✅ **Broker:** Revolut u otro. ⚠️ Revolut no tiene API pública de trading, así que el sistema no puede leer ni ejecutar ahí. Ver la sección K.
-3. ⏳ ¿País de residencia de los miembros? Define qué brokers están disponibles y el [apalancamiento](../GLOSARIO.md#apalancamiento) máximo permitido ([regulador](../GLOSARIO.md#esma)).
-4. ⏳ ¿De dónde salen los datos históricos y en qué resolución? ¿Hay presupuesto para datos pagos?
+2. ✅ **Broker:** hoy usan Revolut, que no tiene API pública de trading. Como los miembros están en la UE, hay opciones con API y cuenta demo, por ejemplo IG (REST + streaming). La elección final va en un ADR.
+3. ✅ **País:** España / UE → regulación [ESMA](../GLOSARIO.md#esma): índices principales hasta 20:1, acciones hasta 5:1.
+4. ⏳ ¿De dónde salen los datos históricos y con qué presupuesto?
 5. ✅ **[Timeframes](../GLOSARIO.md#timeframe):** entrada en **15m**, [tendencia](../GLOSARIO.md#tendencia) en **1h**.
-6. ⏳ ¿En qué horario opera el sistema y en qué zona horaria?
+6. ⏳ ¿En qué horario opera el sistema? (zona horaria de referencia: Europe/Madrid para mostrar, UTC internamente)
 7. ✅ **Overnight:** se puede dejar abierto de noche (pagando [swap](../GLOSARIO.md#swap)), pero **todo se cierra antes del cierre del viernes** para evitar el [gap](../GLOSARIO.md#gap) del fin de semana.
 
 ## B. Rol del sistema
-8. ⏳ ¿El sistema sugiere y ustedes ejecutan a mano, o tiene que ejecutar solo en un broker con API? (depende de la sección K)
-9. ⏳ Cuéntenme paso a paso **una operación real** que hayan hecho.
+8. ✅ **El sistema propone y un responsable designado aprueba y ejecuta.** Mientras tanto, el sistema lleva un P&L simulado ([paper trading](../GLOSARIO.md#paper-trading)).
+9. ⏳ (Opcional, muy útil) Cuéntenme paso a paso **una operación real** que hayan hecho.
 
 ## C. Entrada
-10. ✅ **Señales de la estrategia base**, combinadas:
-    - Velas: [martillo](../GLOSARIO.md#martillo) y [envolvente](../GLOSARIO.md#envolvente) con filtro [SMA50](../GLOSARIO.md#sma).
-    - [Doble techo / doble suelo](../GLOSARIO.md#doble-techo).
-    - [Liquidez](../GLOSARIO.md#liquidez) según el marco ICT/SMC.
-    - [Soportes](../GLOSARIO.md#soporte) y [resistencias](../GLOSARIO.md#resistencia).
-    - ⏳ Falta definir cómo se combinan: ¿alcanza con una señal o hacen falta varias en confluencia?
-11. ✅ **Doble techo o suelo:** se entra al **cerrar la vela de 15m que rompe el [neckline](../GLOSARIO.md#neckline)**. ⏳ ¿Qué diferencia máxima entre los dos topes (en %)?
+10. ✅ **Señales de la estrategia base:** velas ([martillo](../GLOSARIO.md#martillo), [envolvente](../GLOSARIO.md#envolvente)) con filtro [SMA50](../GLOSARIO.md#sma), [doble techo o suelo](../GLOSARIO.md#doble-techo), [liquidez](../GLOSARIO.md#liquidez) ICT/SMC, y [soportes](../GLOSARIO.md#soporte) y [resistencias](../GLOSARIO.md#resistencia).
+    - ✅ **Cómo se combinan:** por **puntaje de confluencia**. Cada señal suma puntos (incluida la tendencia de 1h a favor) y se entra si se supera un umbral configurable. Así se puede medir cuánto aporta cada señal.
+11. ✅ **Doble techo o suelo:** se entra al **cerrar la vela de 15m que rompe el [neckline](../GLOSARIO.md#neckline)**. La tolerancia entre los dos topes es un parámetro (inicial: 0,3%) que se calibra con el test de sensibilidad.
 12. ✅ **Liquidez:** marco ICT/SMC estándar: [externa](../GLOSARIO.md#liquidez-externa), [interna](../GLOSARIO.md#liquidez-interna), [sweeps](../GLOSARIO.md#sweep), [order blocks](../GLOSARIO.md#order-block), [FVG](../GLOSARIO.md#fvg), [BOS](../GLOSARIO.md#bos) y [CHoCH](../GLOSARIO.md#choch).
 13. ⏳ ¿Las opciones (volatilidad implícita, put/call) son señal o solo contexto?
-14. ⏳ ¿Qué tiene que pasar para **no** entrar?
+14. ✅ (en parte) **No entrar** cerca de noticias de alto impacto (ver F). ⏳ ¿Otros filtros?
 
 ## D. Salida
-15. ⏳ [Stop loss](../GLOSARIO.md#stop-loss): ¿por estructura, por [ATR](../GLOSARIO.md#atr) o un % fijo?
-16. ⏳ [Take profit](../GLOSARIO.md#take-profit): ¿múltiplo de [R](../GLOSARIO.md#r-multiplo), siguiente zona de liquidez, parcial o [trailing](../GLOSARIO.md#trailing-stop)?
-17. ⏳ ¿Hay salida por tiempo o antes de noticias?
+15. ✅ **[Stop loss](../GLOSARIO.md#stop-loss):** detrás de la estructura (mínimo o máximo del patrón, o la mecha del [sweep](../GLOSARIO.md#sweep)) **+ 0,5 × [ATR](../GLOSARIO.md#atr)**.
+16. ✅ **[Take profit](../GLOSARIO.md#take-profit):** se cierra el **50% en 2[R](../GLOSARIO.md#r-multiplo)**, el stop pasa al precio de entrada y el resto sigue con [trailing stop](../GLOSARIO.md#trailing-stop).
+17. ✅ (en parte) Cierre obligatorio antes del cierre del viernes. Alerta de salida ante una noticia fuerte en contra (ver F). ⏳ ¿Salida por tiempo?
 
 ## E. Tamaño, apalancamiento y riesgo
-18. ⏳ Capital inicial y moneda.
-19. ⏳ [Riesgo por operación](../GLOSARIO.md#riesgo-por-operacion), pérdida máxima diaria, [drawdown](../GLOSARIO.md#drawdown) máximo y posiciones abiertas máximas.
-20. ⏳ ¿Cómo se elige el apalancamiento y cuál es el máximo por instrumento?
-21. ⏳ ¿A qué nivel hace [stop-out](../GLOSARIO.md#stop-out) el broker?
+18. ⏳ Capital inicial simulado y moneda.
+19. ✅ **Perfil moderado:**
+    - [Riesgo por operación](../GLOSARIO.md#riesgo-por-operacion): **1%**.
+    - Pérdida máxima diaria: **-3%**.
+    - [Kill switch](../GLOSARIO.md#kill-switch) con [drawdown](../GLOSARIO.md#drawdown) del **-15%**.
+    - Hasta **5 posiciones** abiertas.
+20. ✅ **[Apalancamiento](../GLOSARIO.md#apalancamiento):** sale del riesgo. El tamaño se calcula con el 1% y la distancia al stop, y el apalancamiento resultante tiene un **tope configurable por instrumento** (inicial: 10:1 en índices y 3:1 en acciones, por debajo de ESMA).
+21. ⏳ Nivel de [stop-out](../GLOSARIO.md#stop-out) del broker. Se toma de la documentación oficial del broker elegido; con ESMA es el 50% del margen.
 
 ## F. Noticias
-22. ⏳ ¿Las noticias funcionan como filtro, como ajuste de [probabilidad](../GLOSARIO.md#probabilidad) o como señal propia?
+22. ✅ **Las noticias cumplen cuatro roles:**
+    1. **Filtro**: no abrir operaciones cerca de noticias de alto impacto.
+    2. **Ajuste de [probabilidad](../GLOSARIO.md#probabilidad)**: el [sentimiento](../GLOSARIO.md#sentimiento) suma o resta al puntaje.
+    3. **Alerta de salida**: una noticia fuerte en contra de una posición abierta avisa al responsable.
+    4. **Señal propia**: va en fase experimental, separada, y solo pasa a usarse si demuestra valor fuera de muestra.
 23. ⏳ ¿Qué fuentes y con qué presupuesto?
-24. ⏳ ¿La interpretación la hace un LLM, un modelo propio o los dos? ¿En qué idioma son los resúmenes?
+24. ✅ **Interpretación con un LLM (Claude):** resumen, si la noticia es buena o mala, para qué activos y con qué magnitud. ⏳ ¿En qué idioma son los resúmenes?
 
 ## G. Análogos históricos
 25. ⏳ ¿Qué es una "situación similar"? ([análogos](../GLOSARIO.md#analogos))
 26. ⏳ ¿Qué universo y cuántos años de historia?
 
 ## H. "Matemática cuántica"
-27. ⏳ ¿Computación cuántica real o modelos probabilísticos avanzados?
+27. ✅ **Modelos probabilísticos:** Monte Carlo, modelos bayesianos, cadenas de Markov y ML. No se usa computación cuántica real.
 
 ## I. Costos y casos borde
-28. ⏳ [Spread](../GLOSARIO.md#spread), [comisión](../GLOSARIO.md#comision) y [swap](../GLOSARIO.md#swap) de cada instrumento.
-29. ⏳ ¿Qué hacer ante [gaps](../GLOSARIO.md#gap), feriados, [halts](../GLOSARIO.md#halt), datos faltantes, ejecuciones parciales o desconexión?
+28. ⏳ [Spread](../GLOSARIO.md#spread), [comisión](../GLOSARIO.md#comision) y [swap](../GLOSARIO.md#swap): se toman de la documentación del broker elegido.
+29. ⏳ ¿Qué hacer ante [gaps](../GLOSARIO.md#gap), feriados, [halts](../GLOSARIO.md#halt), datos faltantes o desconexión?
 
 ## J. Proceso
-30. ⏳ ¿Cuánto tiempo mínimo de [paper trading](../GLOSARIO.md#paper-trading)? ¿Quién aprueba cada fase?
+30. ⏳ ¿Cuánto tiempo mínimo de [paper trading](../GLOSARIO.md#paper-trading) antes de usar dinero real?
 
-## K. Fondo del grupo (nuevo)
-Son **6 personas**. Cada una aporta un monto distinto cada semana, todo se invierte junto y se calcula el [P&L](../GLOSARIO.md#pl) de cada uno según lo que puso y cuándo.
+## K. Fondo del grupo
+Son **6 personas** que aportan montos distintos cada semana. Todo se invierte junto y se calcula el [P&L](../GLOSARIO.md#pl) de cada uno.
+- ✅ **P&L de cada miembro:** [contabilidad por unidades](../GLOSARIO.md#unidades). Cada aporte compra unidades al [valor del día](../GLOSARIO.md#nav). Lo calcula el módulo `fund` de nuestro sistema.
+31. ✅ **Titular:** una persona abre la cuenta del broker a su nombre y nuestro sistema lleva la contabilidad de los 6.
+32. ✅ **Retiros:** semanales, pedidos antes del día de aportes y pagados al valor de la unidad de ese día.
+33. ✅ **Decisiones:** el sistema propone y uno o dos responsables designados aprueban y ejecutan.
+34. ⏳ ¿Aporte mínimo, día fijo de aportes y moneda?
 
-- ✅ **Cómo se calcula el P&L de cada uno:** con [contabilidad por unidades](../GLOSARIO.md#unidades), como un fondo común. Cada aporte compra unidades al [valor del día](../GLOSARIO.md#nav). **Esto lo hace nuestro sistema** (módulo `fund` en Rust), sin importar el broker.
-31. ⏳ ¿A nombre de quién está la cuenta del broker? (una persona que actúa de titular, una sociedad o club de inversión, u otra figura)
-32. ⏳ ¿Cómo y cuándo se puede retirar dinero? (aviso previo, retiro mínimo, al valor de la unidad de ese día)
-33. ⏳ ¿Quién decide las operaciones? (el sistema y un responsable, votación del grupo, cualquiera de los 6)
-34. ⏳ ¿Aporte mínimo, día fijo de aporte y moneda?
-
-> ⚠️ Manejar dinero de varias personas en una cuenta puede tener consecuencias legales e impositivas según el país (en algunos casos se considera gestión de fondos de terceros). Conviene consultarlo con un contador o abogado antes de juntar plata real. El sistema funciona igual en simulación mientras tanto.
+> ⚠️ Con un titular que maneja dinero de otras 5 personas, en España puede haber consecuencias legales (gestión de fondos de terceros) e impositivas (el titular declara toda la ganancia). Consulten con un asesor antes de juntar dinero real. Mientras tanto todo funciona en simulación.
