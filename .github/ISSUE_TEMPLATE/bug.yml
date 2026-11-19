@@ -1,0 +1,21 @@
+name: Bug
+description: Algo funciona mal
+labels: ["bug"]
+body:
+  - type: textarea
+    id: que-pasa
+    attributes:
+      label: Qué pasa
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: Qué debería pasar
+    validations:
+      required: true
+  - type: textarea
+    id: reproducir
+    attributes:
+      label: Cómo reproducirlo
+      description: Instrumento, timeframe, fecha y hora (UTC), comandos.
