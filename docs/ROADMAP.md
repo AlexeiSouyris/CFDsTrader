@@ -78,7 +78,8 @@ En tiempo real con dinero simulado durante un período mínimo (lo define la spe
 ## Fase 9 — Observabilidad y operación segura
 Logs estructurados de cada decisión y orden. Alertas (Telegram o email) ante errores, kill switch o desconexión. Arranque y parada seguros, sin órdenes huérfanas.
 
-## Fase 10 — UI (TypeScript)
+## Fase 10 — UI y app del celular (TypeScript)
+App privada para los iPhone de los 6 miembros: notificaciones push, aprobación de propuestas, votaciones, cuentas individuales con 2FA y su P&L.
 Gráfico en tiempo real con patrones y señales marcados, panel de noticias actualizado al segundo con su interpretación, estrategias con probabilidades, P/L, y edición de parámetros (que a su vez pasan por la validación de configuración y por el riesgo). Vista del fondo con el aporte, las unidades y el P&L de cada miembro. **Diccionario interactivo:** cada término técnico se puede tocar para ver su explicación y un ejemplo, tomados de `docs/GLOSARIO.md`.
 
 ## Fase 11 — Dinero real

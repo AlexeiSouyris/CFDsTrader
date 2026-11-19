@@ -13,6 +13,18 @@
 2. Cada propuesta llega a 1 o 2 **responsables** designados, que la aprueban y la ejecutan a mano en el broker.
 3. En paralelo, el sistema lleva un **P&L simulado** ([paper trading](../GLOSARIO.md#paper-trading)), como si hubiera ejecutado todo lo que propuso. Así se mide el sistema y no la disponibilidad de los responsables.
 4. También se registra lo que los responsables ejecutaron de verdad, para comparar.
+5. **Responsables:** los dos colaboradores. Cualquiera de los dos puede aprobar una propuesta.
+6. **Broker para datos en tiempo real, costos y demo:** IG, con cuenta demo a nombre del titular. Se confirma en un ADR en la fase 2.
+
+### 1.1 App en el celular, cuentas y seguridad
+- Las propuestas, las alertas (noticias en contra, kill switch, errores) y las votaciones llegan como **notificaciones al iPhone** de cada miembro, y se responden desde ahí.
+- **Acceso privado:** solo los 6 miembros pueden instalar la app y entrar. No es pública.
+- **Cuenta individual por miembro**, con **2FA obligatorio** mediante una app autenticadora (Google Authenticator o similar, TOTP).
+- **Roles:**
+  - *Responsable:* aprueba o rechaza propuestas.
+  - *Miembro:* ve su P&L y el del fondo, recibe alertas y vota.
+- Toda acción (aprobar, votar, aportar, retirar) queda registrada con usuario y hora (UTC).
+- Forma de distribución de la app: ver la pregunta abierta en el PR (app web instalable o app nativa).
 
 ## 2. Mercado
 
@@ -203,7 +215,7 @@ Si la vela anterior al cierre de la semana es un feriado, aplica el último día
 
 - Cada noticia se guarda con su **hora de publicación real** (UTC) y solo influye desde ese momento.
 - **Resúmenes en español**, con el titular original y el enlace a la fuente.
-- Fuentes pedidas: Forex Factory, Investing.com, Bloomberg, Wall Street Journal, Financial Times, El Mundo, TradingView, Yahoo Finance y Binance (estas dos últimas, a confirmar), además de fuentes oficiales: Fed, BCE, BLS y SEC EDGAR.
+- Fuentes pedidas: Forex Factory, Investing.com, Bloomberg, Wall Street Journal, Financial Times, El Mundo, TradingView y Yahoo Finance, además de fuentes oficiales: Fed, BCE, BLS y SEC EDGAR.
   - ⚠️ Varias de estas fuentes tienen muro de pago o prohíben el acceso automatizado en sus términos de uso. En la fase 4b se define **la vía legal de acceso de cada una** (RSS oficial, API con licencia o plan pago) en un ADR. **No se hará scraping que viole los términos de uso.**
 
 ## 10. Límites de riesgo (módulo independiente, la estrategia no los puede saltear)

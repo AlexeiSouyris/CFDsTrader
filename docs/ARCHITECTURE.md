@@ -41,7 +41,9 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | risk | `engine/crates/risk` | Rust | Apalancamiento por instrumento, tamaño de posición, margen, stop-loss, pérdida máxima | planeado |
 | fund | `engine/crates/fund` | Rust | Fondo del grupo: aportes y retiros de cada miembro, unidades, valor de la unidad (NAV) y P&L por miembro | planeado |
 | backtest | `engine/crates/backtest` | Rust | Simulación histórica y paper trading en tiempo real, P/L | planeado |
-| gateway | `engine/crates/gateway` | Rust | API REST + WebSocket para la UI | planeado |
+| gateway | `engine/crates/gateway` | Rust | API REST + WebSocket para la UI y la app del celular | planeado |
+| auth | `engine/crates/auth` | Rust | Cuentas de los miembros, 2FA (TOTP), roles (responsable / miembro), sesiones, registro de acciones | planeado |
+| notifier | `engine/crates/notifier` | Rust | Notificaciones push al celular (propuestas, alertas, votaciones) | planeado |
 | news | `intelligence/cfds_intel/news` | Python | Ingesta de noticias en tiempo real, resumen e interpretación (positivo/negativo, impacto) | planeado |
 | analogs | `intelligence/cfds_intel/analogs` | Python | Búsqueda de situaciones históricas similares en otras empresas e índices | planeado |
 | models | `intelligence/cfds_intel/models` | Python | Modelos PyTorch de predicción y su entrenamiento | planeado |
