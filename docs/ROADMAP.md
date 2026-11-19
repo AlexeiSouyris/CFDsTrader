@@ -16,6 +16,7 @@ Primero va el motor y la inteligencia. La UI viene después (fase 10).
 | 4b | Inteligencia: noticias, análogos históricos, ML | `intelligence/` | pendiente |
 | 5 | Evaluación y anti-sobreajuste | `engine/backtest` + `intelligence/` | pendiente |
 | 6 | Gestión de riesgo (independiente) | `engine/risk` | pendiente |
+| 6b | Fondo del grupo: aportes, unidades, NAV, P&L por miembro | `engine/fund` | pendiente |
 | 7 | Capa de broker (simulado / real intercambiables) | `engine/market-data`, `engine/execution` | pendiente |
 | 8 | Paper trading en tiempo real | todo el motor | pendiente |
 | 9 | Observabilidad y operación segura | `engine/`, `infra/` | pendiente |
@@ -62,6 +63,10 @@ Retorno, drawdown máximo, Sharpe y Sortino, win rate, profit factor, número de
 Límites duros que la estrategia no puede saltear: tamaño máximo, apalancamiento máximo por instrumento, pérdida diaria máxima, drawdown máximo y posiciones abiertas máximas. Kill switch. Validación de cada orden (precio razonable, tamaño dentro de límites, no duplicada).
 **Aprobación:** un test por límite que verifica que se dispara.
 
+## Fase 6b — Fondo del grupo
+Registro de aportes y retiros por miembro. Cada movimiento compra o vende unidades al valor de la unidad (NAV) del momento. P&L por miembro = unidades × NAV − aportes netos. Historial auditable y decimales exactos.
+**Aprobación:** el ejemplo del glosario (Ana, Beto y Caro) da exactamente el resultado calculado a mano, y la suma de lo que vale cada miembro es igual al valor total del fondo.
+
 ## Fase 7 — Broker
 Interfaz con implementación simulada y real intercambiables. Órdenes idempotentes. Manejo de timeouts, rechazos, reconexión y ejecuciones parciales. Reconciliación de posiciones al arrancar y periódicamente. Credenciales solo por variables de entorno, nunca en código ni en logs.
 **Aprobación:** funciona igual contra el simulador y contra la cuenta demo del broker.
@@ -74,7 +79,7 @@ En tiempo real con dinero simulado durante un período mínimo (lo define la spe
 Logs estructurados de cada decisión y orden. Alertas (Telegram o email) ante errores, kill switch o desconexión. Arranque y parada seguros, sin órdenes huérfanas.
 
 ## Fase 10 — UI (TypeScript)
-Gráfico en tiempo real con patrones y señales marcados, panel de noticias actualizado al segundo con su interpretación, estrategias con probabilidades, P/L, y edición de parámetros (que a su vez pasan por la validación de configuración y por el riesgo).
+Gráfico en tiempo real con patrones y señales marcados, panel de noticias actualizado al segundo con su interpretación, estrategias con probabilidades, P/L, y edición de parámetros (que a su vez pasan por la validación de configuración y por el riesgo). Vista del fondo con el aporte, las unidades y el P&L de cada miembro. **Diccionario interactivo:** cada término técnico se puede tocar para ver su explicación y un ejemplo, tomados de `docs/GLOSARIO.md`.
 
 ## Fase 11 — Dinero real
 Solo con ADR aprobado por ambos, después de un paper trading aprobado, y empezando con capital mínimo.

@@ -39,6 +39,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | liquidity | `engine/crates/liquidity` | Rust | Zonas de liquidez, barridos internos/externos, order flow | planeado |
 | strategy | `engine/crates/strategy` | Rust | Combina features + señales de ML/noticias → señal con probabilidad | planeado |
 | risk | `engine/crates/risk` | Rust | Apalancamiento por instrumento, tamaño de posición, margen, stop-loss, pérdida máxima | planeado |
+| fund | `engine/crates/fund` | Rust | Fondo del grupo: aportes y retiros de cada miembro, unidades, valor de la unidad (NAV) y P&L por miembro | planeado |
 | backtest | `engine/crates/backtest` | Rust | Simulación histórica y paper trading en tiempo real, P/L | planeado |
 | gateway | `engine/crates/gateway` | Rust | API REST + WebSocket para la UI | planeado |
 | news | `intelligence/cfds_intel/news` | Python | Ingesta de noticias en tiempo real, resumen e interpretación (positivo/negativo, impacto) | planeado |
@@ -47,3 +48,4 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | storage | `infra/` | SQL | Esquema de PostgreSQL, migraciones, docker-compose con Postgres + Redis | planeado |
 | contracts | `contracts/` | JSON Schema | Mensajes entre capas (velas, señales, noticias, órdenes) | planeado |
 | ui | `ui/` | TypeScript | Interfaz: gráficos, panel de noticias, estrategias, P/L | planeado (fase 2) |
+| glosario | `docs/GLOSARIO.md` | Markdown | Única fuente de las definiciones de términos (la UI las reutiliza como tooltips) | hecho |
