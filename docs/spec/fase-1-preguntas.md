@@ -6,6 +6,8 @@ Objetivo: **dos personas que lean la spec harían exactamente las mismas operaci
 
 > ¿No conocés un término? Hacé clic sobre él: todos llevan al [Glosario](../GLOSARIO.md).
 
+> **Cerrado.** El grupo respondió lo que es decisión del grupo, y el agente resolvió las preguntas técnicas restantes (a pedido del grupo, que no es experto en trading). El resultado está en [`fase-1-especificacion.md`](fase-1-especificacion.md), sección 16, que separa qué decidió cada uno. Este archivo queda como historial; algunas marcas ⏳ de abajo quedaron resueltas directamente en la especificación.
+
 Estado: ✅ respondida · ⏳ pendiente
 
 ## A. Mercado y broker

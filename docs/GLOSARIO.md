@@ -136,6 +136,10 @@ Una vela cuyo período ya terminó. Sus valores ya no cambian. **Solo decidimos 
 Vela de cuerpo chico arriba y mecha inferior larga (al menos el doble del cuerpo), después de una caída. Indica que los vendedores empujaron hacia abajo pero los compradores recuperaron: posible giro alcista.
 *Ejemplo:* en tu captura aparece marcada como "Hammer – Bull SMA50".
 
+<a id="estrella-fugaz"></a>
+### Estrella fugaz (Shooting star)
+El espejo del [martillo](#martillo): cuerpo chico abajo y mecha superior larga, después de una suba. Los compradores empujaron arriba pero los vendedores devolvieron el precio: posible giro bajista.
+
 <a id="envolvente"></a>
 ### Envolvente (Engulfing)
 Vela cuyo cuerpo "envuelve" por completo el cuerpo de la vela anterior, en dirección contraria. La **envolvente alcista** (verde que envuelve a una roja) sugiere giro al alza.
