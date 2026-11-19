@@ -30,6 +30,27 @@ Closes #
 - [ ] No hay secretos en el código y `.env.example` está actualizado si hace falta.
 - [ ] No habilita órdenes reales (o hay un ADR aprobado).
 
+## Checklist de trading (si toca datos, indicadores, estrategia, riesgo o ejecución)
+
+Respondé cada punto (✅ / ❌ + explicación / N/A):
+
+- [ ] ¿Hay algún uso de datos del futuro (look-ahead)?
+- [ ] ¿Algún indicador o patrón usa la vela en curso o un pivote todavía no confirmado?
+- [ ] ¿El timeframe mayor usa solo velas cerradas?
+- [ ] ¿Los indicadores coinciden con una plataforma de referencia (por ejemplo TradingView)?
+- [ ] ¿Se respeta el período de calentamiento?
+- [ ] ¿Están incluidos comisiones, spread, slippage y swap overnight?
+- [ ] ¿Las noticias se usan solo desde su hora de publicación?
+- [ ] ¿Los tests cubren casos borde y datos corruptos?
+- [ ] ¿Algún parámetro quedó hardcodeado?
+- [ ] ¿Qué pasa si se cae la conexión en medio de una orden?
+- [ ] ¿Los límites de riesgo se pueden saltear desde la estrategia?
+- [ ] ¿Hay alguna credencial expuesta (código o logs)?
+
+## Supuestos y riesgos
+
+<!-- Qué se supuso y qué podría salir mal. -->
+
 ## Cómo probarlo
 
 <!-- Comandos o pasos para verificar. -->

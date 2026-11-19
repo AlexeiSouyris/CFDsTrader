@@ -8,6 +8,8 @@ El objetivo de estas reglas es que **nunca existan dos versiones de lo mismo** y
 
 ---
 
+> **Arranque:** el primer PR, que crea estas reglas, no tiene Issue porque todavía no había ninguno. A partir de su merge, todo pasa por Issues.
+
 ## 0. Antes de escribir una sola línea de código (OBLIGATORIO)
 
 1. **Leé** `docs/ARCHITECTURE.md` (mapa de módulos: qué existe, dónde vive y en qué lenguaje).
@@ -77,6 +79,30 @@ Monorepo híbrido. Decisión registrada en `docs/decisions/0001-arquitectura-hib
 - **Nunca** commitear claves, tokens ni contraseñas. Usá `.env` (está en `.gitignore`) y documentá las variables en `.env.example` con valores falsos.
 - Toda estrategia debe pasar por el módulo de **riesgo** (límite de apalancamiento por instrumento, stop-loss obligatorio, pérdida máxima diaria). No hay atajos que lo salteen.
 - Las señales muestran **probabilidades e incertidumbre**, nunca certezas. Ningún texto de la UI promete ganancias.
+
+## 5b. Reglas de trading, datos y backtest (anti-autoengaño)
+
+Detalle y criterios de aprobación por fase en `docs/ROADMAP.md`. Resumen obligatorio:
+
+- **Nada de mirar el futuro (look-ahead):** la decisión en la vela `t` usa solo información disponible al **cierre** de `t` y se ejecuta en `t+1`.
+- **Solo velas cerradas.** Ningún indicador ni patrón usa la vela en curso. En multi-timeframe, la vela del timeframe mayor se usa recién cuando **cerró**.
+- **Sin repintado:** un valor calculado para una vela cerrada no cambia nunca al llegar datos nuevos (hay test que lo verifica).
+- **Pivotes confirmados:** un máximo o mínimo local solo existe después de N velas de confirmación. La señal va en la vela de confirmación.
+- **Calentamiento:** un indicador no emite señal hasta tener datos suficientes.
+- **Definiciones objetivas:** cada patrón tiene una definición medible y parametrizada ("tocado ≥3 veces con tolerancia X%"), nunca "se ve como".
+- **Costos nunca en cero:** spread, comisión, slippage y **financiación overnight (swap) del CFD**, todos configurables.
+- **Noticias con hora de publicación real:** una noticia solo influye desde el momento en que estuvo disponible, no desde la hora del evento.
+- **Datos fuera de muestra intocables:** el set de prueba final no se usa para ajustar nada. Validación walk-forward, nunca un solo período.
+- **Nada hardcodeado:** símbolos, tamaños, umbrales, horarios y apalancamientos van en configuración (`config/`), validada al arrancar.
+- **Funciones puras** para señales y estrategias: misma entrada, misma salida, sin estado oculto.
+- **Órdenes idempotentes** (ID propio), y un **kill switch** ante límite superado, error de datos o desconexión.
+- **No inventar:** ni datos, ni endpoints de APIs, ni parámetros del broker. Si no está en la documentación oficial o en la spec, se pregunta.
+
+## 5c. Trabajo por fases
+
+- El proyecto avanza por las fases de `docs/ROADMAP.md`. **No se empieza una fase sin que la anterior esté aprobada por las dos personas** (aprobación registrada en el Issue de la fase).
+- Toda entrega de una fase incluye: (1) qué se hizo, (2) código, (3) tests, (4) cómo verificarlo, (5) supuestos y riesgos, y (6) el **checklist de trading** de la plantilla de PR respondido.
+- Si algo es ambiguo, el agente **pregunta antes de suponer**.
 
 ## 6. Decisiones (ADRs)
 
