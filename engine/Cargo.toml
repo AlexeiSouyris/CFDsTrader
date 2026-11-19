@@ -1,0 +1,16 @@
+[workspace]
+resolver = "3"
+members = ["crates/core"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "UNLICENSED"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+# El dinero nunca se representa con float: ver CLAUDE.md §4.
+float_arithmetic = "warn"

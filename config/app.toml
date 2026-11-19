@@ -1,0 +1,10 @@
+# Configuración general de CFDsTrader.
+# Regla (CLAUDE.md §5b): todo parámetro va en config/, nunca hardcodeado.
+# Los parámetros de estrategia, riesgo e instrumentos llegan en sus propios Issues
+# (ver docs/spec/fase-1-especificacion.md).
+
+[app]
+# Único modo permitido hoy. Pasar a dinero real requiere un ADR aprobado (spec §15).
+mode = "paper"
+# Internamente todo es UTC. Esta zona solo se usa para mostrar horas.
+display_timezone = "Europe/Madrid"
