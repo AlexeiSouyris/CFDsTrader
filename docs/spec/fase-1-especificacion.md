@@ -24,7 +24,17 @@
   - *Responsable:* aprueba o rechaza propuestas.
   - *Miembro:* ve su P&L y el del fondo, recibe alertas y vota.
 - Toda acción (aprobar, votar, aportar, retirar) queda registrada con usuario y hora (UTC).
-- Forma de distribución de la app: ver la pregunta abierta en el PR (app web instalable o app nativa).
+- **Distribución:** app web instalable (PWA). Se abre en Safari, se agrega a la pantalla de inicio y recibe notificaciones push. No pasa por la App Store. Si más adelante hace falta, se evalúa una app nativa.
+
+### 1.2 Votaciones (desde la app, 1 voto por miembro)
+| Qué se vota | Mayoría necesaria | Plazo |
+|---|---|---|
+| Cambios de reglas o parámetros (riesgo, instrumentos, apalancamiento) | 4 de 6 | 48 h |
+| Reactivar el sistema después del kill switch | 4 de 6 **y** los 2 responsables a favor | sin plazo |
+| Operación grande (nocional > 5 × capital del fondo) | 4 de 6, dentro de la validez de la propuesta (10 min) | 10 min; si no se llega, no se ejecuta |
+| Pasar a dinero real, y con cuánto | **6 de 6** (unanimidad) | 7 días |
+
+Los umbrales los fijó el agente y se pueden cambiar con una votación de 4 de 6. Una votación que no llega a la mayoría en el plazo se considera **rechazada**.
 
 ## 2. Mercado
 
@@ -224,7 +234,7 @@ Si la vela anterior al cierre de la semana es un feriado, aplica el último día
 |---|---|---|
 | Riesgo por operación | 1 % | Se limita el tamaño |
 | Pérdida diaria (realizada + no realizada, desde las 00:00 Madrid) | −3 % | No se abren operaciones hasta el día siguiente |
-| [Drawdown](../GLOSARIO.md#drawdown) desde el máximo del fondo | −15 % | **[Kill switch](../GLOSARIO.md#kill-switch):** no se proponen operaciones y se alerta. Se reactiva solo con la confirmación de los dos colaboradores |
+| [Drawdown](../GLOSARIO.md#drawdown) desde el máximo del fondo | −15 % | **[Kill switch](../GLOSARIO.md#kill-switch):** no se proponen operaciones y se alerta. Se reactiva solo por votación (sección 1.2) |
 | Posiciones abiertas | 5 | No se abren más |
 | Posiciones por instrumento | 1 | No se abren más |
 | Apalancamiento por posición | índices 10:1, acciones 3:1 | Se reduce el tamaño |
