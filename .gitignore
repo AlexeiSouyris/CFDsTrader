@@ -1,0 +1,31 @@
+# Secretos
+.env
+.env.*
+!.env.example
+
+# Rust
+target/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+*.pt
+*.ckpt
+
+# Node / TypeScript
+node_modules/
+dist/
+.next/
+
+# Datos locales
+data/raw/
+*.parquet
+
+# Sistema / editores
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,37 @@
+name: Tarea / Feature
+description: Algo nuevo para construir (módulo, indicador, estrategia, pantalla...)
+labels: ["feat"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Antes de crear: buscá en Issues y PRs abiertos que no exista ya. Para trabajarlo, **asignátelo y poné `in-progress`**.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options: [engine (Rust), intelligence (Python), infra, contracts, ui (TypeScript), docs]
+    validations:
+      required: true
+  - type: textarea
+    id: objetivo
+    attributes:
+      label: Objetivo
+      description: Qué se quiere lograr y por qué.
+    validations:
+      required: true
+  - type: textarea
+    id: criterios
+    attributes:
+      label: Criterios de aceptación
+      description: Lista verificable de cuándo está terminado.
+      placeholder: |
+        - [ ] Detecta doble techo con tolerancia configurable
+        - [ ] Tests con 3 casos históricos reales
+    validations:
+      required: true
+  - type: textarea
+    id: dependencias
+    attributes:
+      label: Depende de / Relacionado con
+      description: Issues, PRs o módulos existentes que usa (para no duplicar).
