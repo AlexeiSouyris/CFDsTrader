@@ -276,12 +276,13 @@ pub fn execute(
     })
 }
 
-/// Recorre la serie de 15m de un instrumento (`force_close` marca las velas de cierre
-/// obligatorio: viernes o fin de sesión, del calendario). Es la cartera con un solo
+/// Recorre la serie de 15m de un instrumento. `entries` y `force_close` son las marcas del
+/// horario (`cfds_market_data::trading_window::flags`). Es la cartera con un solo
 /// instrumento: una sola implementación de la cuenta.
 pub fn run(
     m15: &[Candle],
     h1: &[Candle],
+    entries: &[bool],
     force_close: &[bool],
     setup: &Setup,
 ) -> Result<Report, RunError> {
@@ -289,6 +290,7 @@ pub fn run(
         setup: setup.clone(),
         m15,
         h1,
+        entries,
         force_close,
     };
     let p = run_portfolio(std::slice::from_ref(&market)).map_err(|e| match e {

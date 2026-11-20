@@ -372,7 +372,7 @@ fn the_run_respects_its_invariants() {
     let m15 = random_walk(3000, 11);
     let h1 = resample_h1(&m15);
     let s = setup();
-    let report = run(&m15, &h1, &[], &s).unwrap();
+    let report = run(&m15, &h1, &[], &[], &s).unwrap();
     assert!(
         report.trades.len() > 5,
         "solo {} operaciones",
@@ -409,7 +409,7 @@ fn the_drawdown_limit_stops_the_run() {
     let mut s = setup();
     s.risk.max_drawdown_pct = dec!(0.01);
     s.risk.max_daily_loss_pct = dec!(99);
-    let report = run(&m15, &h1, &[], &s).unwrap();
+    let report = run(&m15, &h1, &[], &[], &s).unwrap();
     let at = report.kill_switch_at.expect("tendría que dispararse");
     assert_eq!(
         report.rejected.last().unwrap().reason,
@@ -425,7 +425,7 @@ fn the_daily_loss_limit_blocks_the_rest_of_the_day() {
     let h1 = resample_h1(&m15);
     let mut s = setup();
     s.risk.max_daily_loss_pct = dec!(0.01);
-    let report = run(&m15, &h1, &[], &s).unwrap();
+    let report = run(&m15, &h1, &[], &[], &s).unwrap();
     let day = |i: usize| {
         m15[i]
             .end()
@@ -462,7 +462,7 @@ fn an_unconfirmed_broker_minimum_blocks_every_trade() {
     let h1 = resample_h1(&m15);
     let mut s = setup();
     s.limits.min_deal_size = None;
-    let report = run(&m15, &h1, &[], &s).unwrap();
+    let report = run(&m15, &h1, &[], &[], &s).unwrap();
     assert!(report.trades.is_empty());
     assert!(!report.rejected.is_empty());
     // Todo lo que pasa los demás límites se rechaza por el mínimo desconocido.
@@ -551,6 +551,7 @@ fn markets<'a>(m15: &'a [Vec<Candle>], h1: &'a [Vec<Candle>], setups: &[Setup]) 
             setup: s.clone(),
             m15: &m15[i],
             h1: &h1[i],
+            entries: &[],
             force_close: &[],
         })
         .collect()
@@ -817,10 +818,10 @@ fn equity_marks_open_positions_exactly() {
 fn a_trade_open_when_the_data_ends_is_realized() {
     let m15 = random_walk(3000, 11);
     let h1 = resample_h1(&m15);
-    let full = run(&m15, &h1, &[], &setup()).unwrap();
+    let full = run(&m15, &h1, &[], &[], &setup()).unwrap();
     // Se cortan los datos en medio de la tercera operación.
     let cut = full.trades[2].entry_index + 1;
-    let short = run(&m15[..=cut], &h1, &[], &setup()).unwrap();
+    let short = run(&m15[..=cut], &h1, &[], &[], &setup()).unwrap();
     let last = short.trades.last().unwrap();
     assert_eq!(last.exits.last().unwrap().reason, CloseReason::EndOfData);
     // La curva diaria termina con el capital final, que ya incluye esa operación.
@@ -836,7 +837,7 @@ fn a_trade_open_when_the_data_ends_is_realized() {
 fn the_run_keeps_a_daily_equity_curve() {
     let m15 = random_walk(3000, 11);
     let h1 = resample_h1(&m15);
-    let report = run(&m15, &h1, &[], &setup()).unwrap();
+    let report = run(&m15, &h1, &[], &[], &setup()).unwrap();
     let curve = &report.daily_equity;
     // Un punto por día de Madrid con velas decididas, en orden, y el último es el capital final.
     assert!(curve.windows(2).all(|w| w[0].0 < w[1].0));
@@ -880,4 +881,21 @@ fn the_run_keeps_a_daily_equity_curve() {
         checked += 1;
     }
     assert!(checked > 10);
+}
+
+#[test]
+fn no_decision_outside_the_entry_window() {
+    let m15 = random_walk(3000, 11);
+    let h1 = resample_h1(&m15);
+    let all = run(&m15, &h1, &[], &[], &setup()).unwrap();
+    // Sin ninguna vela habilitada, no hay operaciones ni rechazos: ni siquiera se decide.
+    let none = run(&m15, &h1, &vec![false; m15.len()], &[], &setup()).unwrap();
+    assert!(none.trades.is_empty() && none.rejected.is_empty());
+    // Habilitando solo las velas pares, ninguna señal sale de una impar.
+    let even: Vec<bool> = (0..m15.len()).map(|i| i % 2 == 0).collect();
+    let some = run(&m15, &h1, &even, &[], &setup()).unwrap();
+    assert!(!some.trades.is_empty());
+    assert!(some.trades.iter().all(|t| t.signal_index % 2 == 0));
+    assert!(some.rejected.iter().all(|r| r.index % 2 == 0));
+    assert_ne!(some.trades.len(), all.trades.len());
 }

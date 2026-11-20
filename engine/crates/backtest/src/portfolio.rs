@@ -29,6 +29,11 @@ pub struct Market<'a> {
     pub setup: Setup,
     pub m15: &'a [Candle],
     pub h1: &'a [Candle],
+    /// Si se puede abrir una operación al decidir en el cierre de cada vela (horario de
+    /// entradas, spec §2 y §7.1). Vacío = sin restricción de horario: solo para series
+    /// sintéticas; un recorrido con datos reales lo arma con `trading_window::flags`.
+    pub entries: &'a [bool],
+    /// Velas de cierre obligatorio (fin de la semana), del mismo lugar.
     pub force_close: &'a [bool],
 }
 
@@ -183,7 +188,8 @@ pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioErr
         } else if let Some(last) = report.daily_equity.last_mut() {
             last.1 = equity;
         }
-        if report.kill_switch_at.is_some() || t < busy_until[mi] {
+        let in_window = markets[mi].entries.get(t).copied().unwrap_or(true);
+        if report.kill_switch_at.is_some() || t < busy_until[mi] || !in_window {
             continue;
         }
         // 4. Decidir en este instrumento.

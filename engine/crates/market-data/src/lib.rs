@@ -12,6 +12,7 @@ pub mod config;
 pub mod instruments;
 pub mod provider;
 pub mod split;
+pub mod trading_window;
 pub mod validation;
 
 pub use calendar::{CalendarError, ExchangeCalendar, Session};
@@ -19,4 +20,7 @@ pub use config::{ConfigError, ValidationConfig};
 pub use instruments::{BrokerTerms, Catalog, CatalogError, InstrumentSpec, PendingField, Sourced};
 pub use provider::{MarketDataProvider, ProviderError, StaticProvider};
 pub use split::{DataSplit, Period, SplitConfig, SplitError, Window, plan};
+pub use trading_window::{
+    TradingWindowConfig, entry_allowed, is_last_session_of_week, is_week_close_candle,
+};
 pub use validation::{Issue, IssueKind, SessionCalendar, validate_series};
