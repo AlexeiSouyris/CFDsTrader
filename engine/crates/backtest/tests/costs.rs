@@ -248,3 +248,99 @@ fn slippage_parameters_come_from_the_config() {
         dec!(101.4)
     );
 }
+
+// ---------- Costos desde el catálogo (#75) ----------
+
+mod from_catalog {
+    use cfds_backtest::{Commission, InstrumentCosts};
+    use cfds_market_data::Catalog;
+    use rust_decimal::dec;
+
+    const REAL: &str = include_str!("../../../../config/instruments.toml");
+
+    fn costs(toml: &str, id: &str) -> Result<InstrumentCosts, Vec<(String, &'static str)>> {
+        let c = Catalog::from_toml(toml).unwrap();
+        InstrumentCosts::from_spec(&c.instruments[&id.parse().unwrap()])
+            .map_err(|p| p.into_iter().map(|f| (f.item, f.field)).collect())
+    }
+
+    #[test]
+    fn de40_costs_come_from_the_catalog() {
+        assert_eq!(
+            costs(REAL, "DE40").unwrap(),
+            InstrumentCosts {
+                spread: dec!(1.8),
+                tick: dec!(0.1),
+                commission: Commission::None,
+                funding_admin_fee_pct: dec!(2.5),
+                funding_day_count: dec!(360),
+            }
+        );
+    }
+
+    #[test]
+    fn instruments_with_pending_terms_cannot_be_simulated() {
+        // Los índices de EE. UU. esperan el tipo de referencia de la financiación (#67).
+        for id in ["US100", "US500", "US30"] {
+            assert_eq!(
+                costs(REAL, id).unwrap_err(),
+                [(id.to_string(), "funding_benchmark")]
+            );
+        }
+    }
+
+    #[test]
+    fn any_missing_cost_blocks_and_is_reported() {
+        let de40 = REAL.find("[instruments.DE40]").unwrap();
+        for (field, from) in [
+            (
+                "tick",
+                r#"tick = { value = "0.1", source = "ig-demo-api" }"#,
+            ),
+            (
+                "spread_typical_points",
+                r#"spread_typical_points = { value = "1.8", source = "ig-es-indices" }"#,
+            ),
+            (
+                "funding_admin_fee_pct",
+                r#"funding_admin_fee_pct = { value = "2.5", source = "ig-es-costes" }"#,
+            ),
+        ] {
+            let at = de40 + REAL[de40..].find(from).unwrap();
+            let toml = format!(
+                "{}{} = {{ pending = \"prueba\" }}{}",
+                &REAL[..at],
+                field,
+                &REAL[at + from.len()..]
+            );
+            assert_eq!(
+                costs(&toml, "DE40").unwrap_err(),
+                [("DE40".to_string(), field)],
+                "{field}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_epic_is_not_a_cost() {
+        let de40 = REAL.find("[instruments.DE40]").unwrap();
+        let from = r#"epic = { value = "IX.D.DAX.IFE.IP", source = "ig-demo-api" }"#;
+        let at = de40 + REAL[de40..].find(from).unwrap();
+        let toml = format!(
+            "{}epic = {{ pending = \"x\" }}{}",
+            &REAL[..at],
+            &REAL[at + from.len()..]
+        );
+        assert!(costs(&toml, "DE40").is_ok());
+    }
+
+    #[test]
+    fn shares_are_not_supported_yet() {
+        let toml = REAL.replacen(r#"asset_class = "index""#, r#"asset_class = "share""#, 1);
+        let errs = costs(&toml, "US100").unwrap_err();
+        assert!(
+            errs.contains(&("US100".to_string(), "commission")),
+            "{errs:?}"
+        );
+    }
+}

@@ -200,6 +200,7 @@ dependencies = [
  "cfds-core",
  "cfds-indicators",
  "cfds-liquidity",
+ "cfds-market-data",
  "cfds-patterns",
  "cfds-risk",
  "cfds-strategy",

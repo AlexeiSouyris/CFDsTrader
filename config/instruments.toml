@@ -26,7 +26,7 @@ note = "Spreads de CFD al contado, comisiones de acciones y fórmula de financia
 [sources.ig-demo-api]
 reference = "API REST de IG, cuenta demo: GET /markets/{epic} v3 (https://labs.ig.com/reference/markets-epic.html)"
 consulted = "2026-11-20"
-note = "CFD al contado de 1 € por punto (epics IX.D.*.IFE.IP), variante elegida por el grupo en #67. valueOfOnePip y dealingRules.minDealSize."
+note = "CFD al contado de 1 € por punto (epics IX.D.*.IFE.IP), variante elegida por el grupo en #67. valueOfOnePip, dealingRules.minDealSize y tick = 10^-snapshot.decimalPlacesFactor ('Number of decimal positions for market levels', con scalingFactor 1)."
 
 [sources.ig-demo-spread]
 reference = "docs/research/ig-spreads-2026-11.md (medido con GET /prices/{epic} v3 en la cuenta demo; cfds-ig, ejemplo ig_market_terms)"
@@ -69,6 +69,7 @@ spread_min_points = { value = "1.6", source = "ig-es-indices" }
 spread_typical_points = { value = "1.6", source = "ig-es-indices" }
 value_per_point = { value = "1", source = "ig-demo-api" }
 min_deal_size = { value = "0.5", source = "ig-demo-api" }
+tick = { value = "0.1", source = "ig-demo-api" }
 funding_admin_fee_pct = { value = "2.5", source = "ig-es-costes" }
 funding_day_count = { value = "360", source = "ig-es-costes" }
 funding_benchmark = { pending = "Contrato en EUR (#67): probablemente ESTR como el DE40, pero ni la API ni ig.com/es lo confirman para este índice. Confirmar con IG." }
@@ -86,6 +87,7 @@ spread_min_points = { value = "0.8", source = "ig-es-indices" }
 spread_typical_points = { value = "0.9", source = "ig-demo-spread" }
 value_per_point = { value = "1", source = "ig-demo-api" }
 min_deal_size = { value = "1", source = "ig-demo-api" }
+tick = { value = "0.01", source = "ig-demo-api" }
 funding_admin_fee_pct = { value = "2.5", source = "ig-es-costes" }
 funding_day_count = { value = "360", source = "ig-es-costes" }
 funding_benchmark = { pending = "Contrato en EUR (#67): probablemente ESTR como el DE40, pero ni la API ni ig.com/es lo confirman para este índice. Confirmar con IG." }
@@ -103,6 +105,7 @@ spread_min_points = { value = "3.4", source = "ig-es-indices" }
 spread_typical_points = { value = "3.7", source = "ig-demo-spread" }
 value_per_point = { value = "1", source = "ig-demo-api" }
 min_deal_size = { value = "0.2", source = "ig-demo-api" }
+tick = { value = "0.1", source = "ig-demo-api" }
 funding_admin_fee_pct = { value = "2.5", source = "ig-es-costes" }
 funding_day_count = { value = "360", source = "ig-es-costes" }
 funding_benchmark = { pending = "Contrato en EUR (#67): probablemente ESTR como el DE40, pero ni la API ni ig.com/es lo confirman para este índice. Confirmar con IG." }
@@ -120,6 +123,7 @@ spread_min_points = { value = "1.8", source = "ig-es-indices" }
 spread_typical_points = { value = "1.8", source = "ig-es-indices" }
 value_per_point = { value = "1", source = "ig-demo-api" }
 min_deal_size = { value = "0.5", source = "ig-demo-api" }
+tick = { value = "0.1", source = "ig-demo-api" }
 funding_admin_fee_pct = { value = "2.5", source = "ig-es-costes" }
 funding_day_count = { value = "360", source = "ig-es-costes" }
 funding_benchmark = { value = "ESTR", source = "ig-es-costes" }

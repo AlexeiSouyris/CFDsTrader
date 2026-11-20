@@ -49,6 +49,8 @@ pub struct BrokerTerms {
     pub spread_typical_points: Sourced<Decimal>,
     pub value_per_point: Sourced<Decimal>,
     pub min_deal_size: Sourced<Decimal>,
+    /// Movimiento mínimo de precio, en puntos.
+    pub tick: Sourced<Decimal>,
     pub funding_admin_fee_pct: Sourced<Decimal>,
     pub funding_day_count: Sourced<Decimal>,
     pub funding_benchmark: Sourced<String>,
@@ -62,6 +64,56 @@ pub struct InstrumentSpec {
     /// Tope propio de apalancamiento (spec §8). Nunca supera el regulatorio (100 / margen).
     pub max_leverage: Decimal,
     pub terms: BrokerTerms,
+}
+
+impl InstrumentSpec {
+    /// Campos pendientes de este instrumento.
+    pub fn pending(&self) -> Vec<PendingField> {
+        let item = self.instrument.id.as_str();
+        let t = &self.terms;
+        let mut out = Vec::new();
+        let mut add = |field: &'static str, reason: Option<&String>| {
+            if let Some(r) = reason {
+                out.push(PendingField {
+                    item: item.to_owned(),
+                    field,
+                    reason: r.clone(),
+                });
+            }
+        };
+        let text = |p: &Sourced<String>| match p {
+            Sourced::Pending { reason } => Some(reason.clone()),
+            Sourced::Known { .. } => None,
+        };
+        let num = |p: &Sourced<Decimal>| match p {
+            Sourced::Pending { reason } => Some(reason.clone()),
+            Sourced::Known { .. } => None,
+        };
+        add("epic", text(&t.epic).as_ref());
+        add("funding_benchmark", text(&t.funding_benchmark).as_ref());
+        for (field, v) in [
+            ("margin_retail_pct", &t.margin_retail_pct),
+            ("spread_min_points", &t.spread_min_points),
+            ("spread_typical_points", &t.spread_typical_points),
+            ("value_per_point", &t.value_per_point),
+            ("min_deal_size", &t.min_deal_size),
+            ("tick", &t.tick),
+            ("funding_admin_fee_pct", &t.funding_admin_fee_pct),
+            ("funding_day_count", &t.funding_day_count),
+        ] {
+            add(field, num(v).as_ref());
+        }
+        out
+    }
+
+    /// Costos que faltan para simular **este** instrumento (spec §11). El `epic` no cuenta: solo
+    /// hace falta para conectarse en vivo.
+    pub fn missing_costs(&self) -> Vec<PendingField> {
+        self.pending()
+            .into_iter()
+            .filter(|p| p.field != "epic")
+            .collect()
+    }
 }
 
 /// Un campo pendiente: qué instrumento, qué campo y por qué falta.
@@ -122,6 +174,7 @@ struct RawInstrument {
     spread_typical_points: RawSourced,
     value_per_point: RawSourced,
     min_deal_size: RawSourced,
+    tick: RawSourced,
     funding_admin_fee_pct: RawSourced,
     funding_day_count: RawSourced,
     funding_benchmark: RawSourced,
@@ -275,6 +328,7 @@ impl Catalog {
                 )?,
                 value_per_point: cx.sourced(k, "value_per_point", r.value_per_point, positive)?,
                 min_deal_size: cx.sourced(k, "min_deal_size", r.min_deal_size, positive)?,
+                tick: cx.sourced(k, "tick", r.tick, positive)?,
                 funding_admin_fee_pct: cx.sourced(
                     k,
                     "funding_admin_fee_pct",
@@ -366,41 +420,15 @@ impl Catalog {
     /// Todos los campos pendientes de confirmar.
     pub fn pending(&self) -> Vec<PendingField> {
         let mut out = Vec::new();
-        let mut add = |item: &str, field: &'static str, reason: Option<&String>| {
-            if let Some(r) = reason {
-                out.push(PendingField {
-                    item: item.to_owned(),
-                    field,
-                    reason: r.clone(),
-                });
-            }
-        };
-        let reason = |p: &Sourced<Decimal>| match p {
-            Sourced::Pending { reason } => Some(reason.clone()),
-            Sourced::Known { .. } => None,
-        };
-        if let Some(r) = reason(&self.margin_closeout_pct) {
-            add("account", "margin_closeout_pct", Some(&r));
+        if let Sourced::Pending { reason } = &self.margin_closeout_pct {
+            out.push(PendingField {
+                item: "account".into(),
+                field: "margin_closeout_pct",
+                reason: reason.clone(),
+            });
         }
-        for (id, s) in &self.instruments {
-            let t = &s.terms;
-            if let Sourced::Pending { reason } = &t.epic {
-                add(id.as_str(), "epic", Some(reason));
-            }
-            if let Sourced::Pending { reason } = &t.funding_benchmark {
-                add(id.as_str(), "funding_benchmark", Some(reason));
-            }
-            for (field, v) in [
-                ("margin_retail_pct", &t.margin_retail_pct),
-                ("spread_min_points", &t.spread_min_points),
-                ("spread_typical_points", &t.spread_typical_points),
-                ("value_per_point", &t.value_per_point),
-                ("min_deal_size", &t.min_deal_size),
-                ("funding_admin_fee_pct", &t.funding_admin_fee_pct),
-                ("funding_day_count", &t.funding_day_count),
-            ] {
-                add(id.as_str(), field, reason(v).as_ref());
-            }
+        for spec in self.instruments.values() {
+            out.extend(spec.pending());
         }
         out
     }
