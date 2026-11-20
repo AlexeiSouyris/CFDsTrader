@@ -70,6 +70,28 @@ pub enum AssetClass {
     Share,
 }
 
+impl AssetClass {
+    /// Texto del contrato (`"index"`, `"share"`): el mismo en JSON y en la base de datos.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            AssetClass::Index => "index",
+            AssetClass::Share => "share",
+        }
+    }
+}
+
+impl FromStr for AssetClass {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "index" => Ok(AssetClass::Index),
+            "share" => Ok(AssetClass::Share),
+            other => Err(format!("tipo de instrumento desconocido: {other:?}")),
+        }
+    }
+}
+
 /// Un instrumento operable o de contexto. Los parámetros del broker
 /// (epic, tamaños, costos) viven en `config/`, no acá.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

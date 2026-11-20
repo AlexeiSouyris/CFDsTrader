@@ -58,7 +58,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | analogs | `intelligence/cfds_intel/analogs` | Python | Búsqueda de situaciones históricas similares en otras empresas e índices | planeado |
 | models | `intelligence/cfds_intel/models` | Python | Modelos PyTorch de predicción y su entrenamiento | planeado |
 | learning | `intelligence/cfds_intel/learning` | Python | Reentrenamiento walk-forward de los modelos con el diario, y el informe de propuestas de cambio para votar | planeado (#13) |
-| storage | `infra/` | SQL | Esquema de PostgreSQL, migraciones, docker-compose con Postgres + Redis | docker-compose (#3); esquema en #6 |
+| storage | `infra/` (SQL) + `engine/crates/storage` (crate `cfds-storage`) | SQL + Rust | Esquema y migraciones de PostgreSQL; escritura idempotente de velas; publicación de velas cerradas en Redis Streams; docker-compose | docker-compose (#3); esquema, PgStore y CandlePublisher (#6) |
 | intelligence | `intelligence/` (paquete `cfds_intel`) | Python | Proyecto base de la capa de inteligencia | esqueleto (#3) |
 | ci | `.github/workflows/ci.yml` | YAML | Checks de Rust y Python en cada PR | hecho (#3) |
 | contracts | `contracts/` | JSON Schema | Mensajes entre capas (velas, señales, noticias, órdenes) | candle.v1, instrument.v1 (#4) |
