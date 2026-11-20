@@ -541,3 +541,96 @@ async fn ig_candles_pass_the_ingest_circuit() {
     .unwrap();
     assert_eq!((ready.len(), skipped_open), (4, 0));
 }
+
+const MARKET_US100: &str = include_str!("fixtures/market_us100_ife.json");
+
+#[tokio::test(start_paused = true)]
+async fn market_terms_come_from_the_recorded_market_details() {
+    let t = Recorded::default().login().ok(MARKET_US100);
+    let terms = provider(&t, cfg()).market_terms(&us100()).await.unwrap();
+    assert_eq!(
+        terms,
+        cfds_ig::MarketTerms {
+            epic: "IX.D.NASDAQ.IFE.IP".into(),
+            name: "EEUU Tech 100 al contado (1€)".into(),
+            instrument_type: "INDICES".into(),
+            currency: "EUR".into(),
+            value_per_point: dec!(1),
+            min_deal_size: dec!(0.5),
+            margin_pct: Some(dec!(5)),
+        }
+    );
+    let req = &t.sent()[1];
+    assert_eq!(
+        (req.path.as_str(), req.version),
+        ("/markets/IX.D.NASDAQ.IFE.IP", 3)
+    );
+    assert_eq!(header(req, "CST"), Some(FAKE_CST));
+}
+
+#[tokio::test(start_paused = true)]
+async fn market_terms_reject_broken_details() {
+    for (from, to, expected) in [
+        ("\"isDefault\": true", "\"isDefault\": false", "isDefault"),
+        (
+            "\"valueOfOnePip\": \"1.00\"",
+            "\"valueOfOnePip\": \"uno\"",
+            "valueOfOnePip",
+        ),
+        ("\"minDealSize\"", "\"minDealSizeX\"", "GET /markets"),
+    ] {
+        let body = MARKET_US100.replacen(from, to, 1);
+        assert_ne!(body, MARKET_US100, "{from}");
+        let t = Recorded::default().login().ok(&body);
+        let err = provider(&t, cfg())
+            .market_terms(&us100())
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, ProviderError::InvalidResponse(ref m) if m.contains(expected)),
+            "{expected}: {err:?}"
+        );
+    }
+    // Un margen que no está en porcentaje no se interpreta.
+    let points = MARKET_US100.replacen(
+        "\"marginFactorUnit\": \"PERCENTAGE\"",
+        "\"marginFactorUnit\": \"POINTS\"",
+        1,
+    );
+    assert_ne!(points, MARKET_US100);
+    let t = Recorded::default().login().ok(&points);
+    let terms = provider(&t, cfg()).market_terms(&us100()).await.unwrap();
+    assert_eq!(terms.margin_pct, None);
+}
+
+#[tokio::test(start_paused = true)]
+async fn close_spreads_are_ask_minus_bid_at_each_close() {
+    let t = Recorded::default().login().ok(DE40_15M);
+    let spreads = provider(&t, cfg())
+        .close_spreads(
+            &de40(),
+            Timeframe::M15,
+            at("2026-11-20T09:00:00Z"),
+            at("2026-11-20T10:00:00Z"),
+        )
+        .await
+        .unwrap();
+    // closePrice de la respuesta grabada: 25059.8 − 25058.4, etc. La vela de las 10:00 queda fuera.
+    assert_eq!(spreads.len(), 4);
+    assert_eq!(spreads[0], (at("2026-11-20T09:00:00Z"), dec!(1.4)));
+    assert!(spreads.iter().all(|(_, s)| *s == dec!(1.4)));
+
+    let missing = DE40_15M.replacen("\"bid\": 25058.4", "\"bid\": null", 1);
+    assert_ne!(missing, DE40_15M);
+    let t = Recorded::default().login().ok(&missing);
+    let err = provider(&t, cfg())
+        .close_spreads(
+            &de40(),
+            Timeframe::M15,
+            at("2026-11-20T09:00:00Z"),
+            at("2026-11-20T10:00:00Z"),
+        )
+        .await
+        .unwrap_err();
+    assert!(matches!(err, ProviderError::InvalidResponse(ref m) if m.contains("closePrice")));
+}

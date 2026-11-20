@@ -21,7 +21,8 @@ fn the_repository_catalog_loads_with_its_sources() {
 
     let us100 = &c.instruments[&"US100".parse().unwrap()];
     assert_eq!(us100.instrument.asset_class, AssetClass::Index);
-    assert_eq!(us100.instrument.currency, Currency::USD);
+    // Contrato de 1 € por punto (#67).
+    assert_eq!(us100.instrument.currency, Currency::EUR);
     assert_eq!(us100.exchange, "XNYS");
     assert_eq!(
         us100.terms.margin_retail_pct,
@@ -50,15 +51,43 @@ fn own_leverage_cap_is_below_the_regulatory_one() {
 fn backtests_are_blocked_while_costs_are_pending() {
     let missing = catalog().ready_for_backtest().unwrap_err();
     let fields: Vec<_> = missing.iter().map(|p| (p.item.as_str(), p.field)).collect();
-    // Lo que IG no publica y hay que leer de la API demo o medir (#8).
-    for f in ["spread_typical_points", "value_per_point", "min_deal_size"] {
-        assert!(fields.contains(&("US100", f)), "falta {f}");
-    }
-    assert!(fields.contains(&("US500", "funding_benchmark")));
-    // El DE40 sí tiene tipo de referencia confirmado (ESTR) y el epic no bloquea un backtest.
-    assert!(!fields.contains(&("DE40", "funding_benchmark")));
-    assert!(fields.iter().all(|(_, f)| *f != "epic"));
+    // Solo falta confirmar el tipo de referencia de la financiación de los índices de EE. UU.
+    assert_eq!(
+        fields,
+        [
+            ("US100", "funding_benchmark"),
+            ("US30", "funding_benchmark"),
+            ("US500", "funding_benchmark"),
+        ]
+    );
     assert!(missing.iter().all(|p| !p.reason.is_empty()));
+}
+
+#[test]
+fn broker_terms_read_from_the_ig_demo_api() {
+    // #67: CFD al contado de 1 € por punto, valores de GET /markets/{epic} v3.
+    let c = catalog();
+    for (id, epic, min, spread) in [
+        ("US100", "IX.D.NASDAQ.IFE.IP", dec!(0.5), dec!(1.6)),
+        ("US500", "IX.D.SPTRD.IFE.IP", dec!(1), dec!(0.9)),
+        ("US30", "IX.D.DOW.IFE.IP", dec!(0.2), dec!(3.7)),
+        ("DE40", "IX.D.DAX.IFE.IP", dec!(0.5), dec!(1.8)),
+    ] {
+        let t = &c.instruments[&id.parse().unwrap()].terms;
+        assert_eq!(t.epic.value().map(String::as_str), Some(epic), "{id}");
+        assert_eq!(t.value_per_point.value(), Some(&dec!(1)), "{id}");
+        assert_eq!(t.min_deal_size.value(), Some(&min), "{id}");
+        // Regla de #67: el mayor entre el medido en la demo y el mínimo publicado.
+        assert_eq!(t.spread_typical_points.value(), Some(&spread), "{id}");
+        assert!(
+            t.spread_typical_points.value() >= t.spread_min_points.value(),
+            "{id}"
+        );
+        assert_eq!(
+            c.instruments[&id.parse().unwrap()].instrument.currency,
+            Currency::EUR
+        );
+    }
 }
 
 #[test]
@@ -122,9 +151,10 @@ fn rejects_invalid_numbers_and_unknown_fields() {
     let typo = REAL.replacen("spread_min_points", "spread_minimo", 1);
     assert!(Catalog::from_toml(&typo).is_err());
     let empty_reason = REAL.replacen(
-        r#"{ pending = "Se lee de la API de IG con la cuenta demo (#8)." }"#,
+        r#"{ pending = "Contrato en EUR (#67): probablemente ESTR como el DE40, pero ni la API ni ig.com/es lo confirman para este índice. Confirmar con IG." }"#,
         r#"{ pending = "" }"#,
         1,
     );
+    assert_ne!(empty_reason, REAL);
     assert!(Catalog::from_toml(&empty_reason).is_err());
 }

@@ -147,12 +147,7 @@ pub fn to_candles(
     let mut out = Vec::new();
     for p in prices {
         let at = p.snapshot_time_utc.as_str();
-        let start = NaiveDateTime::parse_from_str(at, SNAPSHOT_UTC_FORMAT)
-            .map_err(|_| format!("snapshotTimeUTC inválido: {at:?}"))?
-            .and_utc();
-        if start.timestamp().rem_euclid(step) != 0 {
-            return Err(format!("vela {at} no alineada a {tf}"));
-        }
+        let start = snapshot_start(p, step, tf)?;
         if start < from || start >= to {
             continue;
         }
@@ -168,6 +163,135 @@ pub fn to_candles(
         });
     }
     Ok(out)
+}
+
+/// Condiciones del contrato según `GET /markets/{epic}` v3 (#67).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MarketTerms {
+    pub epic: String,
+    pub name: String,
+    /// `instrument.type`, por ejemplo `INDICES`.
+    pub instrument_type: String,
+    /// Moneda del contrato (`currencies[]` con `isDefault`).
+    pub currency: String,
+    /// `valueOfOnePip`: lo que vale un punto por contrato, en `currency`.
+    pub value_per_point: Decimal,
+    /// `dealingRules.minDealSize.value`, en contratos.
+    pub min_deal_size: Decimal,
+    /// `marginFactor` cuando `marginFactorUnit` es `PERCENTAGE`.
+    pub margin_pct: Option<Decimal>,
+}
+
+#[derive(Deserialize)]
+struct MarketBody {
+    instrument: MarketInstrument,
+    #[serde(rename = "dealingRules")]
+    dealing_rules: DealingRules,
+}
+
+#[derive(Deserialize)]
+struct MarketInstrument {
+    epic: String,
+    name: String,
+    #[serde(rename = "type")]
+    instrument_type: String,
+    currencies: Vec<MarketCurrency>,
+    #[serde(rename = "valueOfOnePip")]
+    value_of_one_pip: String,
+    #[serde(rename = "marginFactor")]
+    margin_factor: Option<Box<RawValue>>,
+    #[serde(rename = "marginFactorUnit")]
+    margin_factor_unit: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct MarketCurrency {
+    code: String,
+    #[serde(rename = "isDefault")]
+    is_default: bool,
+}
+
+#[derive(Deserialize)]
+struct DealingRules {
+    #[serde(rename = "minDealSize")]
+    min_deal_size: DealingRule,
+}
+
+#[derive(Deserialize)]
+struct DealingRule {
+    value: Box<RawValue>,
+}
+
+impl MarketTerms {
+    pub fn from_json(body: &str) -> Result<Self, String> {
+        let b: MarketBody = serde_json::from_str(body).map_err(|e| format!("GET /markets: {e}"))?;
+        let i = b.instrument;
+        let currency = match i.currencies.iter().find(|c| c.is_default) {
+            Some(c) => c.code.clone(),
+            None => return Err(format!("{}: ninguna moneda marcada isDefault", i.epic)),
+        };
+        let value_per_point = Decimal::from_str(&i.value_of_one_pip)
+            .map_err(|_| format!("valueOfOnePip inválido: {:?}", i.value_of_one_pip))?;
+        let margin_pct = match (&i.margin_factor, i.margin_factor_unit.as_deref()) {
+            (Some(m), Some("PERCENTAGE")) => Some(decimal(m)?),
+            _ => None,
+        };
+        Ok(Self {
+            epic: i.epic,
+            name: i.name,
+            instrument_type: i.instrument_type,
+            currency,
+            value_per_point,
+            min_deal_size: decimal(&b.dealing_rules.min_deal_size.value)?,
+            margin_pct,
+        })
+    }
+}
+
+/// `ask − bid` del cierre de cada vela con inicio en `[from, to)`. Mismas reglas que
+/// [`to_candles`]: UTC, alineada al timeframe y sin inventar si falta un lado.
+pub fn close_spreads(
+    prices: &[RawPrice],
+    tf: Timeframe,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> Result<Vec<(DateTime<Utc>, Decimal)>, String> {
+    let step = tf.duration().num_seconds();
+    let mut out = Vec::new();
+    for p in prices {
+        let start = snapshot_start(p, step, tf)?;
+        if start < from || start >= to {
+            continue;
+        }
+        let at = p.snapshot_time_utc.as_str();
+        match (&p.close.bid, &p.close.ask) {
+            (Some(b), Some(a)) => out.push((start, decimal(a)? - decimal(b)?)),
+            _ => return Err(format!("closePrice sin bid o ask en {at}")),
+        }
+    }
+    Ok(out)
+}
+
+/// Mediana exacta (promedio de los dos centrales si la cantidad es par). `None` si no hay datos.
+pub fn median(mut values: Vec<Decimal>) -> Option<Decimal> {
+    values.sort();
+    let n = values.len();
+    match n {
+        0 => None,
+        _ if n % 2 == 1 => Some(values[n / 2]),
+        _ => Some((values[n / 2 - 1] + values[n / 2]) / Decimal::TWO),
+    }
+}
+
+fn snapshot_start(p: &RawPrice, step: i64, tf: Timeframe) -> Result<DateTime<Utc>, String> {
+    let at = p.snapshot_time_utc.as_str();
+    let start = NaiveDateTime::parse_from_str(at, SNAPSHOT_UTC_FORMAT)
+        .map_err(|_| format!("snapshotTimeUTC inválido: {at:?}"))?
+        .and_utc();
+    if start.timestamp().rem_euclid(step) != 0 {
+        return Err(format!("vela {at} no alineada a {tf}"));
+    }
+    Ok(start)
 }
 
 /// Rango a pedir en hora local de la cuenta, con `margin` de más a cada lado.
@@ -310,5 +434,14 @@ mod tests {
             (out[0].open, out[0].high, out[0].low, out[0].close),
             (Decimal::TWO, Decimal::from(5), Decimal::ONE, Decimal::TWO)
         );
+    }
+
+    #[test]
+    fn median_is_exact_for_odd_and_even_counts() {
+        let d = |v: &[i64]| v.iter().map(|&x| Decimal::new(x, 1)).collect::<Vec<_>>();
+        assert_eq!(median(d(&[])), None);
+        assert_eq!(median(d(&[14])), Some(Decimal::new(14, 1)));
+        assert_eq!(median(d(&[50, 14, 28])), Some(Decimal::new(28, 1)));
+        assert_eq!(median(d(&[14, 50, 28, 14])), Some(Decimal::new(21, 1)));
     }
 }
