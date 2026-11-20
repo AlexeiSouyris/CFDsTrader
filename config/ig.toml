@@ -1,0 +1,38 @@
+# Conexión con la API REST de IG (#66, ADR 0002).
+#
+# Regla (CLAUDE.md §5): solo la cuenta DEMO. Este proveedor solo LEE datos: no tiene endpoints
+# de órdenes. Pasar a la cuenta real requiere un ADR aprobado por las dos personas, y el motor
+# rechaza cualquier otro entorno o URL al arrancar.
+#
+# Las credenciales NO van acá: IG_USERNAME, IG_PASSWORD y (opcional) IG_API_KEY son variables
+# de entorno (.env.example). En las sesiones cloud, el proxy inyecta la clave de la API.
+
+[api]
+environment = "demo"
+base_url = "https://demo-api.ig.com/gateway/deal"
+request_timeout_secs = 30
+
+# Límites de uso publicados por IG: https://labs.ig.com/faq.html (sección "Limits"),
+# consultado el 2026-11-20. "Unfortunately, at the moment there is no possibility to increase the limits."
+[limits]
+# "Per-account non-trading requests per minute: 30" (el límite por app es 60: manda el menor).
+non_trading_requests_per_minute = 30
+# "Historical price data points per week: 10,000 (Applies to price history endpoints)".
+historical_points_per_week = 10000
+
+# Reintentos ante errores de red, 5xx y límites por minuto (403 exceeded-account-allowance /
+# exceeded-api-key-allowance). Espera = min(inicial × 2^(intento-1), máximo).
+# El límite SEMANAL de históricos nunca se reintenta.
+[retry]
+max_attempts = 4
+initial_backoff_secs = 2
+max_backoff_secs = 60
+
+[history]
+# Puntos por página de GET /prices/{epic} (v3, parámetro pageSize).
+page_size = 500
+# IG interpreta `from`/`to` en la hora local de la cuenta (medido en la demo el 2026-11-20) y no
+# en UTC. Se convierte con el `timezoneOffset` de la sesión y se pide este margen de más a cada
+# lado, por si el rango cruza un cambio de horario. Después se filtra el rango exacto en UTC.
+# Cuesta puntos del cupo semanal: 4 por lado en 15m, 1 por lado en 1h.
+local_time_margin_hours = 1
