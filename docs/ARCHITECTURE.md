@@ -67,5 +67,5 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | ci | `.github/workflows/ci.yml` | YAML | Checks de Rust y Python en cada PR | hecho (#3) |
 | contracts | `contracts/` | JSON Schema | Mensajes entre capas (velas, señales, noticias, órdenes) | candle.v1, instrument.v1 (#4); proposal.v1, outcome.v1 (#60); sentiment_observation.v1 (#27); chart_export.v1 (#81) |
 | ui | `ui/` | TypeScript (React + Tailwind) | Interfaz: gráficos, panel de noticias, estrategias, P/L. **Hoy: solo prototipo visual con datos de ejemplo, sin lógica (#30)** | prototipo (#30); app real en fase 10 |
-| verify | `tools/verify/` | Python | Herramientas de verificación (ROADMAP 3b): leen solo `chart_export.v1` y comparan con una referencia (TA-Lib). No alimentan al sistema | comparación con TA-Lib (#81) |
+| verify | `tools/verify/` | Python, HTML | Herramientas de verificación (ROADMAP 3b): leen solo `chart_export.v1`, comparan con una referencia (TA-Lib) y la muestran en un visor para personas. No calculan ni alimentan al sistema | comparación con TA-Lib (#81), visor (#82) |
 | glosario | `docs/GLOSARIO.md` | Markdown | Única fuente de las definiciones de términos (la UI las reutiliza como tooltips) | hecho |
