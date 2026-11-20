@@ -186,6 +186,10 @@ name = "cfds-backtest"
 version = "0.1.0"
 dependencies = [
  "cfds-core",
+ "cfds-indicators",
+ "cfds-liquidity",
+ "cfds-patterns",
+ "cfds-risk",
  "cfds-strategy",
  "chrono",
  "chrono-tz",

@@ -1,12 +1,17 @@
-//! Backtest (Fase 3). Hoy: las salidas de una operación (spec §8 y §12) y los costos (§11).
-//! El recorrido de toda la serie llega en un Issue aparte.
+//! Backtest (Fase 3): salidas de una operación (spec §8 y §12), costos (§11) y el recorrido
+//! completo de un instrumento con su registro de operaciones y comprar y mantener.
 
 pub mod config;
 pub mod costs;
 pub mod exits;
+pub mod runner;
 
 pub use config::{BacktestConfig, CostConfig, ExitConfig};
 pub use costs::{
     Commission, Execution, InstrumentCosts, commission, fill_price, funding, funding_nights,
 };
 pub use exits::{ExitReason, Fill, Outcome, Trade, simulate};
+pub use runner::{
+    BuyAndHold, CloseReason, ExitRecord, RejectedSignal, Report, RunError, Setup, TradeRecord,
+    buy_and_hold, choose, execute, pick, run,
+};
