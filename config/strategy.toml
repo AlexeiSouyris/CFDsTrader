@@ -1,0 +1,25 @@
+# Puntaje de confluencia y stop estructural (spec §6 y §8). Todo lo ajustable vive acá.
+
+[score]
+# Puntaje mínimo para que una señal pase a ser candidata a propuesta.
+min_score = 5
+# Tendencia de 1h a favor / en contra (neutral suma 0).
+trend_with = 2
+trend_against = -3
+# Precio del lado correcto de la SMA de 15m.
+sma_side = 1
+# Gatillos.
+candle_pattern = 1
+double_break = 2
+level_rejection = 1
+sweep = 2
+# Contexto.
+fvg_or_order_block = 1
+recent_choch = 1
+# Rango permitido del ajuste por noticias (spec §9).
+news_min = -2
+news_max = 2
+
+[stop]
+# El stop va `atr_buffer` × ATR más allá de la estructura.
+atr_buffer = "0.5"

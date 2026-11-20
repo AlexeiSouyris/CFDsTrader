@@ -273,6 +273,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "cfds-strategy"
+version = "0.1.0"
+dependencies = [
+ "cfds-indicators",
+ "cfds-liquidity",
+ "rust_decimal",
+ "serde",
+ "toml",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
