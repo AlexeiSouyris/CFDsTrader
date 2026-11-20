@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/chart_export.v1.schema.json",
+  "title": "Chart export v1",
+  "description": "Lo que el motor exporta para la verificación visual y la comparación con una referencia (ROADMAP 3b, #81). Las herramientas que lo leen NO recalculan nada: muestran o comparan estos valores. Nombres de componentes y salidas iguales a proposal.v1 y outcome.v1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instrument_id", "timeframe", "candles", "pivots", "trades"],
+  "properties": {
+    "instrument_id": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" },
+    "timeframe": { "enum": ["15m"] },
+    "candles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["start", "open", "high", "low", "close", "sma", "atr", "trend_1h", "long_score", "short_score"],
+        "properties": {
+          "start": { "$ref": "#/$defs/utc" },
+          "open": { "$ref": "#/$defs/decimal" },
+          "high": { "$ref": "#/$defs/decimal" },
+          "low": { "$ref": "#/$defs/decimal" },
+          "close": { "$ref": "#/$defs/decimal" },
+          "sma": { "description": "SMA de la evidencia (spec §4); null en el calentamiento.", "$ref": "#/$defs/optional_decimal" },
+          "atr": { "description": "ATR de Wilder (spec §4); null en el calentamiento.", "$ref": "#/$defs/optional_decimal" },
+          "trend_1h": { "description": "Tendencia de la última vela de 1h cerrada.", "enum": ["up", "down", "neutral", null] },
+          "long_score": { "description": "Puntaje largo al cierre de la vela (spec §6), sin noticias; null sin evidencia.", "type": ["integer", "null"] },
+          "short_score": { "type": ["integer", "null"] }
+        }
+      }
+    },
+    "pivots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "index", "confirmed_index", "price"],
+        "properties": {
+          "kind": { "enum": ["high", "low"] },
+          "index": { "type": "integer", "minimum": 0 },
+          "confirmed_index": { "description": "Vela desde la que el pivote existe para el sistema.", "type": "integer", "minimum": 0 },
+          "price": { "$ref": "#/$defs/decimal" }
+        }
+      }
+    },
+    "trades": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["side", "signal_index", "entry_index", "entry_price", "stop", "tp1", "size", "score", "breakdown", "exits", "net_pnl", "at_signal"],
+        "properties": {
+          "side": { "enum": ["long", "short"] },
+          "signal_index": { "type": "integer", "minimum": 0 },
+          "entry_index": { "type": "integer", "minimum": 0 },
+          "entry_price": { "$ref": "#/$defs/decimal" },
+          "stop": { "$ref": "#/$defs/decimal" },
+          "tp1": { "$ref": "#/$defs/decimal" },
+          "size": { "$ref": "#/$defs/decimal" },
+          "score": { "type": "integer" },
+          "breakdown": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["component", "points"],
+              "properties": {
+                "component": { "enum": ["trend", "sma_side", "candle_pattern", "double_break", "level_rejection", "sweep", "fvg_or_order_block", "recent_choch", "news"] },
+                "points": { "type": "integer" }
+              }
+            }
+          },
+          "exits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["index", "price", "fraction", "reason"],
+              "properties": {
+                "index": { "type": "integer", "minimum": 0 },
+                "price": { "$ref": "#/$defs/decimal" },
+                "fraction": { "$ref": "#/$defs/decimal" },
+                "reason": { "enum": ["stop", "tp1", "break_even", "trailing", "time", "forced", "end_of_data"] }
+              }
+            }
+          },
+          "net_pnl": { "description": "Neto en la moneda del instrumento (puede ser negativo).", "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" },
+          "at_signal": {
+            "description": "Valores de los indicadores en la vela de la señal (tabla por operación, ROADMAP 3b).",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["close", "sma", "atr", "trend_1h"],
+            "properties": {
+              "close": { "$ref": "#/$defs/decimal" },
+              "sma": { "$ref": "#/$defs/optional_decimal" },
+              "atr": { "$ref": "#/$defs/optional_decimal" },
+              "trend_1h": { "enum": ["up", "down", "neutral", null] }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "decimal": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "optional_decimal": { "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" }
+  }
+}

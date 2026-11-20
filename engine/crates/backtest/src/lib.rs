@@ -4,6 +4,7 @@
 pub mod config;
 pub mod costs;
 pub mod exits;
+pub mod export;
 pub mod metrics;
 pub mod portfolio;
 pub mod runner;
@@ -14,6 +15,7 @@ pub use costs::{
     Commission, Execution, InstrumentCosts, commission, fill_price, funding, funding_nights,
 };
 pub use exits::{ExitReason, Fill, Outcome, Trade, simulate};
+pub use export::{ChartExport, chart_export};
 pub use metrics::{Metrics, evaluate};
 pub use portfolio::{
     Market, PortfolioError, PortfolioRejected, PortfolioReport, PortfolioTrade, run_portfolio,
