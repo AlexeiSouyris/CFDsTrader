@@ -1,0 +1,7 @@
+# Parámetros de los indicadores (spec §4). Todo lo ajustable vive acá, nunca en el código.
+
+[trend]
+# Tendencia de 1h: cierre frente a la SMA de `sma_period` velas, y pendiente de esa SMA
+# medida contra `slope_lookback` velas atrás.
+sma_period = 50
+slope_lookback = 5

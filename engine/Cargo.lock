@@ -200,6 +200,8 @@ dependencies = [
  "cfds-core",
  "chrono",
  "rust_decimal",
+ "serde",
+ "toml",
 ]
 
 [[package]]

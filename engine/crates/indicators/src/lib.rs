@@ -5,5 +5,9 @@
 //! valor por vela, alineado por índice. `None` = todavía en calentamiento.
 
 pub mod atr;
+pub mod moving_average;
+pub mod trend;
 
 pub use atr::{true_range, wilder_atr};
+pub use moving_average::{ema, sma};
+pub use trend::{Trend, TrendConfig, trend};
