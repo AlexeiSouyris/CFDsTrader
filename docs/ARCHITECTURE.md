@@ -46,7 +46,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | ingest | `engine/crates/ingest` (crate `cfds-ingest`) | Rust | Único camino de entrada de velas: proveedor → solo cerradas → validación → PostgreSQL → Redis | hecho (#28) |
 | indicators | `engine/crates/indicators` | Rust | Indicadores técnicos (SMA, EMA, RSI, ATR, VWAP, volumen...) y tendencia de 1h | ATR de Wilder (#5), SMA, EMA y tendencia (#37) |
 | patterns | `engine/crates/patterns` | Rust | Patrones de velas (martillo, envolvente...) y chartistas (doble techo/suelo, soportes/resistencias) | pivotes y patrones de velas (#39), doble techo/suelo y soportes/resistencias (#41) |
-| liquidity | `engine/crates/liquidity` | Rust | Zonas de liquidez, barridos internos/externos, order flow | planeado |
+| liquidity | `engine/crates/liquidity` | Rust | Marco ICT (spec §5.4): sweep de pivotes de 1h, FVG, rupturas de estructura (BOS/CHoCH) y order blocks; config en `config/liquidity.toml` | en desarrollo (#43) |
 | regime | `engine/crates/regime` | Rust | Clasificar el régimen de mercado por instrumento (volatilidad × tendencia) con velas cerradas; elegir el juego de parámetros votado para ese régimen | propuesto ([ADR 0003](decisions/0003-modelo-adaptativo-y-contexto.md), #19) |
 | strategy | `engine/crates/strategy` | Rust | Combina features + señales de ML/noticias → señal con probabilidad | planeado |
 | risk | `engine/crates/risk` | Rust | Apalancamiento por instrumento, tamaño de posición, margen, stop-loss, pérdida máxima | planeado |

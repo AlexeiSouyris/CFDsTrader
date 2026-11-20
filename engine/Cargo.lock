@@ -220,6 +220,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "cfds-liquidity"
+version = "0.1.0"
+dependencies = [
+ "cfds-core",
+ "cfds-indicators",
+ "cfds-patterns",
+ "chrono",
+ "rust_decimal",
+ "serde",
+ "toml",
+]
+
+[[package]]
 name = "cfds-market-data"
 version = "0.1.0"
 dependencies = [

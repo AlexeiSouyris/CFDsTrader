@@ -1,0 +1,14 @@
+# Liquidez ICT/SMC (spec §5.4). Decimales como texto (nunca float).
+
+[fvg]
+# Solo cuentan los FVG creados en las últimas `lookback_bars` velas (incluida la actual).
+lookback_bars = 50
+
+[order_blocks]
+# Cuerpo mínimo de la vela de impulso, en múltiplos del ATR.
+min_impulse_body_atr = "1.5"
+atr_period = 14
+
+[structure]
+# Un CHoCH "reciente" es uno de las últimas `choch_recent_bars` velas (incluida la actual).
+choch_recent_bars = 12
