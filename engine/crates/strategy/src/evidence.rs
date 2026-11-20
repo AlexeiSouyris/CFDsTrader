@@ -89,6 +89,26 @@ impl<'a> Analysis<'a> {
         }
     }
 
+    /// ATR de las velas de 15m, alineado por índice (solo lectura, para exportar: #81).
+    pub fn atr(&self) -> &[Option<Decimal>] {
+        &self.atr
+    }
+
+    /// SMA de 15m de la evidencia (`sma_period`), alineada por índice.
+    pub fn sma(&self) -> &[Option<Decimal>] {
+        &self.sma
+    }
+
+    /// Tendencia de la última vela de 1h cerrada en cada vela de 15m.
+    pub fn trend_1h(&self) -> &[Option<Trend>] {
+        &self.trend
+    }
+
+    /// Pivotes confirmados de 15m.
+    pub fn pivots(&self) -> &[Pivot] {
+        &self.pivots
+    }
+
     /// Evidencia al cierre de `t` para `side`. `None` durante el calentamiento (sin SMA o sin
     /// tendencia de 1h) o si `t` está fuera de la serie. Los patrones que necesitan ATR no
     /// aparecen hasta que el ATR existe.

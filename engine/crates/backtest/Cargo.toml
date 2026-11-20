@@ -10,6 +10,7 @@ chrono = { version = "0.4.45", default-features = false, features = ["std"] }
 chrono-tz = "0.10.4"
 cfds-core = { version = "0.1.0", path = "../core" }
 cfds-indicators = { version = "0.1.0", path = "../indicators" }
+cfds-patterns = { version = "0.1.0", path = "../patterns" }
 cfds-risk = { version = "0.1.0", path = "../risk" }
 cfds-strategy = { version = "0.1.0", path = "../strategy" }
 rust_decimal = { version = "1.43.0", features = ["macros", "maths"] }
@@ -22,6 +23,7 @@ workspace = true
 
 [dev-dependencies]
 cfds-liquidity = { version = "0.1.0", path = "../liquidity" }
-cfds-patterns = { version = "0.1.0", path = "../patterns" }
 cfds-storage = { path = "../storage" }
+jsonschema = { version = "0.61.2", default-features = false }
+serde_json = "1.0.154"
 tokio = { version = "1.54.1", features = ["macros", "rt"] }
