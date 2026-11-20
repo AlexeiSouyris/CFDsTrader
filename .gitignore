@@ -29,3 +29,6 @@ data/raw/
 .DS_Store
 .idea/
 .vscode/
+
+# graphify: grafo generado localmente (graphify update .)
+graphify-out/

@@ -113,3 +113,12 @@ Cambios de lenguaje, librería principal, base de datos, proveedor de datos o br
 
 - Documentación, Issues y PRs: **español**.
 - Código (nombres de variables, funciones y tipos) y mensajes de commit: **inglés técnico** está bien, mientras sea consistente dentro del módulo.
+
+## 8. Herramientas para agentes: graphify (opcional)
+
+[graphify](https://github.com/Graphify-Labs/graphify) arma un grafo del repo para que los agentes lo consulten en lugar de leer archivos enteros, y así gasten menos tokens.
+- **Es opcional y local.** El repo no trae su skill ni sus hooks. Cada persona decide si lo instala en su máquina (ver `CONTRIBUTING.md`) y **no commitea** lo que genera.
+- **Sin graphify, los agentes trabajan normal** con sus herramientas de siempre. Ninguna regla de este archivo depende de él.
+- Si lo tenés instalado, `graphify-out/` no se commitea (está en `.gitignore`). Se genera con `graphify update .`: es local, sin LLM, sin costo y tarda segundos.
+- **graphify no reemplaza el paso 0.2:** el grafo refleja tu copia local, no `origin/main` ni los Issues y PRs abiertos. Para buscar duplicados, seguí usando `git grep ... origin/main` y revisando Issues y PRs.
+- `/graphify .` dentro del asistente hace además una pasada semántica sobre los documentos que **sí consume tokens**. Usalo solo si hace falta.
