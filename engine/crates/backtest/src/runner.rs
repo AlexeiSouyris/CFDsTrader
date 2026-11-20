@@ -3,7 +3,7 @@
 //!
 //! ```text
 //! para cada vela cerrada t (con t+1 disponible):
-//!   si cambió el día en Madrid → capital del día = capital actual
+//!   si cambió el día en Madrid → capital del día = capital actual (realizado + no realizado)
 //!   señal en t (largo y corto); si las dos son candidatas, gana el puntaje más alto;
 //!     con empate, ninguna (no hay criterio objetivo)
 //!   riesgo con la cuenta en t (sin posición abierta: margen libre = capital)
@@ -17,16 +17,15 @@
 //! - Si los datos terminan con la posición abierta, se cierra al último cierre (`EndOfData`).
 
 use cfds_core::{Candle, InstrumentId};
-use cfds_indicators::wilder_atr;
-use cfds_risk::{Account, InstrumentLimits, Rejection, Request, RiskConfig, check};
+use cfds_risk::{InstrumentLimits, Rejection, RiskConfig};
 use cfds_strategy::{Analysis, Configs, ScoreError, Side, Signal, TriggerKind};
-use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
+use chrono::{DateTime, NaiveTime, Utc};
 use chrono_tz::Tz;
 use rust_decimal::Decimal;
 
 use crate::{
-    BacktestConfig, Execution, ExitReason, InstrumentCosts, Trade, commission, fill_price, funding,
-    funding_nights, simulate,
+    BacktestConfig, Execution, ExitReason, InstrumentCosts, Market, PortfolioError, Trade,
+    commission, fill_price, funding, funding_nights, run_portfolio, simulate,
 };
 
 /// Todo lo fijo de un recorrido.
@@ -261,93 +260,38 @@ pub fn execute(
     })
 }
 
-/// Recorre la serie de 15m (`force_close` marca las velas de cierre obligatorio: viernes o
-/// fin de sesión, del calendario).
+/// Recorre la serie de 15m de un instrumento (`force_close` marca las velas de cierre
+/// obligatorio: viernes o fin de sesión, del calendario). Es la cartera con un solo
+/// instrumento: una sola implementación de la cuenta.
 pub fn run(
     m15: &[Candle],
     h1: &[Candle],
     force_close: &[bool],
     setup: &Setup,
 ) -> Result<Report, RunError> {
-    let analysis = Analysis::new(m15, h1, setup.strategy);
-    let atr = wilder_atr(m15, setup.strategy.patterns.candles.atr_period);
-    let fx = setup.account_to_instrument;
-    let mut report = Report {
-        trades: Vec::new(),
-        rejected: Vec::new(),
-        kill_switch_at: None,
-        final_equity: setup.initial_equity,
+    let market = Market {
+        setup: setup.clone(),
+        m15,
+        h1,
+        force_close,
     };
-    let (mut equity, mut peak) = (setup.initial_equity, setup.initial_equity);
-    let mut day: Option<NaiveDate> = None;
-    let mut day_start = equity;
-
-    let mut t = 0;
-    while t + 1 < m15.len() {
-        let today = m15[t].end().with_timezone(&setup.day_tz).date_naive();
-        if day != Some(today) {
-            day = Some(today);
-            day_start = equity;
+    let p = run_portfolio(std::slice::from_ref(&market)).map_err(|e| match e {
+        PortfolioError::Run(e) => e,
+        // Con un solo instrumento no puede haber mezcla ni cartera vacía.
+        PortfolioError::Empty | PortfolioError::MixedSetup(_) => {
+            unreachable!("un solo instrumento")
         }
-        if report.kill_switch_at.is_some() {
-            break;
-        }
-        let Some(signal) = choose(&analysis, t).map_err(RunError::Score)? else {
-            t += 1;
-            continue;
-        };
-        let Some(atr_t) = atr[t] else {
-            t += 1;
-            continue;
-        };
-        let request = Request {
-            instrument: setup.instrument.clone(),
-            entry: signal.reference,
-            stop: signal.stop,
-            atr: atr_t,
-            account_to_instrument: fx,
-        };
-        let account = Account {
-            equity,
-            peak_equity: peak,
-            day_start_equity: day_start,
-            free_margin: equity,
-            kill_switch: false,
-            open_positions: vec![],
-        };
-        let sizing = match check(&request, &account, &setup.limits, &setup.risk) {
-            Ok(s) => s,
-            Err(reason) => {
-                if reason == Rejection::DrawdownLimit {
-                    report.kill_switch_at = Some(t);
-                }
-                report.rejected.push(RejectedSignal {
-                    index: t,
-                    side: signal.side,
-                    reason,
-                });
-                t += 1;
-                continue;
-            }
-        };
-        let record = execute(
-            &signal,
-            sizing.size,
-            sizing.leverage,
-            sizing.margin,
-            m15,
-            &atr,
-            force_close,
-            setup,
-        )?;
-        equity += record.net_pnl / fx;
-        peak = peak.max(equity);
-        let exit_index = record.exits.last().map_or(t + 1, |e| e.index);
-        report.trades.push(record);
-        t = exit_index.max(t + 1);
-    }
-    report.final_equity = equity;
-    Ok(report)
+    })?;
+    let rejected: Vec<RejectedSignal> = p.rejected.into_iter().map(|r| r.rejected).collect();
+    Ok(Report {
+        kill_switch_at: rejected
+            .iter()
+            .find(|r| r.reason == Rejection::DrawdownLimit)
+            .map(|r| r.index),
+        trades: p.trades.into_iter().map(|t| t.record).collect(),
+        rejected,
+        final_equity: p.final_equity,
+    })
 }
 
 /// Comprar y mantener (benchmark de la Fase 5): compra `size` en la apertura de la primera

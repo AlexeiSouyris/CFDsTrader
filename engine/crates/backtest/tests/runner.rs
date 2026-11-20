@@ -516,3 +516,309 @@ fn buy_and_hold_of_shares_pays_commission_twice() {
     assert_eq!((b.commission, b.funding), (dec!(30), dec!(0)));
     assert_eq!(b.net_pnl, dec!(17.2) - dec!(30));
 }
+
+// ---------- Cartera ----------
+
+use cfds_backtest::{Market, PortfolioError, PortfolioTrade, run_portfolio};
+
+/// Tres instrumentos con las mismas horas y precios distintos.
+fn three(setup_for: impl Fn(&str) -> Setup) -> (Vec<Vec<Candle>>, Vec<Vec<Candle>>, Vec<Setup>) {
+    let names = ["US100", "US500", "DE40"];
+    let m15: Vec<Vec<Candle>> = [11, 7, 3].iter().map(|&s| random_walk(2500, s)).collect();
+    let h1 = m15.iter().map(|c| resample_h1(c)).collect();
+    (m15, h1, names.iter().map(|n| setup_for(n)).collect())
+}
+
+fn named(n: &str) -> Setup {
+    Setup {
+        instrument: n.parse().unwrap(),
+        ..setup()
+    }
+}
+
+fn markets<'a>(m15: &'a [Vec<Candle>], h1: &'a [Vec<Candle>], setups: &[Setup]) -> Vec<Market<'a>> {
+    setups
+        .iter()
+        .enumerate()
+        .map(|(i, s)| Market {
+            setup: s.clone(),
+            m15: &m15[i],
+            h1: &h1[i],
+            force_close: &[],
+        })
+        .collect()
+}
+
+/// (instrumento, entrada, fin de la última salida) de cada operación.
+fn intervals(trades: &[PortfolioTrade]) -> Vec<(String, DateTime<Utc>, DateTime<Utc>)> {
+    trades
+        .iter()
+        .map(|t| {
+            (
+                t.instrument.to_string(),
+                t.record.entry_time,
+                t.record.exits.last().unwrap().time,
+            )
+        })
+        .collect()
+}
+
+/// Operaciones abiertas cuando se decidió la entrada de `trades[i]` (el cierre anterior a su
+/// entrada: decide al fin de la vela de la señal = inicio de la vela de entrada).
+fn open_at_entry(trades: &[PortfolioTrade], i: usize) -> Vec<usize> {
+    let iv = intervals(trades);
+    let decided = iv[i].1;
+    // Las operaciones están en el orden en que se abrieron: solo cuentan las anteriores.
+    (0..i)
+        .filter(|&j| iv[j].1 <= decided && iv[j].2 > decided)
+        .collect()
+}
+
+#[test]
+fn the_portfolio_shares_one_account() {
+    let (m15, h1, setups) = three(named);
+    let report = run_portfolio(&markets(&m15, &h1, &setups)).unwrap();
+    let trades = &report.trades;
+    let mut overlapped = false;
+    for i in 0..trades.len() {
+        let others = open_at_entry(trades, i);
+        overlapped |= !others.is_empty();
+        assert!(others.len() < 5, "más de 5 posiciones");
+        assert!(
+            others
+                .iter()
+                .all(|&j| trades[j].instrument != trades[i].instrument),
+            "dos posiciones en el mismo instrumento"
+        );
+        // El margen libre descuenta el margen de las otras abiertas, y la nueva entra en él.
+        let used: Decimal = others.iter().map(|&j| trades[j].record.margin).sum();
+        assert_eq!(
+            trades[i].free_margin_at_entry,
+            trades[i].equity_at_entry - used
+        );
+        assert!(trades[i].record.margin <= trades[i].free_margin_at_entry);
+    }
+    assert!(overlapped, "la serie no probó posiciones simultáneas");
+    let net: Decimal = trades.iter().map(|t| t.record.net_pnl).sum();
+    assert_eq!(
+        report.final_equity.round_dp(10),
+        (dec!(1000) + net).round_dp(10)
+    );
+}
+
+#[test]
+fn with_one_position_at_most_trades_never_overlap() {
+    let (m15, h1, setups) = three(|n| {
+        let mut s = named(n);
+        s.risk.max_open_positions = 1;
+        s
+    });
+    let report = run_portfolio(&markets(&m15, &h1, &setups)).unwrap();
+    assert!(report.trades.len() > 3);
+    for i in 0..report.trades.len() {
+        assert!(open_at_entry(&report.trades, i).is_empty());
+    }
+    assert!(
+        report
+            .rejected
+            .iter()
+            .any(|r| r.rejected.reason == Rejection::MaxOpenPositions)
+    );
+}
+
+#[test]
+fn margin_is_shared_between_positions() {
+    // Margen del 25 %: una posición entra, pero varias juntas se quedan sin margen libre.
+    let (m15, h1, setups) = three(|n| {
+        let mut s = named(n);
+        s.limits.margin_pct = dec!(25);
+        s
+    });
+    let report = run_portfolio(&markets(&m15, &h1, &setups)).unwrap();
+    assert!(
+        report
+            .rejected
+            .iter()
+            .any(|r| r.rejected.reason == Rejection::InsufficientMargin)
+    );
+    for t in &report.trades {
+        assert!(t.record.margin <= t.free_margin_at_entry);
+    }
+}
+
+#[test]
+fn pnl_is_converted_to_the_account_currency() {
+    let (m15, h1, setups) = three(|n| {
+        let mut s = named(n);
+        if n != "DE40" {
+            s.account_to_instrument = dec!(1.25);
+        }
+        s
+    });
+    let report = run_portfolio(&markets(&m15, &h1, &setups)).unwrap();
+    let net: Decimal = report
+        .trades
+        .iter()
+        .map(|t| {
+            let fx = if t.instrument.to_string() == "DE40" {
+                dec!(1)
+            } else {
+                dec!(1.25)
+            };
+            t.record.net_pnl / fx
+        })
+        .sum();
+    assert_eq!(
+        report.final_equity.round_dp(10),
+        (dec!(1000) + net).round_dp(10)
+    );
+}
+
+#[test]
+fn the_instruments_must_share_the_account_setup() {
+    let (m15, h1, mut setups) = three(named);
+    setups[1].initial_equity = dec!(2000);
+    assert_eq!(
+        run_portfolio(&markets(&m15, &h1, &setups)).unwrap_err(),
+        PortfolioError::MixedSetup("capital inicial")
+    );
+    let (m15, h1, mut setups) = three(named);
+    setups[2].risk.max_open_positions = 3;
+    assert_eq!(
+        run_portfolio(&markets(&m15, &h1, &setups)).unwrap_err(),
+        PortfolioError::MixedSetup("riesgo")
+    );
+    let (m15, h1, mut setups) = three(named);
+    setups[0].day_tz = chrono_tz::UTC;
+    assert_eq!(
+        run_portfolio(&markets(&m15, &h1, &setups)).unwrap_err(),
+        PortfolioError::MixedSetup("zona del día")
+    );
+    assert_eq!(run_portfolio(&[]).unwrap_err(), PortfolioError::Empty);
+}
+
+#[test]
+fn equity_includes_the_unrealized_pnl_of_open_positions() {
+    let (m15, h1, setups) = three(named);
+    let report = run_portfolio(&markets(&m15, &h1, &setups)).unwrap();
+    let trades = &report.trades;
+    let iv = intervals(trades);
+    let mut with_open = 0;
+    for i in 0..trades.len() {
+        let decided = iv[i].1;
+        // Realizado: inicial + netos de lo que ya cerró.
+        let realized = dec!(1000)
+            + (0..i)
+                .filter(|&j| iv[j].2 <= decided)
+                .map(|j| trades[j].record.net_pnl)
+                .sum::<Decimal>();
+        if open_at_entry(trades, i).is_empty() {
+            assert_eq!(
+                trades[i].equity_at_entry.round_dp(10),
+                realized.round_dp(10),
+                "operación {i}"
+            );
+        } else if trades[i].equity_at_entry.round_dp(10) != realized.round_dp(10) {
+            with_open += 1;
+        }
+    }
+    // Con posiciones abiertas, el capital se mueve con ellas.
+    assert!(with_open > 0);
+}
+
+#[test]
+fn a_position_never_blocks_its_own_instrument_after_closing() {
+    // Una operación que cierra en la vela k libera el instrumento al cierre de k: nunca hay un
+    // rechazo por "ya hay una posición en el instrumento" (el recorrido no decide mientras está
+    // abierta, y al cerrar ya se realizó).
+    let (m15, h1, setups) = three(named);
+    let report = run_portfolio(&markets(&m15, &h1, &setups)).unwrap();
+    assert!(
+        report
+            .rejected
+            .iter()
+            .all(|r| r.rejected.reason != Rejection::InstrumentAlreadyOpen)
+    );
+}
+
+#[test]
+fn equity_marks_open_positions_exactly() {
+    // Con comisión, lo realizado (neto) se distingue de lo que todavía se valúa (bruto): así el
+    // test también fija que una operación que cierra justo al decidir ya está realizada.
+    let (m15, h1, setups) = three(|n| {
+        let mut s = named(n);
+        s.costs.commission = Commission::PerShare {
+            per_share: dec!(0.02),
+            min: dec!(0.5),
+        };
+        s
+    });
+    let report = run_portfolio(&markets(&m15, &h1, &setups)).unwrap();
+    let trades = &report.trades;
+    let iv = intervals(trades);
+    let series = |name: &str| match name {
+        "US100" => &m15[0],
+        "US500" => &m15[1],
+        _ => &m15[2],
+    };
+    // Valor de una operación abierta a `now`: salidas ya hechas + el resto al último cierre.
+    let value = |t: &PortfolioTrade, now: DateTime<Utc>| -> Decimal {
+        let r = &t.record;
+        let s = if r.side == Side::Long {
+            dec!(1)
+        } else {
+            dec!(-1)
+        };
+        let done: Vec<_> = r.exits.iter().filter(|e| e.time <= now).collect();
+        let rest = dec!(1) - done.iter().map(|e| e.fraction).sum::<Decimal>();
+        let c = series(&t.instrument.to_string());
+        let last = c.iter().rposition(|k| k.end() <= now).unwrap();
+        let mark = if last >= r.entry_index {
+            r.size * rest * (c[last].close - r.entry_price) * s
+        } else {
+            dec!(0)
+        };
+        done.iter()
+            .map(|e| r.size * e.fraction * (e.price - r.entry_price) * s)
+            .sum::<Decimal>()
+            + mark
+    };
+    let mut checked = 0;
+    for i in 0..trades.len() {
+        let decided = iv[i].1;
+        let others = open_at_entry(trades, i);
+        if others.is_empty() {
+            continue;
+        }
+        let realized = dec!(1000)
+            + (0..i)
+                .filter(|&j| iv[j].2 <= decided)
+                .map(|j| trades[j].record.net_pnl)
+                .sum::<Decimal>();
+        let marked: Decimal = others.iter().map(|&j| value(&trades[j], decided)).sum();
+        assert_eq!(
+            trades[i].equity_at_entry.round_dp(10),
+            (realized + marked).round_dp(10),
+            "operación {i}"
+        );
+        checked += 1;
+    }
+    assert!(checked > 0);
+}
+
+#[test]
+fn a_trade_open_when_the_data_ends_is_realized() {
+    let m15 = random_walk(3000, 11);
+    let h1 = resample_h1(&m15);
+    let full = run(&m15, &h1, &[], &setup()).unwrap();
+    // Se cortan los datos en medio de la tercera operación.
+    let cut = full.trades[2].entry_index + 1;
+    let short = run(&m15[..=cut], &h1, &[], &setup()).unwrap();
+    let last = short.trades.last().unwrap();
+    assert_eq!(last.exits.last().unwrap().reason, CloseReason::EndOfData);
+    let net: Decimal = short.trades.iter().map(|t| t.net_pnl).sum();
+    assert_eq!(
+        short.final_equity.round_dp(10),
+        (dec!(1000) + net).round_dp(10)
+    );
+}
