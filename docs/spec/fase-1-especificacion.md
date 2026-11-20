@@ -285,6 +285,24 @@ Invariante: la suma del valor de todos los miembros es igual al valor total del 
 - Paper trading: mínimo **3 meses y 50 operaciones**, comparado contra el backtest del mismo período.
 - Dinero real: solo con un ADR aprobado por los dos colaboradores, después de un asesoramiento legal e impositivo sobre el fondo, y empezando con capital mínimo.
 
+## 15b. Aprendizaje continuo
+
+El sistema aprende de sus resultados, pero **nunca cambia solo sus propios parámetros**: si lo hiciera, terminaría ajustándose al ruido del pasado ([sobreajuste](../GLOSARIO.md#sobreajuste)) y saltearía la decisión del grupo.
+
+**Diario** (módulo `journal`): cada propuesta se guarda con
+- instrumento, dirección, hora, entrada, stop, TP1, tamaño y apalancamiento;
+- puntaje y su desglose por señal, noticias usadas, análogos y probabilidad mostrada;
+- qué hizo el responsable (aprobó, rechazó o la dejó vencer, con quién y cuándo);
+- el resultado simulado y, si se ejecutó, el real: P/L, si tocó TP1 o el stop, y el motivo de salida.
+
+**Informe mensual** (y a pedido), con datos del diario:
+1. **Calibración:** por rango de probabilidad mostrada (por ejemplo 50–60%), frecuencia real con su intervalo de confianza. Si no coinciden, se propone recalibrar. Con menos de 30 casos en un rango: "datos insuficientes".
+2. **Aporte por señal:** resultado de las propuestas con y sin cada señal (velas, doble techo o suelo, soportes, liquidez, noticias). Las que no aportan se proponen para bajar de peso o sacar.
+3. **Simulado contra real:** diferencias de precio, slippage y propuestas vencidas sin ejecutar.
+4. **Modelos (Python):** reentrenamiento con walk-forward, sin tocar los datos fuera de muestra. Un modelo nuevo se propone solo si mejora fuera de muestra al anterior.
+
+**Del informe al cambio:** cada propuesta de cambio llega a la app como **votación** (cambio de reglas: 4 de 6, spec §1.2). Si se aprueba, se aplica en `config/` con el voto registrado; si no, no cambia nada.
+
 ## 16. Qué decidió el grupo y qué decidió el agente
 
 **Lo decidió el grupo:** instrumentos, país y regulación, timeframes 15m/1h, cierre los viernes, rol del sistema (propone + responsable aprueba), señales de entrada, entrada en la ruptura del neckline, marco ICT/SMC, puntaje de confluencia, stop por estructura + ATR, TP parcial en 2R + trailing, perfil de riesgo moderado, apalancamiento que sale del riesgo, los 4 roles de las noticias, el LLM para interpretarlas, ventana de ±15 min, fuentes de noticias, modelos probabilísticos, horario de sesiones, datos gratuitos primero, tipos de análogos, universo de 5 años, idioma, capital de 1.000 €, aportes de los lunes con mínimo de 10 €, opciones solo como contexto, 3 meses de paper trading, titular único y retiros semanales.

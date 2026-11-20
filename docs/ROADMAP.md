@@ -19,6 +19,7 @@ Primero va el motor y la inteligencia. La UI viene después (fase 10).
 | 6b | Fondo del grupo: aportes, unidades, NAV, P&L por miembro | `engine/fund` | pendiente |
 | 7 | Capa de broker (simulado / real intercambiables) | `engine/market-data`, `engine/execution` | pendiente |
 | 8 | Paper trading en tiempo real | todo el motor | pendiente |
+| 8b | Aprendizaje continuo: diario, calibración, aporte por señal, reentrenamiento | `engine/journal`, `intelligence/learning` | pendiente |
 | 9 | Observabilidad y operación segura | `engine/`, `infra/` | pendiente |
 | 10 | UI en TypeScript | `ui/` | pendiente |
 | 11 | Dinero real (requiere ADR firmado por ambos) | — | bloqueada |
@@ -74,6 +75,10 @@ Interfaz con implementación simulada y real intercambiables. Órdenes idempoten
 ## Fase 8 — Paper trading
 En tiempo real con dinero simulado durante un período mínimo (lo define la spec). Comparación contra el backtest del mismo período.
 **Aprobación:** la diferencia está explicada.
+
+## Fase 8b — Aprendizaje continuo
+Diario de cada propuesta con su contexto y su resultado (simulado y real). Informe periódico con: calibración de las probabilidades mostradas, aporte de cada señal al resultado, y modelos reentrenados con walk-forward. **El sistema no se cambia solo**: el informe trae propuestas de cambio y cada una pasa por votación (spec §1.2). Detalle en spec §15b.
+**Aprobación:** el informe se genera con los datos del paper trading, la calibración se puede verificar a mano con una muestra, y ningún parámetro cambia sin un voto registrado.
 
 ## Fase 9 — Observabilidad y operación segura
 Logs estructurados de cada decisión y orden. Alertas (Telegram o email) ante errores, kill switch o desconexión. Arranque y parada seguros, sin órdenes huérfanas.
