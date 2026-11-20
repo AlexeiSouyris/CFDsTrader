@@ -26,6 +26,32 @@ impl Timeframe {
             Timeframe::H1 => TimeDelta::hours(1),
         }
     }
+
+    /// Texto del contrato (`"15m"`, `"1h"`): el mismo en JSON, base de datos y nombres de stream.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Timeframe::M15 => "15m",
+            Timeframe::H1 => "1h",
+        }
+    }
+}
+
+impl std::str::FromStr for Timeframe {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "15m" => Ok(Timeframe::M15),
+            "1h" => Ok(Timeframe::H1),
+            other => Err(format!("timeframe desconocido: {other:?}")),
+        }
+    }
+}
+
+impl std::fmt::Display for Timeframe {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
 }
 
 /// Una vela OHLC con precios decimales exactos y hora en UTC.
@@ -127,5 +153,18 @@ mod tests {
         let c = candle("2026-11-19T15:00:00Z", Timeframe::H1);
         assert!(!c.is_closed_at(at("2026-11-19T15:45:00Z")));
         assert!(c.is_closed_at(at("2026-11-19T16:00:00Z")));
+    }
+
+    #[test]
+    fn timeframe_text_matches_the_contract_and_roundtrips() {
+        for tf in [Timeframe::M15, Timeframe::H1] {
+            assert_eq!(tf.as_str().parse::<Timeframe>(), Ok(tf));
+            // El mismo texto que usa serde para el contrato candle.v1.
+            assert_eq!(
+                serde_json::to_value(tf).ok(),
+                Some(serde_json::json!(tf.as_str()))
+            );
+        }
+        assert!("5m".parse::<Timeframe>().is_err());
     }
 }

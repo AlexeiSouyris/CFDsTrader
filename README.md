@@ -43,3 +43,9 @@ Inteligencia (Python):
 ```bash
 cd intelligence && uv sync && uv run ruff format --check && uv run ruff check && uv run mypy && uv run pytest
 ```
+
+Tests de integración con PostgreSQL y Redis (los mismos que corre el CI; con el `docker compose` de arriba levantado):
+
+```bash
+cd engine && DATABASE_URL=postgres://<usuario>:<contraseña>@127.0.0.1:5432/<base> REDIS_URL=redis://127.0.0.1:6379 cargo test --workspace -- --ignored
+```

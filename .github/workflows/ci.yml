@@ -30,6 +30,43 @@ jobs:
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
 
+  engine-integration:
+    name: engine (integración PostgreSQL + Redis)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.6-alpine
+        env:
+          POSTGRES_USER: cfds
+          # Contraseña descartable, solo para este contenedor efímero de CI. No es un secreto.
+          POSTGRES_PASSWORD: ci-only
+          POSTGRES_DB: cfdstrader_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U cfds -d cfdstrader_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7.4-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgres://cfds:ci-only@127.0.0.1:5432/cfdstrader_test
+      REDIS_URL: redis://127.0.0.1:6379
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar toolchain (rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      # Los tests que necesitan servicios están marcados #[ignore]; acá se corren todos.
+      - run: cargo test --workspace --locked -- --ignored
+
   intelligence:
     name: intelligence (Python)
     runs-on: ubuntu-latest
