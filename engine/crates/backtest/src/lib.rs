@@ -7,6 +7,7 @@ pub mod exits;
 pub mod metrics;
 pub mod portfolio;
 pub mod runner;
+pub mod setup;
 
 pub use config::{BacktestConfig, CostConfig, ExitConfig, MetricsConfig};
 pub use costs::{
@@ -21,3 +22,4 @@ pub use runner::{
     BuyAndHold, CloseReason, ExitRecord, RejectedSignal, Report, RunError, Setup, TradeRecord,
     buy_and_hold, choose, execute, pick, run,
 };
+pub use setup::{SetupError, setup_from_catalog};

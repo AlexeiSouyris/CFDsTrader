@@ -19,3 +19,7 @@ slippage_ticks = "1"
 # Anualización de Sharpe y Sortino (días de mercado por año) y tasa libre de riesgo anual en %.
 trading_days_per_year = 252
 risk_free_annual_pct = "0"
+
+[account]
+# Zona del "día" de la pérdida diaria y de la curva de capital (spec §10: desde las 00:00 de Madrid).
+day_timezone = "Europe/Madrid"

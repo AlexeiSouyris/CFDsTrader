@@ -33,6 +33,11 @@ reference = "docs/research/ig-spreads-2026-11.md (medido con GET /prices/{epic} 
 consulted = "2026-11-20"
 note = "Mediana de ask − bid al cierre de las velas de 1h enteras dentro de la sesión regular de la bolsa, del 2026-11-09 al 2026-11-20."
 
+[sources.ecb-estr]
+reference = "BCE, serie EST.B.EU000A2X2A25.WT 'Euro short-term rate' (https://data-api.ecb.europa.eu/service/data/EST/B.EU000A2X2A25.WT)"
+consulted = "2026-11-20"
+note = "Valor de referencia 19-11-2026, publicado el 20-11-2026 a las 08:00 CET. 'The ECB does not charge for the €STR or license its use' (https://www.ecb.europa.eu/stats/financial_markets_and_interest_rates/euro_short-term_rate/html/index.en.html)."
+
 [sources.esma-2018-796]
 reference = "Decisión (UE) 2018/796 de ESMA (medidas sobre CFD para clientes minoristas)"
 consulted = "2026-11-20"
@@ -41,10 +46,19 @@ note = "Cierre de posiciones cuando el margen cae al 50 % del requerido. Mínimo
 # ---------------------------------------------------------------- cuenta
 [account]
 broker = "IG Europe GmbH (sucursal en España, CNMV n.º 121)"
+# Moneda de la cuenta demo (POST /session: currencyIsoCode). Los montos del backtest van en ella.
+currency = { value = "EUR", source = "ig-demo-api" }
 # Hora del cargo de financiación nocturna: 23:00 en horario centroeuropeo (CE(S)T).
 funding_cutoff = { value = "23:00", source = "ig-es-costes" }
 funding_cutoff_timezone = "Europe/Madrid"
 margin_closeout_pct = { value = "50", source = "esma-2018-796" }
+
+# ---------------------------------------------------------------- tipos de referencia
+# Valor anual en % de cada tipo de referencia de la financiación nocturna (campo
+# funding_benchmark de los instrumentos). El backtest lo usa constante en un recorrido: sirve para
+# períodos cortos; un período largo necesita la serie diaria (pendiente).
+[funding_benchmarks]
+ESTR = { value = "2.441", source = "ecb-estr" }
 
 # ---------------------------------------------------------------- índices
 # Fórmula de financiación de IG para índices (fuente ig-es-costes):
