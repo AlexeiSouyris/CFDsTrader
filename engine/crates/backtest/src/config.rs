@@ -2,6 +2,8 @@
 
 use std::str::FromStr;
 
+use chrono_tz::Tz;
+
 use rust_decimal::Decimal;
 use serde::Deserialize;
 
@@ -33,6 +35,8 @@ pub struct BacktestConfig {
     pub exits: ExitConfig,
     pub costs: CostConfig,
     pub metrics: MetricsConfig,
+    /// Zona del "día" de la pérdida diaria (spec §10).
+    pub day_tz: Tz,
 }
 
 impl ExitConfig {
@@ -66,10 +70,16 @@ impl BacktestConfig {
         }
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
+        struct Account {
+            day_timezone: String,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Raw {
             exits: Exits,
             costs: Costs,
             metrics: Metrics,
+            account: Account,
         }
         let raw = toml::from_str::<Raw>(text).map_err(|e| e.to_string())?;
         let e = raw.exits;
@@ -112,10 +122,13 @@ impl BacktestConfig {
             trading_days_per_year: raw.metrics.trading_days_per_year,
             risk_free_annual_pct: rf,
         };
+        let day_tz = Tz::from_str(&raw.account.day_timezone)
+            .map_err(|_| format!("day_timezone desconocida: {}", raw.account.day_timezone))?;
         Ok(Self {
             exits: cfg,
             costs,
             metrics,
+            day_tz,
         })
     }
 }

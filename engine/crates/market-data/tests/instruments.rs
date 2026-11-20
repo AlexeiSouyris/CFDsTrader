@@ -158,3 +158,46 @@ fn rejects_invalid_numbers_and_unknown_fields() {
     assert_ne!(empty_reason, REAL);
     assert!(Catalog::from_toml(&empty_reason).is_err());
 }
+
+#[test]
+fn account_and_funding_benchmarks_come_with_their_source() {
+    let c = catalog();
+    assert_eq!(c.account_currency.value(), Some(&Currency::EUR));
+    assert_eq!(
+        c.funding_cutoff.value().map(|t| t.to_string()),
+        Some("23:00:00".into())
+    );
+    assert_eq!(c.funding_cutoff_timezone, chrono_tz::Europe::Madrid);
+    assert_eq!(
+        c.funding_benchmarks["ESTR"],
+        Sourced::Known {
+            value: dec!(2.441),
+            source: "ecb-estr".into()
+        }
+    );
+}
+
+#[test]
+fn an_instrument_cannot_use_a_benchmark_without_a_rate_entry() {
+    let bad = REAL.replacen(
+        r#"funding_benchmark = { value = "ESTR", source = "ig-es-costes" }"#,
+        r#"funding_benchmark = { value = "SOFR", source = "ig-es-costes" }"#,
+        1,
+    );
+    assert_ne!(bad, REAL);
+    let err = Catalog::from_toml(&bad).unwrap_err().to_string();
+    assert!(
+        err.contains("SOFR") && err.contains("funding_benchmarks"),
+        "{err}"
+    );
+    // Un tipo de referencia puede ser negativo (el €STR lo fue hasta 2022).
+    let negative = REAL.replacen(
+        r#"ESTR = { value = "2.441""#,
+        r#"ESTR = { value = "-0.5""#,
+        1,
+    );
+    assert_eq!(
+        Catalog::from_toml(&negative).unwrap().funding_benchmarks["ESTR"].value(),
+        Some(&dec!(-0.5))
+    );
+}

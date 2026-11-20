@@ -128,6 +128,13 @@ pub struct PendingField {
 pub struct Catalog {
     pub instruments: BTreeMap<InstrumentId, InstrumentSpec>,
     pub margin_closeout_pct: Sourced<Decimal>,
+    /// Moneda de la cuenta.
+    pub account_currency: Sourced<Currency>,
+    /// Hora del cargo de financiación nocturna, en `funding_cutoff_timezone`.
+    pub funding_cutoff: Sourced<chrono::NaiveTime>,
+    pub funding_cutoff_timezone: Tz,
+    /// Valor anual en % de cada tipo de referencia (`funding_benchmark` de los instrumentos).
+    pub funding_benchmarks: BTreeMap<String, Sourced<Decimal>>,
 }
 
 #[derive(Deserialize)]
@@ -154,6 +161,7 @@ struct RawSource {
 struct RawAccount {
     #[allow(dead_code)]
     broker: String,
+    currency: RawSourced,
     funding_cutoff: RawSourced,
     funding_cutoff_timezone: String,
     margin_closeout_pct: RawSourced,
@@ -195,6 +203,8 @@ struct RawShareCosts {
 struct RawCatalog {
     sources: BTreeMap<String, RawSource>,
     account: RawAccount,
+    #[serde(default)]
+    funding_benchmarks: BTreeMap<String, RawSourced>,
     instruments: BTreeMap<String, RawInstrument>,
     share_costs: BTreeMap<String, RawShareCosts>,
 }
@@ -280,10 +290,13 @@ impl Catalog {
         };
 
         let acc = raw.account;
-        cx.sourced("account", "funding_cutoff", acc.funding_cutoff, |s| {
+        let account_currency = cx.sourced("account", "currency", acc.currency, |s| {
+            s.parse::<Currency>().map_err(|e| e.to_string())
+        })?;
+        let funding_cutoff = cx.sourced("account", "funding_cutoff", acc.funding_cutoff, |s| {
             chrono::NaiveTime::parse_from_str(s, "%H:%M").map_err(|_| format!("{s:?} no es HH:MM"))
         })?;
-        Tz::from_str(&acc.funding_cutoff_timezone).map_err(|_| {
+        let funding_cutoff_timezone = Tz::from_str(&acc.funding_cutoff_timezone).map_err(|_| {
             Ctx::err(
                 "account",
                 "funding_cutoff_timezone",
@@ -296,6 +309,14 @@ impl Catalog {
             acc.margin_closeout_pct,
             pct,
         )?;
+        let mut funding_benchmarks = BTreeMap::new();
+        for (name, v) in raw.funding_benchmarks {
+            // Un tipo de referencia puede ser negativo (el €STR lo fue hasta 2022).
+            let rate = cx.sourced("funding_benchmarks", &name, v, |s| {
+                Decimal::from_str(s).map_err(|e| format!("{s:?} no es un decimal: {e}"))
+            })?;
+            funding_benchmarks.insert(name, rate);
+        }
 
         let mut instruments = BTreeMap::new();
         for (key, r) in raw.instruments {
@@ -403,9 +424,25 @@ impl Catalog {
             cx.sourced(&k, "margin_retail_pct", s.margin_retail_pct, pct)?;
         }
 
+        for (id, spec) in &instruments {
+            if let Some(name) = spec.terms.funding_benchmark.value()
+                && !funding_benchmarks.contains_key(name)
+            {
+                return Err(Ctx::err(
+                    id.as_str(),
+                    "funding_benchmark",
+                    format!("{name:?} no está en [funding_benchmarks]"),
+                ));
+            }
+        }
+
         Ok(Self {
             instruments,
             margin_closeout_pct,
+            account_currency,
+            funding_cutoff,
+            funding_cutoff_timezone,
+            funding_benchmarks,
         })
     }
 

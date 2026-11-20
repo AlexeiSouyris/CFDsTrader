@@ -1,0 +1,126 @@
+//! Armar el [`Setup`] de un recorrido **solo** desde la configuración (#76): catálogo de
+//! instrumentos (`config/instruments.toml`), estrategia, riesgo y backtest. Si falta cualquier
+//! dato del broker, se devuelven todos los pendientes y no se simula nada (spec §11).
+
+use cfds_core::InstrumentId;
+use cfds_market_data::{Catalog, PendingField, Sourced};
+use cfds_risk::{InstrumentLimits, RiskConfig};
+use cfds_strategy::Configs;
+use rust_decimal::Decimal;
+
+use crate::{BacktestConfig, InstrumentCosts, Setup};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SetupError {
+    /// El instrumento no está en el catálogo.
+    Unknown(InstrumentId),
+    /// Faltan datos del broker: no se simula con valores inventados.
+    Pending(Vec<PendingField>),
+    /// El contrato está en otra moneda que la cuenta: hace falta un tipo de cambio con fuente.
+    CurrencyConversion { account: String, instrument: String },
+    /// El capital inicial tiene que ser mayor que 0.
+    InvalidEquity(Decimal),
+}
+
+impl std::fmt::Display for SetupError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SetupError::Unknown(id) => write!(f, "{id} no está en config/instruments.toml"),
+            SetupError::Pending(p) => {
+                write!(f, "faltan datos del broker:")?;
+                for x in p {
+                    write!(f, " {}.{} ({})", x.item, x.field, x.reason)?;
+                }
+                Ok(())
+            }
+            SetupError::CurrencyConversion {
+                account,
+                instrument,
+            } => write!(
+                f,
+                "el contrato está en {instrument} y la cuenta en {account}: falta un tipo de cambio con fuente"
+            ),
+            SetupError::InvalidEquity(e) => write!(f, "capital inicial inválido: {e}"),
+        }
+    }
+}
+
+impl std::error::Error for SetupError {}
+
+fn pending<T>(item: &str, field: &'static str, v: &Sourced<T>) -> Option<PendingField> {
+    match v {
+        Sourced::Pending { reason } => Some(PendingField {
+            item: item.to_owned(),
+            field,
+            reason: reason.clone(),
+        }),
+        Sourced::Known { .. } => None,
+    }
+}
+
+/// [`Setup`] de `instrument` con los valores del catálogo. El tipo de referencia de la
+/// financiación se toma constante en todo el recorrido (`[funding_benchmarks]`).
+pub fn setup_from_catalog(
+    catalog: &Catalog,
+    instrument: &InstrumentId,
+    strategy: Configs,
+    risk: RiskConfig,
+    backtest: BacktestConfig,
+    initial_equity: Decimal,
+) -> Result<Setup, SetupError> {
+    if initial_equity <= Decimal::ZERO {
+        return Err(SetupError::InvalidEquity(initial_equity));
+    }
+    let spec = catalog
+        .instruments
+        .get(instrument)
+        .ok_or_else(|| SetupError::Unknown(instrument.clone()))?;
+    let costs = InstrumentCosts::from_spec(spec);
+    let mut missing = costs.clone().err().unwrap_or_default();
+    missing.extend(pending("account", "currency", &catalog.account_currency));
+    missing.extend(pending(
+        "account",
+        "funding_cutoff",
+        &catalog.funding_cutoff,
+    ));
+    // El nombre del tipo de referencia ya cuenta en los costos; acá, su valor.
+    let rate = spec.terms.funding_benchmark.value().and_then(|name| {
+        let v = catalog.funding_benchmarks.get(name)?;
+        missing.extend(pending("funding_benchmarks", "rate", v));
+        v.value().copied()
+    });
+    // Sin margen, `from_spec` da `None`; el pendiente ya está en `missing_costs`.
+    let limits = InstrumentLimits::from_spec(spec);
+    match (
+        costs,
+        limits,
+        rate,
+        catalog.account_currency.value(),
+        catalog.funding_cutoff.value(),
+    ) {
+        // Cada pendiente deja un `Err` o un `None` acá: no hace falta otro chequeo.
+        (Ok(costs), Some(limits), Some(benchmark_pct), Some(account), Some(&cutoff)) => {
+            if *account != spec.instrument.currency {
+                return Err(SetupError::CurrencyConversion {
+                    account: account.to_string(),
+                    instrument: spec.instrument.currency.to_string(),
+                });
+            }
+            Ok(Setup {
+                instrument: instrument.clone(),
+                strategy,
+                risk,
+                limits,
+                costs,
+                day_tz: backtest.day_tz,
+                backtest,
+                initial_equity,
+                account_to_instrument: Decimal::ONE,
+                benchmark_pct,
+                funding_cutoff: cutoff,
+                funding_tz: catalog.funding_cutoff_timezone,
+            })
+        }
+        _ => Err(SetupError::Pending(missing)),
+    }
+}
