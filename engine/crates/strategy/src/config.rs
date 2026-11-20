@@ -27,10 +27,17 @@ pub struct StopConfig {
     pub atr_buffer: Decimal,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceConfig {
+    pub sma_period: usize,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StrategyConfig {
     pub score: ScoreConfig,
     pub stop: StopConfig,
+    pub evidence: EvidenceConfig,
 }
 
 impl StrategyConfig {
@@ -45,6 +52,7 @@ impl StrategyConfig {
         struct Raw {
             score: ScoreConfig,
             stop: RawStop,
+            evidence: EvidenceConfig,
         }
         let raw: Raw = toml::from_str(text).map_err(|e| e.to_string())?;
         let s = raw.score;
@@ -75,9 +83,13 @@ impl StrategyConfig {
         if atr_buffer < Decimal::ZERO {
             return Err("stop.atr_buffer no puede ser negativo".into());
         }
+        if raw.evidence.sma_period == 0 {
+            return Err("evidence.sma_period tiene que ser mayor que 0".into());
+        }
         Ok(Self {
             score: s,
             stop: StopConfig { atr_buffer },
+            evidence: raw.evidence,
         })
     }
 }
@@ -110,6 +122,7 @@ mod tests {
             }
         );
         assert_eq!(c.stop.atr_buffer, dec!(0.5));
+        assert_eq!(c.evidence.sma_period, 50);
     }
 
     #[test]
@@ -121,6 +134,7 @@ mod tests {
             REAL.replace("news_min = -2", "news_min = 1"),
             REAL.replace(r#""0.5""#, r#""-0.5""#),
             REAL.replace("recent_choch", "choch_reciente"),
+            REAL.replace("sma_period = 50", "sma_period = 0"),
         ] {
             assert!(StrategyConfig::from_toml(&bad).is_err(), "{bad}");
         }

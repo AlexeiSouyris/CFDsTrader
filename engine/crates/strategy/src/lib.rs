@@ -1,14 +1,18 @@
 //! Estrategia (Fase 4): funciones puras que convierten la evidencia de una vela cerrada en un
 //! puntaje de confluencia (spec §6) y un stop estructural (spec §8).
 //!
-//! Este crate no mira velas: recibe la evidencia ya calculada por indicadores, patrones y
-//! liquidez. Así cada regla se prueba sola, con casos construidos a mano.
+//! El puntaje y el stop no miran velas: reciben la evidencia ya calculada, y así cada regla
+//! se prueba sola. `evidence` arma esa evidencia desde las velas cerradas de 15m y 1h.
 
 pub mod config;
+pub mod evidence;
+pub mod mtf;
 pub mod score;
 pub mod stop;
 
 pub use cfds_liquidity::Side;
-pub use config::{ScoreConfig, StopConfig, StrategyConfig};
+pub use config::{EvidenceConfig, ScoreConfig, StopConfig, StrategyConfig};
+pub use evidence::{Analysis, Configs, Signal};
+pub use mtf::align_closed;
 pub use score::{Component, Evidence, Score, ScoreError, Trigger, TriggerKind, score};
 pub use stop::{risk_per_unit, structural_stop};

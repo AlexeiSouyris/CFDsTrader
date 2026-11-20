@@ -276,8 +276,11 @@ dependencies = [
 name = "cfds-strategy"
 version = "0.1.0"
 dependencies = [
+ "cfds-core",
  "cfds-indicators",
  "cfds-liquidity",
+ "cfds-patterns",
+ "chrono",
  "rust_decimal",
  "serde",
  "toml",
