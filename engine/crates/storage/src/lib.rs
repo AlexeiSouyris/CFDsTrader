@@ -26,6 +26,17 @@ pub enum StorageError {
     #[error("JSON: {0}")]
     Json(#[from] serde_json::Error),
     #[error(
+        "ya existe la observación {feed}/{series} de {instrument} para {observed_for} \
+         publicada {published_at} con otro valor: no se pisa (revisar la fuente)"
+    )]
+    SentimentConflict {
+        feed: String,
+        series: String,
+        instrument: String,
+        observed_for: chrono::DateTime<chrono::Utc>,
+        published_at: chrono::DateTime<chrono::Utc>,
+    },
+    #[error(
         "ya existe {instrument} {timeframe} {start} con otros valores: no se pisa (revisar la fuente)"
     )]
     Conflict {

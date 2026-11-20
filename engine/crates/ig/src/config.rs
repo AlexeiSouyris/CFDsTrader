@@ -31,6 +31,8 @@ pub struct IgConfig {
     pub page_size: u32,
     pub local_time_margin_hours: u32,
     pub live: LiveConfig,
+    /// Cada cuánto se graba el sentimiento de clientes de IG (#27).
+    pub sentiment_interval: Duration,
 }
 
 /// Modo en vivo (#68).
@@ -50,6 +52,13 @@ struct Raw {
     retry: RawRetry,
     history: RawHistory,
     live: RawLive,
+    sentiment: RawSentiment,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawSentiment {
+    interval_minutes: u64,
 }
 
 #[derive(Deserialize)]
@@ -163,7 +172,15 @@ impl IgConfig {
                     .saturating_mul(3600),
             ),
         };
+        let minutes = at_least_one("sentiment.interval_minutes", r.sentiment.interval_minutes)?;
+        if minutes > 24 * 60 || (24 * 60) % minutes != 0 {
+            return Err(invalid(
+                "sentiment.interval_minutes",
+                "tiene que dividir exacto al día (1, 5, 15, 30, 60...)",
+            ));
+        }
         Ok(Self {
+            sentiment_interval: Duration::from_secs(minutes * 60),
             live,
             base_url: DEMO_BASE_URL.to_owned(),
             request_timeout: Duration::from_secs(at_least_one(
@@ -299,6 +316,35 @@ mod tests {
             assert!(
                 matches!(IgConfig::from_toml(&text), Err(IgConfigError::Invalid { field, .. }) if field.starts_with("live.")),
                 "{to}"
+            );
+        }
+    }
+
+    #[test]
+    fn sentiment_interval_divides_the_day() {
+        assert_eq!(
+            IgConfig::from_toml(REAL)
+                .unwrap()
+                .sentiment_interval
+                .as_secs(),
+            15 * 60
+        );
+        for bad in [
+            "interval_minutes = 0",
+            "interval_minutes = 7",
+            "interval_minutes = 2880",
+        ] {
+            let text = REAL.replace("interval_minutes = 15", bad);
+            assert_ne!(text, REAL);
+            assert!(
+                matches!(
+                    IgConfig::from_toml(&text),
+                    Err(IgConfigError::Invalid {
+                        field: "sentiment.interval_minutes",
+                        ..
+                    })
+                ),
+                "{bad}"
             );
         }
     }

@@ -1,6 +1,6 @@
 //! Histórico en PostgreSQL.
 
-use cfds_core::{Candle, Instrument, InstrumentId, Timeframe};
+use cfds_core::{Candle, Instrument, InstrumentId, SentimentObservation, Timeframe};
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sqlx::postgres::{PgPool, PgRow};
@@ -102,6 +102,65 @@ impl PgStore {
                     instrument: c.instrument_id.to_string(),
                     timeframe: c.timeframe.to_string(),
                     start: c.start,
+                });
+            }
+        }
+        tx.commit().await?;
+        Ok(report)
+    }
+
+    /// Guarda observaciones de sentimiento (#27) en `sentiment_observations`, que es de solo
+    /// agregar. Repetir la misma observación no cambia nada; la misma clave con otro valor es un
+    /// error (no se pisa). Todo o nada: una transacción.
+    pub async fn insert_sentiment(
+        &self,
+        observations: &[SentimentObservation],
+    ) -> Result<InsertReport, StorageError> {
+        let mut tx = self.pool.begin().await?;
+        let mut report = InsertReport::default();
+        for o in observations {
+            let instrument = o.instrument_id.as_ref().map(InstrumentId::as_str);
+            let inserted = sqlx::query(
+                "INSERT INTO sentiment_observations
+                     (source, series, instrument_id, observed_for, published_at, value)
+                 VALUES ($1, $2, $3, $4, $5, $6)
+                 ON CONFLICT ON CONSTRAINT sentiment_observations_key DO NOTHING",
+            )
+            .bind(&o.source)
+            .bind(&o.series)
+            .bind(instrument)
+            .bind(o.observed_for)
+            .bind(o.published_at)
+            .bind(o.value)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected()
+                == 1;
+            if inserted {
+                report.inserted += 1;
+                continue;
+            }
+            let stored: Decimal = sqlx::query_scalar(
+                "SELECT value FROM sentiment_observations
+                 WHERE source = $1 AND series = $2 AND instrument_id IS NOT DISTINCT FROM $3
+                   AND observed_for = $4 AND published_at = $5",
+            )
+            .bind(&o.source)
+            .bind(&o.series)
+            .bind(instrument)
+            .bind(o.observed_for)
+            .bind(o.published_at)
+            .fetch_one(&mut *tx)
+            .await?;
+            if stored == o.value {
+                report.unchanged += 1;
+            } else {
+                return Err(StorageError::SentimentConflict {
+                    feed: o.source.clone(),
+                    series: o.series.clone(),
+                    instrument: instrument.unwrap_or("-").to_owned(),
+                    observed_for: o.observed_for,
+                    published_at: o.published_at,
                 });
             }
         }

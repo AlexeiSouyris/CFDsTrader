@@ -152,3 +152,71 @@ fn contract_and_rust_reject_the_same_bad_instruments() {
     d["epic"] = json!("IX.D.NASDAQ.IFE.IP");
     assert_both_reject::<Instrument>(schema, d);
 }
+
+fn sample_sentiment(instrument: Option<&str>) -> cfds_core::SentimentObservation {
+    cfds_core::SentimentObservation {
+        source: "ig_client".into(),
+        series: "long_pct".into(),
+        instrument_id: instrument.map(|i| i.parse().unwrap()),
+        observed_for: "2026-11-20T21:45:00Z".parse().unwrap(),
+        published_at: "2026-11-20T21:45:03Z".parse().unwrap(),
+        value: dec!(68.0),
+    }
+}
+
+#[test]
+fn sentiment_observation_roundtrips_through_the_contract() {
+    let schema = "sentiment_observation.v1.schema.json";
+    assert_roundtrip(schema, &sample_sentiment(Some("US100")));
+    // Dato de todo el mercado (sin instrumento) y valor con signo (índices futuros, #25).
+    let mut market = sample_sentiment(None);
+    market.value = dec!(-0.35);
+    assert_roundtrip(schema, &market);
+    let json = serde_json::to_value(sample_sentiment(Some("US100"))).unwrap();
+    assert_eq!(json["value"], json!("68.0"));
+    assert_eq!(json["instrument_id"], json!("US100"));
+}
+
+#[test]
+fn contract_and_rust_reject_the_same_bad_sentiment_observations() {
+    let schema = "sentiment_observation.v1.schema.json";
+    let doc = || serde_json::to_value(sample_sentiment(Some("US100"))).unwrap();
+    let mut cases: Vec<(&str, Value)> = Vec::new();
+
+    let mut d = doc();
+    d["value"] = json!(68.0);
+    cases.push(("valor como número JSON (float)", d));
+
+    let mut d = doc();
+    d["published_at"] = json!("2026-11-20T22:45:03+01:00");
+    cases.push(("hora con zona que no es Z", d));
+
+    let mut d = doc();
+    d["source"] = json!("IG Client");
+    cases.push(("fuente con mayúsculas y espacios", d));
+
+    let mut d = doc();
+    d["source"] = json!("Ig_client");
+    cases.push(("fuente que empieza con mayúscula", d));
+
+    let mut d = doc();
+    d["series"] = json!("");
+    cases.push(("serie vacía", d));
+
+    let mut d = doc();
+    d["instrument_id"] = json!("us100");
+    cases.push(("id de instrumento en minúsculas", d));
+
+    let mut d = doc();
+    d.as_object_mut().unwrap().remove("instrument_id");
+    cases.push(("falta instrument_id (tiene que venir, aunque sea null)", d));
+
+    let mut d = doc();
+    d["extra"] = json!(1);
+    cases.push(("campo no definido en el contrato", d));
+
+    for (what, doc) in cases {
+        eprintln!("caso: {what}");
+        assert_both_reject::<cfds_core::SentimentObservation>(schema, doc);
+    }
+}

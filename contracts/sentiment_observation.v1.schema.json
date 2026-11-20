@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/sentiment_observation.v1.schema.json",
+  "title": "Sentiment observation v1",
+  "description": "Un dato crudo de una fuente de sentimiento (#25, #27), tal como lo publicó la fuente. Solo se agrega, nunca se modifica: una corrección de la fuente es otra observación. Interpretarlo le corresponde a Python (fase 4b).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source", "series", "instrument_id", "observed_for", "published_at", "value"],
+  "properties": {
+    "source": {
+      "description": "Fuente. Hoy: 'ig_client' (sentimiento de clientes de IG, #27).",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,31}$"
+    },
+    "series": {
+      "description": "Serie dentro de la fuente. 'ig_client': 'long_pct' = % de clientes de IG con posición larga (el % corto es 100 − long_pct).",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,31}$"
+    },
+    "instrument_id": {
+      "description": "Instrumento al que se refiere (ver instrument.v1), o null si es un dato de todo el mercado.",
+      "oneOf": [
+        { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" },
+        { "type": "null" }
+      ]
+    },
+    "observed_for": {
+      "description": "Momento al que corresponde el dato, en UTC (ISO 8601 terminado en Z).",
+      "$ref": "#/$defs/utc"
+    },
+    "published_at": {
+      "description": "Desde cuándo el dato estuvo disponible para el sistema, en UTC. Nunca anterior a observed_for. Nada lo puede usar antes de esta hora (CLAUDE.md §5b).",
+      "$ref": "#/$defs/utc"
+    },
+    "value": {
+      "description": "Valor como string decimal exacto (con signo si la serie lo admite), nunca número JSON.",
+      "type": "string",
+      "pattern": "^-?\\d+(\\.\\d+)?$"
+    }
+  },
+  "$defs": {
+    "utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    }
+  }
+}

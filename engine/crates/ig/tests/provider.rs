@@ -552,6 +552,7 @@ async fn market_terms_come_from_the_recorded_market_details() {
         terms,
         cfds_ig::MarketTerms {
             epic: "IX.D.NASDAQ.IFE.IP".into(),
+            market_id: "USTECH".into(),
             name: "EEUU Tech 100 al contado (1€)".into(),
             instrument_type: "INDICES".into(),
             currency: "EUR".into(),
@@ -686,4 +687,116 @@ async fn recent_mode_estimates_one_point_per_candle() {
         .unwrap_err();
     assert!(matches!(err, ProviderError::RateLimited { .. }));
     assert_eq!(t.sent().len(), 2);
+}
+
+fn market_de40() -> String {
+    MARKET_US100
+        .replace("IX.D.NASDAQ.IFE.IP", "IX.D.DAX.IFE.IP")
+        .replace("\"marketId\": \"USTECH\"", "\"marketId\": \"DE30\"")
+}
+
+/// Respuesta real (`client_sentiment_4.json`) reducida a los dos mercados que se piden.
+const SENTIMENT_2: &str = r#"{"clientSentiments": [
+    {"marketId": "USTECH", "longPositionPercentage": 68.0, "shortPositionPercentage": 32.0},
+    {"marketId": "DE30", "longPositionPercentage": 63.0, "shortPositionPercentage": 37.0}]}"#;
+
+#[tokio::test(start_paused = true)]
+async fn client_sentiment_resolves_market_ids_once_and_asks_once() {
+    let t = Recorded::default()
+        .login()
+        .ok(MARKET_US100)
+        .ok(&market_de40())
+        .ok(SENTIMENT_2)
+        .ok(SENTIMENT_2);
+    let ig = provider(&t, cfg());
+    let wanted = [us100(), de40()];
+    let got = ig.client_sentiment(&wanted).await.unwrap();
+    assert_eq!(
+        got,
+        [(us100(), Some(dec!(68.0))), (de40(), Some(dec!(63.0)))]
+    );
+    let last = t.sent().pop().unwrap();
+    assert_eq!(
+        (last.path.as_str(), last.version),
+        ("/clientsentiment?marketIds=DE30,USTECH", 1),
+        "ruta medida en la demo (la doc dice /client-sentiment, que da 404)"
+    );
+    assert_eq!(header(&last, "CST"), Some(FAKE_CST));
+
+    // Segunda consulta: los marketId ya se conocen, un solo pedido.
+    ig.client_sentiment(&wanted).await.unwrap();
+    assert_eq!(t.sent().len(), 5);
+}
+
+#[tokio::test(start_paused = true)]
+async fn client_sentiment_without_data_is_none_and_broken_answers_are_errors() {
+    // IG responde 0 % / 0 % a un mercado sin dato (respuesta real).
+    let unknown =
+        include_str!("fixtures/client_sentiment_unknown.json").replace("NO_EXISTE_XYZ", "USTECH");
+    let t = Recorded::default().login().ok(MARKET_US100).ok(&unknown);
+    let got = provider(&t, cfg())
+        .client_sentiment(&[us100()])
+        .await
+        .unwrap();
+    assert_eq!(got, [(us100(), None)]);
+
+    // Mercados que no se pidieron (la respuesta real trae los cuatro): error, no se adivina.
+    let four = include_str!("fixtures/client_sentiment_4.json");
+    let t = Recorded::default().login().ok(MARKET_US100).ok(four);
+    let err = provider(&t, cfg())
+        .client_sentiment(&[us100()])
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, ProviderError::InvalidResponse(ref m) if m.contains("no se pidió")),
+        "{err:?}"
+    );
+
+    // Un 5xx se reintenta como cualquier otro pedido.
+    let t = Recorded::default()
+        .login()
+        .ok(MARKET_US100)
+        .error(503, "system.error")
+        .ok(&unknown);
+    assert!(
+        provider(&t, cfg())
+            .client_sentiment(&[us100()])
+            .await
+            .is_ok()
+    );
+
+    // Sin instrumentos no se pide nada.
+    let t = Recorded::default();
+    assert!(
+        provider(&t, cfg())
+            .client_sentiment(&[])
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert!(t.sent().is_empty());
+}
+
+#[tokio::test(start_paused = true)]
+async fn instruments_sharing_a_market_ask_for_it_once() {
+    // Dos instrumentos del mismo grupo de mercado (por ejemplo dos tamaños de contrato).
+    let one = r#"{"clientSentiments": [
+        {"marketId": "USTECH", "longPositionPercentage": 68.0, "shortPositionPercentage": 32.0}]}"#;
+    let t = Recorded::default()
+        .login()
+        .ok(MARKET_US100)
+        .ok(MARKET_US100)
+        .ok(one);
+    let got = provider(&t, cfg())
+        .client_sentiment(&[us100(), de40()])
+        .await
+        .unwrap();
+    assert_eq!(
+        got,
+        [(us100(), Some(dec!(68.0))), (de40(), Some(dec!(68.0)))]
+    );
+    assert_eq!(
+        t.sent().pop().unwrap().path,
+        "/clientsentiment?marketIds=USTECH"
+    );
 }
