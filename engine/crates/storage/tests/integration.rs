@@ -4,7 +4,9 @@
 //! funcione sin servicios; el CI los corre en un job propio con `-- --ignored` (no se saltean).
 //! Cada test usa sus propios instrumentos para poder correr en paralelo.
 
-use cfds_core::{AssetClass, Candle, Currency, Instrument, InstrumentId, Timeframe};
+use cfds_core::{
+    AssetClass, Candle, Currency, Instrument, InstrumentId, SentimentObservation, Timeframe,
+};
 use cfds_storage::{CandlePublisher, PgStore, Published, StorageError, stream_key};
 use chrono::{DateTime, TimeDelta, Utc};
 use rust_decimal::{Decimal, dec};
@@ -239,4 +241,106 @@ async fn republishing_is_harmless_but_late_old_candles_are_reported() {
     let err = p.publish(&candles[1], now).await.unwrap_err();
     assert!(matches!(err, StorageError::OutOfOrder { .. }), "{err}");
     assert_eq!(read_stream(&stream).await.len(), 2);
+}
+
+fn sentiment(instrument: &InstrumentId, at: DateTime<Utc>, value: Decimal) -> SentimentObservation {
+    SentimentObservation {
+        source: "ig_client".into(),
+        series: "long_pct".into(),
+        instrument_id: Some(instrument.clone()),
+        observed_for: at,
+        published_at: at,
+        value,
+    }
+}
+
+/// Hora única por corrida: la tabla es de solo agregar y no se puede limpiar entre corridas.
+fn fresh_time() -> DateTime<Utc> {
+    let now = Utc::now();
+    now - TimeDelta::nanoseconds(i64::from(now.timestamp_subsec_nanos() % 1000))
+}
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
+async fn sentiment_is_append_only_and_idempotent() {
+    let s = store().await;
+    let us = with_instrument(&s, "TSENT").await;
+    let at = fresh_time();
+    let batch = vec![
+        sentiment(&us, at, dec!(68.0)),
+        sentiment(&us, at + TimeDelta::minutes(15), dec!(67.5)),
+    ];
+    let first = s.insert_sentiment(&batch).await.unwrap();
+    assert_eq!((first.inserted, first.unchanged), (2, 0));
+    // Repetir es inofensivo.
+    let again = s.insert_sentiment(&batch).await.unwrap();
+    assert_eq!((again.inserted, again.unchanged), (0, 2));
+
+    // La misma clave con otro valor no pisa nada, y el lote entero se descarta.
+    let other = sentiment(&us, at + TimeDelta::minutes(30), dec!(66));
+    let changed = sentiment(&us, at, dec!(70));
+    let err = s
+        .insert_sentiment(&[other.clone(), changed])
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, StorageError::SentimentConflict { .. }),
+        "{err}"
+    );
+    let pool = sqlx::PgPool::connect(&env("DATABASE_URL")).await.unwrap();
+    let count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM sentiment_observations WHERE instrument_id = $1 AND observed_for >= $2",
+    )
+    .bind(us.as_str())
+    .bind(at)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        count, 2,
+        "la transacción no dejó la fila nueva del lote fallido"
+    );
+
+    // La base impide modificar o borrar.
+    for sql in [
+        "UPDATE sentiment_observations SET value = 1 WHERE instrument_id = $1",
+        "DELETE FROM sentiment_observations WHERE instrument_id = $1",
+    ] {
+        let e = sqlx::query(sql)
+            .bind(us.as_str())
+            .execute(&pool)
+            .await
+            .unwrap_err();
+        assert!(e.to_string().contains("solo agregar"), "{e}");
+    }
+}
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
+async fn the_database_rejects_impossible_sentiment() {
+    let s = store().await;
+    let us = with_instrument(&s, "TSENT2").await;
+    let at = fresh_time();
+    // % de IG fuera de 0–100.
+    assert!(
+        s.insert_sentiment(&[sentiment(&us, at, dec!(100.5))])
+            .await
+            .is_err()
+    );
+    // Publicado antes del momento al que corresponde (look-ahead).
+    let mut early = sentiment(&us, at, dec!(50));
+    early.published_at = at - TimeDelta::seconds(1);
+    assert!(s.insert_sentiment(&[early]).await.is_err());
+    // Un dato de todo el mercado (sin instrumento) es válido, y también idempotente.
+    let mut market = sentiment(&us, at, dec!(-0.4));
+    market.source = "test_index".into();
+    market.instrument_id = None;
+    assert_eq!(
+        s.insert_sentiment(&[market.clone()])
+            .await
+            .unwrap()
+            .inserted,
+        1
+    );
+    assert_eq!(s.insert_sentiment(&[market]).await.unwrap().unchanged, 1);
 }

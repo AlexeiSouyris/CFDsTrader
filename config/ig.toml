@@ -49,3 +49,9 @@ candle_delay_secs = 20
 give_up_after_secs = 600
 # Al arrancar sin datos previos, cuánto hacia atrás se completa.
 startup_lookback_hours = 24
+
+# Sentimiento de clientes de IG (#27): % de clientes con posición larga, un pedido para todos los
+# instrumentos del catálogo (GET /clientsentiment). No gasta cupo de históricos.
+[sentiment]
+# Cada cuántos minutos se graba, alineado a la hora (15 → :00, :15, :30, :45). 96 pedidos por día.
+interval_minutes = 15

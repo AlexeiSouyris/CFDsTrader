@@ -7,10 +7,12 @@ pub mod candle;
 pub mod decimal_str;
 pub mod instrument;
 pub mod money;
+pub mod sentiment;
 
 pub use candle::{Candle, Timeframe};
 pub use instrument::{AssetClass, Instrument, InstrumentId};
 pub use money::{Currency, Money, MoneyError};
+pub use sentiment::SentimentObservation;
 
 /// Modo de operación del sistema. Por defecto, y por regla (CLAUDE.md §5),
 /// solo existe la simulación: no hay forma de enviar órdenes reales.

@@ -59,6 +59,8 @@ pub struct IgProvider<T> {
     credentials: Credentials,
     epics: BTreeMap<InstrumentId, String>,
     state: Mutex<State>,
+    /// `marketId` de cada instrumento, leído una vez de `GET /markets/{epic}` (#27).
+    market_ids: Mutex<BTreeMap<InstrumentId, String>>,
 }
 
 /// Epics de `config/instruments.toml` que ya tienen valor con fuente.
@@ -98,6 +100,7 @@ impl<T: Transport> IgProvider<T> {
                 sent: VecDeque::new(),
                 allowance: None,
             }),
+            market_ids: Mutex::new(BTreeMap::new()),
         }
     }
 
@@ -414,6 +417,51 @@ impl<T: Transport> IgProvider<T> {
             .prices(self.epic(instrument)?, timeframe, from, to, Window::Padded)
             .await?;
         model::close_spreads(&raw, timeframe, from, to).map_err(ProviderError::InvalidResponse)
+    }
+
+    /// % de clientes de IG con posición larga en cada instrumento (#27), con un solo pedido a
+    /// `GET /clientsentiment?marketIds=…` (v1). `None` = IG no tiene dato para ese mercado.
+    /// No gasta cupo de históricos. El `marketId` se resuelve una vez por instrumento.
+    pub async fn client_sentiment(
+        &self,
+        instruments: &[InstrumentId],
+    ) -> Result<Vec<(InstrumentId, Option<Decimal>)>, ProviderError> {
+        let mut ids = Vec::with_capacity(instruments.len());
+        for i in instruments {
+            let known = self.market_ids.lock().await.get(i).cloned();
+            let id = match known {
+                Some(id) => id,
+                None => {
+                    let id = self.market_terms(i).await?.market_id;
+                    self.market_ids.lock().await.insert(i.clone(), id.clone());
+                    id
+                }
+            };
+            ids.push(id);
+        }
+        let mut unique = ids.clone();
+        unique.sort();
+        unique.dedup();
+        if unique.is_empty() {
+            return Ok(Vec::new());
+        }
+        let query = unique.join(",");
+        let mut st = self.state.lock().await;
+        let resp = self
+            .get(
+                &mut st,
+                |_| format!("/clientsentiment?marketIds={query}"),
+                1,
+                &query,
+            )
+            .await?;
+        let by_market =
+            model::client_sentiment(&resp.body, &unique).map_err(ProviderError::InvalidResponse)?;
+        Ok(instruments
+            .iter()
+            .zip(ids)
+            .map(|(i, id)| (i.clone(), by_market.get(&id).copied().flatten()))
+            .collect())
     }
 
     /// Condiciones del contrato (`GET /markets/{epic}` v3). No gasta cupo de históricos.

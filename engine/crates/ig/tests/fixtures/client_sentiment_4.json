@@ -1,0 +1,24 @@
+{
+ "clientSentiments": [
+  {
+   "marketId": "USTECH",
+   "longPositionPercentage": 68.0,
+   "shortPositionPercentage": 32.0
+  },
+  {
+   "marketId": "DE30",
+   "longPositionPercentage": 63.0,
+   "shortPositionPercentage": 37.0
+  },
+  {
+   "marketId": "WALL",
+   "longPositionPercentage": 66.0,
+   "shortPositionPercentage": 34.0
+  },
+  {
+   "marketId": "US500",
+   "longPositionPercentage": 68.0,
+   "shortPositionPercentage": 32.0
+  }
+ ]
+}

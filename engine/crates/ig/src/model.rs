@@ -4,6 +4,7 @@
 //! Los números se leen como texto JSON (`RawValue`) y se convierten a `Decimal` exacto,
 //! sin pasar nunca por `f64` (CLAUDE.md §4).
 
+use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use cfds_core::{Candle, InstrumentId, Timeframe};
@@ -169,6 +170,8 @@ pub fn to_candles(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketTerms {
     pub epic: String,
+    /// `instrument.marketId`: el grupo de mercado (lo usa el sentimiento de clientes, #27).
+    pub market_id: String,
     pub name: String,
     /// `instrument.type`, por ejemplo `INDICES`.
     pub instrument_type: String,
@@ -192,6 +195,8 @@ struct MarketBody {
 #[derive(Deserialize)]
 struct MarketInstrument {
     epic: String,
+    #[serde(rename = "marketId")]
+    market_id: String,
     name: String,
     #[serde(rename = "type")]
     instrument_type: String,
@@ -238,6 +243,7 @@ impl MarketTerms {
         };
         Ok(Self {
             epic: i.epic,
+            market_id: i.market_id,
             name: i.name,
             instrument_type: i.instrument_type,
             currency,
@@ -246,6 +252,69 @@ impl MarketTerms {
             margin_pct,
         })
     }
+}
+
+/// Respuesta de `GET /clientsentiment?marketIds=…` (v1). La referencia oficial documenta la
+/// ruta como `/client-sentiment`, pero la API demo responde 404 a esa ruta y 200 a
+/// `/clientsentiment` (medido el 2026-11-20, #27).
+#[derive(Deserialize)]
+struct ClientSentimentBody {
+    #[serde(rename = "clientSentiments")]
+    client_sentiments: Vec<ClientSentimentItem>,
+}
+
+#[derive(Deserialize)]
+struct ClientSentimentItem {
+    #[serde(rename = "marketId")]
+    market_id: String,
+    #[serde(rename = "longPositionPercentage")]
+    long: Box<RawValue>,
+    #[serde(rename = "shortPositionPercentage")]
+    short: Box<RawValue>,
+}
+
+/// % de clientes largos por `marketId`, validado. `None` = IG no tiene dato para ese mercado:
+/// a un `marketId` desconocido responde 0 % largos y 0 % cortos, no un error (medido en la demo).
+///
+/// Es un error (no se adivina): respuesta vacía, un mercado repetido, uno que no se pidió o uno
+/// pedido que falta, porcentajes fuera de 0–100, o largos + cortos ≠ 100.
+pub fn client_sentiment(
+    body: &str,
+    requested: &[String],
+) -> Result<BTreeMap<String, Option<Decimal>>, String> {
+    let b: ClientSentimentBody =
+        serde_json::from_str(body).map_err(|e| format!("GET /clientsentiment: {e}"))?;
+    if b.client_sentiments.is_empty() {
+        return Err("GET /clientsentiment: respuesta vacía".into());
+    }
+    let mut out = BTreeMap::new();
+    for item in b.client_sentiments {
+        let id = item.market_id;
+        if !requested.contains(&id) {
+            return Err(format!("{id}: llegó un mercado que no se pidió"));
+        }
+        let (long, short) = (decimal(&item.long)?, decimal(&item.short)?);
+        // Si los dos son ≥ 0 y suman 100, ninguno pasa de 100: no hace falta otro tope.
+        let pct = Decimal::ONE_HUNDRED;
+        let reading = if long.is_zero() && short.is_zero() {
+            None
+        } else if long.is_sign_negative() || short.is_sign_negative() {
+            return Err(format!(
+                "{id}: porcentajes fuera de 0–100 ({long} / {short})"
+            ));
+        } else if long + short != pct {
+            return Err(format!("{id}: largos + cortos = {} ≠ 100", long + short));
+        } else {
+            Some(long)
+        };
+        if out.insert(id.clone(), reading).is_some() {
+            return Err(format!("{id}: mercado repetido en la respuesta"));
+        }
+    }
+    if let Some(missing) = requested.iter().find(|r| !out.contains_key(*r)) {
+        return Err(format!("{missing}: falta en la respuesta"));
+    }
+    Ok(out)
 }
 
 /// `ask − bid` del cierre de cada vela con inicio en `[from, to)`. Mismas reglas que
@@ -443,5 +512,63 @@ mod tests {
         assert_eq!(median(d(&[14])), Some(Decimal::new(14, 1)));
         assert_eq!(median(d(&[50, 14, 28])), Some(Decimal::new(28, 1)));
         assert_eq!(median(d(&[14, 50, 28, 14])), Some(Decimal::new(21, 1)));
+    }
+
+    #[test]
+    fn client_sentiment_is_validated_not_guessed() {
+        let ids = vec!["USTECH".to_string(), "DE30".to_string()];
+        let body = |items: &str| format!(r#"{{"clientSentiments": [{items}]}}"#);
+        let item = |id: &str, l: &str, s: &str| {
+            format!(
+                r#"{{"marketId":"{id}","longPositionPercentage":{l},"shortPositionPercentage":{s}}}"#
+            )
+        };
+        let ok = body(&[item("USTECH", "68.0", "32.0"), item("DE30", "0.0", "0.0")].join(","));
+        let got = client_sentiment(&ok, &ids).unwrap();
+        assert_eq!(got["USTECH"], Some(Decimal::new(680, 1)));
+        assert_eq!(got["DE30"], None, "0 % / 0 % = sin dato");
+        // 0 % largos con 100 % cortos sí es un dato.
+        let all_short = body(&[item("USTECH", "0", "100"), item("DE30", "100", "0")].join(","));
+        let got = client_sentiment(&all_short, &ids).unwrap();
+        assert_eq!(
+            (got["USTECH"], got["DE30"]),
+            (Some(Decimal::ZERO), Some(Decimal::ONE_HUNDRED))
+        );
+
+        for (case, b) in [
+            ("vacía", body("")),
+            (
+                "repetido",
+                body(
+                    &[
+                        item("USTECH", "68", "32"),
+                        item("USTECH", "68", "32"),
+                        item("DE30", "60", "40"),
+                    ]
+                    .join(","),
+                ),
+            ),
+            (
+                "no se pidió",
+                body(&[item("USTECH", "68", "32"), item("WALL", "60", "40")].join(",")),
+            ),
+            ("falta", body(&item("USTECH", "68", "32"))),
+            (
+                "fuera de 0–100",
+                body(&[item("USTECH", "101", "-1"), item("DE30", "60", "40")].join(",")),
+            ),
+            (
+                "fuera de 0–100",
+                body(&[item("USTECH", "-1", "101"), item("DE30", "60", "40")].join(",")),
+            ),
+            (
+                "≠ 100",
+                body(&[item("USTECH", "68", "30"), item("DE30", "60", "40")].join(",")),
+            ),
+            ("GET /clientsentiment", r#"{"otra": []}"#.to_string()),
+        ] {
+            let err = client_sentiment(&b, &ids).unwrap_err();
+            assert!(err.contains(case), "{case}: {err}");
+        }
     }
 }

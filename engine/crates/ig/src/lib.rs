@@ -7,6 +7,7 @@
 //!   `config/instruments.toml` (#67).
 //! - Modo en vivo (#68): [`live`] decide qué velas cerradas pedir y [`Recent`] las trae
 //!   gastando 1 punto por vela.
+//! - Sentimiento de clientes de IG (#27): [`IgProvider::client_sentiment`] y [`sentiment`].
 //! - Respeta los límites de IG (`config/ig.toml`): pedidos por minuto, cupo semanal de
 //!   históricos y reintentos con backoff.
 //! - Credenciales solo por variables de entorno; nunca aparecen en `Debug` ni en errores.
@@ -17,6 +18,7 @@ pub mod credentials;
 pub mod live;
 pub mod model;
 pub mod provider;
+pub mod sentiment;
 pub mod transport;
 
 pub use config::{DEMO_BASE_URL, IgConfig, IgConfigError, LiveConfig};
