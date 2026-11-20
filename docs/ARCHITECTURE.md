@@ -23,6 +23,15 @@ Decisión base: [ADR 0001 – Arquitectura híbrida](decisions/0001-arquitectura
         PostgreSQL (histórico)  +  Redis (tiempo real, caché, eventos)
 ```
 
+**Circuito de aprendizaje** ([spec §15b](spec/fase-1-especificacion.md#15b-aprendizaje-continuo)): cada propuesta y su resultado quedan en el **diario** (`journal`). Con el diario se mide la calibración de las probabilidades y el aporte de cada señal (Rust), y se reentrenan los modelos (Python). El resultado es un **informe con propuestas de cambio** que el grupo vota. **El sistema nunca cambia sus propios parámetros.**
+
+```
+propuesta ──► resultado ──► diario ──► calibración + aporte por señal (Rust)
+                                   └─► reentrenamiento walk-forward (Python)
+                                              │
+                         informe con propuestas de cambio ──► votación 4 de 6 ──► config/
+```
+
 Todos los mensajes entre capas están definidos en `contracts/`.
 
 ## Registro de módulos
@@ -40,6 +49,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | strategy | `engine/crates/strategy` | Rust | Combina features + señales de ML/noticias → señal con probabilidad | planeado |
 | risk | `engine/crates/risk` | Rust | Apalancamiento por instrumento, tamaño de posición, margen, stop-loss, pérdida máxima | planeado |
 | fund | `engine/crates/fund` | Rust | Fondo del grupo: aportes y retiros de cada miembro, unidades, valor de la unidad (NAV) y P&L por miembro | planeado |
+| journal | `engine/crates/journal` | Rust | Diario de propuestas y resultados (simulado y real); calibración de probabilidades y aporte de cada señal | planeado (#13) |
 | backtest | `engine/crates/backtest` | Rust | Simulación histórica y paper trading en tiempo real, P/L | planeado |
 | gateway | `engine/crates/gateway` | Rust | API REST + WebSocket para la UI y la app del celular | planeado |
 | auth | `engine/crates/auth` | Rust | Cuentas de los miembros, 2FA (TOTP), roles (responsable / miembro), sesiones, registro de acciones | planeado |
@@ -47,6 +57,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | news | `intelligence/cfds_intel/news` | Python | Ingesta de noticias en tiempo real, resumen e interpretación (positivo/negativo, impacto) | planeado |
 | analogs | `intelligence/cfds_intel/analogs` | Python | Búsqueda de situaciones históricas similares en otras empresas e índices | planeado |
 | models | `intelligence/cfds_intel/models` | Python | Modelos PyTorch de predicción y su entrenamiento | planeado |
+| learning | `intelligence/cfds_intel/learning` | Python | Reentrenamiento walk-forward de los modelos con el diario, y el informe de propuestas de cambio para votar | planeado (#13) |
 | storage | `infra/` | SQL | Esquema de PostgreSQL, migraciones, docker-compose con Postgres + Redis | docker-compose (#3); esquema en #6 |
 | intelligence | `intelligence/` (paquete `cfds_intel`) | Python | Proyecto base de la capa de inteligencia | esqueleto (#3) |
 | ci | `.github/workflows/ci.yml` | YAML | Checks de Rust y Python en cada PR | hecho (#3) |
