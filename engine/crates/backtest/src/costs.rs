@@ -17,6 +17,9 @@ use chrono::{DateTime, Days, NaiveTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use rust_decimal::Decimal;
 
+use cfds_core::AssetClass;
+use cfds_market_data::{InstrumentSpec, PendingField};
+
 use crate::CostConfig;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,6 +44,50 @@ pub struct InstrumentCosts {
     pub funding_admin_fee_pct: Decimal,
     /// Base de días de la financiación (360 o 365).
     pub funding_day_count: Decimal,
+}
+
+impl InstrumentCosts {
+    /// Costos de `spec` tomados **solo** del catálogo (`config/instruments.toml`, con fuente).
+    /// Si a este instrumento le falta cualquier costo, devuelve los pendientes y no arma nada:
+    /// ningún backtest corre con un costo inventado o en cero (spec §11, CLAUDE.md §5b).
+    ///
+    /// - Spread: el típico del catálogo (ya es el mayor entre el medido y el mínimo publicado).
+    /// - Comisión: índices, ninguna. Acciones: todavía no están en el catálogo, quedan pendientes.
+    pub fn from_spec(spec: &InstrumentSpec) -> Result<Self, Vec<PendingField>> {
+        let mut missing = spec.missing_costs();
+        let commission = match spec.instrument.asset_class {
+            AssetClass::Index => Some(Commission::None),
+            _ => {
+                missing.push(PendingField {
+                    item: spec.instrument.id.as_str().to_owned(),
+                    field: "commission",
+                    reason: "las acciones todavía no están en el catálogo de instrumentos".into(),
+                });
+                None
+            }
+        };
+        let t = &spec.terms;
+        match (
+            commission,
+            t.spread_typical_points.value(),
+            t.tick.value(),
+            t.funding_admin_fee_pct.value(),
+            t.funding_day_count.value(),
+        ) {
+            (Some(commission), Some(&spread), Some(&tick), Some(&fee), Some(&days))
+                if missing.is_empty() =>
+            {
+                Ok(Self {
+                    spread,
+                    tick,
+                    commission,
+                    funding_admin_fee_pct: fee,
+                    funding_day_count: days,
+                })
+            }
+            _ => Err(missing),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -15,6 +15,7 @@ cfds-strategy = { version = "0.1.0", path = "../strategy" }
 rust_decimal = { version = "1.43.0", features = ["macros", "maths"] }
 serde = { version = "1.0.229", features = ["derive"] }
 toml = "0.9"
+cfds-market-data = { version = "0.1.0", path = "../market-data" }
 
 [lints]
 workspace = true
