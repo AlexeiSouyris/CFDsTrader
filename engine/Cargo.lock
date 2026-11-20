@@ -259,6 +259,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "cfds-risk"
+version = "0.1.0"
+dependencies = [
+ "cfds-core",
+ "cfds-market-data",
+ "rust_decimal",
+ "serde",
+ "toml",
+]
+
+[[package]]
 name = "cfds-storage"
 version = "0.1.0"
 dependencies = [

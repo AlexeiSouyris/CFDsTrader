@@ -1,0 +1,16 @@
+[package]
+name = "cfds-risk"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+cfds-core = { version = "0.1.0", path = "../core" }
+cfds-market-data = { version = "0.1.0", path = "../market-data" }
+rust_decimal = { version = "1.43.0", features = ["macros"] }
+serde = { version = "1.0.229", features = ["derive"] }
+toml = "0.9"
+
+[lints]
+workspace = true
