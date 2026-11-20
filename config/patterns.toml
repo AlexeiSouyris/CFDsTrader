@@ -1,0 +1,19 @@
+# Parámetros de los patrones (spec §4 y §5.1). Decimales como texto (nunca float).
+
+[pivots]
+# Una vela es pivote si su máximo (o mínimo) supera a las N velas de cada lado.
+# Se confirma recién N velas después.
+strength = 3
+
+[candles]
+# "Caída previa" del martillo: C[t−1] < C[t−1−lookback] (con 5: C[t−6]).
+prior_move_lookback = 5
+# Mecha del lado del rechazo ≥ este múltiplo del cuerpo.
+min_wick_to_body = "2"
+# Mecha del lado contrario ≤ esta fracción del rango.
+max_opposite_wick_to_range = "0.3"
+# Cuerpo ≥ esta fracción del rango (descarta velas sin cuerpo).
+min_body_to_range = "0.05"
+# Rango ≥ este múltiplo del ATR (descarta velas diminutas).
+min_range_to_atr = "0.5"
+atr_period = 14
