@@ -17,3 +17,21 @@ min_body_to_range = "0.05"
 # Rango ≥ este múltiplo del ATR (descarta velas diminutas).
 min_range_to_atr = "0.5"
 atr_period = 14
+
+[double]
+# Doble techo / doble suelo (spec §5.2).
+min_bars_between = 10
+max_bars_between = 60
+# Diferencia máxima entre los dos techos o suelos, en %.
+max_difference_pct = "0.3"
+# Altura mínima del patrón (neckline − extremo), en múltiplos del ATR.
+min_height_atr = "1"
+# El gatillo vale hasta estas velas después de confirmar el segundo pivote.
+max_bars_after_confirmation = 20
+
+[levels]
+# Soportes y resistencias (spec §5.3).
+lookback_bars = 200
+min_touches = 3
+# Todos los toques dentro de ±este % del promedio, y margen del rechazo.
+tolerance_pct = "0.15"
