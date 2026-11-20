@@ -113,3 +113,22 @@ Cambios de lenguaje, librería principal, base de datos, proveedor de datos o br
 
 - Documentación, Issues y PRs: **español**.
 - Código (nombres de variables, funciones y tipos) y mensajes de commit: **inglés técnico** está bien, mientras sea consistente dentro del módulo.
+
+## 8. Herramientas para agentes: graphify
+
+[graphify](https://github.com/Graphify-Labs/graphify) arma un grafo del repo para que los agentes lo consulten en lugar de leer archivos enteros, y así gasten menos tokens. Cómo instalarlo: `CONTRIBUTING.md`.
+- La sección `## graphify` de abajo la **genera y reescribe la herramienta** (`graphify install --project`). Por eso está en inglés y no se edita a mano. Las reglas del proyecto van en esta sección.
+- `graphify-out/` **no se commitea** (está en `.gitignore`). Si no existe y el CLI está instalado, generalo con `graphify update .`: es local, sin LLM, sin costo y tarda segundos. Si el CLI no está, trabajá normal sin él.
+- **graphify no reemplaza el paso 0.2:** el grafo refleja tu copia local, no `origin/main` ni los Issues y PRs abiertos. Para buscar duplicados, seguí usando `git grep ... origin/main` y revisando Issues y PRs.
+- `/graphify .` dentro del asistente hace además una pasada semántica sobre los documentos que **sí consume tokens**. Usalo solo si hace falta.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- When graphify-out/graph.json exists, run `graphify query "<question>"` before your first grep, search or source-file read for a codebase question, and put this rule in every subagent prompt that explores code. Read raw files only for lines the graph or an earlier read already located. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. When the answer is under a Markdown heading, `graphify section "<heading>"` prints that section's text, so the .md need not be opened. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- A committed graphify-out/graph.json is rewritten whole on every build, so a large diff to it in a pull request is expected. Do not flag it as churn or suggest skipping the graph rebuild or its hooks.

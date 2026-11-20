@@ -24,3 +24,22 @@ Las reglas completas están en [CLAUDE.md](./CLAUDE.md) y valen igual para human
 
 - *Settings → Branches*: proteger `main` (exigir PR y aprobación antes del merge; prohibir *force push*). Dejar el merge en manos del dueño.
 - *Settings → General*: permitir solo **Squash merge** y borrar las ramas automáticamente al mergear.
+
+## Herramientas para agentes: graphify
+
+[graphify](https://github.com/Graphify-Labs/graphify) arma un grafo de conocimiento del repo para que los agentes de IA lo consulten en lugar de leer archivos enteros, y así gasten menos tokens. El skill y los hooks de Claude Code ya están en `.claude/`. Cada persona instala el CLI una vez:
+
+```bash
+uv tool install "graphifyy==0.9.113"
+```
+
+y genera el grafo (local, sin LLM y sin costo):
+
+```bash
+graphify update .
+```
+
+- `graphify-out/` no se commitea: cada uno lo genera en su máquina.
+- Si no instalás el CLI, los hooks de `.claude/settings.json` fallan sin bloquear nada y el agente trabaja normal.
+- Ojo: `/graphify .` dentro del asistente además hace una pasada **semántica** sobre los documentos usando el modelo, y eso **sí consume tokens**. Para el día a día alcanza con `graphify update .`.
+- La versión está fijada. Subirla es un PR aparte.
