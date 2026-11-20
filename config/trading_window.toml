@@ -1,0 +1,9 @@
+# Horario de entradas (spec §2 y §7.1). Se aplica sobre la sesión de cada bolsa
+# (config/sessions.toml y sus feriados).
+
+[entries]
+# No se abren operaciones en los primeros minutos de cada sesión.
+skip_after_open_minutes = 15
+# No se abren operaciones nuevas en los últimos minutos del último día hábil de la semana
+# (el viernes, o el día hábil anterior si el viernes es feriado).
+no_new_before_week_close_minutes = 30
