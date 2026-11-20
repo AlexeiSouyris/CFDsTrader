@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/instrument.v1.schema.json",
+  "title": "Instrument v1",
+  "description": "Un instrumento operable o de contexto. Solo datos estables: los parámetros del broker (epic, tamaños, costos) viven en config/ (Issue #7).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "asset_class", "currency", "exchange_timezone"],
+  "properties": {
+    "id": {
+      "description": "Identificador interno y estable, en mayúsculas. Ej.: US100, DE40, AAPL.",
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$"
+    },
+    "name": {
+      "description": "Nombre legible. Ej.: US Tech 100.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "asset_class": {
+      "description": "Tipo de subyacente del CFD.",
+      "enum": ["index", "share"]
+    },
+    "currency": {
+      "description": "Moneda de cotización, código ISO 4217.",
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "exchange_timezone": {
+      "description": "Zona horaria IANA de la bolsa del subyacente. Ej.: America/New_York.",
+      "type": "string",
+      "pattern": "^[A-Za-z]+(/[A-Za-z0-9_+-]+)+$"
+    }
+  }
+}
