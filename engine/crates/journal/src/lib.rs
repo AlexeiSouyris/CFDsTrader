@@ -2,7 +2,9 @@
 //!
 //! Los tipos de este crate serializan exactamente `contracts/proposal.v1` y
 //! `contracts/outcome.v1`: el diario lo escribe el motor y lo lee el aprendizaje en Python.
-//! Montos en la moneda del instrumento.
+//! Montos en la moneda del instrumento. `pg` los guarda en PostgreSQL.
+
+pub mod pg;
 
 use cfds_backtest::{CloseReason, ExitReason, TradeRecord};
 use cfds_core::InstrumentId;
