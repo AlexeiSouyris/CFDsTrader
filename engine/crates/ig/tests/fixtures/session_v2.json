@@ -1,0 +1,16 @@
+{
+ "accountType": "CFD",
+ "accountInfo": {"balance": 10000.0, "deposit": 0.0, "profitLoss": 0.0, "available": 10000.0},
+ "currencyIsoCode": "EUR",
+ "currencySymbol": "E",
+ "currentAccountId": "ABC12",
+ "lightstreamerEndpoint": "https://demo-apd.marketdatasystems.example",
+ "accounts": [{"accountId": "ABC12", "accountName": "CFD", "preferred": true, "accountType": "CFD"}],
+ "clientId": "000000000",
+ "timezoneOffset": 1,
+ "hasActiveDemoAccounts": true,
+ "hasActiveLiveAccounts": true,
+ "trailingStopsEnabled": false,
+ "reroutingEnvironment": "DEMO",
+ "dealingEnabled": true
+}

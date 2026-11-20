@@ -1,0 +1,43 @@
+{
+ "prices": [
+  {
+   "snapshotTime": "2026/11/19 19:00:00",
+   "snapshotTimeUTC": "2026-11-19T18:00:00",
+   "openPrice": {
+    "bid": 26789.4,
+    "ask": 26790.9,
+    "lastTraded": null
+   },
+   "closePrice": {
+    "bid": 26700.6,
+    "ask": 26702.1,
+    "lastTraded": null
+   },
+   "highPrice": {
+    "bid": 26847.9,
+    "ask": 26849.4,
+    "lastTraded": null
+   },
+   "lowPrice": {
+    "bid": 26620.7,
+    "ask": 26622.2,
+    "lastTraded": null
+   },
+   "lastTradedVolume": 61277
+  }
+ ],
+ "instrumentType": "INDICES",
+ "metadata": {
+  "allowance": {
+   "remainingAllowance": 9990,
+   "totalAllowance": 10000,
+   "allowanceExpiry": 604631
+  },
+  "size": 5,
+  "pageData": {
+   "pageSize": 2,
+   "pageNumber": 3,
+   "totalPages": 3
+  }
+ }
+}
