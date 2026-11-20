@@ -57,6 +57,9 @@ pub struct PortfolioReport {
     pub kill_switch_at: Option<DateTime<Utc>>,
     /// Capital final realizado, en la moneda de la cuenta.
     pub final_equity: Decimal,
+    /// Capital (realizado + no realizado) al último cierre de cada día (zona del día). El
+    /// último día termina con el capital final.
+    pub daily_equity: Vec<(NaiveDate, Decimal)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -143,6 +146,7 @@ pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioErr
         rejected: Vec::new(),
         kill_switch_at: None,
         final_equity: first.initial_equity,
+        daily_equity: Vec::new(),
     };
     let mut cash = first.initial_equity;
     let mut peak = cash;
@@ -175,6 +179,9 @@ pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioErr
         if day != Some(today) {
             day = Some(today);
             day_start = equity;
+            report.daily_equity.push((today, equity));
+        } else if let Some(last) = report.daily_equity.last_mut() {
+            last.1 = equity;
         }
         if report.kill_switch_at.is_some() || t < busy_until[mi] {
             continue;
@@ -261,6 +268,9 @@ pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioErr
         cash += o.record.net_pnl / markets[o.market].setup.account_to_instrument;
     }
     report.final_equity = cash;
+    if let Some(last) = report.daily_equity.last_mut() {
+        last.1 = cash;
+    }
     Ok(report)
 }
 

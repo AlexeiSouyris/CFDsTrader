@@ -816,9 +816,61 @@ fn a_trade_open_when_the_data_ends_is_realized() {
     let short = run(&m15[..=cut], &h1, &[], &setup()).unwrap();
     let last = short.trades.last().unwrap();
     assert_eq!(last.exits.last().unwrap().reason, CloseReason::EndOfData);
+    // La curva diaria termina con el capital final, que ya incluye esa operación.
+    assert_eq!(short.daily_equity.last().unwrap().1, short.final_equity);
     let net: Decimal = short.trades.iter().map(|t| t.net_pnl).sum();
     assert_eq!(
         short.final_equity.round_dp(10),
         (dec!(1000) + net).round_dp(10)
     );
+}
+
+#[test]
+fn the_run_keeps_a_daily_equity_curve() {
+    let m15 = random_walk(3000, 11);
+    let h1 = resample_h1(&m15);
+    let report = run(&m15, &h1, &[], &setup()).unwrap();
+    let curve = &report.daily_equity;
+    // Un punto por día de Madrid con velas decididas, en orden, y el último es el capital final.
+    assert!(curve.windows(2).all(|w| w[0].0 < w[1].0));
+    assert_eq!(curve.last().unwrap().1, report.final_equity);
+    let first = m15[0]
+        .end()
+        .with_timezone(&chrono_tz::Europe::Madrid)
+        .date_naive();
+    let last = m15[m15.len() - 2]
+        .end()
+        .with_timezone(&chrono_tz::Europe::Madrid)
+        .date_naive();
+    assert_eq!((curve[0].0, curve.last().unwrap().0), (first, last));
+    assert_eq!(curve.len() as i64, (last - first).num_days() + 1);
+    // El valor de cada día es el del último cierre decidido de ese día: si a esa hora no hay
+    // posición abierta, es el capital realizado.
+    let madrid = |t: DateTime<Utc>| t.with_timezone(&chrono_tz::Europe::Madrid).date_naive();
+    let mut checked = 0;
+    for &(d, value) in &curve[..curve.len() - 1] {
+        let close = m15[..m15.len() - 1]
+            .iter()
+            .map(|c| c.end())
+            .filter(|&e| madrid(e) == d)
+            .max()
+            .unwrap();
+        let open = report
+            .trades
+            .iter()
+            .any(|t| t.entry_time <= close && t.exits.last().unwrap().time > close);
+        if open {
+            continue;
+        }
+        let realized = dec!(1000)
+            + report
+                .trades
+                .iter()
+                .filter(|t| t.exits.last().unwrap().time <= close)
+                .map(|t| t.net_pnl)
+                .sum::<Decimal>();
+        assert_eq!(value.round_dp(10), realized.round_dp(10), "{d}");
+        checked += 1;
+    }
+    assert!(checked > 10);
 }

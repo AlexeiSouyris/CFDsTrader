@@ -118,6 +118,8 @@ pub struct Report {
     pub kill_switch_at: Option<usize>,
     /// Capital final, en la moneda de la cuenta.
     pub final_equity: Decimal,
+    /// Capital al último cierre de cada día (ver `PortfolioReport::daily_equity`).
+    pub daily_equity: Vec<(chrono::NaiveDate, Decimal)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -291,6 +293,7 @@ pub fn run(
         trades: p.trades.into_iter().map(|t| t.record).collect(),
         rejected,
         final_equity: p.final_equity,
+        daily_equity: p.daily_equity,
     })
 }
 
