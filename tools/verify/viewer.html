@@ -1,0 +1,271 @@
+<title>Revisión de operaciones</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&display=swap">
+<style>
+/* Layout: tablero de revisión — cabecera con el lote, gráfico de velas arriba, tabla de operaciones abajo; una operación seleccionada pinta su stop y TP1. */
+:root {
+  --bg: #f6f7f5;
+  --panel: #ffffff;
+  --fg: #1b2420;
+  --muted: #5d6b64;
+  --line: #d8ded9;
+  --accent: #1f6f5c;
+  --up: #1f8a5b;
+  --down: #c2412d;
+  --stop: #c2412d;
+  --tp: #1f6f5c;
+  --sel: #e7f1ec;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-head: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111614; --panel: #18201c; --fg: #e3ebe6; --muted: #93a39b; --line: #2c3833;
+    --accent: #5cc4a4; --up: #43c08a; --down: #ef7a63; --stop: #ef7a63; --tp: #5cc4a4; --sel: #1f2d27;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111614; --panel: #18201c; --fg: #e3ebe6; --muted: #93a39b; --line: #2c3833;
+  --accent: #5cc4a4; --up: #43c08a; --down: #ef7a63; --stop: #ef7a63; --tp: #5cc4a4; --sel: #1f2d27;
+  color-scheme: dark;
+}
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 32px;
+}
+[hidden] { display: none !important; }
+.wrap { max-width: 1200px; margin: 0 auto; display: grid; gap: 16px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; }
+h1 { font-family: var(--font-head); font-size: 1.6rem; margin: 0; letter-spacing: 0.01em; text-wrap: balance; }
+.meta { color: var(--muted); font-size: 0.85rem; display: flex; flex-wrap: wrap; gap: 4px 16px; font-variant-numeric: tabular-nums; }
+.meta b { color: var(--fg); font-weight: 500; }
+.note { color: var(--muted); font-size: 0.85rem; max-width: 70ch; margin: 0; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; min-width: 0; }
+#chart { height: 440px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 8px 12px; border-top: 1px solid var(--line); font-size: 0.8rem; color: var(--muted); }
+.legend span::before { content: ""; display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 6px; background: currentColor; }
+.legend .k-sma { color: #c9922e; } .legend .k-stop { color: var(--stop); } .legend .k-tp { color: var(--tp); }
+.legend .k-piv::before { width: 6px; height: 6px; border-radius: 50%; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 0.82rem; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-weight: 600; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; position: sticky; top: 0; background: var(--panel); }
+td.num { font-family: var(--font-data); text-align: right; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--sel); }
+tbody tr[aria-selected="true"] { background: var(--sel); box-shadow: inset 3px 0 0 var(--accent); }
+tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.side { font-weight: 600; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; }
+.side.long { color: var(--up); background: color-mix(in srgb, var(--up) 14%, transparent); }
+.side.short { color: var(--down); background: color-mix(in srgb, var(--down) 14%, transparent); }
+.pos { color: var(--up); } .neg { color: var(--down); }
+.chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.chip { font-size: 0.72rem; padding: 1px 6px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); }
+.detail { padding: 12px 14px; display: grid; gap: 10px; }
+.detail h2 { font-family: var(--font-head); font-size: 1.05rem; margin: 0; }
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 16px; }
+.kv div { display: grid; gap: 2px; min-width: 0; }
+.kv dt { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.kv dd { margin: 0; font-family: var(--font-data); font-size: 0.85rem; overflow-wrap: anywhere; }
+.loader { padding: 24px; display: grid; gap: 10px; justify-items: start; }
+.loader label { font-weight: 500; }
+@media (max-width: 640px) { #chart { height: 320px; } h1 { font-size: 1.3rem; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1 id="title">Revisión de operaciones</h1>
+    <div class="meta" id="meta"></div>
+  </header>
+  <p class="note">Velas, SMA, pivotes confirmados y operaciones tal como los exportó el motor (<code>contracts/chart_export.v1</code>). La página no recalcula nada: solo muestra la exportación. Elegí una operación para ver su stop, su TP1 y los valores de los indicadores en la vela de la señal. Horas en UTC.</p>
+
+  <section class="panel loader" id="loader" hidden>
+    <label for="file">Cargá un archivo de exportación (<code>chart_export</code> del motor)</label>
+    <input type="file" id="file" accept="application/json,.json">
+    <p class="note" id="loadError"></p>
+  </section>
+
+  <section class="panel" id="chartPanel" hidden>
+    <div id="chart" role="img" aria-label="Gráfico de velas de 15 minutos con SMA, pivotes y operaciones"></div>
+    <div class="legend">
+      <span class="k-sma">SMA</span><span class="k-stop">Stop</span><span class="k-tp">TP1</span>
+      <span class="k-piv">Pivote confirmado</span><span>▲▼ entrada · ● salida</span>
+    </div>
+  </section>
+
+  <section class="panel detail" id="detail" hidden aria-live="polite"></section>
+
+  <section class="panel table-wrap" id="tablePanel" hidden>
+    <table>
+      <thead><tr>
+        <th>#</th><th>Lado</th><th>Señal (UTC)</th><th>Puntaje</th><th>Componentes</th>
+        <th>Entrada</th><th>Stop</th><th>TP1</th><th>Salidas</th><th>Neto</th>
+      </tr></thead>
+      <tbody id="trades"></tbody>
+    </table>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  // Solo formato para mostrar: los valores completos quedan en el title de cada celda.
+  const fmt = (s, dp = 2) => (s == null ? "—" : Number(s).toFixed(dp));
+  const utc = (iso) => iso.replace("T", " ").replace(":00Z", "").replace("Z", "");
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const REASONS = { stop: "stop", tp1: "TP1", break_even: "break even", trailing: "trailing", time: "tiempo", forced: "cierre forzado", end_of_data: "fin de datos" };
+  const TREND = { up: "alcista", down: "bajista", neutral: "neutral" };
+
+  let chart, candleSeries, priceLines = [], data;
+
+  function show(e) {
+    data = e;
+    const c = e.candles;
+    $("title").textContent = `Revisión ${e.instrument_id} ${e.timeframe}`;
+    $("meta").innerHTML =
+      `<span><b>${utc(c[0].start)}</b> → <b>${utc(c[c.length - 1].start)}</b></span>` +
+      `<span><b>${c.length}</b> velas</span><span><b>${e.pivots.length}</b> pivotes</span>` +
+      `<span><b>${e.trades.length}</b> operaciones</span>`;
+    $("loader").hidden = true;
+    ["chartPanel", "tablePanel"].forEach((id) => ($(id).hidden = false));
+    drawChart(e);
+    drawTable(e);
+    if (e.trades.length) select(0);
+  }
+
+  function t(iso) { return Math.floor(Date.parse(iso) / 1000); }
+
+  function drawChart(e) {
+    const el = $("chart");
+    el.innerHTML = "";
+    chart = LightweightCharts.createChart(el, {
+      autoSize: true,
+      layout: { background: { color: css("--panel") }, textColor: css("--muted"), fontFamily: "IBM Plex Mono, monospace" },
+      grid: { vertLines: { color: css("--line") }, horzLines: { color: css("--line") } },
+      timeScale: { timeVisible: true, secondsVisible: false, borderColor: css("--line") },
+      rightPriceScale: { borderColor: css("--line") },
+      localization: { timeFormatter: (s) => new Date(s * 1000).toISOString().slice(0, 16).replace("T", " ") },
+    });
+    candleSeries = chart.addCandlestickSeries({
+      upColor: css("--up"), downColor: css("--down"), borderVisible: false,
+      wickUpColor: css("--up"), wickDownColor: css("--down"),
+    });
+    candleSeries.setData(e.candles.map((c) => ({ time: t(c.start), open: +c.open, high: +c.high, low: +c.low, close: +c.close })));
+    const sma = chart.addLineSeries({ color: "#c9922e", lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false });
+    sma.setData(e.candles.filter((c) => c.sma != null).map((c) => ({ time: t(c.start), value: +c.sma })));
+
+    const markers = [];
+    e.pivots.forEach((p) => {
+      // El pivote se marca en su vela; existe para el sistema desde confirmed_index.
+      markers.push({
+        time: t(e.candles[p.index].start),
+        position: p.kind === "high" ? "aboveBar" : "belowBar",
+        shape: "circle", size: 0.3, color: css("--muted"),
+      });
+    });
+    e.trades.forEach((tr, i) => {
+      const long = tr.side === "long";
+      markers.push({
+        time: t(e.candles[tr.entry_index].start),
+        position: long ? "belowBar" : "aboveBar",
+        shape: long ? "arrowUp" : "arrowDown",
+        color: long ? css("--up") : css("--down"),
+        text: `#${i + 1}`,
+      });
+      tr.exits.forEach((x) => markers.push({
+        time: t(e.candles[x.index].start), position: long ? "aboveBar" : "belowBar",
+        shape: "circle", color: css("--accent"), text: REASONS[x.reason] || x.reason,
+      }));
+    });
+    markers.sort((a, b) => a.time - b.time);
+    candleSeries.setMarkers(markers);
+    chart.timeScale().fitContent();
+  }
+
+  function drawTable(e) {
+    const body = $("trades");
+    body.innerHTML = "";
+    e.trades.forEach((tr, i) => {
+      const row = document.createElement("tr");
+      row.tabIndex = 0;
+      row.setAttribute("aria-selected", "false");
+      const pnl = Number(tr.net_pnl);
+      row.innerHTML =
+        `<td>${i + 1}</td>` +
+        `<td><span class="side ${tr.side}">${tr.side === "long" ? "Largo" : "Corto"}</span></td>` +
+        `<td>${utc(e.candles[tr.signal_index].start)}</td>` +
+        `<td class="num">${tr.score}</td>` +
+        `<td><div class="chips">${tr.breakdown.filter((b) => b.points).map((b) => `<span class="chip">${b.component} ${b.points > 0 ? "+" : ""}${b.points}</span>`).join("")}</div></td>` +
+        `<td class="num" title="${tr.entry_price}">${fmt(tr.entry_price)}</td>` +
+        `<td class="num" title="${tr.stop}">${fmt(tr.stop)}</td>` +
+        `<td class="num" title="${tr.tp1}">${fmt(tr.tp1)}</td>` +
+        `<td>${tr.exits.map((x) => REASONS[x.reason] || x.reason).join(" · ")}</td>` +
+        `<td class="num ${pnl >= 0 ? "pos" : "neg"}" title="${tr.net_pnl}">${fmt(tr.net_pnl)}</td>`;
+      row.addEventListener("click", () => select(i));
+      row.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); select(i); } });
+      body.appendChild(row);
+    });
+  }
+
+  function select(i) {
+    const e = data, tr = e.trades[i];
+    [...$("trades").children].forEach((r, k) => r.setAttribute("aria-selected", String(k === i)));
+    priceLines.forEach((l) => candleSeries.removePriceLine(l));
+    priceLines = [
+      candleSeries.createPriceLine({ price: +tr.stop, color: css("--stop"), lineWidth: 1, lineStyle: 2, title: "stop" }),
+      candleSeries.createPriceLine({ price: +tr.tp1, color: css("--tp"), lineWidth: 1, lineStyle: 2, title: "TP1" }),
+      candleSeries.createPriceLine({ price: +tr.entry_price, color: css("--muted"), lineWidth: 1, lineStyle: 1, title: "entrada" }),
+    ];
+    const last = tr.exits.length ? tr.exits[tr.exits.length - 1].index : tr.entry_index;
+    chart.timeScale().setVisibleRange({
+      from: t(e.candles[Math.max(0, tr.signal_index - 40)].start),
+      to: t(e.candles[Math.min(e.candles.length - 1, last + 20)].start),
+    });
+    const s = tr.at_signal;
+    const sig = e.candles[tr.signal_index];
+    $("detail").hidden = false;
+    $("detail").innerHTML =
+      `<h2>Operación #${i + 1} · ${tr.side === "long" ? "largo" : "corto"} · señal ${utc(sig.start)} UTC</h2>` +
+      `<dl class="kv">` +
+      kv("Cierre en la señal", s.close) + kv("SMA en la señal", s.sma) + kv("ATR en la señal", s.atr) +
+      `<div><dt>Tendencia 1h</dt><dd>${s.trend_1h ? TREND[s.trend_1h] : "sin dato"}</dd></div>` +
+      kv("Entrada (vela siguiente)", tr.entry_price) + kv("Stop", tr.stop) + kv("TP1", tr.tp1) + kv("Tamaño", tr.size, 4) +
+      `<div><dt>Salidas</dt><dd>${tr.exits.map((x) => `${utc(e.candles[x.index].start)} ${REASONS[x.reason] || x.reason} ${fmt(x.fraction, 2)} @ ${fmt(x.price)}`).join("<br>")}</dd></div>` +
+      kv("Neto", tr.net_pnl) +
+      `</dl>`;
+  }
+
+  function kv(label, value, dp = 2) {
+    return `<div><dt>${label}</dt><dd title="${value ?? ""}">${fmt(value, dp)}</dd></div>`;
+  }
+
+  function askForFile(msg) {
+    $("loader").hidden = false;
+    $("loadError").textContent = msg || "";
+  }
+
+  $("file").addEventListener("change", (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    if (!f) return;
+    f.text().then((txt) => show(JSON.parse(txt))).catch((err) => askForFile(`No se pudo leer el archivo: ${err.message}`));
+  });
+
+  // Si la exportación está al lado de la página (chart_export.json), se carga sola.
+  fetch("chart_export.json")
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error("sin archivo"))))
+    .then(show)
+    .catch(() => askForFile());
+
+  const mq = window.matchMedia("(prefers-color-scheme: dark)");
+  const redraw = () => { if (data) { const sel = [...$("trades").children].findIndex((r) => r.getAttribute("aria-selected") === "true"); drawChart(data); if (sel >= 0) select(sel); } };
+  mq.addEventListener && mq.addEventListener("change", redraw);
+  new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+})();
+</script>
