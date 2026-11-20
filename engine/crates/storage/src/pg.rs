@@ -35,6 +35,12 @@ impl PgStore {
         })
     }
 
+    /// El pool de conexiones, para los módulos que escriben sus propias tablas (por ejemplo el
+    /// diario) sobre la misma base y las mismas migraciones.
+    pub fn pool(&self) -> &PgPool {
+        &self.pool
+    }
+
     /// Aplica las migraciones de `infra/migrations/` que falten. Se puede correr varias veces.
     pub async fn migrate(&self) -> Result<(), StorageError> {
         sqlx::migrate!("../../../infra/migrations")
