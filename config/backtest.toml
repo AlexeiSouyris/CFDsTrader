@@ -1,0 +1,11 @@
+# Backtest: salidas de una operación (spec §8). Decimales como texto (nunca float).
+
+[exits]
+# TP1 en entrada + `tp1_r` × R: se cierra `tp1_fraction` de la posición y el stop pasa a la entrada.
+tp1_r = "2"
+tp1_fraction = "0.5"
+# Trailing del resto: stop = max(stop actual, máximo desde TP1 − `trailing_atr` × ATR).
+trailing_atr = "2"
+# Si a las `time_exit_bars` velas no tocó +`time_exit_min_r` R, se cierra al cierre de esa vela.
+time_exit_bars = 32
+time_exit_min_r = "1"
