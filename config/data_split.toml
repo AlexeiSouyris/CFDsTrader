@@ -1,0 +1,15 @@
+# Separación de datos sin fugas (spec §15, Issue #16).
+# Todos los cortes caen al inicio de un mes, a las 00:00 UTC: ninguna sesión (XNYS, XETR) cruza
+# la medianoche UTC, así que ninguna vela queda partida entre dos tramos.
+
+[out_of_sample]
+# Los últimos meses completos de datos quedan FUERA DE MUESTRA: no se usan para ajustar nada
+# hasta la fase 5. Se cuentan desde el inicio del mes de la última vela.
+months = 12
+
+[walk_forward]
+# Ventanas móviles: se entrena con `train_months`, se valida con los `validation_months`
+# siguientes, y la ventana avanza `step_months`. Siempre antes del tramo fuera de muestra.
+train_months = 24
+validation_months = 3
+step_months = 3
