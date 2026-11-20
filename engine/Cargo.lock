@@ -182,6 +182,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "cfds-backtest"
+version = "0.1.0"
+dependencies = [
+ "cfds-core",
+ "cfds-strategy",
+ "chrono",
+ "rust_decimal",
+ "serde",
+ "toml",
+]
+
+[[package]]
 name = "cfds-core"
 version = "0.1.0"
 dependencies = [
