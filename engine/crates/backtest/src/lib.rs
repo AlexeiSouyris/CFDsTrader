@@ -4,14 +4,16 @@
 pub mod config;
 pub mod costs;
 pub mod exits;
+pub mod metrics;
 pub mod portfolio;
 pub mod runner;
 
-pub use config::{BacktestConfig, CostConfig, ExitConfig};
+pub use config::{BacktestConfig, CostConfig, ExitConfig, MetricsConfig};
 pub use costs::{
     Commission, Execution, InstrumentCosts, commission, fill_price, funding, funding_nights,
 };
 pub use exits::{ExitReason, Fill, Outcome, Trade, simulate};
+pub use metrics::{Metrics, evaluate};
 pub use portfolio::{
     Market, PortfolioError, PortfolioRejected, PortfolioReport, PortfolioTrade, run_portfolio,
 };

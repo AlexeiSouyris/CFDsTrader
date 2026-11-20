@@ -12,7 +12,7 @@ cfds-core = { version = "0.1.0", path = "../core" }
 cfds-indicators = { version = "0.1.0", path = "../indicators" }
 cfds-risk = { version = "0.1.0", path = "../risk" }
 cfds-strategy = { version = "0.1.0", path = "../strategy" }
-rust_decimal = { version = "1.43.0", features = ["macros"] }
+rust_decimal = { version = "1.43.0", features = ["macros", "maths"] }
 serde = { version = "1.0.229", features = ["derive"] }
 toml = "0.9"
 

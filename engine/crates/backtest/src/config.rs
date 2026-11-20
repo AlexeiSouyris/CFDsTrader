@@ -21,10 +21,18 @@ pub struct CostConfig {
     pub slippage_ticks: Decimal,
 }
 
+/// Anualización de las métricas (ROADMAP Fase 5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MetricsConfig {
+    pub trading_days_per_year: u32,
+    pub risk_free_annual_pct: Decimal,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BacktestConfig {
     pub exits: ExitConfig,
     pub costs: CostConfig,
+    pub metrics: MetricsConfig,
 }
 
 impl ExitConfig {
@@ -52,9 +60,16 @@ impl BacktestConfig {
         }
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
+        struct Metrics {
+            trading_days_per_year: u32,
+            risk_free_annual_pct: String,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Raw {
             exits: Exits,
             costs: Costs,
+            metrics: Metrics,
         }
         let raw = toml::from_str::<Raw>(text).map_err(|e| e.to_string())?;
         let e = raw.exits;
@@ -88,7 +103,20 @@ impl BacktestConfig {
             )?,
             slippage_ticks: dec(&raw.costs.slippage_ticks, "slippage_ticks")?,
         };
-        Ok(Self { exits: cfg, costs })
+        let rf = Decimal::from_str(&raw.metrics.risk_free_annual_pct)
+            .map_err(|e| format!("risk_free_annual_pct: {e}"))?;
+        if rf < Decimal::ZERO || raw.metrics.trading_days_per_year == 0 {
+            return Err("métricas: días por año > 0 y tasa libre de riesgo ≥ 0".into());
+        }
+        let metrics = MetricsConfig {
+            trading_days_per_year: raw.metrics.trading_days_per_year,
+            risk_free_annual_pct: rf,
+        };
+        Ok(Self {
+            exits: cfg,
+            costs,
+            metrics,
+        })
     }
 }
 
@@ -127,6 +155,11 @@ mod tests {
             REAL.replace(r#"tp1_r = "2""#, r#"tp1_r = "0""#),
             REAL.replace("time_exit_bars = 32", "time_exit_bars = 0"),
             REAL.replace("trailing_atr", "trailing"),
+            REAL.replace("trading_days_per_year = 252", "trading_days_per_year = 0"),
+            REAL.replace(
+                r#"risk_free_annual_pct = "0""#,
+                r#"risk_free_annual_pct = "-1""#,
+            ),
             REAL.replace(r#"slippage_ticks = "1""#, r#"slippage_ticks = "0""#),
             REAL.replace(
                 r#"slippage_spread_fraction = "0.1""#,
