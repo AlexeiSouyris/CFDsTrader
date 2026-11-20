@@ -16,10 +16,12 @@ impl SessionCalendar for AlwaysOpen {
         tf: Timeframe,
         from: DateTime<Utc>,
         to: DateTime<Utc>,
-    ) -> Vec<DateTime<Utc>> {
-        std::iter::successors(Some(from), |t| Some(*t + tf.duration()))
-            .take_while(|t| *t < to)
-            .collect()
+    ) -> Option<Vec<DateTime<Utc>>> {
+        Some(
+            std::iter::successors(Some(from), |t| Some(*t + tf.duration()))
+                .take_while(|t| *t < to)
+                .collect(),
+        )
     }
 }
 
@@ -33,8 +35,8 @@ impl SessionCalendar for ClosedInBetween {
         _: Timeframe,
         _: DateTime<Utc>,
         _: DateTime<Utc>,
-    ) -> Vec<DateTime<Utc>> {
-        Vec::new()
+    ) -> Option<Vec<DateTime<Utc>>> {
+        Some(Vec::new())
     }
 }
 

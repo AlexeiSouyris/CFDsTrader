@@ -10,17 +10,19 @@ use rust_decimal::Decimal;
 
 use crate::config::ValidationConfig;
 
-/// Calendario de sesiones: qué velas deberían existir. Lo implementa el Issue #9;
-/// la validación solo lo usa para detectar huecos dentro de la sesión.
+/// Calendario de sesiones: qué velas deberían existir. Lo implementa
+/// [`crate::calendar::ExchangeCalendar`]; la validación lo usa para detectar huecos.
 pub trait SessionCalendar {
     /// Inicios de las velas que deberían existir en `[from, to)` para ese instrumento y timeframe.
+    /// `None` si el calendario no cubre ese instrumento o esas fechas: nunca se supone
+    /// "mercado cerrado" por no saber.
     fn expected_starts(
         &self,
         instrument: &InstrumentId,
         timeframe: Timeframe,
         from: DateTime<Utc>,
         to: DateTime<Utc>,
-    ) -> Vec<DateTime<Utc>>;
+    ) -> Option<Vec<DateTime<Utc>>>;
 }
 
 /// Un problema encontrado en la vela `index` de la serie.
@@ -64,6 +66,8 @@ pub enum IssueKind {
         count: usize,
         first_missing: DateTime<Utc>,
     },
+    #[error("el calendario no cubre el hueco desde {gap_from}: no se puede saber si faltan velas")]
+    CalendarUnavailable { gap_from: DateTime<Utc> },
     #[error("salto de {jump} = {multiple}× el ATR anterior ({atr}) sin corte de sesión")]
     Outlier {
         jump: Decimal,
@@ -146,13 +150,18 @@ pub fn validate_series(
                 previous_end: prev.end(),
             });
         } else if c.start > prev.end() {
-            let missing =
-                calendar.expected_starts(&c.instrument_id, c.timeframe, prev.end(), c.start);
-            if let Some(&first_missing) = missing.first() {
-                push(IssueKind::MissingCandles {
-                    count: missing.len(),
-                    first_missing,
-                });
+            match calendar.expected_starts(&c.instrument_id, c.timeframe, prev.end(), c.start) {
+                None => push(IssueKind::CalendarUnavailable {
+                    gap_from: prev.end(),
+                }),
+                Some(missing) => {
+                    if let Some(&first_missing) = missing.first() {
+                        push(IssueKind::MissingCandles {
+                            count: missing.len(),
+                            first_missing,
+                        });
+                    }
+                }
             }
         } else if let Some(prev_atr) = atr[i - 1].filter(|a| *a > Decimal::ZERO) {
             // Velas contiguas: un salto enorme sin corte de sesión es sospechoso.
