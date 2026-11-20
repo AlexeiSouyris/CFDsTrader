@@ -1,0 +1,22 @@
+[package]
+name = "cfds-journal"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+cfds-backtest = { version = "0.1.0", path = "../backtest" }
+cfds-core = { version = "0.1.0", path = "../core" }
+cfds-strategy = { version = "0.1.0", path = "../strategy" }
+chrono = { version = "0.4.45", default-features = false, features = ["std"] }
+rust_decimal = "1.43.0"
+serde = { version = "1.0.229", features = ["derive"] }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+jsonschema = { version = "0.61.2", default-features = false }
+rust_decimal = { version = "1.43.0", features = ["macros"] }
+serde_json = "1.0.154"

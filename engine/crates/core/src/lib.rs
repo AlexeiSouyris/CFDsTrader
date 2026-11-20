@@ -4,7 +4,7 @@
 //! (ver `tests/contracts.rs`).
 
 pub mod candle;
-mod decimal_str;
+pub mod decimal_str;
 pub mod instrument;
 pub mod money;
 

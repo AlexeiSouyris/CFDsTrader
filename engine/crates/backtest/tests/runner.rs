@@ -10,7 +10,9 @@ use cfds_indicators::TrendConfig;
 use cfds_liquidity::LiquidityConfig;
 use cfds_patterns::PatternsConfig;
 use cfds_risk::{InstrumentLimits, Rejection, RiskConfig};
-use cfds_strategy::{Configs, Score, Side, Signal, StrategyConfig, Trigger, TriggerKind};
+use cfds_strategy::{
+    Component, Configs, Score, Side, Signal, StrategyConfig, Trigger, TriggerKind,
+};
 use chrono::{DateTime, NaiveTime, TimeDelta, Utc};
 use rust_decimal::{Decimal, dec};
 
@@ -117,7 +119,7 @@ fn signal(side: Side, stop: Decimal) -> Signal {
         index: 0,
         score: Score {
             total: 6,
-            breakdown: vec![],
+            breakdown: vec![(Component::Trend, 2)],
             candidate: true,
         },
         reference: dec!(100),
@@ -157,6 +159,9 @@ fn one_trade_matches_the_hand_calculation_in_every_field() {
         (dec!(2), dec!(0.2), dec!(10))
     );
     assert_eq!((r.score, r.triggers.clone()), (6, vec![TriggerKind::Sweep]));
+    // La propuesta muestra la referencia (cierre de la señal) y su TP1: 100 + 2 × (100 − 98).
+    assert_eq!((r.reference, r.tp1), (dec!(100), dec!(104)));
+    assert_eq!(r.breakdown, vec![(Component::Trend, 2)]);
     let exits: Vec<_> = r
         .exits
         .iter()
@@ -308,6 +313,8 @@ fn short_trades_mirror_the_long_ones() {
     )
     .unwrap();
     assert_eq!(r.entry_price, dec!(99.3));
+    // El TP1 de un corto está abajo: 100 − 2 × (102 − 100).
+    assert_eq!(r.tp1, dec!(96));
     assert_eq!(
         (r.mid_pnl, r.gross_pnl, r.net_pnl),
         (dec!(6.8), dec!(4), dec!(4))

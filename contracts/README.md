@@ -23,3 +23,12 @@ Lo publica `cfds-storage::CandlePublisher` (Rust). Los consumidores (Python, UI)
 El esquema es el de `infra/migrations/` (fuente de verdad), aplicado con `cfds-storage::PgStore::migrate`.
 La tabla `candles` tiene las mismas columnas que `candle.v1` (`start` se llama `start_at`; precios `NUMERIC` exactos).
 Python puede **leerla**, pero solo el motor en Rust **escribe** velas.
+
+### Diario (spec §15b)
+
+| Contrato | Contenido |
+|---|---|
+| `proposal.v1` | Una propuesta: instrumento, dirección, hora, entrada de referencia, stop, TP1, tamaño, apalancamiento, puntaje con su desglose por señal y gatillos. Id propio e idempotente. |
+| `outcome.v1` | Su resultado, `simulated` o `real`: entrada, cada salida (hora, precio, fracción y motivo), costos, P/L bruto y neto (con signo), si tocó TP1 o el stop. |
+
+Los escribe el motor (`cfds-journal`); los lee el aprendizaje en Python. Montos en la moneda del instrumento.

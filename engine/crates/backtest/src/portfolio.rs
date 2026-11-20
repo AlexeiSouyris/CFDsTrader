@@ -315,8 +315,12 @@ mod tests {
             record: TradeRecord {
                 side: Side::Long,
                 signal_index: 0,
+                signal_at: candle(0, dec!(0)).end(),
                 score: 5,
+                breakdown: vec![],
                 triggers: vec![],
+                reference: dec!(100),
+                tp1: dec!(104),
                 entry_index: 1,
                 entry_time: candle(1, dec!(0)).start,
                 entry_mid: dec!(100),

@@ -35,6 +35,24 @@ pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Decimal, D::Error>
     parse(&String::deserialize(d)?)
 }
 
+/// Variante con signo (`^-?\d+(\.\d+)?$`), para resultados que pueden ser negativos
+/// (P/L, financiación que cobra un corto).
+pub mod signed {
+    use super::*;
+
+    pub fn serialize<S: Serializer>(d: &Decimal, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&d.to_string())
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Decimal, D::Error> {
+        let text = String::deserialize(d)?;
+        match text.strip_prefix('-') {
+            Some(rest) => parse::<D::Error>(rest).map(|v| -v),
+            None => parse(&text),
+        }
+    }
+}
+
 /// Variante para campos opcionales (`null` en JSON).
 pub mod option {
     use super::*;
@@ -66,6 +84,26 @@ mod tests {
             "", "-1", "+1", "1.", ".5", "1e5", " 1", "1,5", "1.2.3", "NaN",
         ] {
             assert!(!is_contract_decimal(bad), "debería rechazar {bad:?}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod signed_tests {
+    use rust_decimal::{Decimal, dec};
+    use serde::Deserialize;
+
+    #[derive(Deserialize, serde::Serialize, PartialEq, Debug)]
+    struct W(#[serde(with = "super::signed")] Decimal);
+
+    #[test]
+    fn signed_decimals_roundtrip_and_reject_malformed_signs() {
+        for v in [dec!(-12.15), dec!(0), dec!(3.5)] {
+            let json = serde_json::to_string(&W(v)).unwrap();
+            assert_eq!(serde_json::from_str::<W>(&json).unwrap(), W(v));
+        }
+        for bad in [r#""--1""#, r#""+1""#, r#""-""#, r#""1e3""#, r#""- 1""#] {
+            assert!(serde_json::from_str::<W>(bad).is_err(), "{bad}");
         }
     }
 }

@@ -237,6 +237,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "cfds-journal"
+version = "0.1.0"
+dependencies = [
+ "cfds-backtest",
+ "cfds-core",
+ "cfds-strategy",
+ "chrono",
+ "jsonschema",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "cfds-liquidity"
 version = "0.1.0"
 dependencies = [
