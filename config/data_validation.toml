@@ -1,0 +1,13 @@
+# Validación de velas (spec §12, Issue #5).
+# Ninguna vela entra al sistema sin pasar estas reglas. Los problemas se reportan, nunca se corrigen solos.
+
+[grid]
+# Toda vela tiene que empezar en un múltiplo de estos minutos (UTC). 15 cubre las velas de 15m y de 1h.
+minutes = 15
+
+[outliers]
+# Período del ATR de Wilder que se usa como escala del movimiento "normal".
+atr_period = 14
+# Una vela es sospechosa si su rango, o el salto desde el cierre anterior, supera este múltiplo
+# del ATR sin que haya habido un corte de sesión en el medio.
+max_jump_atr_multiple = 10

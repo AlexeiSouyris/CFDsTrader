@@ -1,0 +1,19 @@
+[package]
+name = "cfds-market-data"
+description = "Datos de mercado: validación de velas y (más adelante) conectores a proveedores."
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+cfds-core = { path = "../core" }
+cfds-indicators = { path = "../indicators" }
+chrono = { version = "0.4.45", default-features = false, features = ["std"] }
+rust_decimal = { version = "1.43.0", features = ["macros"] }
+serde = { version = "1.0.229", features = ["derive"] }
+thiserror = "2.0.21"
+toml = "0.9"
+
+[lints]
+workspace = true
