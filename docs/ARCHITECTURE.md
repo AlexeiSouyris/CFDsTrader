@@ -32,7 +32,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 
 | Módulo | Ruta | Lenguaje | Responsabilidad (única) | Estado |
 |---|---|---|---|---|
-| core | `engine/crates/core` | Rust | Tipos compartidos: Instrument, Candle, Tick, Order, Position, Money (decimal) | planeado |
+| core | `engine/crates/core` (crate `cfds-core`) | Rust | Tipos compartidos: Instrument, Candle, Tick, Order, Position, Money (decimal) | esqueleto (#3); tipos en #4 |
 | market-data | `engine/crates/market-data` | Rust | Conectores a proveedores/brokers (trait `MarketDataProvider`), normalización a velas y ticks | planeado |
 | indicators | `engine/crates/indicators` | Rust | Indicadores técnicos (SMA, EMA, RSI, ATR, VWAP, volumen...) | planeado |
 | patterns | `engine/crates/patterns` | Rust | Patrones de velas (martillo, envolvente...) y chartistas (doble techo/suelo, soportes/resistencias) | planeado |
@@ -47,7 +47,9 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | news | `intelligence/cfds_intel/news` | Python | Ingesta de noticias en tiempo real, resumen e interpretación (positivo/negativo, impacto) | planeado |
 | analogs | `intelligence/cfds_intel/analogs` | Python | Búsqueda de situaciones históricas similares en otras empresas e índices | planeado |
 | models | `intelligence/cfds_intel/models` | Python | Modelos PyTorch de predicción y su entrenamiento | planeado |
-| storage | `infra/` | SQL | Esquema de PostgreSQL, migraciones, docker-compose con Postgres + Redis | planeado |
+| storage | `infra/` | SQL | Esquema de PostgreSQL, migraciones, docker-compose con Postgres + Redis | docker-compose (#3); esquema en #6 |
+| intelligence | `intelligence/` (paquete `cfds_intel`) | Python | Proyecto base de la capa de inteligencia | esqueleto (#3) |
+| ci | `.github/workflows/ci.yml` | YAML | Checks de Rust y Python en cada PR | hecho (#3) |
 | contracts | `contracts/` | JSON Schema | Mensajes entre capas (velas, señales, noticias, órdenes) | planeado |
 | ui | `ui/` | TypeScript | Interfaz: gráficos, panel de noticias, estrategias, P/L | planeado (fase 2) |
 | glosario | `docs/GLOSARIO.md` | Markdown | Única fuente de las definiciones de términos (la UI las reutiliza como tooltips) | hecho |

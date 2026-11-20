@@ -7,9 +7,9 @@ Primero va el motor y la inteligencia. La UI viene después (fase 10).
 
 | # | Fase | Dónde | Estado |
 |---|---|---|---|
-| 0 | Fundaciones: reglas, arquitectura, ADRs | `docs/` | en curso |
-| 1 | Especificación (sin código) | `docs/spec/` | en curso: preguntas abiertas |
-| 2 | Datos | `engine/market-data`, `infra/` | pendiente |
+| 0 | Fundaciones: reglas, arquitectura, ADRs | `docs/` | hecha (#1) |
+| 1 | Especificación (sin código) | `docs/spec/` | aprobada (#1) |
+| 2 | Datos | `engine/market-data`, `infra/` | en curso (#2) |
 | 3 | Motor de backtest | `engine/backtest` | pendiente |
 | 3b | Análisis técnico: indicadores, patrones, liquidez, multi-timeframe | `engine/indicators`, `engine/patterns`, `engine/liquidity` | pendiente |
 | 4 | Estrategia | `engine/strategy` | pendiente |
