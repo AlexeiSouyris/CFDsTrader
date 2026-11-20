@@ -2,6 +2,7 @@
 
 use std::time::Duration;
 
+use cfds_core::Timeframe;
 use serde::Deserialize;
 
 /// Único host permitido: la cuenta demo (CLAUDE.md §5). Pasar a real requiere un ADR.
@@ -29,6 +30,16 @@ pub struct IgConfig {
     pub max_backoff: Duration,
     pub page_size: u32,
     pub local_time_margin_hours: u32,
+    pub live: LiveConfig,
+}
+
+/// Modo en vivo (#68).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LiveConfig {
+    pub timeframes: Vec<Timeframe>,
+    pub candle_delay: Duration,
+    pub give_up_after: Duration,
+    pub startup_lookback: Duration,
 }
 
 #[derive(Deserialize)]
@@ -38,6 +49,16 @@ struct Raw {
     limits: RawLimits,
     retry: RawRetry,
     history: RawHistory,
+    live: RawLive,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawLive {
+    timeframes: Vec<String>,
+    candle_delay_secs: u64,
+    give_up_after_secs: u64,
+    startup_lookback_hours: u64,
 }
 
 #[derive(Deserialize)]
@@ -114,7 +135,36 @@ impl IgConfig {
                 "más de 24 h gasta cupo sin sentido",
             ));
         }
+        let mut timeframes = Vec::new();
+        for t in &r.live.timeframes {
+            let tf: Timeframe = t
+                .parse()
+                .map_err(|e: String| invalid("live.timeframes", e))?;
+            if timeframes.contains(&tf) {
+                return Err(invalid("live.timeframes", format!("{t} repetido")));
+            }
+            timeframes.push(tf);
+        }
+        if timeframes.is_empty() {
+            return Err(invalid("live.timeframes", "no puede estar vacío"));
+        }
+        if r.live.give_up_after_secs <= r.live.candle_delay_secs {
+            return Err(invalid(
+                "live.give_up_after_secs",
+                "tiene que ser mayor que candle_delay_secs",
+            ));
+        }
+        let live = LiveConfig {
+            timeframes,
+            candle_delay: Duration::from_secs(r.live.candle_delay_secs),
+            give_up_after: Duration::from_secs(r.live.give_up_after_secs),
+            startup_lookback: Duration::from_secs(
+                at_least_one("live.startup_lookback_hours", r.live.startup_lookback_hours)?
+                    .saturating_mul(3600),
+            ),
+        };
         Ok(Self {
+            live,
             base_url: DEMO_BASE_URL.to_owned(),
             request_timeout: Duration::from_secs(at_least_one(
                 "api.request_timeout_secs",
@@ -222,5 +272,34 @@ mod tests {
         let secs: Vec<u64> = (1..=7).map(|a| c.backoff(a).as_secs()).collect();
         assert_eq!(secs, [2, 4, 8, 16, 32, 60, 60]);
         assert_eq!(c.backoff(1000).as_secs(), 60);
+    }
+
+    #[test]
+    fn live_section_is_validated() {
+        let c = IgConfig::from_toml(REAL).unwrap();
+        assert_eq!(c.live.timeframes, [Timeframe::M15, Timeframe::H1]);
+        assert_eq!(c.live.candle_delay.as_secs(), 20);
+        assert_eq!(c.live.give_up_after.as_secs(), 600);
+        assert_eq!(c.live.startup_lookback.as_secs(), 24 * 3600);
+        for (from, to) in [
+            (
+                r#"timeframes = ["15m", "1h"]"#,
+                r#"timeframes = ["15m", "4h"]"#,
+            ),
+            (
+                r#"timeframes = ["15m", "1h"]"#,
+                r#"timeframes = ["15m", "15m"]"#,
+            ),
+            (r#"timeframes = ["15m", "1h"]"#, r#"timeframes = []"#),
+            ("give_up_after_secs = 600", "give_up_after_secs = 20"),
+            ("startup_lookback_hours = 24", "startup_lookback_hours = 0"),
+        ] {
+            let text = REAL.replace(from, to);
+            assert_ne!(text, REAL, "{to}");
+            assert!(
+                matches!(IgConfig::from_toml(&text), Err(IgConfigError::Invalid { field, .. }) if field.starts_with("live.")),
+                "{to}"
+            );
+        }
     }
 }

@@ -229,6 +229,7 @@ dependencies = [
  "cfds-core",
  "cfds-ingest",
  "cfds-market-data",
+ "cfds-storage",
  "chrono",
  "reqwest",
  "rust_decimal",

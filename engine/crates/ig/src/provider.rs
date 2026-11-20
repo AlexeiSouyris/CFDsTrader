@@ -325,12 +325,21 @@ impl<T: Transport> IgProvider<T> {
         timeframe: Timeframe,
         from: DateTime<Utc>,
         to: DateTime<Utc>,
+        window: Window,
     ) -> Result<Vec<RawPrice>, ProviderError> {
         if from >= to {
             return Ok(Vec::new());
         }
-        let margin = TimeDelta::hours(i64::from(self.cfg.local_time_margin_hours));
-        let needed = model::estimated_points(from, to, timeframe, margin);
+        // `to` de IG es inclusivo: en modo exacto se pide hasta 1 s antes, para no pagar la vela
+        // que empieza justo en `to`.
+        let (margin, query_to) = match window {
+            Window::Padded => (
+                TimeDelta::hours(i64::from(self.cfg.local_time_margin_hours)),
+                to,
+            ),
+            Window::Exact => (TimeDelta::zero(), to - TimeDelta::seconds(1)),
+        };
+        let needed = model::estimated_points(from, query_to, timeframe, margin);
         let mut st = self.state.lock().await;
         // Si el pedido no entra en el cupo semanal, ni se hace: gastaría el cupo a medias.
         let remaining = match st.allowance {
@@ -350,7 +359,7 @@ impl<T: Transport> IgProvider<T> {
         let mut page = 1u32;
         loop {
             let path = |offset: TimeDelta| {
-                let (f, t) = model::local_query_range(from, to, offset, margin);
+                let (f, t) = model::local_query_range(from, query_to, offset, margin);
                 format!(
                     "/prices/{epic}?resolution={}&from={f}&to={t}&pageSize={}&pageNumber={page}",
                     model::resolution(timeframe),
@@ -377,6 +386,21 @@ impl<T: Transport> IgProvider<T> {
         }
     }
 
+    async fn candles(
+        &self,
+        instrument: &InstrumentId,
+        timeframe: Timeframe,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+        window: Window,
+    ) -> Result<Vec<Candle>, ProviderError> {
+        let raw = self
+            .prices(self.epic(instrument)?, timeframe, from, to, window)
+            .await?;
+        model::to_candles(&raw, instrument, timeframe, from, to)
+            .map_err(ProviderError::InvalidResponse)
+    }
+
     /// Spread (`ask − bid`) al cierre de cada vela con inicio en `[from, to)`. Sirve para
     /// medir el spread típico (#67); cuesta puntos del cupo semanal como el histórico.
     pub async fn close_spreads(
@@ -387,7 +411,7 @@ impl<T: Transport> IgProvider<T> {
         to: DateTime<Utc>,
     ) -> Result<Vec<(DateTime<Utc>, Decimal)>, ProviderError> {
         let raw = self
-            .prices(self.epic(instrument)?, timeframe, from, to)
+            .prices(self.epic(instrument)?, timeframe, from, to, Window::Padded)
             .await?;
         model::close_spreads(&raw, timeframe, from, to).map_err(ProviderError::InvalidResponse)
     }
@@ -414,10 +438,39 @@ impl<T: Transport> MarketDataProvider for IgProvider<T> {
         from: DateTime<Utc>,
         to: DateTime<Utc>,
     ) -> Result<Vec<Candle>, ProviderError> {
-        let raw = self
-            .prices(self.epic(instrument)?, timeframe, from, to)
-            .await?;
-        model::to_candles(&raw, instrument, timeframe, from, to)
-            .map_err(ProviderError::InvalidResponse)
+        self.candles(instrument, timeframe, from, to, Window::Padded)
+            .await
+    }
+}
+
+/// Cómo se arma el rango que se le pide a IG.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Window {
+    /// Con el margen horario de `config/ig.toml`: seguro para cualquier rango del pasado,
+    /// aunque cruce un cambio de horario.
+    Padded,
+    /// Sin margen: cada vela cuesta 1 punto. Solo para velas recientes, donde el
+    /// `timezoneOffset` de la sesión vigente es el correcto (#68).
+    Exact,
+}
+
+/// [`IgProvider`] en modo **reciente**: pide el rango exacto, sin margen. Lo usa el modo en
+/// vivo (#68) para traer cada vela apenas cierra gastando 1 punto del cupo por vela.
+///
+/// Si el rango cruzara un cambio de horario, faltarían velas y la validación de la ingesta
+/// rechazaría el lote: nunca entra un dato equivocado.
+pub struct Recent<'a, T>(pub &'a IgProvider<T>);
+
+impl<T: Transport> MarketDataProvider for Recent<'_, T> {
+    async fn history(
+        &self,
+        instrument: &InstrumentId,
+        timeframe: Timeframe,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<Candle>, ProviderError> {
+        self.0
+            .candles(instrument, timeframe, from, to, Window::Exact)
+            .await
     }
 }

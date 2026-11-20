@@ -23,5 +23,6 @@ workspace = true
 
 [dev-dependencies]
 cfds-ingest = { path = "../ingest" }
+cfds-storage = { path = "../storage" }
 rust_decimal = { version = "1.43.0", features = ["macros"] }
 tokio = { version = "1.54.1", features = ["macros", "rt", "rt-multi-thread", "test-util"] }
