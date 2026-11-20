@@ -1,0 +1,21 @@
+# Sesiones de contado de cada bolsa (spec §2). Horas en hora LOCAL de la bolsa:
+# los cambios de horario de verano se resuelven solos con la zona horaria.
+# Qué instrumento usa qué bolsa se define en config/instruments.toml (Issue #7).
+#
+# Velas esperadas dentro de la sesión: las alineadas a su timeframe (15m o 1h, en UTC) que
+# caben enteras entre la apertura y el cierre. Ej.: Nueva York 09:30–16:00 → 26 velas de 15m
+# y 6 de 1h (10:00 a 15:00).
+
+[sessions.XNYS]
+name = "New York Stock Exchange"
+timezone = "America/New_York"
+open = "09:30"
+close = "16:00"
+holidays = "holidays/XNYS.toml"
+
+[sessions.XETR]
+name = "Xetra (Deutsche Börse)"
+timezone = "Europe/Berlin"
+open = "09:00"
+close = "17:30"
+holidays = "holidays/XETR.toml"
