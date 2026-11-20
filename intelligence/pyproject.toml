@@ -3,7 +3,9 @@ name = "cfds-intel"
 version = "0.1.0"
 description = "Capa de inteligencia de CFDsTrader: noticias, análogos históricos y modelos de ML."
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "nasdaq-100-ticker-history",
+]
 
 [dependency-groups]
 dev = [
@@ -35,3 +37,11 @@ files = ["src", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.uv.sources]
+nasdaq-100-ticker-history = { git = "https://github.com/jmccarrell/n100tickers", rev = "4ce85254b67f27540abedbb93a109687eafe39f0" }
+
+[[tool.mypy.overrides]]
+# La fuente de componentes del NASDAQ 100 no publica tipos; se envuelve en cfds_intel.universe.
+module = ["nasdaq_100_ticker_history", "nasdaq_100_ticker_history.*"]
+ignore_missing_imports = true
