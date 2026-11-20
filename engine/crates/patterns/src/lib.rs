@@ -6,8 +6,12 @@
 
 pub mod candles;
 pub mod config;
+pub mod double;
+pub mod levels;
 pub mod pivots;
 
 pub use candles::{CandlePattern, candle_patterns_at};
-pub use config::{CandleConfig, PatternsConfig, PivotConfig};
+pub use config::{CandleConfig, DoubleConfig, LevelConfig, PatternsConfig, PivotConfig};
+pub use double::{DoubleKind, DoublePattern, double_at};
+pub use levels::{Level, LevelKind, levels_at, rejections_at};
 pub use pivots::{Pivot, PivotKind, confirmed_pivots};
