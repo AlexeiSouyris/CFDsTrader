@@ -1,0 +1,129 @@
+# Instrumentos y condiciones del broker (Issue #7, ADR 0002).
+#
+# Regla (CLAUDE.md §5b): NO se inventan parámetros del broker. Cada valor dice de dónde sale:
+#   campo = { value = "...", source = "<clave de [sources]>" }
+# Lo que todavía no está confirmado queda pendiente, con el motivo:
+#   campo = { pending = "..." }
+# Mientras quede un costo pendiente, el motor rechaza validar un backtest (spec §11).
+# Números como texto decimal (nunca float).
+
+# ---------------------------------------------------------------- fuentes
+[sources.ig-es-indices]
+reference = "https://www.ig.com/es/indices"
+consulted = "2026-11-20"
+note = "Tablas 'Margen cliente minorista' y 'Spread mín. para OTC' (CFD al contado)."
+
+[sources.ig-es-margenes]
+reference = "https://www.ig.com/es/margenes"
+consulted = "2026-11-20"
+note = "Márgenes de franja 1, clientes minoristas (índices y acciones)."
+
+[sources.ig-es-costes]
+reference = "https://www.ig.com/es/nuestros-costes"
+consulted = "2026-11-20"
+note = "Spreads de CFD al contado, comisiones de acciones y fórmula de financiación nocturna."
+
+[sources.esma-2018-796]
+reference = "Decisión (UE) 2018/796 de ESMA (medidas sobre CFD para clientes minoristas)"
+consulted = "2026-11-20"
+note = "Cierre de posiciones cuando el margen cae al 50 % del requerido. Mínimo regulatorio."
+
+# ---------------------------------------------------------------- cuenta
+[account]
+broker = "IG Europe GmbH (sucursal en España, CNMV n.º 121)"
+# Hora del cargo de financiación nocturna: 23:00 en horario centroeuropeo (CE(S)T).
+funding_cutoff = { value = "23:00", source = "ig-es-costes" }
+funding_cutoff_timezone = "Europe/Madrid"
+margin_closeout_pct = { value = "50", source = "esma-2018-796" }
+
+# ---------------------------------------------------------------- índices
+# Fórmula de financiación de IG para índices (fuente ig-es-costes):
+#   noches × precio de cierre × tamaño × (tipo de referencia ± tasa administrativa) / divisor
+# Largos pagan (referencia + tasa); cortos reciben (referencia − tasa).
+# Los CFD de índices no tienen comisión: el costo es el spread (fuente ig-es-costes).
+
+[instruments.US100]
+name = "EEUU Tech 100"
+asset_class = "index"
+currency = "USD"
+exchange = "XNYS"
+exchange_timezone = "America/New_York"
+max_leverage = "10"   # tope propio (spec §8), por debajo del máximo regulatorio
+epic = { pending = "Se lee de la API de IG con la cuenta demo (#8)." }
+margin_retail_pct = { value = "5", source = "ig-es-indices" }
+spread_min_points = { value = "1.6", source = "ig-es-indices" }
+spread_typical_points = { pending = "IG solo publica el mínimo; medir bid/ask por franja en la demo (#8)." }
+value_per_point = { pending = "Del contrato al contado, vía API de IG (#8)." }
+min_deal_size = { pending = "Del contrato al contado, vía API de IG (#8)." }
+funding_admin_fee_pct = { value = "2.5", source = "ig-es-costes" }
+funding_day_count = { value = "360", source = "ig-es-costes" }
+funding_benchmark = { pending = "La página dice 'ESTR (o el tipo de referencia correspondiente)'; confirmar cuál aplica a índices en USD." }
+
+[instruments.US500]
+name = "US 500"
+asset_class = "index"
+currency = "USD"
+exchange = "XNYS"
+exchange_timezone = "America/New_York"
+max_leverage = "10"
+epic = { pending = "Se lee de la API de IG con la cuenta demo (#8)." }
+margin_retail_pct = { value = "5", source = "ig-es-indices" }
+spread_min_points = { value = "0.8", source = "ig-es-indices" }
+spread_typical_points = { pending = "IG solo publica el mínimo; medir bid/ask por franja en la demo (#8)." }
+value_per_point = { pending = "Del contrato al contado, vía API de IG (#8)." }
+min_deal_size = { pending = "Del contrato al contado, vía API de IG (#8)." }
+funding_admin_fee_pct = { value = "2.5", source = "ig-es-costes" }
+funding_day_count = { value = "360", source = "ig-es-costes" }
+funding_benchmark = { pending = "La página dice 'ESTR (o el tipo de referencia correspondiente)'; confirmar cuál aplica a índices en USD." }
+
+[instruments.US30]
+name = "Wall Street"
+asset_class = "index"
+currency = "USD"
+exchange = "XNYS"
+exchange_timezone = "America/New_York"
+max_leverage = "10"
+epic = { pending = "Se lee de la API de IG con la cuenta demo (#8)." }
+margin_retail_pct = { value = "5", source = "ig-es-indices" }
+spread_min_points = { value = "3.4", source = "ig-es-indices" }
+spread_typical_points = { pending = "IG solo publica el mínimo; medir bid/ask por franja en la demo (#8)." }
+value_per_point = { pending = "Del contrato al contado, vía API de IG (#8)." }
+min_deal_size = { pending = "Del contrato al contado, vía API de IG (#8)." }
+funding_admin_fee_pct = { value = "2.5", source = "ig-es-costes" }
+funding_day_count = { value = "360", source = "ig-es-costes" }
+funding_benchmark = { pending = "La página dice 'ESTR (o el tipo de referencia correspondiente)'; confirmar cuál aplica a índices en USD." }
+
+[instruments.DE40]
+name = "Alemania 40"
+asset_class = "index"
+currency = "EUR"
+exchange = "XETR"
+exchange_timezone = "Europe/Berlin"
+max_leverage = "10"
+epic = { pending = "Se lee de la API de IG con la cuenta demo (#8)." }
+margin_retail_pct = { value = "5", source = "ig-es-indices" }
+spread_min_points = { value = "1.8", source = "ig-es-indices" }
+spread_typical_points = { pending = "IG solo publica el mínimo; medir bid/ask por franja en la demo (#8)." }
+value_per_point = { pending = "Del contrato al contado, vía API de IG (#8)." }
+min_deal_size = { pending = "Del contrato al contado, vía API de IG (#8)." }
+funding_admin_fee_pct = { value = "2.5", source = "ig-es-costes" }
+funding_day_count = { value = "360", source = "ig-es-costes" }
+funding_benchmark = { value = "ESTR", source = "ig-es-costes" }
+
+# ---------------------------------------------------------------- acciones (CFD)
+# Las acciones no tienen spread de IG: pagan comisión al abrir y al cerrar (fuente ig-es-costes).
+# Cada acción concreta se agrega cuando se arme la lista de seguimiento (spec §2).
+# El margen del 20 % es el que muestra IG en sus ejemplos (Apple, Inditex...) y el mínimo regulatorio
+# para acciones (5:1). Algunas acciones pueden pedir más: se confirma por acción vía API (#8).
+
+[share_costs.US]
+currency = "USD"
+commission_per_share = { value = "0.02", source = "ig-es-costes" }
+commission_min = { value = "15", source = "ig-es-costes" }
+margin_retail_pct = { value = "20", source = "ig-es-margenes" }
+
+[share_costs.EU]
+currency = "EUR"
+commission_pct = { value = "0.06", source = "ig-es-costes" }
+commission_min = { value = "5", source = "ig-es-costes" }
+margin_retail_pct = { value = "20", source = "ig-es-margenes" }
