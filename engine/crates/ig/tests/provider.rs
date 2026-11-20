@@ -634,3 +634,56 @@ async fn close_spreads_are_ask_minus_bid_at_each_close() {
         .unwrap_err();
     assert!(matches!(err, ProviderError::InvalidResponse(ref m) if m.contains("closePrice")));
 }
+
+#[tokio::test(start_paused = true)]
+async fn recent_mode_asks_the_exact_range_without_margin() {
+    let t = Recorded::default().login().ok(DE40_15M);
+    let ig = provider(&t, cfg());
+    let candles = cfds_ig::Recent(&ig)
+        .history(
+            &de40(),
+            Timeframe::M15,
+            at("2026-11-20T09:00:00Z"),
+            at("2026-11-20T10:00:00Z"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(candles.len(), 4);
+    // Hora local (UTC+1), sin margen, y `to` 1 s antes: IG no cobra la vela de las 10:00 UTC.
+    assert_eq!(
+        t.sent()[1].path,
+        "/prices/IX.D.DAX.IFE.IP?resolution=MINUTE_15&from=2026-11-20T10:00:00\
+         &to=2026-11-20T10:59:59&pageSize=500&pageNumber=1"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn recent_mode_estimates_one_point_per_candle() {
+    // Cupo restante 9995 tras el primer pedido. Un rango exacto de 9995 velas de 15m entra
+    // justo; con margen (o contando el extremo) no entraría.
+    let t = Recorded::default().login().ok(DE40_15M).ok(DE40_15M);
+    let ig = provider(&t, cfg());
+    de40_hour(&ig).await.unwrap();
+    let from = at("2026-01-01T00:00:00Z");
+    let to = from + chrono::TimeDelta::minutes(15 * 9995);
+    // Llega la respuesta grabada (otras fechas): lo que importa es que el pedido se mandó.
+    let _ = cfds_ig::Recent(&ig)
+        .history(&de40(), Timeframe::M15, from, to)
+        .await;
+    assert_eq!(
+        t.sent().len(),
+        3,
+        "el pedido exacto entra en el cupo y se manda"
+    );
+
+    let t = Recorded::default().login().ok(DE40_15M);
+    let ig = provider(&t, cfg());
+    de40_hour(&ig).await.unwrap();
+    let to = from + chrono::TimeDelta::minutes(15 * 9996);
+    let err = cfds_ig::Recent(&ig)
+        .history(&de40(), Timeframe::M15, from, to)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, ProviderError::RateLimited { .. }));
+    assert_eq!(t.sent().len(), 2);
+}

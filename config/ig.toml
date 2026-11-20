@@ -36,3 +36,16 @@ page_size = 500
 # lado, por si el rango cruza un cambio de horario. Después se filtra el rango exacto en UTC.
 # Cuesta puntos del cupo semanal: 4 por lado en 15m, 1 por lado en 1h.
 local_time_margin_hours = 1
+
+# Modo en vivo (#68): cada vela se pide por REST apenas cierra, en modo exacto (1 punto por vela).
+# La Streaming API (Lightstreamer) no está disponible: la cuenta demo responde "Insufficient
+# permissions" a las suscripciones CHART (medido el 2026-11-20). Ver #68.
+[live]
+# Timeframes que se mantienen al día.
+timeframes = ["15m", "1h"]
+# Espera después del cierre de la vela antes de pedirla, para que IG la tenga consolidada.
+candle_delay_secs = 20
+# Si una vela cerrada sigue sin llegar (o no valida) pasado este tiempo, kill switch (CLAUDE.md §5b).
+give_up_after_secs = 600
+# Al arrancar sin datos previos, cuánto hacia atrás se completa.
+startup_lookback_hours = 24
