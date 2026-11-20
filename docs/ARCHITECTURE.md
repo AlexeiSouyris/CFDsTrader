@@ -64,5 +64,5 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | intelligence | `intelligence/` (paquete `cfds_intel`) | Python | Proyecto base de la capa de inteligencia | esqueleto (#3) |
 | ci | `.github/workflows/ci.yml` | YAML | Checks de Rust y Python en cada PR | hecho (#3) |
 | contracts | `contracts/` | JSON Schema | Mensajes entre capas (velas, señales, noticias, órdenes) | candle.v1, instrument.v1 (#4) |
-| ui | `ui/` | TypeScript | Interfaz: gráficos, panel de noticias, estrategias, P/L | planeado (fase 2) |
+| ui | `ui/` | TypeScript (React + Tailwind) | Interfaz: gráficos, panel de noticias, estrategias, P/L. **Hoy: solo prototipo visual con datos de ejemplo, sin lógica (#30)** | prototipo (#30); app real en fase 10 |
 | glosario | `docs/GLOSARIO.md` | Markdown | Única fuente de las definiciones de términos (la UI las reutiliza como tooltips) | hecho |
