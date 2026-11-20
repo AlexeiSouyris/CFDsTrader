@@ -13,6 +13,7 @@ Proyecto entre amigos para crear un algoritmo que **sugiere operaciones con CFDs
 |---|---|
 | `engine/` | Motor en **Rust** (workspace de Cargo) |
 | `intelligence/` | Inteligencia en **Python** (proyecto `uv`) |
+| `ui/` | Prototipo visual de la interfaz (**React + TypeScript + Tailwind**), con datos de ejemplo |
 | `infra/` | PostgreSQL + Redis para desarrollo (`docker-compose.yml`) |
 | `contracts/` | Contratos JSON Schema entre lenguajes |
 | `config/` | Toda la configuración (nada hardcodeado) |
@@ -48,4 +49,10 @@ Tests de integración con PostgreSQL y Redis (los mismos que corre el CI; con el
 
 ```bash
 cd engine && DATABASE_URL=postgres://<usuario>:<contraseña>@127.0.0.1:5432/<base> REDIS_URL=redis://127.0.0.1:6379 cargo test --workspace -- --ignored
+```
+
+Interfaz (prototipo, TypeScript): `npm run dev` y abrir la dirección que muestra.
+
+```bash
+cd ui && npm ci && npm run lint && npm run format:check && npm run typecheck && npm test && npm run build
 ```
