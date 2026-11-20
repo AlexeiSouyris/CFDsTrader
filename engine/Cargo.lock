@@ -188,6 +188,7 @@ dependencies = [
  "cfds-core",
  "cfds-strategy",
  "chrono",
+ "chrono-tz",
  "rust_decimal",
  "serde",
  "toml",

@@ -9,3 +9,8 @@ trailing_atr = "2"
 # Si a las `time_exit_bars` velas no tocó +`time_exit_min_r` R, se cierra al cierre de esa vela.
 time_exit_bars = 32
 time_exit_min_r = "1"
+
+[costs]
+# Slippage supuesto por ejecución (spec §11): `slippage_spread_fraction` × spread + `slippage_ticks` ticks.
+slippage_spread_fraction = "0.1"
+slippage_ticks = "1"

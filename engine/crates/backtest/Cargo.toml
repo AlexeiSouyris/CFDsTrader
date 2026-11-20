@@ -6,6 +6,8 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+chrono = { version = "0.4.45", default-features = false, features = ["std"] }
+chrono-tz = "0.10.4"
 cfds-core = { version = "0.1.0", path = "../core" }
 cfds-strategy = { version = "0.1.0", path = "../strategy" }
 rust_decimal = { version = "1.43.0", features = ["macros"] }
@@ -14,6 +16,3 @@ toml = "0.9"
 
 [lints]
 workspace = true
-
-[dev-dependencies]
-chrono = { version = "0.4.45", default-features = false, features = ["std"] }
