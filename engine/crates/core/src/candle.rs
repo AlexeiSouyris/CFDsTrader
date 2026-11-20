@@ -94,7 +94,7 @@ impl Candle {
 /// Timestamps del contrato: ISO 8601 en UTC **terminados en `Z`**.
 /// Se rechaza cualquier otra zona aunque represente el mismo instante,
 /// para que Rust acepte exactamente lo mismo que el JSON Schema.
-mod utc_z {
+pub mod utc_z {
     use chrono::{DateTime, SecondsFormat, Utc};
     use serde::{Deserialize, Deserializer, Serializer, de::Error};
 

@@ -18,7 +18,7 @@
 
 use cfds_core::{Candle, InstrumentId};
 use cfds_risk::{InstrumentLimits, Rejection, RiskConfig};
-use cfds_strategy::{Analysis, Configs, ScoreError, Side, Signal, TriggerKind};
+use cfds_strategy::{Analysis, Component, Configs, ScoreError, Side, Signal, TriggerKind};
 use chrono::{DateTime, NaiveTime, Utc};
 use chrono_tz::Tz;
 use rust_decimal::Decimal;
@@ -74,8 +74,17 @@ pub struct ExitRecord {
 pub struct TradeRecord {
     pub side: Side,
     pub signal_index: usize,
+    /// Cierre de la vela de la señal (cuando se decidió).
+    pub signal_at: DateTime<Utc>,
     pub score: i32,
+    /// Qué sumó cada señal al puntaje (spec §6).
+    pub breakdown: Vec<(Component, i32)>,
     pub triggers: Vec<TriggerKind>,
+    /// Entrada de referencia de la propuesta: el cierre de la vela de la señal.
+    pub reference: Decimal,
+    /// TP1 que muestra la propuesta: referencia ± `tp1_r` × R (con R desde la referencia). La
+    /// simulación lo recalcula desde el precio ejecutado.
+    pub tp1: Decimal,
     pub entry_index: usize,
     /// Apertura de la vela de entrada.
     pub entry_time: DateTime<Utc>,
@@ -243,8 +252,13 @@ pub fn execute(
     Ok(TradeRecord {
         side,
         signal_index: signal.index,
+        signal_at: candles[signal.index].end(),
         score: signal.score.total,
+        breakdown: signal.score.breakdown.clone(),
         triggers: signal.triggers.iter().map(|g| g.kind).collect(),
+        reference: signal.reference,
+        tp1: signal.reference
+            + s * setup.backtest.exits.tp1_r * (signal.reference - signal.stop).abs(),
         entry_index,
         entry_time,
         entry_mid,
