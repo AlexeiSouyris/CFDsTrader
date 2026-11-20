@@ -42,7 +42,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | Módulo | Ruta | Lenguaje | Responsabilidad (única) | Estado |
 |---|---|---|---|---|
 | core | `engine/crates/core` (crate `cfds-core`) | Rust | Tipos compartidos: Instrument, Candle, Tick, Order, Position, Money (decimal) | Instrument, Candle, Timeframe, Money, Currency (#4) |
-| market-data | `engine/crates/market-data` | Rust | Validación de velas (#5); calendario de sesiones y feriados por bolsa (#9); conectores a proveedores/brokers (trait `MarketDataProvider`, #8) | validación (#5), calendario (#9) |
+| market-data | `engine/crates/market-data` | Rust | Validación de velas (#5); calendario de sesiones y feriados por bolsa (#9); separación entrenamiento/validación/fuera de muestra (#16); conectores a proveedores/brokers (trait `MarketDataProvider`, #8) | validación (#5), calendario (#9), separación (#16) |
 | indicators | `engine/crates/indicators` | Rust | Indicadores técnicos (SMA, EMA, RSI, ATR, VWAP, volumen...) | ATR de Wilder (#5) |
 | patterns | `engine/crates/patterns` | Rust | Patrones de velas (martillo, envolvente...) y chartistas (doble techo/suelo, soportes/resistencias) | planeado |
 | liquidity | `engine/crates/liquidity` | Rust | Zonas de liquidez, barridos internos/externos, order flow | planeado |
