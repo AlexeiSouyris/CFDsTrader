@@ -58,6 +58,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | notifier | `engine/crates/notifier` | Rust | Notificaciones push al celular (propuestas, alertas, votaciones) | planeado |
 | news | `intelligence/cfds_intel/news` | Python | Ingesta de noticias en tiempo real, resumen e interpretación (positivo/negativo, impacto) | planeado |
 | analogs | `intelligence/cfds_intel/analogs` | Python | Búsqueda de situaciones históricas similares en otras empresas e índices | planeado |
+| universe | `intelligence/cfds_intel/universe.py` | Python | Componentes del NASDAQ 100 en cada fecha, sin sesgo de supervivencia (fuente: nasdaq-100-ticker-history, MIT, ADR 0005) | hecho (#10) |
 | models | `intelligence/cfds_intel/models` | Python | Modelos PyTorch de predicción y su entrenamiento | planeado |
 | learning | `intelligence/cfds_intel/learning` | Python | Reentrenamiento walk-forward de los modelos con el diario, y el informe de propuestas de cambio para votar | planeado (#13) |
 | storage | `infra/` (SQL) + `engine/crates/storage` (crate `cfds-storage`) | SQL + Rust | Esquema y migraciones de PostgreSQL; escritura idempotente de velas; publicación de velas cerradas en Redis Streams; docker-compose | docker-compose (#3); esquema, PgStore y CandlePublisher (#6) |
