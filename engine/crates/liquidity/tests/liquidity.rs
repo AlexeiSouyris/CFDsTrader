@@ -385,3 +385,64 @@ fn an_unconfirmed_newer_pivot_does_not_hide_the_confirmed_one() {
         (13, dec!(103), 5)
     );
 }
+
+// ---------- Sensibilidad (#80): el impulso mínimo del order block es monótono ----------
+
+#[test]
+fn a_lower_impulse_threshold_never_finds_fewer_order_blocks() {
+    // Serie larga con tendencias alternadas (determinística).
+    let mut state = 11u64;
+    let mut next = move |m: i64| -> i64 {
+        state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        ((state >> 33) % m as u64) as i64
+    };
+    let mut close = dec!(1000);
+    let candles: Vec<Candle> = (0..2000)
+        .map(|i| {
+            let drift = if (i / 120) % 2 == 0 { 3 } else { -3 };
+            let open = close;
+            close = open + Decimal::new(next(41) - 20 + drift, 1);
+            let hi = open.max(close) + Decimal::new(next(20), 1);
+            let lo = open.min(close) - Decimal::new(next(20), 1);
+            Candle {
+                instrument_id: "US100".parse().unwrap(),
+                timeframe: Timeframe::M15,
+                start: "2026-11-19T14:30:00Z"
+                    .parse::<chrono::DateTime<chrono::Utc>>()
+                    .unwrap()
+                    + chrono::TimeDelta::minutes(15 * i as i64),
+                open,
+                high: hi,
+                low: lo,
+                close,
+                volume: None,
+            }
+        })
+        .collect();
+    let base =
+        LiquidityConfig::from_toml(include_str!("../../../../config/liquidity.toml")).unwrap();
+    let piv = confirmed_pivots(&candles, 3);
+    let atr = cfds_indicators::wilder_atr(&candles, base.atr_period);
+    let mut breaks = structure_breaks(&candles, &piv, &vec![Some(Trend::Up); candles.len()]);
+    breaks.extend(structure_breaks(
+        &candles,
+        &piv,
+        &vec![Some(Trend::Down); candles.len()],
+    ));
+    let found = |min: Decimal| {
+        let mut c = base;
+        c.min_impulse_body_atr = min;
+        order_blocks(&candles, &breaks, &atr, &c)
+            .into_iter()
+            .map(|ob| (ob.known_at, ob.low, ob.high))
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    let counts: Vec<usize> = [dec!(3), dec!(2), dec!(1.5), dec!(1), dec!(0.5)]
+        .into_iter()
+        .map(|m| found(m).len())
+        .collect();
+    assert!(counts.windows(2).all(|w| w[0] <= w[1]), "{counts:?}");
+    assert!(counts[0] < counts[4], "el umbral tiene efecto: {counts:?}");
+}
