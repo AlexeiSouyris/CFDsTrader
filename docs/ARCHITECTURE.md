@@ -46,6 +46,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | indicators | `engine/crates/indicators` | Rust | Indicadores técnicos (SMA, EMA, RSI, ATR, VWAP, volumen...) | ATR de Wilder (#5) |
 | patterns | `engine/crates/patterns` | Rust | Patrones de velas (martillo, envolvente...) y chartistas (doble techo/suelo, soportes/resistencias) | planeado |
 | liquidity | `engine/crates/liquidity` | Rust | Zonas de liquidez, barridos internos/externos, order flow | planeado |
+| regime | `engine/crates/regime` | Rust | Clasificar el régimen de mercado por instrumento (volatilidad × tendencia) con velas cerradas; elegir el juego de parámetros votado para ese régimen | propuesto ([ADR 0003](decisions/0003-modelo-adaptativo-y-contexto.md), #19) |
 | strategy | `engine/crates/strategy` | Rust | Combina features + señales de ML/noticias → señal con probabilidad | planeado |
 | risk | `engine/crates/risk` | Rust | Apalancamiento por instrumento, tamaño de posición, margen, stop-loss, pérdida máxima | planeado |
 | fund | `engine/crates/fund` | Rust | Fondo del grupo: aportes y retiros de cada miembro, unidades, valor de la unidad (NAV) y P&L por miembro | planeado |
