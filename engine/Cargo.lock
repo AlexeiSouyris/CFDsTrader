@@ -203,6 +203,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "cfds-ingest"
+version = "0.1.0"
+dependencies = [
+ "cfds-core",
+ "cfds-market-data",
+ "cfds-storage",
+ "chrono",
+ "redis",
+ "rust_decimal",
+ "sqlx",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "cfds-market-data"
 version = "0.1.0"
 dependencies = [
