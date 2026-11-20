@@ -3,6 +3,7 @@
 //! Endpoints (labs.ig.com/reference, consultado el 2026-11-20):
 //! - `POST /session` v2: tokens `CST` y `X-SECURITY-TOKEN` en los headers; `timezoneOffset`.
 //! - `GET /prices/{epic}` v3: `resolution`, `from`, `to`, `pageSize`, `pageNumber`.
+//! - `GET /markets/{epic}` v3: condiciones del contrato (#67).
 //! - `DELETE /session` v1.
 //!
 //! Solo lectura: no hay ningún endpoint de órdenes (CLAUDE.md §5).
@@ -12,10 +13,11 @@ use std::collections::{BTreeMap, VecDeque};
 use cfds_core::{Candle, InstrumentId, Timeframe};
 use cfds_market_data::{Catalog, MarketDataProvider, ProviderError, Sourced};
 use chrono::{DateTime, TimeDelta, Utc};
+use rust_decimal::Decimal;
 use tokio::sync::Mutex;
 use tokio::time::{Duration, Instant, sleep, sleep_until};
 
-use crate::model::{self, AllowanceBody, PricesBody, SessionBody};
+use crate::model::{self, AllowanceBody, MarketTerms, PricesBody, RawPrice, SessionBody};
 use crate::transport::{HttpRequest, HttpResponse, Method, Transport};
 use crate::{Credentials, IgConfig, Secret};
 
@@ -309,17 +311,21 @@ fn classify(sent: Result<HttpResponse, String>, not_found: Option<&str>) -> Outc
     }
 }
 
-impl<T: Transport> MarketDataProvider for IgProvider<T> {
-    async fn history(
+impl<T: Transport> IgProvider<T> {
+    fn epic(&self, instrument: &InstrumentId) -> Result<&String, ProviderError> {
+        self.epics.get(instrument).ok_or_else(|| {
+            ProviderError::NotFound(format!("{instrument}: sin epic en config/instruments.toml"))
+        })
+    }
+
+    /// Velas crudas de IG (bid y ask) con el margen horario, todas las páginas.
+    async fn prices(
         &self,
-        instrument: &InstrumentId,
+        epic: &str,
         timeframe: Timeframe,
         from: DateTime<Utc>,
         to: DateTime<Utc>,
-    ) -> Result<Vec<Candle>, ProviderError> {
-        let epic = self.epics.get(instrument).ok_or_else(|| {
-            ProviderError::NotFound(format!("{instrument}: sin epic en config/instruments.toml"))
-        })?;
+    ) -> Result<Vec<RawPrice>, ProviderError> {
         if from >= to {
             return Ok(Vec::new());
         }
@@ -340,7 +346,7 @@ impl<T: Transport> MarketDataProvider for IgProvider<T> {
             return Err(ProviderError::RateLimited { retry_after_secs });
         }
 
-        let mut candles = Vec::new();
+        let mut prices = Vec::new();
         let mut page = 1u32;
         loop {
             let path = |offset: TimeDelta| {
@@ -355,10 +361,6 @@ impl<T: Transport> MarketDataProvider for IgProvider<T> {
             let body: PricesBody = serde_json::from_str(&resp.body)
                 .map_err(|e| ProviderError::InvalidResponse(format!("GET /prices: {e}")))?;
             Self::update_allowance(&mut st, body.metadata.allowance);
-            candles.extend(
-                model::to_candles(&body.prices, instrument, timeframe, from, to)
-                    .map_err(ProviderError::InvalidResponse)?,
-            );
             let pages = &body.metadata.page_data;
             if pages.page_number != page {
                 return Err(ProviderError::InvalidResponse(format!(
@@ -366,10 +368,56 @@ impl<T: Transport> MarketDataProvider for IgProvider<T> {
                     pages.page_number
                 )));
             }
-            if pages.page_number >= pages.total_pages {
-                return Ok(candles);
-            }
+            let last = pages.page_number >= pages.total_pages;
             page = pages.page_number + 1;
+            prices.extend(body.prices);
+            if last {
+                return Ok(prices);
+            }
         }
+    }
+
+    /// Spread (`ask − bid`) al cierre de cada vela con inicio en `[from, to)`. Sirve para
+    /// medir el spread típico (#67); cuesta puntos del cupo semanal como el histórico.
+    pub async fn close_spreads(
+        &self,
+        instrument: &InstrumentId,
+        timeframe: Timeframe,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<(DateTime<Utc>, Decimal)>, ProviderError> {
+        let raw = self
+            .prices(self.epic(instrument)?, timeframe, from, to)
+            .await?;
+        model::close_spreads(&raw, timeframe, from, to).map_err(ProviderError::InvalidResponse)
+    }
+
+    /// Condiciones del contrato (`GET /markets/{epic}` v3). No gasta cupo de históricos.
+    pub async fn market_terms(
+        &self,
+        instrument: &InstrumentId,
+    ) -> Result<MarketTerms, ProviderError> {
+        let epic = self.epic(instrument)?;
+        let mut st = self.state.lock().await;
+        let resp = self
+            .get(&mut st, |_| format!("/markets/{epic}"), 3, epic)
+            .await?;
+        MarketTerms::from_json(&resp.body).map_err(ProviderError::InvalidResponse)
+    }
+}
+
+impl<T: Transport> MarketDataProvider for IgProvider<T> {
+    async fn history(
+        &self,
+        instrument: &InstrumentId,
+        timeframe: Timeframe,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<Candle>, ProviderError> {
+        let raw = self
+            .prices(self.epic(instrument)?, timeframe, from, to)
+            .await?;
+        model::to_candles(&raw, instrument, timeframe, from, to)
+            .map_err(ProviderError::InvalidResponse)
     }
 }

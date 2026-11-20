@@ -327,14 +327,27 @@ fn impossible_inputs_are_rejected() {
 
 #[test]
 fn limits_come_from_the_catalog_and_pending_minimums_stay_unknown() {
-    let catalog = Catalog::from_toml(include_str!("../../../../config/instruments.toml")).unwrap();
+    let real = include_str!("../../../../config/instruments.toml");
+    let catalog = Catalog::from_toml(real).unwrap();
     let us100 = InstrumentLimits::from_spec(&catalog.instruments[&id("US100")]).unwrap();
     assert_eq!(
         us100,
         InstrumentLimits {
             max_leverage: dec!(10),
             margin_pct: dec!(5),
-            min_deal_size: None,
+            // Contrato de 1 € por punto, leído de la API de IG (#67).
+            min_deal_size: Some(dec!(0.5)),
         }
     );
+
+    // Un mínimo pendiente queda desconocido: no se inventa.
+    let pending = real.replacen(
+        r#"min_deal_size = { value = "0.5", source = "ig-demo-api" }"#,
+        r#"min_deal_size = { pending = "sin confirmar" }"#,
+        1,
+    );
+    assert_ne!(pending, real);
+    let catalog = Catalog::from_toml(&pending).unwrap();
+    let us100 = InstrumentLimits::from_spec(&catalog.instruments[&id("US100")]).unwrap();
+    assert_eq!(us100.min_deal_size, None);
 }
