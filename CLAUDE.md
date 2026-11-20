@@ -54,6 +54,7 @@ Monorepo híbrido. Decisión registrada en `docs/decisions/0001-arquitectura-hib
 - Usá la plantilla de PR (`.github/pull_request_template.md`) y completá **todas** las secciones.
 - El cuerpo debe incluir `Closes #<nº>`.
 - **El merge a `main` lo aprueba y lo hace siempre el dueño del repo (Alexei).** Ni los agentes ni los colaboradores mergean por su cuenta: abren el PR, y queda esperando la aprobación del dueño. Merge con **squash**.
+  - **Delegación vigente (#32, 20-11-2026):** el dueño delegó el merge en **su propio agente** (Claude Code de Alexei), que mergea con squash cuando el **CI está en verde**, no hay conflictos y el PR tiene la plantilla completa. Los PRs de otra persona los revisa primero y, si ve un problema, avisa al dueño en vez de mergear. **Nunca** mergea solo lo que habilite dinero real o toque credenciales o seguridad, y **no da por aprobado ningún ADR**: un ADR se mergea como *propuesta* y aprobarlo sigue siendo de las dos personas. La delegación no alcanza a ningún otro agente, y el dueño la puede revocar en cualquier momento.
 - Cualquiera (persona o agente) puede **revisar y comentar** un PR para mejorarlo, pero la decisión de mergear es solo del dueño.
 - **Nunca** `git push --force` a `main` ni a la rama de otra persona.
 - Al mergear se borra la rama. Si el PR se abandona, quitá `in-progress` y desasignate del Issue.
