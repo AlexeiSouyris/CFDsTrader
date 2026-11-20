@@ -1,0 +1,118 @@
+//! Costos de una operación (spec §11). Nunca en cero; ningún valor del broker se inventa: los
+//! que faltan (spread típico, tick, tipo de referencia) entran como parámetro.
+//!
+//! ```text
+//! ejecución:   precio = medio ± (spread / 2 + slippage), siempre en contra
+//!              slippage = 0,1 × spread + 1 tick
+//! comisión:    índices 0 · acciones EE. UU. max(mín, por_acción × acciones)
+//!              · acciones UE max(mín, % × nocional)          (por ejecución)
+//! financiación: noches × cierre × tamaño × tasa / base_días
+//!              largo: tasa = referencia + adm. · corto: tasa = adm. − referencia (puede cobrar)
+//! noches:      cortes de las 23:00 (Madrid) cruzados entre la apertura y el cierre
+//! ```
+//! Tamaño en moneda del instrumento por punto; en acciones equivale a la cantidad de acciones.
+
+use cfds_strategy::Side;
+use chrono::{DateTime, Days, NaiveTime, TimeZone, Utc};
+use chrono_tz::Tz;
+use rust_decimal::Decimal;
+
+use crate::CostConfig;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Commission {
+    /// CFD de índices: el costo es el spread.
+    None,
+    /// Acciones de EE. UU.: por acción, con mínimo por ejecución.
+    PerShare { per_share: Decimal, min: Decimal },
+    /// Acciones europeas: % del nocional, con mínimo por ejecución.
+    Percent { pct: Decimal, min: Decimal },
+}
+
+/// Costos de un instrumento, en puntos y en su moneda.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InstrumentCosts {
+    /// Spread típico en puntos (en acciones, 0: IG cobra comisión).
+    pub spread: Decimal,
+    /// Movimiento mínimo de precio.
+    pub tick: Decimal,
+    pub commission: Commission,
+    /// Tasa administrativa anual de la financiación, en %.
+    pub funding_admin_fee_pct: Decimal,
+    /// Base de días de la financiación (360 o 365).
+    pub funding_day_count: Decimal,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Execution {
+    Entry,
+    Exit,
+}
+
+/// Precio al que se ejecuta una orden sobre el precio medio `mid`, pagando medio spread y el
+/// slippage.
+pub fn fill_price(
+    side: Side,
+    execution: Execution,
+    mid: Decimal,
+    costs: &InstrumentCosts,
+    cfg: &CostConfig,
+) -> Decimal {
+    let slippage = cfg.slippage_spread_fraction * costs.spread + cfg.slippage_ticks * costs.tick;
+    let adverse = costs.spread / Decimal::TWO + slippage;
+    // Comprar: más caro. Vender: más barato.
+    let buying = matches!(
+        (side, execution),
+        (Side::Long, Execution::Entry) | (Side::Short, Execution::Exit)
+    );
+    if buying { mid + adverse } else { mid - adverse }
+}
+
+/// Comisión de una ejecución de `size` a `price`.
+pub fn commission(costs: &InstrumentCosts, size: Decimal, price: Decimal) -> Decimal {
+    match costs.commission {
+        Commission::None => Decimal::ZERO,
+        Commission::PerShare { per_share, min } => (per_share * size).max(min),
+        Commission::Percent { pct, min } => (pct / Decimal::ONE_HUNDRED * size * price).max(min),
+    }
+}
+
+/// Financiación de `nights` noches: positivo es un costo, negativo un cobro. `benchmark_pct`
+/// es el tipo de referencia anual en % (por ejemplo, el €STR de ese día).
+pub fn funding(
+    side: Side,
+    close: Decimal,
+    size: Decimal,
+    nights: u32,
+    benchmark_pct: Decimal,
+    costs: &InstrumentCosts,
+) -> Decimal {
+    let rate = match side {
+        Side::Long => benchmark_pct + costs.funding_admin_fee_pct,
+        Side::Short => costs.funding_admin_fee_pct - benchmark_pct,
+    };
+    Decimal::from(nights) * close * size * rate / Decimal::ONE_HUNDRED / costs.funding_day_count
+}
+
+/// Cortes de financiación (la hora `cutoff` local de `tz` de cada día) que hay en
+/// `(open, close]`. Si una posición sigue abierta en el corte, paga esa noche.
+pub fn funding_nights(open: DateTime<Utc>, close: DateTime<Utc>, cutoff: NaiveTime, tz: Tz) -> u32 {
+    let mut day = open.with_timezone(&tz).date_naive();
+    let last = close.with_timezone(&tz).date_naive();
+    let mut nights = 0;
+    while day <= last {
+        // 23:00 nunca cae en el salto del cambio de hora; si una zona lo hiciera, ese día
+        // no tiene corte y no se cobra (nunca se cobra dos veces).
+        if let Some(at) = tz.from_local_datetime(&day.and_time(cutoff)).earliest() {
+            let at = at.with_timezone(&Utc);
+            if at > open && at <= close {
+                nights += 1;
+            }
+        }
+        day = match day.checked_add_days(Days::new(1)) {
+            Some(d) => d,
+            None => break,
+        };
+    }
+    nights
+}

@@ -52,7 +52,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | risk | `engine/crates/risk` (crate `cfds-risk`) | Rust | Apalancamiento por instrumento, tamaño de posición, margen, stop-loss, pérdida máxima. Hoy: `check` (límites de la cuenta §10, distancia al stop §7.7, tamaño, tope de apalancamiento, margen y mínimo del broker §8), con config en `config/risk.toml` | límites y tamaño (#49) |
 | fund | `engine/crates/fund` | Rust | Fondo del grupo: aportes y retiros de cada miembro, unidades, valor de la unidad (NAV) y P&L por miembro | planeado |
 | journal | `engine/crates/journal` | Rust | Diario de propuestas y resultados (simulado y real); calibración de probabilidades y aporte de cada señal | planeado (#13) |
-| backtest | `engine/crates/backtest` (crate `cfds-backtest`) | Rust | Simulación histórica y paper trading en tiempo real, P/L. Hoy: salidas de una operación (stop, TP1, trailing, tiempo, cierre forzado y gaps, spec §8 y §12), con config en `config/backtest.toml` | salidas (#51) |
+| backtest | `engine/crates/backtest` (crate `cfds-backtest`) | Rust | Simulación histórica y paper trading en tiempo real, P/L. Hoy: salidas de una operación (stop, TP1, trailing, tiempo, cierre forzado y gaps, spec §8 y §12) y costos (spread, slippage, comisión y financiación nocturna, §11), con config en `config/backtest.toml` | salidas (#51), costos (#53) |
 | gateway | `engine/crates/gateway` | Rust | API REST + WebSocket para la UI y la app del celular | planeado |
 | auth | `engine/crates/auth` | Rust | Cuentas de los miembros, 2FA (TOTP), roles (responsable / miembro), sesiones, registro de acciones | planeado |
 | notifier | `engine/crates/notifier` | Rust | Notificaciones push al celular (propuestas, alertas, votaciones) | planeado |
