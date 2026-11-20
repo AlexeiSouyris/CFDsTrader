@@ -1,7 +1,16 @@
 //! Tipos compartidos del motor de CFDsTrader.
 //!
-//! Los tipos reales (`Instrument`, `Candle`, `Money`) llegan con el Issue #4,
-//! junto con su contrato en `contracts/`.
+//! Los tipos que cruzan entre lenguajes tienen su contrato en `contracts/`
+//! (ver `tests/contracts.rs`).
+
+pub mod candle;
+mod decimal_str;
+pub mod instrument;
+pub mod money;
+
+pub use candle::{Candle, Timeframe};
+pub use instrument::{AssetClass, Instrument, InstrumentId};
+pub use money::{Currency, Money, MoneyError};
 
 /// Modo de operación del sistema. Por defecto, y por regla (CLAUDE.md §5),
 /// solo existe la simulación: no hay forma de enviar órdenes reales.
