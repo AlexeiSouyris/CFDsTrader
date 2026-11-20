@@ -1,0 +1,357 @@
+//! Recorrido de cartera: varios instrumentos en una sola cuenta (spec §10).
+//!
+//! ```text
+//! línea de tiempo = cierres de todas las velas de todos los instrumentos, en orden
+//!   (misma hora: en el orden de `markets`)
+//! en cada cierre τ:
+//!   1. se realizan las operaciones cuya última salida terminó a τ o antes
+//!   2. capital = realizado + valor de las abiertas a τ (salidas parciales ya hechas
+//!      + el resto al último cierre de su instrumento)
+//!   3. máximo del capital, y capital del día si cambió el día en Madrid
+//!   4. si el instrumento de esta vela no tiene posición: señal → riesgo (margen libre =
+//!      capital − margen de las abiertas; posiciones abiertas) → ejecución en t+1
+//! ```
+//! Con un solo instrumento es exactamente el recorrido de `runner::run` (hay un test).
+//! El valor de las abiertas no descuenta todavía sus costos de salida ni la financiación:
+//! esos se cobran al cerrar.
+
+use cfds_core::{Candle, InstrumentId};
+use cfds_indicators::wilder_atr;
+use cfds_risk::{Account, Rejection, Request, check};
+use cfds_strategy::{Analysis, Side};
+use chrono::{DateTime, NaiveDate, Utc};
+use rust_decimal::Decimal;
+
+use crate::{RejectedSignal, RunError, Setup, TradeRecord, choose, execute};
+
+/// Un instrumento de la cartera. Todos comparten el riesgo, el capital inicial y la zona del día.
+pub struct Market<'a> {
+    pub setup: Setup,
+    pub m15: &'a [Candle],
+    pub h1: &'a [Candle],
+    pub force_close: &'a [bool],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PortfolioTrade {
+    pub instrument: InstrumentId,
+    pub record: TradeRecord,
+    /// Capital (realizado + no realizado) al decidir, en la moneda de la cuenta.
+    pub equity_at_entry: Decimal,
+    /// Margen libre al decidir (capital − margen de las otras posiciones abiertas).
+    pub free_margin_at_entry: Decimal,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PortfolioRejected {
+    pub instrument: InstrumentId,
+    pub time: DateTime<Utc>,
+    pub rejected: RejectedSignal,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PortfolioReport {
+    /// En el orden en que se abrieron.
+    pub trades: Vec<PortfolioTrade>,
+    pub rejected: Vec<PortfolioRejected>,
+    pub kill_switch_at: Option<DateTime<Utc>>,
+    /// Capital final realizado, en la moneda de la cuenta.
+    pub final_equity: Decimal,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PortfolioError {
+    Empty,
+    /// Los instrumentos no comparten la misma cuenta (riesgo, capital inicial o zona del día).
+    MixedSetup(&'static str),
+    Run(RunError),
+}
+
+struct Open {
+    market: usize,
+    record: TradeRecord,
+    /// Fin de la vela de la última salida.
+    closes_at: DateTime<Utc>,
+}
+
+fn sign(side: Side) -> Decimal {
+    match side {
+        Side::Long => Decimal::ONE,
+        Side::Short => Decimal::NEGATIVE_ONE,
+    }
+}
+
+/// Una operación está realizada cuando su última salida terminó a `now` o antes: al decidir en
+/// ese cierre, ya no ocupa margen ni lugar.
+fn is_closed(o: &Open, now: DateTime<Utc>) -> bool {
+    o.closes_at <= now
+}
+
+/// Valor a `now` de una operación abierta, en la moneda del instrumento, sin costos de salida.
+fn open_value(o: &Open, candles: &[Candle], now: DateTime<Utc>) -> Decimal {
+    let r = &o.record;
+    let s = sign(r.side);
+    let mut value = Decimal::ZERO;
+    let mut remaining = Decimal::ONE;
+    for e in r.exits.iter().filter(|e| e.time <= now) {
+        value += r.size * e.fraction * (e.price - r.entry_price) * s;
+        remaining -= e.fraction;
+    }
+    // Último cierre conocido del instrumento a `now`.
+    let closed = candles.partition_point(|c| c.end() <= now);
+    if remaining > Decimal::ZERO && closed > r.entry_index {
+        let mark = candles[closed - 1].close;
+        value += r.size * remaining * (mark - r.entry_price) * s;
+    }
+    value
+}
+
+pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioError> {
+    let first = &markets.first().ok_or(PortfolioError::Empty)?.setup;
+    for m in markets {
+        if m.setup.risk != first.risk {
+            return Err(PortfolioError::MixedSetup("riesgo"));
+        }
+        if m.setup.initial_equity != first.initial_equity {
+            return Err(PortfolioError::MixedSetup("capital inicial"));
+        }
+        if m.setup.day_tz != first.day_tz {
+            return Err(PortfolioError::MixedSetup("zona del día"));
+        }
+    }
+    let analyses: Vec<Analysis> = markets
+        .iter()
+        .map(|m| Analysis::new(m.m15, m.h1, m.setup.strategy))
+        .collect();
+    let atrs: Vec<Vec<Option<Decimal>>> = markets
+        .iter()
+        .map(|m| wilder_atr(m.m15, m.setup.strategy.patterns.candles.atr_period))
+        .collect();
+
+    // Línea de tiempo: (cierre, instrumento, vela) con vela t+1 disponible.
+    let mut events: Vec<(DateTime<Utc>, usize, usize)> = markets
+        .iter()
+        .enumerate()
+        .flat_map(|(mi, m)| {
+            (0..m.m15.len().saturating_sub(1)).map(move |t| (m.m15[t].end(), mi, t))
+        })
+        .collect();
+    events.sort();
+
+    let mut report = PortfolioReport {
+        trades: Vec::new(),
+        rejected: Vec::new(),
+        kill_switch_at: None,
+        final_equity: first.initial_equity,
+    };
+    let mut cash = first.initial_equity;
+    let mut peak = cash;
+    let mut day: Option<NaiveDate> = None;
+    let mut day_start = cash;
+    let mut busy_until = vec![0usize; markets.len()];
+    let mut open: Vec<Open> = Vec::new();
+
+    for (now, mi, t) in events {
+        // 1. Realizar lo que ya cerró.
+        open.retain(|o| {
+            if is_closed(o, now) {
+                cash += o.record.net_pnl / markets[o.market].setup.account_to_instrument;
+                false
+            } else {
+                true
+            }
+        });
+        // 2 y 3. Capital a `now`.
+        let equity = cash
+            + open
+                .iter()
+                .map(|o| {
+                    open_value(o, markets[o.market].m15, now)
+                        / markets[o.market].setup.account_to_instrument
+                })
+                .sum::<Decimal>();
+        peak = peak.max(equity);
+        let today = now.with_timezone(&first.day_tz).date_naive();
+        if day != Some(today) {
+            day = Some(today);
+            day_start = equity;
+        }
+        if report.kill_switch_at.is_some() || t < busy_until[mi] {
+            continue;
+        }
+        // 4. Decidir en este instrumento.
+        let market = &markets[mi];
+        let setup = &market.setup;
+        let Some(signal) =
+            choose(&analyses[mi], t).map_err(|e| PortfolioError::Run(RunError::Score(e)))?
+        else {
+            continue;
+        };
+        let Some(atr_t) = atrs[mi][t] else {
+            continue;
+        };
+        let used_margin: Decimal = open
+            .iter()
+            .map(|o| o.record.margin / markets[o.market].setup.account_to_instrument)
+            .sum();
+        let free_margin = equity - used_margin;
+        let account = Account {
+            equity,
+            peak_equity: peak,
+            day_start_equity: day_start,
+            free_margin,
+            kill_switch: false,
+            open_positions: open
+                .iter()
+                .map(|o| markets[o.market].setup.instrument.clone())
+                .collect(),
+        };
+        let request = Request {
+            instrument: setup.instrument.clone(),
+            entry: signal.reference,
+            stop: signal.stop,
+            atr: atr_t,
+            account_to_instrument: setup.account_to_instrument,
+        };
+        let sizing = match check(&request, &account, &setup.limits, &setup.risk) {
+            Ok(s) => s,
+            Err(reason) => {
+                if reason == Rejection::DrawdownLimit {
+                    report.kill_switch_at = Some(now);
+                }
+                report.rejected.push(PortfolioRejected {
+                    instrument: setup.instrument.clone(),
+                    time: now,
+                    rejected: RejectedSignal {
+                        index: t,
+                        side: signal.side,
+                        reason,
+                    },
+                });
+                continue;
+            }
+        };
+        let record = execute(
+            &signal,
+            sizing.size,
+            sizing.leverage,
+            sizing.margin,
+            market.m15,
+            &atrs[mi],
+            market.force_close,
+            setup,
+        )
+        .map_err(PortfolioError::Run)?;
+        let last = record.exits.last().map_or(t + 1, |e| e.index);
+        busy_until[mi] = last.max(t + 1);
+        open.push(Open {
+            market: mi,
+            closes_at: market.m15[last].end(),
+            record: record.clone(),
+        });
+        report.trades.push(PortfolioTrade {
+            instrument: setup.instrument.clone(),
+            record,
+            equity_at_entry: equity,
+            free_margin_at_entry: free_margin,
+        });
+    }
+    // Lo que quedó abierto ya tiene sus salidas (hasta el final de los datos): se realiza.
+    for o in &open {
+        cash += o.record.net_pnl / markets[o.market].setup.account_to_instrument;
+    }
+    report.final_equity = cash;
+    Ok(report)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CloseReason, ExitReason, ExitRecord};
+    use cfds_core::Timeframe;
+    use rust_decimal::dec;
+
+    fn at(s: &str) -> DateTime<Utc> {
+        s.parse().unwrap()
+    }
+
+    fn candle(i: i64, close: Decimal) -> Candle {
+        Candle {
+            instrument_id: "US100".parse().unwrap(),
+            timeframe: Timeframe::M15,
+            start: at("2026-11-19T14:30:00Z") + chrono::TimeDelta::minutes(15 * i),
+            open: close,
+            high: close,
+            low: close,
+            close,
+            volume: None,
+        }
+    }
+
+    /// Largo de 2 por punto entrado a 100 en la vela 1; TP1 (la mitad) a 104 en la vela 2;
+    /// el resto sale a 103 en la vela 4.
+    fn open_trade() -> Open {
+        let exit = |index: i64, price: Decimal, reason| ExitRecord {
+            index: index as usize,
+            time: candle(index, price).end(),
+            mid: price,
+            price,
+            fraction: dec!(0.5),
+            reason: CloseReason::Exit(reason),
+        };
+        Open {
+            market: 0,
+            closes_at: candle(4, dec!(0)).end(),
+            record: TradeRecord {
+                side: Side::Long,
+                signal_index: 0,
+                score: 5,
+                triggers: vec![],
+                entry_index: 1,
+                entry_time: candle(1, dec!(0)).start,
+                entry_mid: dec!(100),
+                entry_price: dec!(100),
+                stop: dec!(98),
+                size: dec!(2),
+                leverage: dec!(1),
+                margin: dec!(10),
+                exits: vec![
+                    exit(2, dec!(104), ExitReason::Tp1),
+                    exit(4, dec!(103), ExitReason::Trailing),
+                ],
+                commission: dec!(0),
+                funding: dec!(0),
+                mid_pnl: dec!(7),
+                gross_pnl: dec!(7),
+                net_pnl: dec!(7),
+            },
+        }
+    }
+
+    fn closes() -> Vec<Candle> {
+        [100, 101, 104, 102, 103]
+            .iter()
+            .enumerate()
+            .map(|(i, &c)| candle(i as i64, Decimal::from(c)))
+            .collect()
+    }
+
+    #[test]
+    fn open_value_marks_the_rest_and_keeps_partial_exits() {
+        let (o, c) = (open_trade(), closes());
+        // Al cierre de la vela 0 todavía no entró.
+        assert_eq!(open_value(&o, &c, c[0].end()), dec!(0));
+        // Vela 1: 2 × (101 − 100).
+        assert_eq!(open_value(&o, &c, c[1].end()), dec!(2));
+        // Vela 3: la mitad ya salió a 104 (+4) y el resto vale 1 × (102 − 100) = 2.
+        assert_eq!(open_value(&o, &c, c[3].end()), dec!(6));
+    }
+
+    #[test]
+    fn a_trade_is_realized_at_the_close_of_its_last_exit_candle() {
+        let o = open_trade();
+        let c = closes();
+        assert!(!is_closed(&o, c[3].end()));
+        assert!(is_closed(&o, c[4].end()));
+    }
+}
