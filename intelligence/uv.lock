@@ -87,6 +87,7 @@ dependencies = [
     { name = "defusedxml" },
     { name = "nasdaq-100-ticker-history" },
     { name = "psycopg", extra = ["binary"] },
+    { name = "tzdata" },
 ]
 
 [package.dev-dependencies]
@@ -104,6 +105,7 @@ requires-dist = [
     { name = "defusedxml", specifier = ">=0.7.1" },
     { name = "nasdaq-100-ticker-history", git = "https://github.com/jmccarrell/n100tickers?rev=4ce85254b67f27540abedbb93a109687eafe39f0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.9" },
+    { name = "tzdata", specifier = ">=2026.6" },
 ]
 
 [package.metadata.requires-dev]

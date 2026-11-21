@@ -32,6 +32,10 @@ Todo lo que sigue se leyó en los **sitios oficiales** el 20-11-2026, con las ci
 
 **Propuesta: aceptar.** Es dominio público, tiene historia suficiente y la hora de publicación es explícita: el dato del martes se puede usar desde el **viernes a las 15:30 hora del Este**, nunca antes.
 
+**Vía de acceso (actualización del 21-11-2026, decidida por el dueño).** Desde noviembre de 2026, `www.cftc.gov` responde a los pedidos automáticos con un desafío anti-bots ("Just a moment... Enable JavaScript and cookies"), que **no se esquiva**. Se usa la **API pública oficial** de la CFTC: `publicreporting.cftc.gov`, dataset `gpe5-46if`, "TFF - Futures Only". Desde ahí se identifica el sistema como cliente automático, sin datos personales. Hay historia desde 2010 en las series consolidadas del NASDAQ-100 y del S&P 500, y desde 2006 en el E-mini Dow.
+
+Como el calendario oficial de publicación tampoco se puede leer en forma automática, la hora de publicación se toma de manera **conservadora**: el informe del martes vale desde el **martes siguiente a las 15:30 hora del Este** (`config/cot.toml`), o desde que el sistema lo leyó si fue antes. Así cubre los atrasos por feriados.
+
 ### 2. Cboe — VIX
 
 | Punto | Dato | Fuente |
