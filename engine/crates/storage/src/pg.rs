@@ -1,7 +1,9 @@
 //! Histórico en PostgreSQL.
 
-use cfds_core::{Candle, CandleSpread, Instrument, InstrumentId, SentimentObservation, Timeframe};
-use chrono::{DateTime, Utc};
+use cfds_core::{
+    Candle, CandleSpread, DailyCandle, Instrument, InstrumentId, SentimentObservation, Timeframe,
+};
+use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sqlx::postgres::{PgPool, PgRow};
 use sqlx::{Postgres, Row, Transaction};
@@ -22,6 +24,12 @@ pub struct PgStore {
 
 /// Columnas de `candles` en el orden que lee [`row_to_candle`]. Es una macro para armar SQL fijo
 /// con `concat!`: sqlx exige consultas estáticas, que no se puedan inyectar.
+macro_rules! daily_columns {
+    () => {
+        "instrument_id, day, start_at, end_at, open, high, low, close, volume"
+    };
+}
+
 macro_rules! candle_columns {
     () => {
         "instrument_id, timeframe, start_at, open, high, low, close, volume"
@@ -250,6 +258,82 @@ impl PgStore {
             .collect())
     }
 
+    /// Guarda velas diarias (#103) en **una sola transacción**. Una vela idéntica ya guardada
+    /// cuenta como `unchanged`; otro valor para el mismo día es [`StorageError::DailyConflict`]
+    /// y no se guarda nada del lote.
+    pub async fn insert_daily(
+        &self,
+        candles: &[DailyCandle],
+    ) -> Result<InsertReport, StorageError> {
+        let mut tx = self.pool.begin().await?;
+        let mut report = InsertReport::default();
+        for c in candles {
+            let inserted = sqlx::query(concat!(
+                "INSERT INTO daily_candles (",
+                daily_columns!(),
+                ") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                 ON CONFLICT (instrument_id, day) DO NOTHING"
+            ))
+            .bind(c.instrument_id.as_str())
+            .bind(c.day)
+            .bind(c.start)
+            .bind(c.end)
+            .bind(c.open)
+            .bind(c.high)
+            .bind(c.low)
+            .bind(c.close)
+            .bind(c.volume)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected()
+                == 1;
+            if inserted {
+                report.inserted += 1;
+                continue;
+            }
+            let row = sqlx::query(concat!(
+                "SELECT ",
+                daily_columns!(),
+                " FROM daily_candles WHERE instrument_id = $1 AND day = $2"
+            ))
+            .bind(c.instrument_id.as_str())
+            .bind(c.day)
+            .fetch_one(&mut *tx)
+            .await?;
+            if row_to_daily(&row)? == *c {
+                report.unchanged += 1;
+            } else {
+                return Err(StorageError::DailyConflict {
+                    instrument: c.instrument_id.to_string(),
+                    day: c.day,
+                });
+            }
+        }
+        tx.commit().await?;
+        Ok(report)
+    }
+
+    /// Velas diarias de un instrumento con día en `[from, to)`, en orden.
+    pub async fn daily_candles(
+        &self,
+        instrument: &InstrumentId,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<DailyCandle>, StorageError> {
+        let rows = sqlx::query(concat!(
+            "SELECT ",
+            daily_columns!(),
+            " FROM daily_candles WHERE instrument_id = $1 AND day >= $2 AND day < $3
+             ORDER BY day"
+        ))
+        .bind(instrument.as_str())
+        .bind(from)
+        .bind(to)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.iter().map(row_to_daily).collect()
+    }
+
     /// Velas de un instrumento y timeframe con inicio en `[from, to)`, en orden.
     pub async fn candles(
         &self,
@@ -301,6 +385,23 @@ fn row_to_candle(row: &PgRow) -> Result<Candle, StorageError> {
         instrument_id: id.parse().map_err(|e| corrupt(format!("{e}")))?,
         timeframe: tf.parse().map_err(corrupt)?,
         start: row.try_get("start_at")?,
+        open: row.try_get::<Decimal, _>("open")?,
+        high: row.try_get::<Decimal, _>("high")?,
+        low: row.try_get::<Decimal, _>("low")?,
+        close: row.try_get::<Decimal, _>("close")?,
+        volume: row.try_get::<Option<Decimal>, _>("volume")?,
+    })
+}
+
+fn row_to_daily(row: &PgRow) -> Result<DailyCandle, StorageError> {
+    let id: String = row.try_get("instrument_id")?;
+    Ok(DailyCandle {
+        instrument_id: id
+            .parse()
+            .map_err(|e| StorageError::CorruptRow(format!("{e}")))?,
+        day: row.try_get("day")?,
+        start: row.try_get("start_at")?,
+        end: row.try_get("end_at")?,
         open: row.try_get::<Decimal, _>("open")?,
         high: row.try_get::<Decimal, _>("high")?,
         low: row.try_get::<Decimal, _>("low")?,

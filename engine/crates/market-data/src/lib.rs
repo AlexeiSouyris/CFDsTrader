@@ -9,6 +9,7 @@
 
 pub mod calendar;
 pub mod config;
+pub mod daily;
 pub mod instruments;
 pub mod news_filter;
 pub mod provider;
@@ -19,6 +20,7 @@ pub mod validation;
 
 pub use calendar::{CalendarError, ExchangeCalendar, Session};
 pub use config::{ConfigError, ValidationConfig};
+pub use daily::{DailyIssue, DailyIssueKind, local_day_bounds, validate_daily};
 pub use instruments::{BrokerTerms, Catalog, CatalogError, InstrumentSpec, PendingField, Sourced};
 pub use news_filter::{NewsFilterConfig, news_flags};
 pub use provider::{MarketDataProvider, ProviderError, StaticProvider};

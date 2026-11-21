@@ -37,6 +37,13 @@ pub enum StorageError {
         published_at: chrono::DateTime<chrono::Utc>,
     },
     #[error(
+        "ya existe la vela diaria {instrument} {day} con otros valores: no se pisa (revisar la fuente)"
+    )]
+    DailyConflict {
+        instrument: String,
+        day: chrono::NaiveDate,
+    },
+    #[error(
         "ya existe {instrument} {timeframe} {start} con otros valores: no se pisa (revisar la fuente)"
     )]
     Conflict {

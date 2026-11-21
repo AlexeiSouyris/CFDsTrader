@@ -4,6 +4,7 @@
 //! (ver `tests/contracts.rs`).
 
 pub mod candle;
+pub mod daily;
 pub mod decimal_str;
 pub mod economic_event;
 pub mod instrument;
@@ -12,6 +13,7 @@ pub mod sentiment;
 pub mod spread;
 
 pub use candle::{Candle, Timeframe};
+pub use daily::DailyCandle;
 pub use economic_event::{EconomicEvent, Impact};
 pub use instrument::{AssetClass, Instrument, InstrumentId};
 pub use money::{Currency, Money, MoneyError};

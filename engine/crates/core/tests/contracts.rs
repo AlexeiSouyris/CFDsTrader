@@ -322,3 +322,55 @@ fn contract_and_rust_reject_the_same_bad_economic_events() {
         assert_both_reject::<cfds_core::EconomicEvent>(schema, d);
     }
 }
+
+fn sample_daily() -> cfds_core::DailyCandle {
+    cfds_core::DailyCandle {
+        instrument_id: "DE40".parse().unwrap(),
+        day: "2026-11-20".parse().unwrap(),
+        start: "2026-11-19T23:00:00Z".parse().unwrap(),
+        end: "2026-11-20T23:00:00Z".parse().unwrap(),
+        open: dec!(24100.5),
+        high: dec!(24210.0),
+        low: dec!(23950.25),
+        close: dec!(24005.75),
+        volume: None,
+    }
+}
+
+#[test]
+fn daily_candle_roundtrips_through_the_contract() {
+    let schema = "daily_candle.v1.schema.json";
+    assert_roundtrip(schema, &sample_daily());
+    let mut with_volume = sample_daily();
+    with_volume.volume = Some(dec!(1200));
+    assert_roundtrip(schema, &with_volume);
+    let json = serde_json::to_value(sample_daily()).unwrap();
+    assert_eq!(json["day"], json!("2026-11-20"));
+    assert_eq!(json["high"], json!("24210.0"), "decimal exacto como string");
+}
+
+#[test]
+fn contract_and_rust_reject_the_same_bad_daily_candles() {
+    let schema = "daily_candle.v1.schema.json";
+    let doc = || serde_json::to_value(sample_daily()).unwrap();
+    let mut cases: Vec<Value> = Vec::new();
+    for (key, value) in [
+        ("day", json!("20-11-2026")),
+        ("day", json!("2026-11-20T00:00:00Z")),
+        ("start", json!("2026-11-20T00:00:00+01:00")),
+        ("close", json!(24005.75)),
+        ("close", json!("-1")),
+        ("instrument_id", json!("de40")),
+        ("extra", json!(1)),
+    ] {
+        let mut d = doc();
+        d[key] = value;
+        cases.push(d);
+    }
+    let mut d = doc();
+    d.as_object_mut().unwrap().remove("volume");
+    cases.push(d); // tiene que venir, aunque sea null
+    for d in cases {
+        assert_both_reject::<cfds_core::DailyCandle>(schema, d);
+    }
+}
