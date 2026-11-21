@@ -267,3 +267,58 @@ fn contract_and_rust_reject_the_same_bad_candle_spreads() {
         assert_both_reject::<cfds_core::CandleSpread>(schema, d);
     }
 }
+
+fn sample_event() -> cfds_core::EconomicEvent {
+    cfds_core::EconomicEvent {
+        source: "calendario".into(),
+        event: "Decisión de tipos".into(),
+        country: Some("EU".into()),
+        instrument_id: None,
+        impact: cfds_core::Impact::High,
+        scheduled_at: "2026-12-10T13:15:00Z".parse().unwrap(),
+        published_at: "2026-12-01T08:00:00Z".parse().unwrap(),
+    }
+}
+
+#[test]
+fn economic_event_roundtrips_through_the_contract() {
+    let schema = "economic_event.v1.schema.json";
+    assert_roundtrip(schema, &sample_event());
+    let mut of_instrument = sample_event();
+    of_instrument.country = None;
+    of_instrument.instrument_id = Some("US100".parse().unwrap());
+    of_instrument.impact = cfds_core::Impact::Medium;
+    assert_roundtrip(schema, &of_instrument);
+    let json = serde_json::to_value(sample_event()).unwrap();
+    assert_eq!(json["instrument_id"], Value::Null, "null, no ausente");
+    assert_eq!(json["impact"], json!("high"));
+}
+
+#[test]
+fn contract_and_rust_reject_the_same_bad_economic_events() {
+    let schema = "economic_event.v1.schema.json";
+    let doc = || serde_json::to_value(sample_event()).unwrap();
+    let mut cases: Vec<Value> = Vec::new();
+    for (key, value) in [
+        ("country", json!(null)), // sin país ni instrumento
+        ("country", json!("eu")),
+        ("country", json!("EUR")),
+        ("impact", json!("critical")),
+        ("event", json!("")),
+        ("event", json!("x".repeat(201))),
+        ("scheduled_at", json!("2026-12-10T14:15:00+01:00")),
+        ("source", json!("Calendario")),
+        ("instrument_id", json!("us100")),
+        ("extra", json!(1)),
+    ] {
+        let mut d = doc();
+        d[key] = value;
+        cases.push(d);
+    }
+    let mut d = doc();
+    d.as_object_mut().unwrap().remove("instrument_id");
+    cases.push(d); // tiene que venir, aunque sea null
+    for d in cases {
+        assert_both_reject::<cfds_core::EconomicEvent>(schema, d);
+    }
+}

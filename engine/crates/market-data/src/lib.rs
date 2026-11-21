@@ -10,6 +10,7 @@
 pub mod calendar;
 pub mod config;
 pub mod instruments;
+pub mod news_filter;
 pub mod provider;
 pub mod split;
 pub mod spread_filter;
@@ -19,6 +20,7 @@ pub mod validation;
 pub use calendar::{CalendarError, ExchangeCalendar, Session};
 pub use config::{ConfigError, ValidationConfig};
 pub use instruments::{BrokerTerms, Catalog, CatalogError, InstrumentSpec, PendingField, Sourced};
+pub use news_filter::{NewsFilterConfig, news_flags};
 pub use provider::{MarketDataProvider, ProviderError, StaticProvider};
 pub use split::{DataSplit, Period, SplitConfig, SplitError, Window, plan};
 pub use spread_filter::{SpreadFilterConfig, spread_flags};

@@ -5,12 +5,14 @@
 
 pub mod candle;
 pub mod decimal_str;
+pub mod economic_event;
 pub mod instrument;
 pub mod money;
 pub mod sentiment;
 pub mod spread;
 
 pub use candle::{Candle, Timeframe};
+pub use economic_event::{EconomicEvent, Impact};
 pub use instrument::{AssetClass, Instrument, InstrumentId};
 pub use money::{Currency, Money, MoneyError};
 pub use sentiment::SentimentObservation;
