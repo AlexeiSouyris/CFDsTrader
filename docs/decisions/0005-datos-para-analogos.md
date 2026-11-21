@@ -1,7 +1,7 @@
 # 0005 – Datos para análogos: componentes históricos del NASDAQ 100 y precios
 
 - **Estado:** propuesta
-- **Fecha:** 2026-11-20
+- **Fecha:** 2026-11-20 (actualizada el 21-11-2026: análogos v1 con diarias de los índices de IG)
 - **Aprobada por:** pendiente (las dos personas)
 - **Issue:** #10
 
@@ -51,6 +51,19 @@ La spec §13 compara la **forma de las últimas 32 velas de 15m**. Con fuentes g
 - **B.** Pagar un proveedor con intradía de 5 años.
 
 Recomendación: **A** para empezar. Se mide si los análogos aportan (fase 5) antes de gastar plata.
+
+## 4. Análogos v1 sin costo (enfoque FI, propuesta del 21-11-2026)
+
+El dueño pidió avanzar sin pagar fuentes. Propuesta concreta para v1:
+
+1. **Universo v1 = los índices que ya opera el sistema** (US100, US500, US30 y DE40), con **velas diarias de 5 años de IG**. IG ya está aprobado como proveedor (ADR 0002), así que no hace falta otra fuente.
+   - **Costo:** el cupo semanal de históricos de IG (10.000 puntos). Cinco años de diarias son del orden de 1.300 velas por índice, unos 5.200 puntos para los cuatro: entra en una semana. Se confirma con la primera carga.
+   - **Por qué diarias y no de 15m:** cinco años de 15m de un índice que cotiza casi 24 h son unas 120.000 velas, o sea, unas 12 semanas de cupo **por índice**.
+   - **Sin sesgo de supervivencia:** un índice no "deja de cotizar", así que este universo no lo tiene.
+2. **Componentes del NASDAQ 100:** la composición por fecha ya está resuelta (sección 1). Sus precios siguen pendientes (sección 2). Se suman cuando una fuente gratuita quede verificada y votada. Mientras tanto, los análogos no los usan.
+3. **Spec §13:** los análogos v1 comparan la forma de velas **diarias**, no las últimas 32 de 15m. Es la opción **A** de la sección 3, recortada a los índices. Ajustar la §13 va en un PR aparte, aprobado por los dos.
+
+**Falta verificar** en la documentación oficial de IG (labs.ig.com) que `GET /prices` acepte una resolución diaria. No se supone.
 
 ## Consecuencias
 
