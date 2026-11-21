@@ -1,0 +1,18 @@
+# Filtro de noticias (spec §7.2 y §9): no se abre si hay un evento de impacto alto del
+# instrumento o de su país entre `window_minutes` antes y `window_minutes` después de la entrada.
+# Los eventos vienen del calendario económico (contracts/economic_event.v1). La fuente es de la
+# fase 4b y necesita su ADR: mientras no exista, el backtest avisa que el filtro no tiene datos.
+
+[news]
+# "Entre 15 minutos antes y 15 minutos después" (los dos bordes cuentan).
+window_minutes = 15
+# Impactos que bloquean.
+blocking_impacts = ["high"]
+
+# "Su país": países (ISO 3166-1 alfa-2) cuyos eventos cuentan para cada instrumento.
+# SUPUESTO para confirmar: DE40 incluye "EU" (zona euro, por ejemplo las decisiones del BCE).
+[news.countries]
+US100 = ["US"]
+US500 = ["US"]
+US30 = ["US"]
+DE40 = ["DE", "EU"]

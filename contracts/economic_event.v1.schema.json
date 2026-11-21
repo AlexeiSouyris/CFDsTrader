@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/economic_event.v1.schema.json",
+  "title": "Economic event v1",
+  "description": "Un evento del calendario económico (#91). Lo usa el filtro de noticias de la spec §7.2: no se abre a ±15 min de un evento de impacto alto del instrumento o de su país. La fuente y su vía legal de acceso se definen en la fase 4b con su ADR (spec §9); este contrato no supone ninguna. Un evento solo cuenta desde 'published_at' (CLAUDE.md §5b).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source", "event", "country", "instrument_id", "impact", "scheduled_at", "published_at"],
+  "properties": {
+    "source": {
+      "description": "Fuente del calendario (la define el ADR de la fase 4b).",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,31}$"
+    },
+    "event": {
+      "description": "Nombre del evento tal como lo publica la fuente (por ejemplo, la decisión de tipos de un banco central).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "country": {
+      "description": "País o zona afectada, código ISO 3166-1 alfa-2 en mayúsculas ('EU' para la zona euro, que ISO reserva). null si el evento es de un instrumento concreto. Al menos uno de 'country' o 'instrument_id' tiene que venir.",
+      "oneOf": [{ "type": "string", "pattern": "^[A-Z]{2}$" }, { "type": "null" }]
+    },
+    "instrument_id": {
+      "description": "Instrumento afectado (ver instrument.v1), o null si el evento es de un país.",
+      "oneOf": [{ "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" }, { "type": "null" }]
+    },
+    "impact": {
+      "description": "Impacto según la fuente.",
+      "enum": ["low", "medium", "high"]
+    },
+    "scheduled_at": {
+      "description": "Hora del evento en UTC, ISO 8601 terminado en Z.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "published_at": {
+      "description": "Desde cuándo el evento estuvo en el calendario, en UTC. Antes de esa hora no existe para el sistema.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    }
+  },
+  "anyOf": [
+    { "properties": { "country": { "type": "string" } } },
+    { "properties": { "instrument_id": { "type": "string" } } }
+  ]
+}

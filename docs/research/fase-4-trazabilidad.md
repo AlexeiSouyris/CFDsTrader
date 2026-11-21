@@ -110,7 +110,8 @@ Las reglas de cortos son el **espejo exacto** de las de largos (spec §5). Cada 
 | Regla | Tests | Estado |
 |---|---|---|
 | 1. Fuera de horario | `crates/backtest/tests/runner.rs::no_decision_outside_the_entry_window`, `crates/market-data/tests/trading_window.rs::weekends_and_holidays_have_no_entries` | ✅ |
-| 2. Noticia de alto impacto a ±15 min | #91 | ⏳ |
+| 2. Noticia de alto impacto del instrumento o de su país a ±15 min de la entrada, solo desde su publicación | `crates/market-data/tests/news_filter.rs::a_high_impact_event_within_15_minutes_blocks_both_edges_included`, `crates/market-data/tests/news_filter.rs::only_high_impact_blocks`, `crates/market-data/tests/news_filter.rs::only_events_of_the_instrument_or_its_countries_count`, `crates/market-data/tests/news_filter.rs::an_event_counts_only_once_published` | ✅ |
+| 2b. Fuente del calendario económico para aplicar el filtro 2 en el backtest y en vivo | Fase 4b, con su ADR (spec §9). Mientras tanto, `backtest_run` avisa que el filtro no tiene datos | ➡️ |
 | 3. Spread > 2 × su promedio de 20 días a esa hora (hora local de la bolsa); sin dato o sin historia suficiente no se abre | `crates/market-data/tests/spread_filter.rs::more_than_twice_the_average_blocks_and_exactly_twice_does_not`, `crates/market-data/tests/spread_filter.rs::only_the_last_20_days_count`, `crates/market-data/tests/spread_filter.rs::other_hours_do_not_count`, `crates/market-data/tests/spread_filter.rs::the_hour_is_local_to_the_exchange_across_daylight_saving`, `crates/market-data/tests/spread_filter.rs::without_enough_history_or_current_spread_it_does_not_open`, `crates/market-data/tests/spread_filter.rs::later_spreads_never_change_an_earlier_decision` | ✅ |
 | 4. Ya hay una posición en el instrumento | `crates/risk/tests/risk.rs::one_position_per_instrument`, `crates/backtest/tests/runner.rs::with_one_position_at_most_trades_never_overlap` | ✅ |
 | 5. Ya hay 5 posiciones abiertas | `crates/risk/tests/risk.rs::at_most_5_open_positions` | ✅ |
@@ -153,9 +154,7 @@ Las reglas de cortos son el **espejo exacto** de las de largos (spec §5). Cada 
 
 ## Pendientes
 
-| Issue | Qué falta |
-|---|---|
-| #91 | Filtro de noticias de alto impacto (§7.2). La fuente del calendario es de la 4b |
+Ninguna regla de la Fase 4 queda sin test.
 
 Fuera de la Fase 4, a propósito:
 - el vencimiento de la propuesta, la ejecución parcial y la detección en vivo de halts y datos tardíos (fase 8);

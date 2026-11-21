@@ -90,6 +90,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .zip(&spread_ok)
         .map(|(e, s)| *e && *s)
         .collect();
+    // Filtro de noticias (spec §7.2, `cfds_market_data::news_flags`): la fuente del calendario
+    // económico es de la fase 4b y necesita su ADR (spec §9). Sin eventos no se aplica: avisarlo.
+    eprintln!(
+        "⚠️  filtro de noticias de alto impacto (§7.2) SIN DATOS: falta la fuente del calendario \
+         (fase 4b). El resultado no lo descuenta."
+    );
     let report = run_checked(&m15, &h1, &entries, &force_close, &data_errors, &setup)
         .map_err(|e| format!("{e:?}"))?;
     let export =
