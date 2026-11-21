@@ -1,0 +1,41 @@
+# COT de la CFTC (ADR 0004, aceptado; vía de acceso decidida por el dueño el 21-11-2026):
+# API pública oficial, dataset "TFF - Futures Only" (gpe5-46if) en publicreporting.cftc.gov.
+# El sitio www.cftc.gov bloquea los pedidos automáticos con un desafío anti-bots: no se esquiva.
+# Datos de dominio público (cftc.gov/webpolicy), citando a la CFTC.
+
+[api]
+base_url = "https://publicreporting.cftc.gov/resource/gpe5-46if.json"
+user_agent = "cfds-intel/0.1 (automated data reader)"
+timeout_secs = 60
+page_size = 1000
+
+[publication]
+# El informe es "del martes" y la CFTC lo publica "el viernes a las 15:30 hora del Este"; los
+# feriados lo pueden atrasar uno o dos días. Sin poder leer el calendario oficial (bloqueado a
+# clientes automáticos), se toma como disponible recién el martes siguiente a esa hora. Si el
+# sistema lo lee antes (en vivo), vale desde que lo leyó.
+lag_days = 7
+time = "15:30"
+timezone = "America/New_York"
+
+# Mercado de la CFTC (cftc_contract_market_code) → instrumento del catálogo.
+# "Consolidated" junta los contratos de distinto tamaño del mismo índice. DE40 no tiene COT.
+[markets]
+"20974+" = "US100"  # NASDAQ-100 Consolidated - CME
+"13874+" = "US500"  # S&P 500 Consolidated - CME
+"124603" = "US30"   # Dow Jones Industrial Avg x $5 - CBOT
+
+# Columna del dataset → serie guardada (contratos). Datos crudos: qué combinación usa el índice
+# de sentimiento se define en la spec §9 antes de mirar los datos (#25).
+[series]
+open_interest_all = "tff_open_interest"
+dealer_positions_long_all = "tff_dealer_long"
+dealer_positions_short_all = "tff_dealer_short"
+asset_mgr_positions_long = "tff_asset_mgr_long"
+asset_mgr_positions_short = "tff_asset_mgr_short"
+lev_money_positions_long = "tff_lev_money_long"
+lev_money_positions_short = "tff_lev_money_short"
+other_rept_positions_long = "tff_other_long"
+other_rept_positions_short = "tff_other_short"
+nonrept_positions_long_all = "tff_nonrept_long"
+nonrept_positions_short_all = "tff_nonrept_short"
