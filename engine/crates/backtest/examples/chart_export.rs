@@ -13,7 +13,8 @@ use cfds_core::Timeframe;
 use cfds_indicators::TrendConfig;
 use cfds_liquidity::LiquidityConfig;
 use cfds_market_data::{
-    Catalog, ExchangeCalendar, TradingWindowConfig, ValidationConfig, check_series, trading_window,
+    Catalog, ExchangeCalendar, SpreadFilterConfig, TradingWindowConfig, ValidationConfig,
+    check_series, spread_flags, trading_window,
 };
 use cfds_patterns::PatternsConfig;
 use cfds_risk::RiskConfig;
@@ -72,6 +73,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let window = TradingWindowConfig::from_toml(cfg!("trading_window.toml"))?;
     let (entries, force_close) =
         trading_window::flags(session, &m15, &window).ok_or("fechas fuera del calendario")?;
+    // Filtro de spread (spec §7.3): necesita el spread de cierre guardado (#95), también de los
+    // días anteriores al período. Sin ese dato no se abre.
+    let spread_cfg = SpreadFilterConfig::from_toml(cfg!("spread_filter.toml"))?;
+    let spreads = store
+        .spreads(&id, Timeframe::M15, from - spread_cfg.lookback, to)
+        .await?;
+    let spread_ok = spread_flags(&m15, &spreads, session.tz, &spread_cfg);
+    eprintln!(
+        "filtro de spread: {} de {} velas no dejan abrir",
+        spread_ok.iter().filter(|ok| !**ok).count(),
+        spread_ok.len()
+    );
+    let entries: Vec<bool> = entries
+        .iter()
+        .zip(&spread_ok)
+        .map(|(e, s)| *e && *s)
+        .collect();
     let report = run_checked(&m15, &h1, &entries, &force_close, &data_errors, &setup)
         .map_err(|e| format!("{e:?}"))?;
     let export =

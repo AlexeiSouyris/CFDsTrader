@@ -1,0 +1,14 @@
+# Filtro de spread (spec §7.3): no se abre si el spread actual es más de `max_multiple` veces su
+# promedio de los últimos `lookback_days` días "a esa hora". El spread se guarda por vela (#95).
+
+[spread]
+# "Más de 2 veces": con exactamente 2 veces, sí se abre.
+max_multiple = "2"
+# Días corridos hacia atrás desde la vela que decide (sin incluirla).
+lookback_days = 20
+# "A esa hora": se compara con las velas de la misma franja horaria, en la hora local de la
+# bolsa del instrumento (así el horario de verano no corre la franja). 60 = la misma hora.
+slot_minutes = 60
+# Sin al menos estas muestras de la franja, no se puede juzgar y NO se abre (supuesto
+# conservador, como con los datos faltantes).
+min_samples = 10
