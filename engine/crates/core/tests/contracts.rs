@@ -220,3 +220,50 @@ fn contract_and_rust_reject_the_same_bad_sentiment_observations() {
         assert_both_reject::<cfds_core::SentimentObservation>(schema, doc);
     }
 }
+
+fn sample_spread() -> cfds_core::CandleSpread {
+    cfds_core::CandleSpread {
+        instrument_id: "DE40".parse().unwrap(),
+        timeframe: Timeframe::M15,
+        start: "2026-11-20T09:00:00Z".parse().unwrap(),
+        spread: dec!(1.40),
+        source: cfds_core::spread::IG_DEMO.into(),
+    }
+}
+
+#[test]
+fn candle_spread_roundtrips_through_the_contract() {
+    let schema = "candle_spread.v1.schema.json";
+    assert_roundtrip(schema, &sample_spread());
+    let mut zero = sample_spread();
+    zero.spread = dec!(0);
+    assert_roundtrip(schema, &zero);
+    let json = serde_json::to_value(sample_spread()).unwrap();
+    assert_eq!(json["spread"], json!("1.40"), "decimal exacto como string");
+}
+
+#[test]
+fn contract_and_rust_reject_the_same_bad_candle_spreads() {
+    let schema = "candle_spread.v1.schema.json";
+    let doc = || serde_json::to_value(sample_spread()).unwrap();
+    let mut cases: Vec<Value> = Vec::new();
+    for (key, value) in [
+        ("spread", json!("-0.1")),
+        ("spread", json!(1.4)),
+        ("timeframe", json!("5m")),
+        ("start", json!("2026-11-20T10:00:00+01:00")),
+        ("source", json!("IG demo")),
+        ("instrument_id", json!("de40")),
+        ("extra", json!(1)),
+    ] {
+        let mut d = doc();
+        d[key] = value;
+        cases.push(d);
+    }
+    let mut d = doc();
+    d.as_object_mut().unwrap().remove("source");
+    cases.push(d);
+    for d in cases {
+        assert_both_reject::<cfds_core::CandleSpread>(schema, d);
+    }
+}

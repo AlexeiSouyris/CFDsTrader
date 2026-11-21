@@ -10,7 +10,8 @@
 
 use std::collections::{BTreeMap, VecDeque};
 
-use cfds_core::{Candle, InstrumentId, Timeframe};
+use cfds_core::spread::IG_DEMO;
+use cfds_core::{Candle, CandleSpread, InstrumentId, Timeframe};
 use cfds_market_data::{Catalog, MarketDataProvider, ProviderError, Sourced};
 use chrono::{DateTime, TimeDelta, Utc};
 use rust_decimal::Decimal;
@@ -417,6 +418,35 @@ impl<T: Transport> IgProvider<T> {
             .prices(self.epic(instrument)?, timeframe, from, to, Window::Padded)
             .await?;
         model::close_spreads(&raw, timeframe, from, to).map_err(ProviderError::InvalidResponse)
+    }
+
+    /// Velas y spread de cierre de cada vela **del mismo pedido** (#95): IG ya manda bid y ask
+    /// con cada vela, así que no se gasta el cupo semanal dos veces. Mismas reglas que
+    /// `history` (rango con margen, `[from, to)` exacto en UTC).
+    pub async fn history_with_spreads(
+        &self,
+        instrument: &InstrumentId,
+        timeframe: Timeframe,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<(Vec<Candle>, Vec<CandleSpread>), ProviderError> {
+        let raw = self
+            .prices(self.epic(instrument)?, timeframe, from, to, Window::Padded)
+            .await?;
+        let candles = model::to_candles(&raw, instrument, timeframe, from, to)
+            .map_err(ProviderError::InvalidResponse)?;
+        let spreads = model::close_spreads(&raw, timeframe, from, to)
+            .map_err(ProviderError::InvalidResponse)?
+            .into_iter()
+            .map(|(start, spread)| CandleSpread {
+                instrument_id: instrument.clone(),
+                timeframe,
+                start,
+                spread,
+                source: IG_DEMO.to_owned(),
+            })
+            .collect();
+        Ok((candles, spreads))
     }
 
     /// % de clientes de IG con posición larga en cada instrumento (#27), con un solo pedido a

@@ -1,5 +1,5 @@
-//! Carga histórica (#76): baja un rango de velas de IG y lo pasa por el circuito de ingesta
-//! completo (validación → PostgreSQL). No publica en Redis: no es tiempo real.
+//! Carga histórica (#76): baja un rango de velas de IG (con su spread de cierre, #95) y lo pasa
+//! por el circuito de ingesta completo (validación → PostgreSQL). No publica en Redis: no es tiempo real.
 //!
 //! ```text
 //! DATABASE_URL=... cargo run -p cfds-ig --example ig_backfill -- <INSTRUMENTO> <15m|1h> <desde UTC> <hasta UTC>
@@ -12,7 +12,7 @@ use cfds_ig::{
     Credentials, IgConfig, IgProvider, ReqwestTransport, api_key_from_env, epics_from_catalog,
 };
 use cfds_ingest::{IngestRequest, ingest};
-use cfds_market_data::{Catalog, ExchangeCalendar, ValidationConfig};
+use cfds_market_data::{Catalog, ExchangeCalendar, StaticProvider, ValidationConfig};
 use cfds_storage::PgStore;
 use chrono::Utc;
 
@@ -48,21 +48,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         from: from.parse()?,
         to: to.parse()?,
     };
-    let result = ingest(
-        &ig,
+    // Velas y spreads del mismo pedido (#95): el cupo semanal se paga una vez.
+    let fetched = ig
+        .history_with_spreads(&req.instrument, req.timeframe, req.from, req.to)
+        .await;
+    ig.logout().await?;
+    let (candles, spreads) = fetched?;
+    let now = Utc::now();
+    // Las velas pasan por la ingesta de siempre (validación incluida) desde la memoria.
+    let r = ingest(
+        &StaticProvider::new(candles),
         &calendar,
         &ValidationConfig::from_toml(VALIDATION)?,
         &store,
         None,
         &req,
-        Utc::now(),
+        now,
     )
-    .await;
-    ig.logout().await?;
-    let r = result?;
+    .await?;
     println!(
         "{} {}: {} recibidas, {} nuevas, {} ya estaban, {} abiertas descartadas",
         req.instrument, req.timeframe, r.fetched, r.inserted, r.unchanged, r.skipped_open
+    );
+    // Solo el spread de las velas cerradas, que son las que se guardaron.
+    let closed: Vec<_> = spreads
+        .into_iter()
+        .filter(|s| now >= s.start + s.timeframe.duration())
+        .collect();
+    let sr = store.insert_spreads(&closed).await?;
+    println!(
+        "spreads: {} nuevos, {} ya estaban",
+        sr.inserted, sr.unchanged
     );
     if let Some((left, _)) = ig.allowance().await {
         println!("cupo semanal restante: {left} puntos");

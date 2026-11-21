@@ -1,6 +1,6 @@
 //! Histórico en PostgreSQL.
 
-use cfds_core::{Candle, Instrument, InstrumentId, SentimentObservation, Timeframe};
+use cfds_core::{Candle, CandleSpread, Instrument, InstrumentId, SentimentObservation, Timeframe};
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sqlx::postgres::{PgPool, PgRow};
@@ -166,6 +166,88 @@ impl PgStore {
         }
         tx.commit().await?;
         Ok(report)
+    }
+
+    /// Guarda el spread de cierre de cada vela (#95) en **una sola transacción**. La vela tiene
+    /// que estar guardada antes. El mismo valor se cuenta como `unchanged`; otro valor (o
+    /// otra fuente) para la misma vela es [`StorageError::Conflict`] y no se guarda nada.
+    pub async fn insert_spreads(
+        &self,
+        spreads: &[CandleSpread],
+    ) -> Result<InsertReport, StorageError> {
+        let mut tx = self.pool.begin().await?;
+        let mut report = InsertReport::default();
+        for x in spreads {
+            let inserted = sqlx::query(
+                "INSERT INTO candle_spreads (instrument_id, timeframe, start_at, spread, source)
+                 VALUES ($1, $2, $3, $4, $5)
+                 ON CONFLICT (instrument_id, timeframe, start_at) DO NOTHING",
+            )
+            .bind(x.instrument_id.as_str())
+            .bind(x.timeframe.as_str())
+            .bind(x.start)
+            .bind(x.spread)
+            .bind(&x.source)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected()
+                == 1;
+            if inserted {
+                report.inserted += 1;
+                continue;
+            }
+            let (spread, source): (Decimal, String) = sqlx::query_as(
+                "SELECT spread, source FROM candle_spreads
+                 WHERE instrument_id = $1 AND timeframe = $2 AND start_at = $3",
+            )
+            .bind(x.instrument_id.as_str())
+            .bind(x.timeframe.as_str())
+            .bind(x.start)
+            .fetch_one(&mut *tx)
+            .await?;
+            if spread == x.spread && source == x.source {
+                report.unchanged += 1;
+            } else {
+                return Err(StorageError::Conflict {
+                    instrument: x.instrument_id.to_string(),
+                    timeframe: x.timeframe.to_string(),
+                    start: x.start,
+                });
+            }
+        }
+        tx.commit().await?;
+        Ok(report)
+    }
+
+    /// Spreads de cierre de un instrumento y timeframe con inicio en `[from, to)`, en orden.
+    pub async fn spreads(
+        &self,
+        instrument: &InstrumentId,
+        timeframe: Timeframe,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<CandleSpread>, StorageError> {
+        let rows: Vec<(DateTime<Utc>, Decimal, String)> = sqlx::query_as(
+            "SELECT start_at, spread, source FROM candle_spreads
+             WHERE instrument_id = $1 AND timeframe = $2 AND start_at >= $3 AND start_at < $4
+             ORDER BY start_at",
+        )
+        .bind(instrument.as_str())
+        .bind(timeframe.as_str())
+        .bind(from)
+        .bind(to)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(start, spread, source)| CandleSpread {
+                instrument_id: instrument.clone(),
+                timeframe,
+                start,
+                spread,
+                source,
+            })
+            .collect())
     }
 
     /// Velas de un instrumento y timeframe con inicio en `[from, to)`, en orden.

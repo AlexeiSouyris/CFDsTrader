@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/candle_spread.v1.schema.json",
+  "title": "Candle spread v1",
+  "description": "Spread (ask − bid) al cierre de una vela, tal como lo dio la fuente (#95). Lo usa el filtro de spread de la spec §7.3 (#90). La vela tiene que existir (candle.v1): el spread la complementa, no la reemplaza.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instrument_id", "timeframe", "start", "spread", "source"],
+  "properties": {
+    "instrument_id": {
+      "description": "Id del instrumento (ver instrument.v1).",
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$"
+    },
+    "timeframe": {
+      "description": "Timeframe de la vela (ver candle.v1).",
+      "enum": ["15m", "1h"]
+    },
+    "start": {
+      "description": "Inicio de la vela en UTC, ISO 8601 terminado en Z (igual que candle.v1).",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "spread": {
+      "description": "ask − bid al cierre de la vela, en puntos de precio. Decimal exacto como string, nunca negativo.",
+      "type": "string",
+      "pattern": "^\\d+(\\.\\d+)?$"
+    },
+    "source": {
+      "description": "Fuente del bid y el ask. Hoy: 'ig_demo' (GET /prices de la cuenta demo de IG).",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,31}$"
+    }
+  }
+}

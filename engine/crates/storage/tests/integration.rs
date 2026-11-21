@@ -5,7 +5,8 @@
 //! Cada test usa sus propios instrumentos para poder correr en paralelo.
 
 use cfds_core::{
-    AssetClass, Candle, Currency, Instrument, InstrumentId, SentimentObservation, Timeframe,
+    AssetClass, Candle, CandleSpread, Currency, Instrument, InstrumentId, SentimentObservation,
+    Timeframe,
 };
 use cfds_storage::{CandlePublisher, PgStore, Published, StorageError, stream_key};
 use chrono::{DateTime, TimeDelta, Utc};
@@ -39,6 +40,12 @@ async fn with_instrument(store: &PgStore, name: &str) -> InstrumentId {
     };
     store.upsert_instrument(&i).await.unwrap();
     let pool = sqlx::PgPool::connect(&env("DATABASE_URL")).await.unwrap();
+    // Primero los spreads: referencian a las velas.
+    sqlx::query("DELETE FROM candle_spreads WHERE instrument_id = $1")
+        .bind(i.id.as_str())
+        .execute(&pool)
+        .await
+        .unwrap();
     sqlx::query("DELETE FROM candles WHERE instrument_id = $1")
         .bind(i.id.as_str())
         .execute(&pool)
@@ -343,4 +350,79 @@ async fn the_database_rejects_impossible_sentiment() {
         1
     );
     assert_eq!(s.insert_sentiment(&[market]).await.unwrap().unchanged, 1);
+}
+
+fn spreads(candles: &[Candle]) -> Vec<CandleSpread> {
+    candles
+        .iter()
+        .enumerate()
+        .map(|(i, c)| CandleSpread {
+            instrument_id: c.instrument_id.clone(),
+            timeframe: c.timeframe,
+            start: c.start,
+            spread: dec!(1.40) + Decimal::new(i as i64, 1),
+            source: "ig_demo".into(),
+        })
+        .collect()
+}
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
+async fn spreads_roundtrip_and_are_never_overwritten() {
+    let s = store().await;
+    let us = with_instrument(&s, "ITSPREAD").await;
+    let candles = series(&us, 6);
+    s.insert_candles(&candles).await.unwrap();
+    let sp = spreads(&candles);
+    let first = s.insert_spreads(&sp[..4]).await.unwrap();
+    assert_eq!((first.inserted, first.unchanged), (4, 0));
+    let again = s.insert_spreads(&sp).await.unwrap();
+    assert_eq!((again.inserted, again.unchanged), (2, 4));
+    let read = s
+        .spreads(&us, Timeframe::M15, t0(), t0() + TimeDelta::days(1))
+        .await
+        .unwrap();
+    assert_eq!(read, sp, "decimales exactos, en orden");
+
+    // Otro valor para la misma vela: error y no entra nada del lote.
+    let mut changed = sp.clone();
+    changed[0].spread += dec!(0.1);
+    assert!(matches!(
+        s.insert_spreads(&changed).await,
+        Err(StorageError::Conflict { start, .. }) if start == sp[0].start
+    ));
+    // El mismo valor de otra fuente tampoco pisa al guardado.
+    let mut other_source = sp[..1].to_vec();
+    other_source[0].source = "otra_fuente".into();
+    assert!(matches!(
+        s.insert_spreads(&other_source).await,
+        Err(StorageError::Conflict { .. })
+    ));
+    assert_eq!(
+        s.spreads(&us, Timeframe::M15, t0(), t0() + TimeDelta::days(1))
+            .await
+            .unwrap(),
+        sp
+    );
+}
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
+async fn a_spread_needs_its_candle_and_is_never_negative() {
+    let s = store().await;
+    let us = with_instrument(&s, "ITSPREADFK").await;
+    let candles = series(&us, 2);
+    s.insert_candles(&candles[..1]).await.unwrap();
+    let sp = spreads(&candles);
+    // La vela 1 no está guardada: la base rechaza su spread (y el lote entero).
+    assert!(s.insert_spreads(&sp).await.is_err());
+    let mut negative = sp[..1].to_vec();
+    negative[0].spread = dec!(-0.5);
+    assert!(s.insert_spreads(&negative).await.is_err());
+    assert!(
+        s.spreads(&us, Timeframe::M15, t0(), t0() + TimeDelta::days(1))
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
