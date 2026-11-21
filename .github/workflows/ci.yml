@@ -66,6 +66,16 @@ jobs:
           workspaces: engine
       # Los tests que necesitan servicios están marcados #[ignore]; acá se corren todos.
       - run: cargo test --workspace --locked -- --ignored
+      # Los tests de Python que escriben en PostgreSQL (noticias, #111) usan la base que las
+      # migraciones del motor ya dejaron lista en el paso anterior.
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Tests de integración de Python
+        working-directory: intelligence
+        run: |
+          uv sync --locked
+          uv run pytest tests/test_news_store.py
 
   intelligence:
     name: intelligence (Python)
