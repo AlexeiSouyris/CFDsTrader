@@ -249,3 +249,58 @@ fn detects_rejections_of_support_and_resistance() {
         vec![LevelKind::Resistance]
     );
 }
+
+/// Doble suelo con pivotes puestos a mano: S1 (90) en `s1`, S2 (90,2) en `s2`, neckline 100 en
+/// `s1 + 2` y cruce del neckline en `t` (cierre anterior 99, cierre 101). ATR 5.
+fn double_with(s1: usize, s2: usize, t: usize) -> Vec<cfds_patterns::DoublePattern> {
+    let candles: Vec<Candle> = (0..=t)
+        .map(|i| match i {
+            _ if i == s1 + 2 => bar(i, dec!(96), dec!(100), dec!(95), dec!(96)),
+            _ if i + 1 == t => bar(i, dec!(96), dec!(99.5), dec!(95), dec!(99)),
+            _ if i == t => bar(i, dec!(99), dec!(102), dec!(98), dec!(101)),
+            _ => bar(i, dec!(96), dec!(97), dec!(95), dec!(96)),
+        })
+        .collect();
+    let pivots = [
+        pivot(PivotKind::Low, s1, dec!(90)),
+        pivot(PivotKind::Low, s2, dec!(90.2)),
+    ];
+    double_at(&candles, t, &pivots, &atr(t + 1, dec!(5)), &cfg().double)
+}
+
+#[test]
+fn double_bottom_takes_10_to_60_candles_between_the_bottoms_inclusive() {
+    // Spec §5.2: 10 ≤ velas entre S1 y S2 ≤ 60.
+    assert_eq!(double_with(5, 15, 20).len(), 1, "10 velas");
+    assert!(double_with(5, 14, 20).is_empty(), "9 velas");
+    assert_eq!(double_with(5, 65, 70).len(), 1, "60 velas");
+    assert!(double_with(5, 66, 70).is_empty(), "61 velas");
+}
+
+#[test]
+fn double_bottom_trigger_lasts_20_candles_after_confirming_the_second_bottom() {
+    // S2 en la 20, confirmado en la 23: el cruce vale hasta la vela 43 inclusive.
+    assert_eq!(double_with(5, 20, 43).len(), 1);
+    assert!(double_with(5, 20, 44).is_empty());
+}
+
+#[test]
+fn support_rejection_edges() {
+    // Spec §5.3: L[t] ≤ nivel × (1 + 0,15 %) y C[t] > nivel. Nivel en 100.
+    let cfg = cfg().levels;
+    let pivots = [
+        pivot(PivotKind::Low, 10, dec!(100)),
+        pivot(PivotKind::Low, 40, dec!(100)),
+        pivot(PivotKind::Low, 80, dec!(100)),
+    ];
+    let levels = levels_at(150, &pivots, &cfg);
+    let hits = |l, c| rejections_at(&[bar(0, dec!(103), dec!(104), l, c)], 0, &levels, &cfg).len();
+    assert_eq!(hits(dec!(100.15), dec!(102)), 1, "toca justo el borde");
+    assert_eq!(hits(dec!(100.16), dec!(102)), 0, "no llega a tocar");
+    assert_eq!(hits(dec!(99), dec!(100.01)), 1, "cierra arriba del nivel");
+    assert_eq!(
+        hits(dec!(99), dec!(100)),
+        0,
+        "cierra en el nivel: no es rechazo"
+    );
+}
