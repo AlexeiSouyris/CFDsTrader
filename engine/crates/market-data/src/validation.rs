@@ -76,6 +76,67 @@ pub enum IssueKind {
     },
 }
 
+impl IssueKind {
+    /// `true` si la vela misma es sospechosa y se descarta (spec §12). Los huecos
+    /// (`MissingCandles`, `CalendarUnavailable`) no descartan la vela que llega después.
+    pub fn discards_candle(&self) -> bool {
+        !matches!(
+            self,
+            IssueKind::MissingCandles { .. } | IssueKind::CalendarUnavailable { .. }
+        )
+    }
+}
+
+impl Issue {
+    /// Desde cuándo los datos dejan de ser confiables: el inicio del hueco o de la vela
+    /// sospechosa.
+    pub fn since(&self) -> DateTime<Utc> {
+        match self.kind {
+            IssueKind::MissingCandles { first_missing, .. } => first_missing,
+            IssueKind::CalendarUnavailable { gap_from } => gap_from,
+            _ => self.start,
+        }
+    }
+}
+
+/// Una serie ya revisada (spec §12): sin las velas sospechosas, con los problemas encontrados
+/// y los momentos desde los que hubo un error de datos (ordenados, sin repetir).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedSeries {
+    pub candles: Vec<Candle>,
+    pub issues: Vec<Issue>,
+    pub data_errors: Vec<DateTime<Utc>>,
+}
+
+/// Valida la serie, **descarta** las velas sospechosas y devuelve los momentos de error, para
+/// que quien decide no abra operaciones nuevas hasta que vuelva a haber datos válidos (spec
+/// §7.8 y §12). Nada se corrige en silencio: los problemas quedan en `issues` para alertar.
+pub fn check_series(
+    candles: &[Candle],
+    calendar: &impl SessionCalendar,
+    cfg: &ValidationConfig,
+) -> CheckedSeries {
+    let issues = validate_series(candles, calendar, cfg);
+    let discarded: std::collections::BTreeSet<usize> = issues
+        .iter()
+        .filter(|i| i.kind.discards_candle())
+        .map(|i| i.index)
+        .collect();
+    let mut data_errors: Vec<DateTime<Utc>> = issues.iter().map(Issue::since).collect();
+    data_errors.sort();
+    data_errors.dedup();
+    CheckedSeries {
+        candles: candles
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| !discarded.contains(i))
+            .map(|(_, c)| c.clone())
+            .collect(),
+        issues,
+        data_errors,
+    }
+}
+
 /// Valida una serie de velas de **un** instrumento y **un** timeframe, en orden.
 /// Devuelve todos los problemas encontrados (vacío = la serie es válida).
 pub fn validate_series(

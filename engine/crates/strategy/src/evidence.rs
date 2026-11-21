@@ -15,6 +15,7 @@ use cfds_patterns::{
     CandlePattern, DoubleKind, LevelKind, PatternsConfig, Pivot, candle_patterns_at,
     confirmed_pivots, double_at, levels_at, rejections_at,
 };
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 
 use crate::{
@@ -54,6 +55,8 @@ pub struct Analysis<'a> {
     trend: Vec<Option<Trend>>,
     /// Índice de la última vela de 1h cerrada en cada vela de 15m.
     h1_closed: Vec<Option<usize>>,
+    /// Momentos desde los que hubo un error de datos (spec §7.8 y §12), ordenados.
+    data_errors: Vec<DateTime<Utc>>,
     pivots: Vec<Pivot>,
     h1_pivots: Vec<Pivot>,
     breaks: Vec<StructureBreak>,
@@ -87,6 +90,7 @@ impl<'a> Analysis<'a> {
             atr,
             trend,
             h1_closed,
+            data_errors: Vec::new(),
             pivots,
             breaks,
             obs,
@@ -113,17 +117,32 @@ impl<'a> Analysis<'a> {
         &self.pivots
     }
 
+    /// Errores de datos del instrumento (`cfds_market_data::check_series`): después de cada uno,
+    /// el calentamiento empieza de nuevo y hacen falta otra vez `min_m15_candles` y
+    /// `min_h1_candles` velas válidas, **posteriores** al error (spec §3, §7.8 y §12).
+    pub fn with_data_errors(mut self, mut errors: Vec<DateTime<Utc>>) -> Self {
+        errors.sort();
+        self.data_errors = errors;
+        self
+    }
+
     /// `true` cuando en `t` ya pasó el calentamiento de la spec §3: hay `min_m15_candles` velas
-    /// de 15m (hasta `t` inclusive) y `min_h1_candles` velas de 1h cerradas.
+    /// de 15m (hasta `t` inclusive) y `min_h1_candles` velas de 1h cerradas, todas posteriores
+    /// al último error de datos conocido al cierre de `t`.
     pub fn warmed_up(&self, t: usize) -> bool {
+        let Some(c) = self.m15.get(t) else {
+            return false;
+        };
         let e = &self.cfg.strategy.evidence;
-        let h1_count = self
-            .h1_closed
-            .get(t)
-            .copied()
-            .flatten()
-            .map_or(0, |j| j + 1);
-        t + 1 >= e.min_m15_candles && h1_count >= e.min_h1_candles
+        // Último error conocido al cierre de `t` (una vela en curso o futura no cuenta).
+        let known = self.data_errors.partition_point(|x| *x < c.end());
+        let after = |series: &[Candle]| match known.checked_sub(1) {
+            Some(k) => series.partition_point(|x| x.start <= self.data_errors[k]),
+            None => 0,
+        };
+        let m15_count = t + 1 - after(&self.m15[..=t]);
+        let h1_count = self.h1_closed[t].map_or(0, |j| j + 1 - after(&self.h1[..=j]));
+        m15_count >= e.min_m15_candles && h1_count >= e.min_h1_candles
     }
 
     /// Evidencia al cierre de `t` para `side`. `None` durante el calentamiento (spec §3, y

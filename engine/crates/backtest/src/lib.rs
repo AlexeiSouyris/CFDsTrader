@@ -22,6 +22,6 @@ pub use portfolio::{
 };
 pub use runner::{
     BuyAndHold, CloseReason, ExitRecord, RejectedSignal, Report, RunError, Setup, TradeRecord,
-    buy_and_hold, choose, execute, pick, run,
+    buy_and_hold, choose, execute, pick, run, run_checked,
 };
 pub use setup::{SetupError, setup_from_catalog};

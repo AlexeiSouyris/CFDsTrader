@@ -35,6 +35,10 @@ pub struct Market<'a> {
     pub entries: &'a [bool],
     /// Velas de cierre obligatorio (fin de la semana), del mismo lugar.
     pub force_close: &'a [bool],
+    /// Momentos de error de datos (`cfds_market_data::check_series`, spec §7.8 y §12): después
+    /// de cada uno no se abre hasta volver a tener el calentamiento completo. Vacío = datos sin
+    /// problemas (series sintéticas).
+    pub data_errors: &'a [DateTime<Utc>],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -129,7 +133,9 @@ pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioErr
     }
     let analyses: Vec<Analysis> = markets
         .iter()
-        .map(|m| Analysis::new(m.m15, m.h1, m.setup.strategy))
+        .map(|m| {
+            Analysis::new(m.m15, m.h1, m.setup.strategy).with_data_errors(m.data_errors.to_vec())
+        })
         .collect();
     let atrs: Vec<Vec<Option<Decimal>>> = markets
         .iter()

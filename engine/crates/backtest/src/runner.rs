@@ -276,14 +276,28 @@ pub fn execute(
     })
 }
 
-/// Recorre la serie de 15m de un instrumento. `entries` y `force_close` son las marcas del
-/// horario (`cfds_market_data::trading_window::flags`). Es la cartera con un solo
-/// instrumento: una sola implementación de la cuenta.
+/// Recorre la serie de 15m de un instrumento, sin errores de datos (series sintéticas). Con
+/// datos reales, usar [`run_checked`].
 pub fn run(
     m15: &[Candle],
     h1: &[Candle],
     entries: &[bool],
     force_close: &[bool],
+    setup: &Setup,
+) -> Result<Report, RunError> {
+    run_checked(m15, h1, entries, force_close, &[], setup)
+}
+
+/// Recorre la serie de 15m de un instrumento. `entries` y `force_close` son las marcas del
+/// horario (`cfds_market_data::trading_window::flags`) y `data_errors`, los momentos de error
+/// de datos (`cfds_market_data::check_series`). Es la cartera con un solo instrumento: una
+/// sola implementación de la cuenta.
+pub fn run_checked(
+    m15: &[Candle],
+    h1: &[Candle],
+    entries: &[bool],
+    force_close: &[bool],
+    data_errors: &[DateTime<Utc>],
     setup: &Setup,
 ) -> Result<Report, RunError> {
     let market = Market {
@@ -292,6 +306,7 @@ pub fn run(
         h1,
         entries,
         force_close,
+        data_errors,
     };
     let p = run_portfolio(std::slice::from_ref(&market)).map_err(|e| match e {
         PortfolioError::Run(e) => e,

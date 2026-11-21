@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use cfds_backtest::{BacktestConfig, chart_export, run, setup_from_catalog};
+use cfds_backtest::{BacktestConfig, chart_export, run, run_checked, setup_from_catalog};
 use cfds_core::{Candle, Timeframe};
 use cfds_indicators::TrendConfig;
 use cfds_liquidity::LiquidityConfig;
@@ -86,7 +86,7 @@ fn export(m15: &[Candle]) -> cfds_backtest::ChartExport {
     let h1 = resample_h1(m15);
     let s = setup();
     let report = run(m15, &h1, &[], &[], &s).unwrap();
-    chart_export(m15, &h1, &s, &report).unwrap()
+    chart_export(m15, &h1, &[], &s, &report).unwrap()
 }
 
 fn validator() -> jsonschema::Validator {
@@ -169,4 +169,28 @@ fn no_exported_value_changes_when_more_candles_arrive() {
             .collect();
         assert_eq!(part.pivots, confirmed, "pivotes con {n}");
     }
+}
+
+#[test]
+fn the_export_shows_no_scores_while_a_data_error_blocks_the_instrument() {
+    // Spec §7.8 y §12: la exportación usa los mismos errores de datos que el recorrido.
+    let m15 = random_walk(1200, 3);
+    let h1 = resample_h1(&m15);
+    let s = setup();
+    let errors = [m15[600].start];
+    let report = run_checked(&m15, &h1, &[], &[], &errors, &s).unwrap();
+    let e = chart_export(&m15, &h1, &errors, &s, &report).unwrap();
+    let scored = |c: &cfds_backtest::ChartExport, i: usize| {
+        c.candles[i].long_score.is_some() || c.candles[i].short_score.is_some()
+    };
+    assert!(scored(&e, 599), "antes del error hay puntajes");
+    assert!(
+        (600..800).all(|i| !scored(&e, i)),
+        "200 velas sin puntaje desde el error"
+    );
+    assert!(
+        e.trades
+            .iter()
+            .all(|t| t.signal_index < 600 || t.signal_index >= 800)
+    );
 }

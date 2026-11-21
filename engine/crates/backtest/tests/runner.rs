@@ -3,7 +3,7 @@
 
 use cfds_backtest::{
     BacktestConfig, CloseReason, Commission, ExitReason, InstrumentCosts, Setup, buy_and_hold,
-    execute, pick, run,
+    execute, pick, run, run_checked,
 };
 use cfds_core::{Candle, Timeframe};
 use cfds_indicators::TrendConfig;
@@ -368,6 +368,27 @@ fn resample_h1(m15: &[Candle]) -> Vec<Candle> {
 }
 
 #[test]
+fn after_a_data_error_nothing_opens_until_the_warmup_is_complete() {
+    // Spec §7.8 y §12, con la misma serie que el test de invariantes.
+    let m15 = random_walk(3000, 11);
+    let h1 = resample_h1(&m15);
+    let s = setup();
+    let clean = run(&m15, &h1, &[], &[], &s).unwrap();
+    let first = clean.trades[0].signal_index;
+    let checked = run_checked(&m15, &h1, &[], &[], &[m15[first].start], &s).unwrap();
+    assert!(
+        checked.trades.iter().all(|t| t.signal_index >= first + 200),
+        "ninguna entrada antes de 200 velas válidas después del error"
+    );
+    assert!(
+        !checked.trades.is_empty(),
+        "después del calentamiento vuelve a operar"
+    );
+    // Sin errores, `run_checked` es `run`.
+    assert_eq!(run_checked(&m15, &h1, &[], &[], &[], &s).unwrap(), clean);
+}
+
+#[test]
 fn the_run_respects_its_invariants() {
     let m15 = random_walk(3000, 11);
     let h1 = resample_h1(&m15);
@@ -553,6 +574,7 @@ fn markets<'a>(m15: &'a [Vec<Candle>], h1: &'a [Vec<Candle>], setups: &[Setup]) 
             h1: &h1[i],
             entries: &[],
             force_close: &[],
+            data_errors: &[],
         })
         .collect()
 }

@@ -212,6 +212,31 @@ fn the_spec_warmup_needs_60_closed_candles_of_1h() {
 }
 
 #[test]
+fn a_data_error_restarts_the_warmup() {
+    // Spec §7.8 y §12: después de un error de datos hacen falta otra vez 200 velas de 15m y 60
+    // de 1h, todas posteriores al error.
+    let walk = random_walk(1000, 5);
+    let h1 = resample_h1(&walk);
+    let m15 = &walk[400..];
+    let error = m15[300].start; // la vela 300 es la del error (su vela de 1h es la 175)
+    let a = Analysis::new(m15, &h1, configs()).with_data_errors(vec![error]);
+    assert!(a.warmed_up(299), "el error todavía no ocurrió");
+    assert!(!a.warmed_up(300), "la vela del error");
+    // 15m: velas 301..=t. 1h: las cerradas que empiezan después del error (desde la 176).
+    // En t = 542 ya hay 242 de 15m, pero solo 59 de 1h; en t = 543, 60.
+    assert!(!a.warmed_up(542));
+    assert!(a.warmed_up(543));
+    for side in [Side::Long, Side::Short] {
+        assert!((300..543).all(|t| a.evidence_at(t, side, 0).is_none()));
+        assert!(a.evidence_at(543, side, 0).is_some());
+    }
+    // Un error futuro no cambia el pasado (sin look-ahead), y el orden de la lista no importa.
+    let later = Analysis::new(m15, &h1, configs()).with_data_errors(vec![m15[580].start, error]);
+    assert!((0..580).all(|t| a.warmed_up(t) == later.warmed_up(t)));
+    assert!(a.warmed_up(580) && !later.warmed_up(580));
+}
+
+#[test]
 fn news_out_of_range_is_an_error_not_a_silent_clamp() {
     let m15 = random_walk(1200, 7);
     let h1 = resample_h1(&m15);
