@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/daily_candle.v1.schema.json",
+  "title": "Daily candle v1",
+  "description": "Vela diaria de un instrumento (#103), para los análogos v1 y las medidas propias de sentimiento (ADR 0004 y 0005). El día va de medianoche a medianoche en la zona horaria de los precios (la de la cuenta de IG, medida el 21-11-2026: Europa central). En un cambio de horario dura 23 o 25 h, por eso 'start' y 'end' son explícitos. La vela se puede usar recién desde 'end'.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instrument_id", "day", "start", "end", "open", "high", "low", "close", "volume"],
+  "properties": {
+    "instrument_id": {
+      "description": "Id del instrumento (ver instrument.v1).",
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$"
+    },
+    "day": {
+      "description": "Fecha local del día de la vela, YYYY-MM-DD.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "start": {
+      "description": "Medianoche local de 'day', en UTC, ISO 8601 terminado en Z.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "end": {
+      "description": "Medianoche local del día siguiente, en UTC. Desde acá la vela está cerrada.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "open": { "$ref": "#/$defs/decimal" },
+    "high": { "$ref": "#/$defs/decimal" },
+    "low": { "$ref": "#/$defs/decimal" },
+    "close": { "$ref": "#/$defs/decimal" },
+    "volume": {
+      "description": "Volumen del día si la fuente lo informa; null si no.",
+      "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }]
+    }
+  },
+  "$defs": {
+    "decimal": {
+      "description": "Número decimal exacto como string, nunca como número JSON.",
+      "type": "string",
+      "pattern": "^\\d+(\\.\\d+)?$"
+    }
+  }
+}

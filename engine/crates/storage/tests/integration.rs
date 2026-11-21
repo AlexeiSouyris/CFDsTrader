@@ -5,8 +5,8 @@
 //! Cada test usa sus propios instrumentos para poder correr en paralelo.
 
 use cfds_core::{
-    AssetClass, Candle, CandleSpread, Currency, Instrument, InstrumentId, SentimentObservation,
-    Timeframe,
+    AssetClass, Candle, CandleSpread, Currency, DailyCandle, Instrument, InstrumentId,
+    SentimentObservation, Timeframe,
 };
 use cfds_storage::{CandlePublisher, PgStore, Published, StorageError, stream_key};
 use chrono::{DateTime, TimeDelta, Utc};
@@ -40,6 +40,11 @@ async fn with_instrument(store: &PgStore, name: &str) -> InstrumentId {
     };
     store.upsert_instrument(&i).await.unwrap();
     let pool = sqlx::PgPool::connect(&env("DATABASE_URL")).await.unwrap();
+    sqlx::query("DELETE FROM daily_candles WHERE instrument_id = $1")
+        .bind(i.id.as_str())
+        .execute(&pool)
+        .await
+        .unwrap();
     // Primero los spreads: referencian a las velas.
     sqlx::query("DELETE FROM candle_spreads WHERE instrument_id = $1")
         .bind(i.id.as_str())
@@ -425,4 +430,69 @@ async fn a_spread_needs_its_candle_and_is_never_negative() {
             .unwrap()
             .is_empty()
     );
+}
+
+fn days(instrument: &InstrumentId) -> Vec<DailyCandle> {
+    // Semana del cambio de horario de octubre de 2026: el domingo 25 dura 25 h.
+    [
+        ("2026-10-23", "2026-10-22T22:00:00Z", "2026-10-23T22:00:00Z"),
+        ("2026-10-25", "2026-10-24T22:00:00Z", "2026-10-25T23:00:00Z"),
+        ("2026-10-26", "2026-10-25T23:00:00Z", "2026-10-26T23:00:00Z"),
+    ]
+    .iter()
+    .enumerate()
+    .map(|(i, (day, start, end))| DailyCandle {
+        instrument_id: instrument.clone(),
+        day: day.parse().unwrap(),
+        start: start.parse().unwrap(),
+        end: end.parse().unwrap(),
+        open: dec!(24000.5) + Decimal::from(i),
+        high: dec!(24100.25),
+        low: dec!(23900),
+        close: dec!(24050.75),
+        volume: None,
+    })
+    .collect()
+}
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
+async fn daily_candles_roundtrip_and_are_never_overwritten() {
+    let s = store().await;
+    let us = with_instrument(&s, "ITDAILY").await;
+    let d = days(&us);
+    let first = s.insert_daily(&d[..2]).await.unwrap();
+    assert_eq!((first.inserted, first.unchanged), (2, 0));
+    let again = s.insert_daily(&d).await.unwrap();
+    assert_eq!((again.inserted, again.unchanged), (1, 2));
+    let range = |a: &str, b: &str| (a.parse().unwrap(), b.parse().unwrap());
+    let (from, to) = range("2026-10-01", "2026-11-01");
+    assert_eq!(
+        s.daily_candles(&us, from, to).await.unwrap(),
+        d,
+        "exacto, con el día de 25 h"
+    );
+
+    let mut changed = d.clone();
+    changed[0].close += dec!(0.25);
+    assert!(matches!(
+        s.insert_daily(&changed).await,
+        Err(StorageError::DailyConflict { day, .. }) if day == d[0].day
+    ));
+    assert_eq!(s.daily_candles(&us, from, to).await.unwrap(), d);
+}
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
+async fn the_database_rejects_impossible_daily_candles() {
+    let s = store().await;
+    let us = with_instrument(&s, "ITDAILYBAD").await;
+    let mut long = days(&us)[..1].to_vec();
+    long[0].end += chrono::TimeDelta::hours(2); // 26 h: no es un día
+    assert!(s.insert_daily(&long).await.is_err());
+    let mut ohlc = days(&us)[..1].to_vec();
+    ohlc[0].high = dec!(1);
+    assert!(s.insert_daily(&ohlc).await.is_err());
+    let (from, to) = ("2026-10-01".parse().unwrap(), "2026-11-01".parse().unwrap());
+    assert!(s.daily_candles(&us, from, to).await.unwrap().is_empty());
 }
