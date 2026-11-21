@@ -31,6 +31,10 @@ pub struct StopConfig {
 #[serde(deny_unknown_fields)]
 pub struct EvidenceConfig {
     pub sma_period: usize,
+    /// Calentamiento (spec §3): velas de 15m necesarias antes de la primera señal.
+    pub min_m15_candles: usize,
+    /// Calentamiento (spec §3): velas de 1h **cerradas** necesarias antes de la primera señal.
+    pub min_h1_candles: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,6 +90,11 @@ impl StrategyConfig {
         if raw.evidence.sma_period == 0 {
             return Err("evidence.sma_period tiene que ser mayor que 0".into());
         }
+        if raw.evidence.min_m15_candles == 0 || raw.evidence.min_h1_candles == 0 {
+            return Err(
+                "el calentamiento (evidence.min_*_candles) tiene que ser mayor que 0".into(),
+            );
+        }
         Ok(Self {
             score: s,
             stop: StopConfig { atr_buffer },
@@ -123,6 +132,10 @@ mod tests {
         );
         assert_eq!(c.stop.atr_buffer, dec!(0.5));
         assert_eq!(c.evidence.sma_period, 50);
+        assert_eq!(
+            (c.evidence.min_m15_candles, c.evidence.min_h1_candles),
+            (200, 60)
+        );
     }
 
     #[test]
@@ -135,6 +148,8 @@ mod tests {
             REAL.replace(r#""0.5""#, r#""-0.5""#),
             REAL.replace("recent_choch", "choch_reciente"),
             REAL.replace("sma_period = 50", "sma_period = 0"),
+            REAL.replace("min_m15_candles = 200", "min_m15_candles = 0"),
+            REAL.replace("min_h1_candles = 60", "min_h1_candles = 0"),
         ] {
             assert!(StrategyConfig::from_toml(&bad).is_err(), "{bad}");
         }

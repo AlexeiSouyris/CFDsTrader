@@ -28,7 +28,7 @@ Las reglas de cortos son el **espejo exacto** de las de largos (spec §5). Cada 
 | La vela de 1h existe recién al cerrar la hora | `crates/core/src/candle.rs::a_1h_candle_is_only_usable_after_the_full_hour`, `crates/strategy/src/mtf.rs::a_1h_candle_counts_from_the_15m_candle_that_closes_with_it` | ✅ |
 | La señal se calcula al cierre de `t` con datos hasta `t` | `crates/strategy/tests/evidence.rs::the_signal_at_t_only_uses_data_available_at_the_close_of_t` | ✅ |
 | La entrada simulada es la apertura de `t+1` más slippage | `crates/backtest/tests/runner.rs::one_trade_matches_the_hand_calculation_in_every_field` | ✅ |
-| Calentamiento: 200 velas de 15m y 60 de 1h antes de emitir señales | #88. Hoy solo esperan los indicadores: `crates/strategy/tests/evidence.rs::no_evidence_during_warmup` | ⏳ |
+| Calentamiento: 200 velas de 15m y 60 de 1h **cerradas** antes de emitir señales | `crates/strategy/tests/evidence.rs::the_spec_warmup_needs_200_candles_of_15m`, `crates/strategy/tests/evidence.rs::the_spec_warmup_needs_60_closed_candles_of_1h`, `crates/strategy/tests/evidence.rs::no_evidence_during_warmup` | ✅ |
 
 ## §4 Indicadores
 
@@ -154,7 +154,6 @@ Las reglas de cortos son el **espejo exacto** de las de largos (spec §5). Cada 
 
 | Issue | Qué falta |
 |---|---|
-| #88 | Calentamiento global de 200 velas de 15m y 60 de 1h |
 | #89 | No abrir en un instrumento con datos faltantes o sospechosos (§7.8 y §12) |
 | #90 | Filtro de spread (§7.3): guardar el spread por vela y comparar con su promedio |
 | #91 | Filtro de noticias de alto impacto (§7.2). La fuente del calendario es de la 4b |

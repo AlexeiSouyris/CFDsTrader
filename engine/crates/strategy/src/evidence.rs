@@ -52,6 +52,8 @@ pub struct Analysis<'a> {
     atr: Vec<Option<Decimal>>,
     sma: Vec<Option<Decimal>>,
     trend: Vec<Option<Trend>>,
+    /// Índice de la última vela de 1h cerrada en cada vela de 15m.
+    h1_closed: Vec<Option<usize>>,
     pivots: Vec<Pivot>,
     h1_pivots: Vec<Pivot>,
     breaks: Vec<StructureBreak>,
@@ -62,8 +64,9 @@ impl<'a> Analysis<'a> {
     pub fn new(m15: &'a [Candle], h1: &'a [Candle], cfg: Configs) -> Self {
         let atr = wilder_atr(m15, cfg.patterns.candles.atr_period);
         let h1_trend = trend(h1, &cfg.trend);
-        let trend: Vec<Option<Trend>> = align_closed(h1, m15)
-            .into_iter()
+        let h1_closed = align_closed(h1, m15);
+        let trend: Vec<Option<Trend>> = h1_closed
+            .iter()
             .map(|j| j.and_then(|j| h1_trend[j]))
             .collect();
         let strength = cfg.patterns.pivots.strength;
@@ -83,6 +86,7 @@ impl<'a> Analysis<'a> {
             h1_pivots: confirmed_pivots(h1, strength),
             atr,
             trend,
+            h1_closed,
             pivots,
             breaks,
             obs,
@@ -109,11 +113,27 @@ impl<'a> Analysis<'a> {
         &self.pivots
     }
 
-    /// Evidencia al cierre de `t` para `side`. `None` durante el calentamiento (sin SMA o sin
-    /// tendencia de 1h) o si `t` está fuera de la serie. Los patrones que necesitan ATR no
-    /// aparecen hasta que el ATR existe.
+    /// `true` cuando en `t` ya pasó el calentamiento de la spec §3: hay `min_m15_candles` velas
+    /// de 15m (hasta `t` inclusive) y `min_h1_candles` velas de 1h cerradas.
+    pub fn warmed_up(&self, t: usize) -> bool {
+        let e = &self.cfg.strategy.evidence;
+        let h1_count = self
+            .h1_closed
+            .get(t)
+            .copied()
+            .flatten()
+            .map_or(0, |j| j + 1);
+        t + 1 >= e.min_m15_candles && h1_count >= e.min_h1_candles
+    }
+
+    /// Evidencia al cierre de `t` para `side`. `None` durante el calentamiento (spec §3, y
+    /// mientras falten la SMA o la tendencia de 1h) o si `t` está fuera de la serie. Los patrones
+    /// que necesitan ATR no aparecen hasta que el ATR existe.
     pub fn evidence_at(&self, t: usize, side: Side, news: i32) -> Option<Evidence> {
         let c = self.m15.get(t)?;
+        if !self.warmed_up(t) {
+            return None;
+        }
         let trend_1h = self.trend[t]?;
         let sma = self.sma[t]?;
         let long = side == Side::Long;
