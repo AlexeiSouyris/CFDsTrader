@@ -4,8 +4,10 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use cfds_core::DailyCandle;
-use cfds_market_data::{DailyIssueKind, ExchangeCalendar, local_day_bounds, validate_daily};
-use chrono::{DateTime, NaiveDate, Utc};
+use cfds_market_data::{
+    DailyIssueKind, ExchangeCalendar, daily_bounds, local_day_bounds, validate_daily,
+};
+use chrono::{DateTime, NaiveDate, TimeDelta, Utc};
 use chrono_tz::{Europe::Madrid, Tz};
 use rust_decimal::{Decimal, dec};
 
@@ -24,6 +26,8 @@ fn utc(s: &str) -> DateTime<Utc> {
 
 /// Zona de los precios de la cuenta de IG (medida: UTC+1 en invierno, UTC+2 en verano).
 const TZ: Tz = Madrid;
+/// Demora máxima del inicio después de la medianoche local (config/ig.toml).
+const TOLERANCE: TimeDelta = TimeDelta::hours(1);
 
 fn daily(day: &str) -> DailyCandle {
     let (start, end) = local_day_bounds(date(day), TZ).unwrap();
@@ -42,7 +46,7 @@ fn daily(day: &str) -> DailyCandle {
 
 fn kinds(c: &[DailyCandle]) -> Vec<(usize, DailyIssueKind)> {
     let cal = calendar();
-    validate_daily(c, TZ, cal.session("XETR").unwrap())
+    validate_daily(c, TZ, TOLERANCE, cal.session("XETR").unwrap())
         .into_iter()
         .map(|i| (i.index, i.kind))
         .collect()
@@ -106,19 +110,52 @@ fn a_missing_session_day_is_reported_but_a_holiday_is_not() {
 
 #[test]
 fn bounds_of_a_fixed_24h_day_are_wrong_on_a_daylight_saving_change() {
+    // El domingo 25-10-2026 dura 25 h: un fin a las 24 h daría la vela por cerrada antes.
     let mut c = daily("2026-10-25");
-    let right = (c.start, c.end);
-    c.end = c.start + chrono::TimeDelta::hours(24);
+    c.end = c.start + TimeDelta::hours(24);
     assert_eq!(
         kinds(&[c]),
         vec![(
             0,
             DailyIssueKind::WrongBounds {
-                start: right.0,
-                end: right.1
+                earliest: utc("2026-10-24T22:00:00Z"),
+                latest: utc("2026-10-24T23:00:00Z"),
+                end: utc("2026-10-25T23:00:00Z"),
             }
         )]
     );
+}
+
+#[test]
+fn a_late_start_within_the_tolerance_is_accepted_and_never_closes_early() {
+    // Medido en IG: el lunes 28-03-2022, después del cambio de horario, la vela empezó a las
+    // 23:00 UTC (01:00 local) y no a las 22:00. Vale, y cierra 24 h después.
+    assert_eq!(
+        daily_bounds(utc("2022-03-27T23:00:00Z"), TZ, TOLERANCE),
+        Some((date("2022-03-28"), utc("2022-03-28T23:00:00Z")))
+    );
+    // El domingo del cambio de octubre (25 h) cierra en la medianoche siguiente.
+    assert_eq!(
+        daily_bounds(utc("2026-10-24T22:00:00Z"), TZ, TOLERANCE),
+        Some((date("2026-10-25"), utc("2026-10-25T23:00:00Z")))
+    );
+    // Justo en el borde vale; un segundo más, o antes de la medianoche, no.
+    assert!(daily_bounds(utc("2026-11-16T00:00:00Z"), TZ, TOLERANCE).is_some());
+    assert_eq!(
+        daily_bounds(utc("2026-11-16T00:00:01Z"), TZ, TOLERANCE),
+        None
+    );
+    assert_eq!(
+        daily_bounds(utc("2026-11-15T22:59:59Z"), TZ, TOLERANCE),
+        None
+    );
+    // Una vela así guardada pasa la validación.
+    let (day, end) = daily_bounds(utc("2022-03-27T23:00:00Z"), TZ, TOLERANCE).unwrap();
+    let mut late = daily("2022-03-28");
+    late.start = utc("2022-03-27T23:00:00Z");
+    late.end = end;
+    assert_eq!(late.day, day);
+    assert_eq!(kinds(&[late]), vec![]);
 }
 
 #[test]

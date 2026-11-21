@@ -2,13 +2,14 @@
 //! reporta y nada se corrige en silencio.
 //!
 //! ```text
-//! start = medianoche local de `day` en la zona de los precios; end = la del día siguiente
+//! start ∈ [medianoche local de `day`, esa medianoche + tolerancia]   (zona de los precios)
+//! end   = máx(medianoche local del día siguiente, start + 24 h)
 //! días en orden estricto (sin repetir), un solo instrumento, precios > 0, OHLC coherente
 //! hueco: un día con sesión en la bolsa del instrumento, entre dos velas, sin vela
 //! ```
 
 use cfds_core::{DailyCandle, InstrumentId};
-use chrono::{DateTime, Days, NaiveDate, TimeZone, Utc};
+use chrono::{DateTime, Days, NaiveDate, TimeDelta, TimeZone, Utc};
 use chrono_tz::Tz;
 use rust_decimal::Decimal;
 
@@ -34,9 +35,12 @@ pub enum DailyIssueKind {
         low: Decimal,
         close: Decimal,
     },
-    #[error("inicio y fin no son las medianoches locales del día: se esperaba {start} → {end}")]
+    #[error(
+        "límites del día incorrectos: el inicio tiene que estar entre {earliest} y {latest}, y el fin ser {end}"
+    )]
     WrongBounds {
-        start: DateTime<Utc>,
+        earliest: DateTime<Utc>,
+        latest: DateTime<Utc>,
         end: DateTime<Utc>,
     },
     #[error("día repetido o fuera de orden (el anterior es {previous})")]
@@ -61,9 +65,31 @@ pub fn local_day_bounds(day: NaiveDate, tz: Tz) -> Option<(DateTime<Utc>, DateTi
     ))
 }
 
-/// Valida velas diarias de **un** instrumento, en orden. `tz` es la zona de los precios y
-/// `session`, la bolsa del instrumento (para saber qué días debería haber vela).
-pub fn validate_daily(candles: &[DailyCandle], tz: Tz, session: &Session) -> Vec<DailyIssue> {
+/// Día local y fin de una vela diaria que empieza en `start`. El inicio puede llegar hasta
+/// `tolerance` después de la medianoche local: medido en IG, en la semana siguiente al cambio de
+/// horario de marzo de 2022 las velas siguieron empezando a la hora de invierno. El fin es el
+/// más tardío entre la medianoche siguiente y `start + 24 h`, así una vela nunca se da por
+/// cerrada antes de tiempo. `None` si `start` no cae en esa ventana.
+pub fn daily_bounds(
+    start: DateTime<Utc>,
+    tz: Tz,
+    tolerance: TimeDelta,
+) -> Option<(NaiveDate, DateTime<Utc>)> {
+    let day = start.with_timezone(&tz).date_naive();
+    let (midnight, next) = local_day_bounds(day, tz)?;
+    (midnight <= start && start <= midnight + tolerance)
+        .then(|| (day, next.max(start + TimeDelta::hours(24))))
+}
+
+/// Valida velas diarias de **un** instrumento, en orden. `tz` es la zona de los precios,
+/// `tolerance` la demora máxima del inicio (ver [`daily_bounds`]) y `session`, la bolsa del
+/// instrumento (para saber qué días debería haber vela).
+pub fn validate_daily(
+    candles: &[DailyCandle],
+    tz: Tz,
+    tolerance: TimeDelta,
+    session: &Session,
+) -> Vec<DailyIssue> {
     let Some(first) = candles.first() else {
         return Vec::new();
     };
@@ -100,10 +126,17 @@ pub fn validate_daily(candles: &[DailyCandle], tz: Tz, session: &Session) -> Vec
                 close: c.close,
             });
         }
-        match local_day_bounds(c.day, tz) {
-            Some((start, end)) if (start, end) == (c.start, c.end) => {}
-            Some((start, end)) => push(DailyIssueKind::WrongBounds { start, end }),
-            None => push(DailyIssueKind::CalendarUnavailable { day: c.day }),
+        match (
+            daily_bounds(c.start, tz, tolerance),
+            local_day_bounds(c.day, tz),
+        ) {
+            (Some((day, end)), _) if day == c.day && end == c.end => {}
+            (_, Some((midnight, next))) => push(DailyIssueKind::WrongBounds {
+                earliest: midnight,
+                latest: midnight + tolerance,
+                end: next.max(c.start + TimeDelta::hours(24)),
+            }),
+            (_, None) => push(DailyIssueKind::CalendarUnavailable { day: c.day }),
         }
         let Some(prev) = i.checked_sub(1).map(|p| &candles[p]) else {
             continue;
