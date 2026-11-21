@@ -1,0 +1,33 @@
+# Fuentes de noticias aprobadas en el ADR 0006 (aceptado el 21-11-2026): RSS oficiales de la
+# Reserva Federal (dominio público, citando la fuente) y del BCE (uso libre citando la fuente,
+# sin alterar la información). Solo se guardan el título y el enlace: no se republica el texto.
+
+[client]
+# Identificación honesta como cliente automático (sin datos personales).
+user_agent = "cfds-intel/0.1 (automated news reader)"
+timeout_secs = 30
+
+[[feeds]]
+source = "fed"
+name = "press_monetary"
+url = "https://www.federalreserve.gov/feeds/press_monetary.xml"
+
+[[feeds]]
+source = "fed"
+name = "press_all"
+url = "https://www.federalreserve.gov/feeds/press_all.xml"
+
+[[feeds]]
+source = "fed"
+name = "speeches"
+url = "https://www.federalreserve.gov/feeds/speeches.xml"
+
+[[feeds]]
+source = "ecb"
+name = "press"
+url = "https://www.ecb.europa.eu/rss/press.html"
+
+[[feeds]]
+source = "ecb"
+name = "statpress"
+url = "https://www.ecb.europa.eu/rss/statpress.html"

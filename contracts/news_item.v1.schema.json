@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/news_item.v1.schema.json",
+  "title": "News item v1",
+  "description": "Una noticia de una fuente aprobada (ADR 0006), tal como la publicó la fuente (#109). Solo el título y el enlace: el texto completo no se guarda ni se republica. Una noticia existe para el sistema recién desde 'published_at' (CLAUDE.md §5b).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source", "feed", "item_id", "title", "url", "published_at", "retrieved_at"],
+  "properties": {
+    "source": {
+      "description": "Fuente aprobada en el ADR 0006: 'fed' (Reserva Federal) o 'ecb' (BCE).",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,31}$"
+    },
+    "feed": {
+      "description": "Feed dentro de la fuente (config/news.toml), por ejemplo 'press_monetary'.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,31}$"
+    },
+    "item_id": {
+      "description": "Id estable del ítem en la fuente: el 'guid' del RSS o, si no tiene, su enlace.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "title": {
+      "description": "Título tal como lo publicó la fuente.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "url": {
+      "description": "Enlace a la noticia en el sitio de la fuente.",
+      "type": "string",
+      "pattern": "^https://",
+      "maxLength": 1000
+    },
+    "published_at": {
+      "description": "Hora de publicación según la fuente ('pubDate' del RSS), en UTC, ISO 8601 terminado en Z.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "retrieved_at": {
+      "description": "Cuándo la leyó el sistema, en UTC. Nunca anterior a 'published_at'.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    }
+  }
+}
