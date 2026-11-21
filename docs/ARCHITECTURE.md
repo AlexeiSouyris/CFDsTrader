@@ -57,7 +57,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | gateway | `engine/crates/gateway` | Rust | API REST + WebSocket para la UI y la app del celular | planeado |
 | auth | `engine/crates/auth` | Rust | Cuentas de los miembros, 2FA (TOTP), roles (responsable / miembro), sesiones, registro de acciones | planeado |
 | notifier | `engine/crates/notifier` | Rust | Notificaciones push al celular (propuestas, alertas, votaciones) | planeado |
-| news | `intelligence/cfds_intel/news` | Python | Ingesta de noticias en tiempo real, resumen e interpretación (positivo/negativo, impacto) | planeado |
+| news | `intelligence/cfds_intel/news` | Python | Ingesta de noticias en tiempo real, resumen e interpretación (positivo/negativo, impacto). Hoy: lector de los RSS oficiales de la Fed y del BCE (ADR 0006) a `news_item.v1`, con la hora de publicación real y `config/news.toml` | lector de RSS (#109) |
 | analogs | `intelligence/cfds_intel/analogs` | Python | Búsqueda de situaciones históricas similares en otras empresas e índices | planeado |
 | universe | `intelligence/cfds_intel/universe.py` | Python | Componentes del NASDAQ 100 en cada fecha, sin sesgo de supervivencia (fuente: nasdaq-100-ticker-history, MIT, ADR 0005) | hecho (#10) |
 | models | `intelligence/cfds_intel/models` | Python | Modelos PyTorch de predicción y su entrenamiento | planeado |
@@ -65,7 +65,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | storage | `infra/` (SQL) + `engine/crates/storage` (crate `cfds-storage`) | SQL + Rust | Esquema y migraciones de PostgreSQL; escritura idempotente de velas; publicación de velas cerradas en Redis Streams; docker-compose | docker-compose (#3); esquema, PgStore y CandlePublisher (#6); `sentiment_observations` de solo agregar (#27); `candle_spreads`, spread de cierre por vela (#95); `daily_candles`, velas diarias (#103) |
 | intelligence | `intelligence/` (paquete `cfds_intel`) | Python | Proyecto base de la capa de inteligencia | esqueleto (#3) |
 | ci | `.github/workflows/ci.yml` | YAML | Checks de Rust y Python en cada PR | hecho (#3) |
-| contracts | `contracts/` | JSON Schema | Mensajes entre capas (velas, señales, noticias, órdenes) | candle.v1, instrument.v1 (#4); proposal.v1, outcome.v1 (#60); sentiment_observation.v1 (#27); chart_export.v1 (#81); candle_spread.v1 (#95); economic_event.v1 (#91); daily_candle.v1 (#103) |
+| contracts | `contracts/` | JSON Schema | Mensajes entre capas (velas, señales, noticias, órdenes) | candle.v1, instrument.v1 (#4); proposal.v1, outcome.v1 (#60); sentiment_observation.v1 (#27); chart_export.v1 (#81); candle_spread.v1 (#95); economic_event.v1 (#91); daily_candle.v1 (#103); news_item.v1 (#109) |
 | ui | `ui/` | TypeScript (React + Tailwind) | Interfaz: gráficos, panel de noticias, estrategias, P/L. **Hoy: solo prototipo visual con datos de ejemplo, sin lógica (#30)** | prototipo (#30); app real en fase 10 |
 | verify | `tools/verify/` | Python, HTML | Herramientas de verificación (ROADMAP 3b): leen solo `chart_export.v1`, comparan con una referencia (TA-Lib) y la muestran en un visor para personas. No calculan ni alimentan al sistema | comparación con TA-Lib (#81), visor (#82) |
 | glosario | `docs/GLOSARIO.md` | Markdown | Única fuente de las definiciones de términos (la UI las reutiliza como tooltips) | hecho |
