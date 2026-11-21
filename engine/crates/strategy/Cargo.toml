@@ -6,6 +6,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+chrono = { version = "0.4.45", default-features = false, features = ["std"] }
 cfds-core = { version = "0.1.0", path = "../core" }
 cfds-indicators = { version = "0.1.0", path = "../indicators" }
 cfds-liquidity = { version = "0.1.0", path = "../liquidity" }
@@ -16,6 +17,3 @@ toml = "0.9"
 
 [lints]
 workspace = true
-
-[dev-dependencies]
-chrono = { version = "0.4.45", default-features = false, features = ["std"] }

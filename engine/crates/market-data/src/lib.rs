@@ -23,4 +23,6 @@ pub use split::{DataSplit, Period, SplitConfig, SplitError, Window, plan};
 pub use trading_window::{
     TradingWindowConfig, entry_allowed, is_last_session_of_week, is_week_close_candle,
 };
-pub use validation::{Issue, IssueKind, SessionCalendar, validate_series};
+pub use validation::{
+    CheckedSeries, Issue, IssueKind, SessionCalendar, check_series, validate_series,
+};

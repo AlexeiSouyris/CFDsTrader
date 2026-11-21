@@ -158,14 +158,16 @@ fn reason_name(r: CloseReason) -> String {
 }
 
 /// Exporta las velas de 15m con sus indicadores y puntajes (sin noticias), los pivotes
-/// confirmados y las operaciones de `report`, que tiene que venir de `run` con las mismas velas.
+/// confirmados y las operaciones de `report`, que tiene que venir de `run_checked` con las
+/// mismas velas y los mismos errores de datos.
 pub fn chart_export(
     m15: &[Candle],
     h1: &[Candle],
+    data_errors: &[DateTime<Utc>],
     setup: &Setup,
     report: &Report,
 ) -> Result<ChartExport, ScoreError> {
-    let a = Analysis::new(m15, h1, setup.strategy);
+    let a = Analysis::new(m15, h1, setup.strategy).with_data_errors(data_errors.to_vec());
     let score_at = |t: usize, side: Side| -> Result<Option<i32>, ScoreError> {
         Ok(match a.evidence_at(t, side, 0) {
             Some(e) => score(&e, &setup.strategy.strategy.score)?.map(|s| s.total),

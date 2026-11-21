@@ -10,11 +10,13 @@
 
 use std::path::PathBuf;
 
-use cfds_backtest::{BacktestConfig, buy_and_hold, run, setup_from_catalog};
+use cfds_backtest::{BacktestConfig, buy_and_hold, run_checked, setup_from_catalog};
 use cfds_core::Timeframe;
 use cfds_indicators::TrendConfig;
 use cfds_liquidity::LiquidityConfig;
-use cfds_market_data::{Catalog, ExchangeCalendar, TradingWindowConfig, trading_window};
+use cfds_market_data::{
+    Catalog, ExchangeCalendar, TradingWindowConfig, ValidationConfig, check_series, trading_window,
+};
 use cfds_patterns::PatternsConfig;
 use cfds_risk::RiskConfig;
 use cfds_storage::PgStore;
@@ -54,10 +56,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     let store = PgStore::connect(&std::env::var("DATABASE_URL")?).await?;
-    let m15 = store.candles(&id, Timeframe::M15, from, to).await?;
-    let h1 = store.candles(&id, Timeframe::H1, from, to).await?;
+    let raw_m15 = store.candles(&id, Timeframe::M15, from, to).await?;
+    let raw_h1 = store.candles(&id, Timeframe::H1, from, to).await?;
     let config_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../config");
     let calendar = ExchangeCalendar::load(&config_dir, catalog.exchange_map())?;
+    // Spec §7.8 y §12: se descartan las velas sospechosas y, después de cada error de datos,
+    // no se abre hasta volver a tener el calentamiento completo.
+    let validation = ValidationConfig::from_toml(cfg!("data_validation.toml"))?;
+    let (m15, h1, data_errors) = {
+        let a = check_series(&raw_m15, &calendar, &validation);
+        let b = check_series(&raw_h1, &calendar, &validation);
+        for i in a.issues.iter().chain(&b.issues) {
+            eprintln!("⚠️  error de datos en {}: {}", i.start, i.kind);
+        }
+        let mut errors = [a.data_errors, b.data_errors].concat();
+        errors.sort();
+        (a.candles, b.candles, errors)
+    };
     let session = calendar.session_for(&id).ok_or("instrumento sin bolsa")?;
     let window = TradingWindowConfig::from_toml(cfg!("trading_window.toml"))?;
     let (entries, force_close) =
@@ -68,7 +83,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         h1.len()
     );
 
-    let report = run(&m15, &h1, &entries, &force_close, &setup).map_err(|e| format!("{e:?}"))?;
+    let report = run_checked(&m15, &h1, &entries, &force_close, &data_errors, &setup)
+        .map_err(|e| format!("{e:?}"))?;
     println!(
         "estrategia: {} operaciones, {} señales rechazadas por riesgo, capital final {}",
         report.trades.len(),

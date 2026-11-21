@@ -116,7 +116,7 @@ Las reglas de cortos son el **espejo exacto** de las de largos (spec §5). Cada 
 | 5. Ya hay 5 posiciones abiertas | `crates/risk/tests/risk.rs::at_most_5_open_positions` | ✅ |
 | 6. Pérdida máxima del día o kill switch activo | `crates/risk/tests/risk.rs::daily_loss_of_3_percent_stops_new_entries`, `crates/risk/tests/risk.rs::kill_switch_blocks_everything`, `crates/backtest/tests/runner.rs::the_daily_loss_limit_blocks_the_rest_of_the_day` | ✅ |
 | 7. Distancia al stop menor a 0,5 × ATR o mayor a 3 × ATR | `crates/risk/tests/risk.rs::stop_distance_between_half_and_three_atr` | ✅ |
-| 8. Error de datos | #89 | ⏳ |
+| 8. Error de datos: no se abre hasta volver a tener el calentamiento completo después del error | `crates/strategy/tests/evidence.rs::a_data_error_restarts_the_warmup`, `crates/backtest/tests/runner.rs::after_a_data_error_nothing_opens_until_the_warmup_is_complete`, `crates/backtest/tests/export.rs::the_export_shows_no_scores_while_a_data_error_blocks_the_instrument` | ✅ |
 
 ## §8 Stop, tamaño, apalancamiento y salidas
 
@@ -142,20 +142,22 @@ Las reglas de cortos son el **espejo exacto** de las de largos (spec §5). Cada 
 
 | Regla | Tests | Estado |
 |---|---|---|
-| Faltan datos, llegan tarde o hay error de conexión: no hay entradas nuevas en el instrumento | #89. La detección ya está probada: `crates/market-data/tests/corrupted_data.rs::detects_missing_candles_inside_the_session` | ⏳ |
+| Faltan datos: el hueco marca un error de datos y no hay entradas nuevas en el instrumento | `crates/market-data/tests/corrupted_data.rs::detects_missing_candles_inside_the_session`, `crates/market-data/tests/corrupted_data.rs::a_gap_marks_the_first_missing_candle_and_keeps_the_next_one`, `crates/strategy/tests/evidence.rs::a_data_error_restarts_the_warmup` | ✅ |
+| Datos tardíos o error de conexión en vivo: kill switch | `crates/ig/src/live.rs::overdue_only_after_give_up`. Alertar y bloquear el instrumento en vivo es de la Fase 8 | ➡️ |
 | Gap que salta el stop o el TP: se ejecuta a la apertura | `crates/backtest/tests/exits.rs::a_gap_through_the_stop_fills_at_the_open`, `crates/backtest/tests/exits.rs::a_gap_through_tp1_fills_at_the_open`, `crates/backtest/tests/runner.rs::a_gap_through_the_stop_at_the_entry_exits_at_that_open` | ✅ |
 | Feriado: el instrumento no opera | `crates/market-data/tests/calendar.rs::holidays_and_weekends_have_no_session`, `crates/market-data/tests/trading_window.rs::weekends_and_holidays_have_no_entries` | ✅ |
-| Halt: no hay entradas nuevas | #89. IG no publica halts por la API; se trata como datos faltantes | ⏳ |
+| Halt: no hay entradas nuevas | En el backtest, un halt sin velas dentro de la sesión es un hueco y aplica la regla de datos faltantes. Detectarlo en vivo con el estado del mercado del broker es de la Fase 8 | ➡️ |
 | Ejecución parcial (registro real) | Fase 8 | ➡️ |
 | Datos sospechosos: se detectan | `crates/market-data/tests/corrupted_data.rs::detects_zero_or_negative_prices`, `crates/market-data/tests/corrupted_data.rs::detects_a_huge_jump_between_contiguous_candles`, `crates/market-data/tests/corrupted_data.rs::detects_duplicates`, `crates/market-data/tests/corrupted_data.rs::detects_broken_time_order`, `crates/market-data/tests/corrupted_data.rs::a_big_jump_after_a_session_break_is_not_an_outlier` | ✅ |
-| Datos sospechosos: se descarta la entrada en ese instrumento | #89 | ⏳ |
+| Datos sospechosos: se descarta la vela y no hay entradas nuevas en el instrumento | `crates/market-data/tests/corrupted_data.rs::suspicious_candles_are_discarded_and_mark_a_data_error`, `crates/market-data/tests/corrupted_data.rs::a_candle_with_several_problems_is_one_data_error`, `crates/backtest/tests/runner.rs::after_a_data_error_nothing_opens_until_the_warmup_is_complete` | ✅ |
 
 ## Pendientes
 
 | Issue | Qué falta |
 |---|---|
-| #89 | No abrir en un instrumento con datos faltantes o sospechosos (§7.8 y §12) |
 | #90 | Filtro de spread (§7.3): guardar el spread por vela y comparar con su promedio |
 | #91 | Filtro de noticias de alto impacto (§7.2). La fuente del calendario es de la 4b |
 
-Fuera de la Fase 4, a propósito: el vencimiento de la propuesta y la ejecución parcial (fase 8), y la probabilidad y los análogos (4b).
+Fuera de la Fase 4, a propósito:
+- el vencimiento de la propuesta, la ejecución parcial y la detección en vivo de halts y datos tardíos (fase 8);
+- la probabilidad y los análogos (4b).

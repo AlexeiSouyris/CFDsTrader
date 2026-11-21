@@ -2,7 +2,9 @@
 //! Cada caso rompe UNA cosa de una serie sana y verifica que la validación lo detecta.
 
 use cfds_core::{Candle, InstrumentId, Timeframe};
-use cfds_market_data::{IssueKind, SessionCalendar, ValidationConfig, validate_series};
+use cfds_market_data::{
+    IssueKind, SessionCalendar, ValidationConfig, check_series, validate_series,
+};
 use chrono::{DateTime, TimeDelta, Utc};
 use rust_decimal::{Decimal, dec};
 
@@ -242,4 +244,55 @@ fn no_outlier_check_during_atr_warmup() {
             .all(|(_, k)| !matches!(k, IssueKind::Outlier { .. })),
         "{found:?}"
     );
+}
+
+// Spec §7.8 y §12: los datos sospechosos se descartan y queda registrado desde cuándo hubo
+// un error de datos, para no abrir operaciones nuevas en ese instrumento.
+
+#[test]
+fn a_healthy_series_is_kept_whole_without_data_errors() {
+    let c = healthy(30);
+    let checked = check_series(&c, &AlwaysOpen, &cfg());
+    assert_eq!(checked.candles, c);
+    assert!(checked.issues.is_empty() && checked.data_errors.is_empty());
+}
+
+#[test]
+fn suspicious_candles_are_discarded_and_mark_a_data_error() {
+    let mut c = healthy(30);
+    c[10].low = dec!(0);
+    c.insert(20, c[19].clone()); // duplicada
+    let checked = check_series(&c, &AlwaysOpen, &cfg());
+    assert_eq!(checked.candles.len(), 29);
+    assert!(!checked.candles.contains(&c[10]));
+    // De la duplicada queda una sola copia.
+    assert_eq!(checked.candles.iter().filter(|x| **x == c[19]).count(), 1);
+    assert_eq!(checked.data_errors, vec![c[10].start, c[19].start]);
+}
+
+#[test]
+fn a_gap_marks_the_first_missing_candle_and_keeps_the_next_one() {
+    let mut c = healthy(30);
+    let missing = c[12].start;
+    c.remove(12);
+    let checked = check_series(&c, &AlwaysOpen, &cfg());
+    assert_eq!(checked.candles, c, "la vela después del hueco sirve");
+    assert_eq!(checked.data_errors, vec![missing]);
+    // Con el mercado cerrado en el medio no falta nada: no es un error.
+    assert!(
+        check_series(&c, &ClosedInBetween, &cfg())
+            .data_errors
+            .is_empty()
+    );
+}
+
+#[test]
+fn a_candle_with_several_problems_is_one_data_error() {
+    // Precio 0 y, con el ATR ya calculado, también un salto sospechoso: una sola marca.
+    let mut c = healthy(30);
+    c[25].low = dec!(0);
+    let checked = check_series(&c, &AlwaysOpen, &cfg());
+    assert!(checked.issues.iter().filter(|i| i.index == 25).count() >= 2);
+    assert_eq!(checked.data_errors, vec![c[25].start]);
+    assert_eq!(checked.candles.len(), 29);
 }
