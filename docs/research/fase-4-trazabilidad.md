@@ -111,7 +111,7 @@ Las reglas de cortos son el **espejo exacto** de las de largos (spec §5). Cada 
 |---|---|---|
 | 1. Fuera de horario | `crates/backtest/tests/runner.rs::no_decision_outside_the_entry_window`, `crates/market-data/tests/trading_window.rs::weekends_and_holidays_have_no_entries` | ✅ |
 | 2. Noticia de alto impacto a ±15 min | #91 | ⏳ |
-| 3. Spread > 2 × su promedio de 20 días a esa hora | #90 | ⏳ |
+| 3. Spread > 2 × su promedio de 20 días a esa hora (hora local de la bolsa); sin dato o sin historia suficiente no se abre | `crates/market-data/tests/spread_filter.rs::more_than_twice_the_average_blocks_and_exactly_twice_does_not`, `crates/market-data/tests/spread_filter.rs::only_the_last_20_days_count`, `crates/market-data/tests/spread_filter.rs::other_hours_do_not_count`, `crates/market-data/tests/spread_filter.rs::the_hour_is_local_to_the_exchange_across_daylight_saving`, `crates/market-data/tests/spread_filter.rs::without_enough_history_or_current_spread_it_does_not_open`, `crates/market-data/tests/spread_filter.rs::later_spreads_never_change_an_earlier_decision` | ✅ |
 | 4. Ya hay una posición en el instrumento | `crates/risk/tests/risk.rs::one_position_per_instrument`, `crates/backtest/tests/runner.rs::with_one_position_at_most_trades_never_overlap` | ✅ |
 | 5. Ya hay 5 posiciones abiertas | `crates/risk/tests/risk.rs::at_most_5_open_positions` | ✅ |
 | 6. Pérdida máxima del día o kill switch activo | `crates/risk/tests/risk.rs::daily_loss_of_3_percent_stops_new_entries`, `crates/risk/tests/risk.rs::kill_switch_blocks_everything`, `crates/backtest/tests/runner.rs::the_daily_loss_limit_blocks_the_rest_of_the_day` | ✅ |
@@ -155,7 +155,6 @@ Las reglas de cortos son el **espejo exacto** de las de largos (spec §5). Cada 
 
 | Issue | Qué falta |
 |---|---|
-| #90 | Filtro de spread (§7.3): comparar el spread de cierre con su promedio. El dato ya se guarda por vela (#95) |
 | #91 | Filtro de noticias de alto impacto (§7.2). La fuente del calendario es de la 4b |
 
 Fuera de la Fase 4, a propósito:
