@@ -238,6 +238,108 @@ pub(crate) mod tests {
         assert!(candle_patterns_at(&c, 6, &atr10(7), &cfg()).is_empty());
     }
 
+    /// Patrones de la vela 6 después de una caída (ATR = 10).
+    fn after_fall(o: Decimal, h: Decimal, l: Decimal, c: Decimal) -> Vec<CandlePattern> {
+        candle_patterns_at(&with_context(FALLING, (o, h, l, c)), 6, &atr10(7), &cfg())
+    }
+
+    // Spec §5.1, una condición del martillo por test: la vela queda justo en el borde (pasa) y
+    // después se corre 0,01 (no pasa). Todo lo demás de la vela cumple con margen.
+
+    #[test]
+    fn hammer_lower_wick_of_exactly_twice_the_body() {
+        // Cuerpo 4 (100 → 104), mecha inferior 8 = 2 × 4.
+        assert_eq!(
+            after_fall(dec!(100), dec!(104), dec!(92), dec!(104)),
+            vec![CandlePattern::Hammer]
+        );
+        assert!(after_fall(dec!(100), dec!(104), dec!(92.01), dec!(104)).is_empty());
+    }
+
+    #[test]
+    fn hammer_upper_wick_of_at_most_30_percent_of_the_range() {
+        // Rango 20 (87 → 107), mecha superior 6 = 0,3 × 20.
+        assert_eq!(
+            after_fall(dec!(100), dec!(107), dec!(87), dec!(101)),
+            vec![CandlePattern::Hammer]
+        );
+        assert!(after_fall(dec!(100), dec!(107.01), dec!(87), dec!(101)).is_empty());
+    }
+
+    #[test]
+    fn hammer_body_of_at_least_5_percent_of_the_range() {
+        // Rango 20 (81 → 101), cuerpo 1 = 0,05 × 20.
+        assert_eq!(
+            after_fall(dec!(100), dec!(101), dec!(81), dec!(101)),
+            vec![CandlePattern::Hammer]
+        );
+        assert!(after_fall(dec!(100), dec!(101), dec!(80.99), dec!(101)).is_empty());
+    }
+
+    #[test]
+    fn hammer_range_of_at_least_half_the_atr() {
+        // Rango 5 (96 → 101) = 0,5 × ATR(10).
+        assert_eq!(
+            after_fall(dec!(100), dec!(101), dec!(96), dec!(101)),
+            vec![CandlePattern::Hammer]
+        );
+        assert!(after_fall(dec!(100), dec!(101), dec!(96.01), dec!(101)).is_empty());
+    }
+
+    #[test]
+    fn hammer_prior_fall_is_strict() {
+        // caída_previa = C[t−1] < C[t−6]: con los dos cierres iguales no hay caída.
+        let hammer = (dec!(100), dec!(101.5), dec!(91), dec!(101));
+        let flat = with_context([100, 102, 101, 103, 104, 100], hammer);
+        assert!(candle_patterns_at(&flat, 6, &atr10(7), &cfg()).is_empty());
+        let mut fell = flat.clone();
+        fell[0].close = dec!(100.01);
+        assert_eq!(
+            candle_patterns_at(&fell, 6, &atr10(7), &cfg()),
+            vec![CandlePattern::Hammer]
+        );
+    }
+
+    /// Envolvente sobre una vela anterior bajista de 105 → 100 (cuerpo 5).
+    fn over_bearish(o: Decimal, c: Decimal) -> Vec<CandlePattern> {
+        let v = vec![
+            bar(0, dec!(105), dec!(106), dec!(99), dec!(100)),
+            bar(1, o, o.max(c) + dec!(1), o.min(c) - dec!(1), c),
+        ];
+        candle_patterns_at(&v, 1, &atr10(2), &cfg())
+    }
+
+    #[test]
+    fn engulfing_open_and_close_edges_are_inclusive() {
+        // O[t] = C[t−1] vale; un centésimo arriba, no.
+        assert_eq!(
+            over_bearish(dec!(100), dec!(106)),
+            vec![CandlePattern::BullishEngulfing]
+        );
+        assert!(over_bearish(dec!(100.01), dec!(106)).is_empty());
+        // C[t] = O[t−1] vale; un centésimo abajo, no.
+        assert_eq!(
+            over_bearish(dec!(99), dec!(105)),
+            vec![CandlePattern::BullishEngulfing]
+        );
+        assert!(over_bearish(dec!(99), dec!(104.99)).is_empty());
+    }
+
+    #[test]
+    fn engulfing_needs_a_strictly_bigger_body() {
+        // Cubre la vela anterior justo en los dos bordes, pero el cuerpo es igual (5 = 5).
+        assert!(over_bearish(dec!(100), dec!(105)).is_empty());
+    }
+
+    #[test]
+    fn engulfing_needs_a_bearish_candle_before() {
+        let v = vec![
+            bar(0, dec!(100), dec!(106), dec!(99), dec!(100)), // sin cuerpo
+            bar(1, dec!(99), dec!(108), dec!(98), dec!(107)),
+        ];
+        assert!(candle_patterns_at(&v, 1, &atr10(2), &cfg()).is_empty());
+    }
+
     #[test]
     fn long_and_short_patterns_are_labeled() {
         assert!(CandlePattern::Hammer.is_long() && CandlePattern::BullishEngulfing.is_long());
