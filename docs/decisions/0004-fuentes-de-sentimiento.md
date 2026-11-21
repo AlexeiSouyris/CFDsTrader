@@ -1,7 +1,7 @@
 # 0004 – Fuentes de sentimiento: vía legal de acceso
 
 - **Estado:** propuesta
-- **Fecha:** 2026-11-20
+- **Fecha:** 2026-11-20 (actualizada el 21-11-2026: enfoque de medidas propias)
 - **Aprobada por:** pendiente (las dos personas)
 - **Issue:** #26 (relacionado: #25, #27, ADR 0003 §C.4)
 
@@ -72,18 +72,35 @@ Todo lo que sigue se leyó en los **sitios oficiales** el 20-11-2026, con las ci
 
 No evaluado en este ADR. Necesita su propia revisión de términos y habilitar sus hosts.
 
-## Decisión (propuesta)
+### 7. Medidas propias calculadas desde los precios (enfoque FI, 21-11-2026)
+
+El dueño propuso **no pagar fuentes externas** y construir lo nuestro donde se pueda. Los datos crudos no se pueden fabricar: alguien tuvo que registrarlos en su momento. Pero sí se pueden **calcular medidas de miedo y euforia** a partir de los precios que el sistema ya necesita. No hace falta licencia aparte, porque salen de los precios con fuente documentada (IG, ADR 0002, y los del ADR 0005).
+
+| Medida | Definición (a fijar en la spec §9 antes de mirar datos) | Sentido | Datos que necesita |
+|---|---|---|---|
+| Volatilidad realizada | Desvío de los retornos diarios de los últimos N días, frente a su propia historia | invertido (alta = miedo) | Velas diarias del índice |
+| Caída desde el máximo | (cierre − máximo de los últimos N días) / máximo | invertido | Velas diarias del índice |
+| Amplitud (*breadth*) | % de las empresas del NASDAQ 100 **de esa fecha** con cierre por encima de su SMA50 | + = euforia | Componentes por fecha (ADR 0005) y sus precios diarios |
+| Nuevos máximos y mínimos | (empresas en máximo de 52 semanas − empresas en mínimo de 52 semanas) / total | + = euforia | Ídem |
+
+- **Regla de oro (CLAUDE.md §1):** son indicadores calculados desde precios, así que **se calculan solo en Rust**. Python los lee para armar el índice del #25.
+- **Lo que no reemplazan:** el VIX es volatilidad **implícita**, que sale de opciones. No se puede reconstruir sin datos de opciones: la volatilidad realizada es otra medida, parecida pero no igual. Tampoco miden opinión, como la AAII: miden comportamiento del precio.
+- **Riesgo de circularidad:** al salir del precio, pueden repetir lo que la estrategia ya ve. Por eso se validan en la fase 5 contra no usarlas, como todo el contexto (ADR 0003 §C), antes de sumar puntos.
+- **Historia:** la que tengan los precios. Con velas diarias de 5 años de los índices (ADR 0005) se pueden calcular desde ya las dos primeras. La amplitud y los máximos y mínimos dependen de los precios de los componentes, que siguen pendientes en el ADR 0005.
+
+## Decisión (propuesta, actualizada el 21-11-2026 con el enfoque FI)
+
+**Principio:** fuentes gratuitas con vía legal clara, más medidas propias calculadas por nosotros. No se paga ninguna fuente en v1.
 
 1. **COT (CFTC): aceptar.** Usar TFF, futuros solamente. El dato del martes vale desde el viernes a las 15:30 hora del Este.
-2. **VIX y put/call (Cboe): no se cargan hasta que el grupo decida** la vía legal. Los términos de Cboe permiten una copia para uso personal no comercial y prohíben guardarla en un sistema de recuperación electrónico. Una base de datos que alimenta un sistema de trading de un fondo de varias personas probablemente no entra en "uso personal no comercial". Opciones:
-   - **a.** Licencia o suscripción de Cboe (DataShop u otra) que cubra este uso: tiene costo.
-   - **b.** Pedirle a Cboe una confirmación escrita de que este uso entra en sus términos.
-   - **c.** Prescindir de Cboe en el índice v1.
-
-   Para el VIX hay además una alternativa a evaluar: los proveedores de datos de mercado del #10, si su licencia lo incluye.
-3. **AAII: pendiente.** Una persona confirma en el navegador el acceso y los términos. Sin eso, AAII no entra.
-4. **IG: aceptado** (ya en marcha, #27). Por falta de historia, va **fuera del índice v1** y solo sirve para H3 con umbrales absolutos, como propuso el #25.
-5. **Índice v1 (#25):** con lo verificado hoy, la única fuente con historia legal y suficiente es la **COT**. Hasta resolver los puntos 2 y 3, el índice v1 se reduce a COT, o se pospone. Lo deciden las dos personas.
+2. **IG, sentimiento de clientes: aceptado** (ya en marcha, #27). No hay historia: se graba desde el 20-11-2026. Va **fuera del índice v1** hasta tener 3 años, y sirve para H3 con umbrales absolutos, como propuso el #25.
+3. **Medidas propias desde precios (sección 7): aceptar** para el índice v1.
+   - Volatilidad realizada y caída desde el máximo: con los índices.
+   - Amplitud y nuevos máximos y mínimos: cuando estén los precios de los componentes (ADR 0005).
+   - Se calculan en Rust y se definen en la spec §9 **antes** de mirar los datos.
+4. **VIX y put/call (Cboe): fuera de v1.** Los términos de Cboe no cubren este uso, y una licencia tiene costo. Se reconsidera solo si las medidas propias no alcanzan en la fase 5.
+5. **AAII: fuera de v1.** Su sitio bloquea el acceso automático y no se esquiva.
+6. **Índice v1 (#25):** COT + medidas propias desde precios. IG entra cuando tenga historia. La fórmula del percentil sobre 3 años del #25 no cambia: cambian los componentes. El #25 tiene que ajustar su tabla de fuentes y sus hipótesis antes de mirar datos.
 
 ## Alternativas consideradas
 
@@ -93,7 +110,9 @@ No evaluado en este ADR. Necesita su propia revisión de términos y habilitar s
 
 ## Consecuencias
 
-- Ninguna serie de Cboe ni de AAII se descarga ni se guarda hasta que este ADR se apruebe con la vía elegida.
-- La ingesta de la COT (Python, `intelligence/cfds_intel/sentiment`, según el #25) puede empezar cuando se apruebe este ADR. Necesita habilitar `www.cftc.gov` en la red del entorno; ya está permitido desde el 20-11-2026.
-- Las observaciones se guardan en `sentiment_observations` (`contracts/sentiment_observation.v1`, #27), con `observed_for` (el martes) y `published_at` (el viernes a las 15:30 hora del Este, en UTC).
-- El #25 tiene que ajustar su alcance a las fuentes que efectivamente se aprueben acá.
+- **Costo cero en fuentes** para el índice v1.
+- **Ninguna serie de Cboe ni de AAII** se descarga ni se guarda.
+- **Ingesta de la COT:** Python, `intelligence/cfds_intel/sentiment`, según el #25. Puede empezar cuando se apruebe este ADR. Necesita `www.cftc.gov` en la red del entorno, que ya está permitido desde el 20-11-2026.
+- **Medidas propias:** son indicadores nuevos en Rust, cada uno con su Issue, su definición en la spec §9 y sus tests de calentamiento y sin repintado.
+- **Dónde se guardan:** las observaciones de fuentes externas van a `sentiment_observations` (`contracts/sentiment_observation.v1`, #27), con `observed_for` y `published_at`. Las medidas propias se publican como cualquier indicador del motor.
+- **El #25** tiene que ajustar su alcance a lo aprobado acá.
