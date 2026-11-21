@@ -391,6 +391,13 @@ async fn spreads_roundtrip_and_are_never_overwritten() {
         s.insert_spreads(&changed).await,
         Err(StorageError::Conflict { start, .. }) if start == sp[0].start
     ));
+    // El mismo valor de otra fuente tampoco pisa al guardado.
+    let mut other_source = sp[..1].to_vec();
+    other_source[0].source = "otra_fuente".into();
+    assert!(matches!(
+        s.insert_spreads(&other_source).await,
+        Err(StorageError::Conflict { .. })
+    ));
     assert_eq!(
         s.spreads(&us, Timeframe::M15, t0(), t0() + TimeDelta::days(1))
             .await
