@@ -1,8 +1,8 @@
 # 0004 – Fuentes de sentimiento: vía legal de acceso
 
-- **Estado:** propuesta
+- **Estado:** aceptada
 - **Fecha:** 2026-11-20 (actualizada el 21-11-2026: enfoque de medidas propias)
-- **Aprobada por:** pendiente (las dos personas)
+- **Aprobada por:** las dos personas, el 21-11-2026 (informado por el dueño)
 - **Issue:** #26 (relacionado: #25, #27, ADR 0003 §C.4)
 
 ## Contexto
