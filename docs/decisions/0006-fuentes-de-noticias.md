@@ -1,8 +1,8 @@
 # 0006 – Fuentes de noticias y calendario económico: oficiales y sin costo
 
-- **Estado:** propuesta
+- **Estado:** aceptada
 - **Fecha:** 2026-11-21
-- **Aprobada por:** pendiente (las dos personas)
+- **Aprobada por:** las dos personas, el 21-11-2026 (informado por el dueño)
 - **Issue:** #106 (relacionado: #99, #91, spec §9, ADR 0004)
 
 ## Contexto

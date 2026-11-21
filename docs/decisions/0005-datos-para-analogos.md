@@ -1,8 +1,8 @@
 # 0005 – Datos para análogos: componentes históricos del NASDAQ 100 y precios
 
-- **Estado:** propuesta
+- **Estado:** aceptada
 - **Fecha:** 2026-11-20 (actualizada el 21-11-2026: análogos v1 con diarias de los índices de IG)
-- **Aprobada por:** pendiente (las dos personas)
+- **Aprobada por:** las dos personas, el 21-11-2026 (informado por el dueño)
 - **Issue:** #10
 
 > El número 0004 queda reservado para las fuentes de sentimiento (#26).
