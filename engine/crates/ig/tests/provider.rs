@@ -18,6 +18,7 @@ use tokio::time::Instant;
 const CONFIG: &str = include_str!("../../../../config/ig.toml");
 const SESSION: &str = include_str!("fixtures/session_v2.json");
 const DE40_15M: &str = include_str!("fixtures/prices_de40_15m.json");
+const DAILY: &str = include_str!("fixtures/prices_daily_synthetic.json");
 const US100_1H: [&str; 3] = [
     include_str!("fixtures/prices_us100_1h_p1.json"),
     include_str!("fixtures/prices_us100_1h_p2.json"),
@@ -660,6 +661,128 @@ async fn candles_and_spreads_come_from_a_single_request() {
         );
         assert_eq!((s.spread, s.source.as_str()), (dec!(1.4), "ig_demo"));
     }
+}
+
+fn day(s: &str) -> chrono::NaiveDate {
+    s.parse().unwrap()
+}
+
+#[tokio::test(start_paused = true)]
+async fn daily_candles_run_from_local_midnight_to_local_midnight() {
+    let t = Recorded::default().login().ok(DAILY);
+    let daily = provider(&t, cfg())
+        .daily_history(&de40(), day("2026-10-23"), day("2026-10-28"))
+        .await
+        .unwrap()
+        .candles;
+    // Un solo pedido de precios, con la resolución diaria documentada.
+    let sent = t.sent();
+    assert_eq!(sent.len(), 2);
+    assert!(sent[1].path.contains("resolution=DAY"), "{}", sent[1].path);
+    let days: Vec<_> = daily.iter().map(|c| (c.day, c.start, c.end)).collect();
+    assert_eq!(
+        days,
+        vec![
+            (
+                day("2026-10-23"),
+                at("2026-10-22T22:00:00Z"),
+                at("2026-10-23T22:00:00Z")
+            ),
+            (
+                day("2026-10-26"),
+                at("2026-10-25T23:00:00Z"),
+                at("2026-10-26T23:00:00Z")
+            ),
+            (
+                day("2026-10-27"),
+                at("2026-10-26T23:00:00Z"),
+                at("2026-10-27T23:00:00Z")
+            ),
+        ]
+    );
+    // Precio medio exacto: (100 + 101) / 2.
+    assert_eq!((daily[0].open, daily[0].close), (dec!(100.5), dec!(102.5)));
+    // Los días fuera de [from, to) no entran.
+    let t = Recorded::default().login().ok(DAILY);
+    let some = provider(&t, cfg())
+        .daily_history(&de40(), day("2026-10-26"), day("2026-10-27"))
+        .await
+        .unwrap()
+        .candles;
+    assert_eq!(
+        some.iter().map(|c| c.day).collect::<Vec<_>>(),
+        [day("2026-10-26")]
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_day_with_all_prices_empty_is_not_a_candle_but_a_partial_one_is_an_error() {
+    // Medido en la demo: IG manda el sábado 26-02-2022 con todos los precios en null. En la
+    // fixture sintética se vacía el lunes 26-10 para probar la regla.
+    let side = |s: &str| {
+        s.replace(r#""bid": 110.0"#, r#""bid": null"#)
+            .replace(r#""ask": 111.0"#, r#""ask": null"#)
+    };
+    let monday_open = DAILY.find("2026-10-25T23:00:00").unwrap();
+    let (before, after) = DAILY.split_at(monday_open);
+    let next = after.find("snapshotTime\"").unwrap_or(after.len());
+    let (monday, rest) = after.split_at(next);
+    // Todos los precios del lunes en null (open 110/111; high, low y close también).
+    let all_empty = format!(
+        "{before}{}{rest}",
+        monday
+            .replace(r#""bid": 110.0"#, "\"bid\": null")
+            .replace(r#""ask": 111.0"#, "\"ask\": null")
+            .replace(r#""bid": 112.0"#, "\"bid\": null")
+            .replace(r#""ask": 113.0"#, "\"ask\": null")
+            .replace(r#""bid": 115.0"#, "\"bid\": null")
+            .replace(r#""ask": 116.0"#, "\"ask\": null")
+            .replace(r#""bid": 105.0"#, "\"bid\": null")
+            .replace(r#""ask": 106.0"#, "\"ask\": null")
+    );
+    assert_eq!(
+        all_empty.matches("null").count() - DAILY.matches("null").count(),
+        8
+    );
+    let t = Recorded::default().login().ok(&all_empty);
+    let h = provider(&t, cfg())
+        .daily_history(&de40(), day("2026-10-23"), day("2026-10-28"))
+        .await
+        .unwrap();
+    assert_eq!(h.empty_days, [day("2026-10-26")]);
+    assert_eq!(
+        h.candles.iter().map(|c| c.day).collect::<Vec<_>>(),
+        [day("2026-10-23"), day("2026-10-27")]
+    );
+
+    // Solo el open del lunes vacío: no se inventa, es un error.
+    let partial = format!("{before}{}{rest}", side(monday));
+    let t = Recorded::default().login().ok(&partial);
+    let err = provider(&t, cfg())
+        .daily_history(&de40(), day("2026-10-23"), day("2026-10-28"))
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, ProviderError::InvalidResponse(ref m) if m.contains("openPrice")),
+        "{err}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_daily_candle_off_local_midnight_is_an_error() {
+    // Si IG cambiara la zona de la cuenta, la vela de las 23:00 UTC del 25-10 (medianoche en
+    // invierno) llegaría a otra hora. No se supone nada: es un error.
+    let moved = DAILY.replacen("2026-10-25T23:00:00", "2026-10-25T22:00:00", 1);
+    assert_ne!(moved, DAILY);
+    let t = Recorded::default().login().ok(&moved);
+    let err = provider(&t, cfg())
+        .daily_history(&de40(), day("2026-10-23"), day("2026-10-28"))
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, ProviderError::InvalidResponse(ref m) if m.contains("medianoche")),
+        "{err}"
+    );
 }
 
 #[tokio::test(start_paused = true)]

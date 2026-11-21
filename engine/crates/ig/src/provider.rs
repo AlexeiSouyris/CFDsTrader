@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, VecDeque};
 use cfds_core::spread::IG_DEMO;
 use cfds_core::{Candle, CandleSpread, InstrumentId, Timeframe};
 use cfds_market_data::{Catalog, MarketDataProvider, ProviderError, Sourced};
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, NaiveDate, TimeDelta, Utc};
 use rust_decimal::Decimal;
 use tokio::sync::Mutex;
 use tokio::time::{Duration, Instant, sleep, sleep_until};
@@ -326,7 +326,7 @@ impl<T: Transport> IgProvider<T> {
     async fn prices(
         &self,
         epic: &str,
-        timeframe: Timeframe,
+        resolution: Resolution,
         from: DateTime<Utc>,
         to: DateTime<Utc>,
         window: Window,
@@ -343,7 +343,7 @@ impl<T: Transport> IgProvider<T> {
             ),
             Window::Exact => (TimeDelta::zero(), to - TimeDelta::seconds(1)),
         };
-        let needed = model::estimated_points(from, query_to, timeframe, margin);
+        let needed = model::estimated_points_step(from, query_to, resolution.step, margin);
         let mut st = self.state.lock().await;
         // Si el pedido no entra en el cupo semanal, ni se hace: gastaría el cupo a medias.
         let remaining = match st.allowance {
@@ -366,8 +366,7 @@ impl<T: Transport> IgProvider<T> {
                 let (f, t) = model::local_query_range(from, query_to, offset, margin);
                 format!(
                     "/prices/{epic}?resolution={}&from={f}&to={t}&pageSize={}&pageNumber={page}",
-                    model::resolution(timeframe),
-                    self.cfg.page_size
+                    resolution.name, self.cfg.page_size
                 )
             };
             let resp = self.get(&mut st, path, 3, epic).await?;
@@ -399,7 +398,7 @@ impl<T: Transport> IgProvider<T> {
         window: Window,
     ) -> Result<Vec<Candle>, ProviderError> {
         let raw = self
-            .prices(self.epic(instrument)?, timeframe, from, to, window)
+            .prices(self.epic(instrument)?, timeframe.into(), from, to, window)
             .await?;
         model::to_candles(&raw, instrument, timeframe, from, to)
             .map_err(ProviderError::InvalidResponse)
@@ -415,7 +414,13 @@ impl<T: Transport> IgProvider<T> {
         to: DateTime<Utc>,
     ) -> Result<Vec<(DateTime<Utc>, Decimal)>, ProviderError> {
         let raw = self
-            .prices(self.epic(instrument)?, timeframe, from, to, Window::Padded)
+            .prices(
+                self.epic(instrument)?,
+                timeframe.into(),
+                from,
+                to,
+                Window::Padded,
+            )
             .await?;
         model::close_spreads(&raw, timeframe, from, to).map_err(ProviderError::InvalidResponse)
     }
@@ -431,7 +436,13 @@ impl<T: Transport> IgProvider<T> {
         to: DateTime<Utc>,
     ) -> Result<(Vec<Candle>, Vec<CandleSpread>), ProviderError> {
         let raw = self
-            .prices(self.epic(instrument)?, timeframe, from, to, Window::Padded)
+            .prices(
+                self.epic(instrument)?,
+                timeframe.into(),
+                from,
+                to,
+                Window::Padded,
+            )
             .await?;
         let candles = model::to_candles(&raw, instrument, timeframe, from, to)
             .map_err(ProviderError::InvalidResponse)?;
@@ -447,6 +458,43 @@ impl<T: Transport> IgProvider<T> {
             })
             .collect();
         Ok((candles, spreads))
+    }
+
+    /// Velas diarias (#103) con día local en `[from, to)`, en la zona de la cuenta
+    /// (`history.prices_timezone`). Cada vela se controla contra esa zona: si IG mandara otros
+    /// límites, es un error y no se guarda nada. Cuesta ~1 punto del cupo semanal por día.
+    pub async fn daily_history(
+        &self,
+        instrument: &InstrumentId,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<model::DailyHistory, ProviderError> {
+        let tz = self.cfg.prices_tz;
+        let bound = |d: NaiveDate| {
+            cfds_market_data::local_day_bounds(d, tz)
+                .map(|(start, _)| start)
+                .ok_or_else(|| {
+                    ProviderError::InvalidResponse(format!("{d}: sin medianoche en {tz}"))
+                })
+        };
+        let raw = self
+            .prices(
+                self.epic(instrument)?,
+                DAY,
+                bound(from)?,
+                bound(to)?,
+                Window::Padded,
+            )
+            .await?;
+        model::to_daily_candles(
+            &raw,
+            instrument,
+            from,
+            to,
+            tz,
+            self.cfg.daily_start_tolerance,
+        )
+        .map_err(ProviderError::InvalidResponse)
     }
 
     /// % de clientes de IG con posición larga en cada instrumento (#27), con un solo pedido a
@@ -520,6 +568,29 @@ impl<T: Transport> MarketDataProvider for IgProvider<T> {
             .await
     }
 }
+
+/// Resolución de `GET /prices/{epic}`: el nombre de IG y el largo nominal de cada vela, que
+/// sirve para estimar el cupo semanal antes de pedir.
+#[derive(Debug, Clone, Copy)]
+struct Resolution {
+    name: &'static str,
+    step: TimeDelta,
+}
+
+impl From<Timeframe> for Resolution {
+    fn from(tf: Timeframe) -> Self {
+        Self {
+            name: model::resolution(tf),
+            step: tf.duration(),
+        }
+    }
+}
+
+/// `resolution=DAY` (documentada en labs.ig.com/reference/prices-epic.html).
+const DAY: Resolution = Resolution {
+    name: "DAY",
+    step: TimeDelta::days(1),
+};
 
 /// Cómo se arma el rango que se le pide a IG.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
