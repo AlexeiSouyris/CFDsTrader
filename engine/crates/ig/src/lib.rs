@@ -23,6 +23,6 @@ pub mod transport;
 
 pub use config::{DEMO_BASE_URL, IgConfig, IgConfigError, LiveConfig};
 pub use credentials::{Credentials, MissingEnv, Secret, api_key_from_env};
-pub use model::{MarketTerms, median};
+pub use model::{DailyHistory, MarketTerms, median};
 pub use provider::{IgProvider, Recent, epics_from_catalog};
 pub use transport::{HttpRequest, HttpResponse, Method, ReqwestTransport, Transport};

@@ -1,0 +1,93 @@
+{
+  "prices": [
+    {
+      "snapshotTime": "2026/10/23 00:00:00",
+      "snapshotTimeUTC": "2026-10-22T22:00:00",
+      "openPrice": {
+        "bid": 100.0,
+        "ask": 101.0,
+        "lastTraded": null
+      },
+      "closePrice": {
+        "bid": 102.0,
+        "ask": 103.0,
+        "lastTraded": null
+      },
+      "highPrice": {
+        "bid": 105.0,
+        "ask": 106.0,
+        "lastTraded": null
+      },
+      "lowPrice": {
+        "bid": 95.0,
+        "ask": 96.0,
+        "lastTraded": null
+      },
+      "lastTradedVolume": 0
+    },
+    {
+      "snapshotTime": "2026/10/26 00:00:00",
+      "snapshotTimeUTC": "2026-10-25T23:00:00",
+      "openPrice": {
+        "bid": 110.0,
+        "ask": 111.0,
+        "lastTraded": null
+      },
+      "closePrice": {
+        "bid": 112.0,
+        "ask": 113.0,
+        "lastTraded": null
+      },
+      "highPrice": {
+        "bid": 115.0,
+        "ask": 116.0,
+        "lastTraded": null
+      },
+      "lowPrice": {
+        "bid": 105.0,
+        "ask": 106.0,
+        "lastTraded": null
+      },
+      "lastTradedVolume": 0
+    },
+    {
+      "snapshotTime": "2026/10/27 00:00:00",
+      "snapshotTimeUTC": "2026-10-26T23:00:00",
+      "openPrice": {
+        "bid": 120.0,
+        "ask": 121.0,
+        "lastTraded": null
+      },
+      "closePrice": {
+        "bid": 122.0,
+        "ask": 123.0,
+        "lastTraded": null
+      },
+      "highPrice": {
+        "bid": 125.0,
+        "ask": 126.0,
+        "lastTraded": null
+      },
+      "lowPrice": {
+        "bid": 115.0,
+        "ask": 116.0,
+        "lastTraded": null
+      },
+      "lastTradedVolume": 0
+    }
+  ],
+  "instrumentType": "INDICES",
+  "metadata": {
+    "allowance": {
+      "remainingAllowance": 9990,
+      "totalAllowance": 10000,
+      "allowanceExpiry": 604799
+    },
+    "size": 3,
+    "pageData": {
+      "pageSize": 500,
+      "pageNumber": 1,
+      "totalPages": 1
+    }
+  }
+}

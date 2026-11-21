@@ -7,8 +7,8 @@
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
-use cfds_core::{Candle, InstrumentId, Timeframe};
-use chrono::{DateTime, NaiveDateTime, TimeDelta, Utc};
+use cfds_core::{Candle, DailyCandle, InstrumentId, Timeframe};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, TimeDelta, Utc};
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use serde_json::value::RawValue;
@@ -164,6 +164,73 @@ pub fn to_candles(
         });
     }
     Ok(out)
+}
+
+/// Velas diarias de IG ya convertidas, y los días que IG mandó **vacíos** (todos los precios en
+/// `null`: no hubo operaciones, por ejemplo un sábado). Un día vacío no es una vela: no se
+/// inventa. Si la bolsa tenía sesión ese día, `validate_daily` lo marca como faltante.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DailyHistory {
+    pub candles: Vec<DailyCandle>,
+    pub empty_days: Vec<NaiveDate>,
+}
+
+impl BidAsk {
+    fn is_empty(&self) -> bool {
+        self.bid.is_none() && self.ask.is_none()
+    }
+}
+
+/// Velas diarias (`resolution=DAY`, #103) con día local en `[from, to)`. Cada vela tiene que
+/// empezar a medianoche local en `tz` (la zona de la cuenta): si no, es un error y no se
+/// supone nada. Precio medio exacto, igual que [`to_candles`]. Una vela con **algunos** precios
+/// vacíos es un error; con **todos** vacíos, es un día sin operaciones (`empty_days`).
+pub fn to_daily_candles(
+    prices: &[RawPrice],
+    instrument: &InstrumentId,
+    from: NaiveDate,
+    to: NaiveDate,
+    tz: chrono_tz::Tz,
+    tolerance: TimeDelta,
+) -> Result<DailyHistory, String> {
+    let mut out = Vec::new();
+    let mut empty_days = Vec::new();
+    for p in prices {
+        let at = p.snapshot_time_utc.as_str();
+        let start = NaiveDateTime::parse_from_str(at, SNAPSHOT_UTC_FORMAT)
+            .map_err(|_| format!("snapshotTimeUTC inválido: {at:?}"))?
+            .and_utc();
+        let Some((day, end)) = cfds_market_data::daily_bounds(start, tz, tolerance) else {
+            return Err(format!(
+                "vela diaria {at} no empieza a medianoche en {tz} (ni dentro de la tolerancia)"
+            ));
+        };
+        if day < from || day >= to {
+            continue;
+        }
+        if [&p.open, &p.high, &p.low, &p.close]
+            .iter()
+            .all(|x| x.is_empty())
+        {
+            empty_days.push(day);
+            continue;
+        }
+        out.push(DailyCandle {
+            instrument_id: instrument.clone(),
+            day,
+            start,
+            end,
+            open: p.open.mid("openPrice", at)?,
+            high: p.high.mid("highPrice", at)?,
+            low: p.low.mid("lowPrice", at)?,
+            close: p.close.mid("closePrice", at)?,
+            volume: None,
+        });
+    }
+    Ok(DailyHistory {
+        candles: out,
+        empty_days,
+    })
 }
 
 /// Condiciones del contrato según `GET /markets/{epic}` v3 (#67).
@@ -383,8 +450,18 @@ pub fn estimated_points(
     tf: Timeframe,
     margin: TimeDelta,
 ) -> u64 {
+    estimated_points_step(from, to, tf.duration(), margin)
+}
+
+/// Igual que [`estimated_points`], con el largo nominal de cada vela (para la resolución diaria).
+pub fn estimated_points_step(
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+    step: TimeDelta,
+    margin: TimeDelta,
+) -> u64 {
     let span = (to - from) + margin * 2;
-    let step = tf.duration().num_seconds();
+    let step = step.num_seconds();
     u64::try_from(span.num_seconds().max(0) / step + 1).unwrap_or(u64::MAX)
 }
 

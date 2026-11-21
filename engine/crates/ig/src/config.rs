@@ -2,6 +2,8 @@
 
 use std::time::Duration;
 
+use chrono::TimeDelta;
+
 use cfds_core::Timeframe;
 use serde::Deserialize;
 
@@ -30,6 +32,10 @@ pub struct IgConfig {
     pub max_backoff: Duration,
     pub page_size: u32,
     pub local_time_margin_hours: u32,
+    /// Zona de la cuenta: límites de las velas diarias (#103).
+    pub prices_tz: chrono_tz::Tz,
+    /// Demora máxima del inicio de la vela diaria (#103).
+    pub daily_start_tolerance: TimeDelta,
     pub live: LiveConfig,
     /// Cada cuánto se graba el sentimiento de clientes de IG (#27).
     pub sentiment_interval: Duration,
@@ -98,6 +104,8 @@ struct RawRetry {
 struct RawHistory {
     page_size: u32,
     local_time_margin_hours: u32,
+    prices_timezone: String,
+    daily_start_tolerance_minutes: u32,
 }
 
 fn invalid(field: &'static str, problem: impl Into<String>) -> IgConfigError {
@@ -144,6 +152,11 @@ impl IgConfig {
                 "más de 24 h gasta cupo sin sentido",
             ));
         }
+        let prices_tz: chrono_tz::Tz = r
+            .history
+            .prices_timezone
+            .parse()
+            .map_err(|_| invalid("history.prices_timezone", "zona horaria desconocida"))?;
         let mut timeframes = Vec::new();
         for t in &r.live.timeframes {
             let tf: Timeframe = t
@@ -200,6 +213,17 @@ impl IgConfig {
             max_backoff: Duration::from_secs(max),
             page_size: at_least_one("history.page_size", r.history.page_size)?,
             local_time_margin_hours: r.history.local_time_margin_hours,
+            prices_tz,
+            daily_start_tolerance: {
+                let m = r.history.daily_start_tolerance_minutes;
+                if m >= 24 * 60 {
+                    return Err(invalid(
+                        "history.daily_start_tolerance_minutes",
+                        "tiene que ser menor que un día",
+                    ));
+                }
+                TimeDelta::minutes(i64::from(m))
+            },
         })
     }
 
@@ -225,6 +249,8 @@ mod tests {
         assert_eq!(c.requests_per_minute, 30);
         assert_eq!(c.historical_points_per_week, 10_000);
         assert_eq!(c.max_attempts, 4);
+        assert_eq!(c.prices_tz, chrono_tz::Europe::Madrid);
+        assert_eq!(c.daily_start_tolerance, TimeDelta::hours(1));
     }
 
     #[test]
@@ -263,6 +289,11 @@ mod tests {
                 "local_time_margin_hours = 1",
                 "local_time_margin_hours = 25",
                 "history.local_time_margin_hours",
+            ),
+            (
+                "prices_timezone = \"Europe/Madrid\"",
+                "prices_timezone = \"Europe/Nowhere\"",
+                "history.prices_timezone",
             ),
             (
                 "non_trading_requests_per_minute = 30",

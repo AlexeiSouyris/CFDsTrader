@@ -36,6 +36,16 @@ page_size = 500
 # lado, por si el rango cruza un cambio de horario. Después se filtra el rango exacto en UTC.
 # Cuesta puntos del cupo semanal: 4 por lado en 15m, 1 por lado en 1h.
 local_time_margin_hours = 1
+# Zona de la cuenta de IG: las velas diarias (resolution=DAY) van de medianoche a medianoche en
+# esta zona (#103). Medido en la demo el 2026-11-21: la vela empieza a las 23:00 UTC en
+# noviembre y a las 22:00 UTC en julio (UTC+1 / UTC+2, Europa central). IG solo da el desfase
+# (`timezoneOffset`), no el nombre: cualquier zona de Europa central tiene las mismas reglas.
+# Cada vela diaria se controla contra esta zona: si no coincide, la carga falla.
+prices_timezone = "Europe/Madrid"
+# Demora máxima del inicio de la vela diaria después de la medianoche local. Medido: en la semana
+# siguiente al cambio de horario de marzo de 2022, IG siguió empezando a las 23:00 UTC (01:00
+# local) hasta el 2022-04-04. El cierre se toma como máx(medianoche siguiente, inicio + 24 h).
+daily_start_tolerance_minutes = 60
 
 # Modo en vivo (#68): cada vela se pide por REST apenas cierra, en modo exacto (1 punto por vela).
 # La Streaming API (Lightstreamer) no está disponible: la cuenta demo responde "Insufficient

@@ -10,6 +10,7 @@ publish.workspace = true
 cfds-core = { version = "0.1.0", path = "../core" }
 cfds-market-data = { version = "0.1.0", path = "../market-data" }
 chrono = { version = "0.4.45", default-features = false, features = ["std"] }
+chrono-tz = "0.10.4"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-native-roots"] }
 rust_decimal = "1.43.0"
 serde = { version = "1.0.229", features = ["derive"] }
