@@ -27,3 +27,7 @@ atr_buffer = "0.5"
 [evidence]
 # Período de la SMA de 15m ("precio del lado correcto de la SMA50", spec §6).
 sma_period = 50
+# Calentamiento (spec §3): ninguna señal hasta tener estas velas válidas de cada timeframe.
+# Se cuentan velas cerradas: la de 1h, recién cuando cerró (multi-timeframe).
+min_m15_candles = 200
+min_h1_candles = 60

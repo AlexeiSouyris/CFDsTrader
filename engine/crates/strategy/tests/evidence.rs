@@ -21,6 +21,14 @@ fn configs() -> Configs {
     }
 }
 
+/// Sin el calentamiento global de la spec §3, para medir solo el de cada indicador.
+fn configs_without_spec_warmup() -> Configs {
+    let mut c = configs();
+    c.strategy.evidence.min_m15_candles = 1;
+    c.strategy.evidence.min_h1_candles = 1;
+    c
+}
+
 fn t0() -> DateTime<Utc> {
     "2026-01-05T00:00:00Z".parse().unwrap()
 }
@@ -154,7 +162,7 @@ fn signals_are_coherent() {
 fn no_evidence_during_warmup() {
     let m15 = random_walk(600, 5);
     let h1 = resample_h1(&m15);
-    let a = Analysis::new(&m15, &h1, configs());
+    let a = Analysis::new(&m15, &h1, configs_without_spec_warmup());
     // La tendencia de 1h necesita 50 + 5 velas de 1h cerradas: 55 × 4 velas de 15m.
     for t in 0..(55 * 4 - 1) {
         for side in [Side::Long, Side::Short] {
@@ -167,6 +175,40 @@ fn no_evidence_during_warmup() {
     assert!((0..m15.len()).all(|t| none.evidence_at(t, Side::Long, 0).is_none()));
     // Fuera de la serie, tampoco.
     assert_eq!(a.evidence_at(m15.len(), Side::Long, 0), None);
+}
+
+#[test]
+fn the_spec_warmup_needs_200_candles_of_15m() {
+    // Spec §3. Con la historia de 1h completa, manda el mínimo de 15m: la vela 200 es la 199.
+    let walk = random_walk(1000, 5);
+    let h1 = resample_h1(&walk);
+    let m15 = &walk[400..];
+    let a = Analysis::new(m15, &h1, configs());
+    for side in [Side::Long, Side::Short] {
+        assert_eq!(a.evidence_at(198, side, 0), None);
+        assert!(a.evidence_at(199, side, 0).is_some());
+    }
+    assert!(!a.warmed_up(198) && a.warmed_up(199));
+}
+
+#[test]
+fn the_spec_warmup_needs_60_closed_candles_of_1h() {
+    // Spec §3. Las dos series empiezan juntas: la vela de 1h número 60 cierra con la de 15m 239.
+    // En la 238 ya hay 239 velas de 15m (≥ 200) pero solo 59 de 1h cerradas.
+    let m15 = random_walk(600, 5);
+    let h1 = resample_h1(&m15);
+    let a = Analysis::new(&m15, &h1, configs());
+    for side in [Side::Long, Side::Short] {
+        assert_eq!(a.evidence_at(238, side, 0), None);
+        assert!(a.evidence_at(239, side, 0).is_some());
+    }
+    // Una vela de 1h que todavía no cerró no cuenta, aunque esté en la serie.
+    assert!(!a.warmed_up(238) && a.warmed_up(239));
+    // Sin señal antes del calentamiento, aunque haya gatillos.
+    assert!(
+        (0..239).all(|t| a.signal_at(t, Side::Long, 0) == Ok(None)
+            && a.signal_at(t, Side::Short, 0) == Ok(None))
+    );
 }
 
 #[test]
@@ -312,7 +354,7 @@ fn with_1h_history_the_15m_sma_still_needs_its_warmup() {
     let h1 = resample_h1(&walk);
     // Las velas de 15m empiezan cuando la tendencia de 1h ya existe.
     let m15 = &walk[400..];
-    let a = Analysis::new(m15, &h1, configs());
+    let a = Analysis::new(m15, &h1, configs_without_spec_warmup());
     for t in 0..49 {
         assert_eq!(a.evidence_at(t, Side::Long, 0), None, "t = {t}");
     }
