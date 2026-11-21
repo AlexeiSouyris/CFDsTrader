@@ -155,7 +155,7 @@ Las reglas de cortos son el **espejo exacto** de las de largos (spec §5). Cada 
 
 | Issue | Qué falta |
 |---|---|
-| #90 | Filtro de spread (§7.3): guardar el spread por vela y comparar con su promedio |
+| #90 | Filtro de spread (§7.3): comparar el spread de cierre con su promedio. El dato ya se guarda por vela (#95) |
 | #91 | Filtro de noticias de alto impacto (§7.2). La fuente del calendario es de la 4b |
 
 Fuera de la Fase 4, a propósito:

@@ -637,6 +637,32 @@ async fn close_spreads_are_ask_minus_bid_at_each_close() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn candles_and_spreads_come_from_a_single_request() {
+    let (from, to) = (at("2026-11-20T09:00:00Z"), at("2026-11-20T10:00:00Z"));
+    let t = Recorded::default().login().ok(DE40_15M);
+    let (candles, spreads) = provider(&t, cfg())
+        .history_with_spreads(&de40(), Timeframe::M15, from, to)
+        .await
+        .unwrap();
+    // Un login y UN pedido de precios: el cupo semanal se paga una vez.
+    assert_eq!(t.sent().len(), 2);
+    let t2 = Recorded::default().login().ok(DE40_15M);
+    let alone = provider(&t2, cfg())
+        .history(&de40(), Timeframe::M15, from, to)
+        .await
+        .unwrap();
+    assert_eq!(candles, alone, "las mismas velas que `history`");
+    assert_eq!(spreads.len(), candles.len());
+    for (s, c) in spreads.iter().zip(&candles) {
+        assert_eq!(
+            (&s.instrument_id, s.timeframe, s.start),
+            (&c.instrument_id, c.timeframe, c.start)
+        );
+        assert_eq!((s.spread, s.source.as_str()), (dec!(1.4), "ig_demo"));
+    }
+}
+
+#[tokio::test(start_paused = true)]
 async fn recent_mode_asks_the_exact_range_without_margin() {
     let t = Recorded::default().login().ok(DE40_15M);
     let ig = provider(&t, cfg());

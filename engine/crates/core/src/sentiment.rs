@@ -44,7 +44,7 @@ fn required_option<'de, D: serde::Deserializer<'de>>(
 }
 
 /// Nombres de fuente y serie: `^[a-z][a-z0-9_]{0,31}$`, igual que el contrato.
-mod label {
+pub(crate) mod label {
     use serde::{Deserialize, Deserializer, Serializer, de::Error};
 
     pub fn is_valid(s: &str) -> bool {
