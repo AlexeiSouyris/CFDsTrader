@@ -23,9 +23,26 @@ name = ""
 # Digest de GET /api/tags del modelo elegido: si el instalado no coincide, no se interpreta.
 digest = ""
 
+# Texto oficial de cada noticia (ADR 0008 §4, decisión del dueño del 22-11-2026): el intérprete
+# lee el comunicado del enlace del RSS, no solo el título. El texto nunca se guarda ni se
+# republica (ADR 0006): solo queda la interpretación.
+[text]
+allowed_hosts = ["www.federalreserve.gov", "www.ecb.europa.eu"]
+# Recorte del texto para que entre en el contexto del modelo local.
+max_chars = 6000
+user_agent = "cfds-intel/0.1 (automated news reader)"
+timeout_secs = 30
+
 # Criterios de la prueba de selección (ADR 0008 §4), fijados antes de mirar resultados.
+# Números aprobados por el dueño el 22-11-2026.
 [selection]
 min_relevant_pairs = 20
+# Hacen falta al menos estos pares relevantes con signo "+" y otros tantos con "-".
+min_signed_pairs_each = 10
+# Detección de relevancia (medida aparte): el modelo marca relevante si relevancia ≥ esto,
+# y el acierto balanceado contra las etiquetas tiene que ser ≥ min_relevance_accuracy_pct.
+relevance_threshold = "0.5"
+min_relevance_accuracy_pct = 70
 min_valid_pct = 99
 max_memory_gb = 8
 max_seconds_p95 = 60

@@ -13,8 +13,15 @@ veces con `interpret()` (#122):
 - **deterministas:** las dos lecturas dan los mismos instrumentos y el mismo ajuste por noticia;
 - **tiempo:** p95 de la duración de cada lectura;
 - **memoria:** `size` del modelo cargado (`GET /api/ps`);
-- **acierto de signo:** contra las etiquetas del dueño, solo en los pares relevantes, con su
-  intervalo de Wilson del 95 %.
+- **acierto de signo:** contra las etiquetas, solo en los pares relevantes, con su intervalo de
+  Wilson del 95 %. Hacen falta al menos `min_signed_pairs_each` pares con "+" y otros tantos
+  con "-"; si no, se amplía la muestra antes de correr;
+- **detección de relevancia** (aparte): por cada titular e instrumento, el modelo marca
+  relevante si su relevancia es ≥ `relevance_threshold`. Su acierto **balanceado** tiene que
+  llegar a `min_relevance_accuracy_pct`.
+
+El intérprete lee el texto oficial de cada comunicado (`fulltext.py`); las etiquetas también se
+hacen leyendo ese texto.
 
 Si ningún candidato pasa, no se elige ninguno: la decisión vuelve al dueño y los umbrales no se
 relajan.
@@ -136,6 +143,11 @@ class Result:
     memory_gb: Decimal = Decimal(0)
     sign_hits: int = 0
     sign_pairs: int = 0
+    # Detección de relevancia por (titular, instrumento): verdaderos/falsos positivos/negativos.
+    rel_tp: int = 0
+    rel_fn: int = 0
+    rel_tn: int = 0
+    rel_fp: int = 0
 
     def pct(self, k: int) -> Decimal:
         return (
@@ -147,8 +159,21 @@ class Result:
         acc = Decimal(self.sign_hits) / self.sign_pairs if self.sign_pairs else Decimal(0)
         return acc * 100, low * 100, high * 100
 
+    def relevance_accuracy(self) -> Decimal:
+        """Acierto **balanceado** (promedio entre los relevantes y los no relevantes), en %: así
+        un modelo que dice siempre "no relevante" no saca nota alta."""
+        pos, neg = self.rel_tp + self.rel_fn, self.rel_tn + self.rel_fp
+        if not pos or not neg:
+            return Decimal(0)
+        hit = Decimal(self.rel_tp) / pos + Decimal(self.rel_tn) / neg
+        return (hit * 50).quantize(Decimal("0.1"))
+
     def failures(self, s: Selection) -> list[str]:
         out = []
+        if self.relevance_accuracy() < s.min_relevance_accuracy_pct:
+            out.append(
+                f"relevancia {self.relevance_accuracy()} % < {s.min_relevance_accuracy_pct} %"
+            )
         if self.pct(self.valid) < s.min_valid_pct:
             out.append(f"válidas {self.pct(self.valid)} % < {s.min_valid_pct} %")
         if self.deterministic < self.items:
@@ -166,6 +191,8 @@ def score(
     runs: Sequence[tuple[Interpretation | None, Interpretation | None]],
     seconds: Sequence[Decimal],
     memory_bytes: int,
+    instruments: Sequence[str],
+    relevance_threshold: Decimal,
 ) -> Result:
     """Resultado de un candidato. `runs[i]`: las dos lecturas del titular `i` (None = inválida)."""
     r = Result(model, len(sample), seconds=list(seconds))
@@ -177,6 +204,16 @@ def score(
         for instrument, expected in labeled.relevant:
             r.sign_pairs += 1
             r.sign_hits += sign_of(a, instrument) == expected
+        labeled_relevant = {i for i, _ in labeled.relevant}
+        flagged = {
+            x.instrument_id for x in (a.impacts if a else ()) if x.relevance >= relevance_threshold
+        }
+        for instrument in instruments:
+            truth, said = instrument in labeled_relevant, instrument in flagged
+            r.rel_tp += truth and said
+            r.rel_fn += truth and not said
+            r.rel_tn += not truth and not said
+            r.rel_fp += not truth and said
     return r
 
 
@@ -214,7 +251,9 @@ def run_model(
                 pair.append(None)
             seconds.append(Decimal(str(round(time.perf_counter() - start, 3))))
         runs.append((pair[0], pair[1]))
-    return score(model, sample, runs, seconds, loaded_memory_bytes(cfg, model))
+    memory = loaded_memory_bytes(cfg, model)
+    threshold = cfg.selection.relevance_threshold
+    return score(model, sample, runs, seconds, memory, instruments, threshold)
 
 
 def main(argv: list[str]) -> int:
@@ -235,6 +274,15 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 2
+    for sign in ("+", "-"):
+        n = sum(1 for x in sample for _, sg in x.relevant if sg == sign)
+        if n < selection.min_signed_pairs_each:
+            print(
+                f"solo {n} pares relevantes con signo {sign} (mínimo "
+                f"{selection.min_signed_pairs_each}): ampliar la muestra antes de correr",
+                file=sys.stderr,
+            )
+            return 2
     instruments = instrument_ids((ROOT / "config" / "instruments.toml").read_text())
     results = [run_model(m, sample, instruments, cfg_text) for m in args.model]
     for r in results:
@@ -242,7 +290,8 @@ def main(argv: list[str]) -> int:
         print(
             f"{r.model}: válidas {r.pct(r.valid)} %, deterministas {r.pct(r.deterministic)} %, "
             f"p95 {p95(r.seconds)} s, memoria {r.memory_gb} GB, acierto {acc:.1f} % "
-            f"[{low:.1f}, {high:.1f}] en {r.sign_pairs} pares"
+            f"[{low:.1f}, {high:.1f}] en {r.sign_pairs} pares, "
+            f"relevancia {r.relevance_accuracy()} % (balanceado)"
         )
         for f in r.failures(selection):
             print(f"  no pasa: {f}")

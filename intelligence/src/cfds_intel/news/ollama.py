@@ -5,6 +5,7 @@
   todavía no se eligió un modelo (`config/news_interpreter.toml`), no se interpreta nada.
 - Temperatura 0 y semilla fija. Modelo, digest, versión y SHA-256 del prompt quedan en cada
   evento (`InterpreterInfo`).
+- Lee el **texto oficial** del comunicado (`fulltext.py`), no solo el título, y nunca lo guarda.
 - La respuesta se convierte en un `Reading`; las reglas (rangos, instrumentos, publicación) las
   aplica `interpret()` (#122). Un número que no viene como texto decimal es un error: no se
   redondea nada.
@@ -16,6 +17,7 @@ API usada, de la documentación oficial (github.com/ollama/ollama/blob/main/docs
 
 import hashlib
 import json
+import re
 import tomllib
 import urllib.parse
 import urllib.request
@@ -26,9 +28,10 @@ from pathlib import Path
 from typing import Any
 
 from cfds_intel.news.feeds import NewsItem
+from cfds_intel.news.fulltext import fetch_text
 from cfds_intel.news.interpret import Impact, InterpretationError, InterpreterInfo, Reading
 
-PROMPT_VERSION = "1"
+PROMPT_VERSION = "2"
 PROMPT = (Path(__file__).parent / "prompts" / f"interpret_v{PROMPT_VERSION}.txt").read_text()
 PROMPT_SHA256 = hashlib.sha256(PROMPT.encode()).hexdigest()
 _LOCAL_HOSTS = {"127.0.0.1", "localhost"}
@@ -64,6 +67,12 @@ class OllamaError(InterpretationError):
 @dataclass(frozen=True)
 class Selection:
     min_relevant_pairs: int
+    # Pares relevantes con signo "+" y con signo "-" que hacen falta, de cada uno.
+    min_signed_pairs_each: int
+    # El modelo marca un par como relevante si su relevancia es ≥ este valor.
+    relevance_threshold: Decimal
+    # Acierto balanceado mínimo de la detección de relevancia, en %.
+    min_relevance_accuracy_pct: Decimal
     min_valid_pct: Decimal
     max_memory_gb: Decimal
     max_seconds_p95: Decimal
@@ -80,12 +89,17 @@ class OllamaConfig:
     model: str
     digest: str
     selection: Selection
+    # Texto oficial de cada noticia (fulltext.py): sitios permitidos, recorte, cliente y espera.
+    text_hosts: frozenset[str]
+    text_max_chars: int
+    text_user_agent: str
+    text_timeout_secs: int
 
 
 def load_config(text: str) -> OllamaConfig:
     """Lee `config/news_interpreter.toml` y lo valida."""
     raw = tomllib.loads(text)
-    o, g, m, s = (raw.get(k, {}) for k in ("ollama", "generation", "model", "selection"))
+    o, g, m, s, t = (raw.get(k, {}) for k in ("ollama", "generation", "model", "selection", "text"))
     url = o.get("url")
     parsed = urllib.parse.urlparse(url) if isinstance(url, str) else None
     if parsed is None or parsed.scheme != "http" or parsed.hostname not in _LOCAL_HOSTS:
@@ -106,8 +120,25 @@ def load_config(text: str) -> OllamaConfig:
     if not isinstance(g.get("think"), bool):
         raise OllamaError("generation.think tiene que ser true o false")
     pct = Decimal(int_at_least(s, "min_valid_pct", 1))
-    if pct > 100:
-        raise OllamaError("selection.min_valid_pct no puede pasar de 100")
+    rel_pct = Decimal(int_at_least(s, "min_relevance_accuracy_pct", 1))
+    if pct > 100 or rel_pct > 100:
+        raise OllamaError("los porcentajes de selection no pueden pasar de 100")
+    try:
+        threshold = Decimal(str(s.get("relevance_threshold")))
+    except ArithmeticError as e:
+        raise OllamaError("selection.relevance_threshold tiene que ser un decimal") from e
+    if not isinstance(s.get("relevance_threshold"), str) or not 0 < threshold <= 1:
+        raise OllamaError('selection.relevance_threshold: texto decimal en (0, 1], como "0.5"')
+    hosts = t.get("allowed_hosts")
+    if (
+        not isinstance(hosts, list)
+        or not hosts
+        or not all(isinstance(h, str) and re.fullmatch(r"[a-z0-9.-]+", h) for h in hosts)
+    ):
+        raise OllamaError("text.allowed_hosts tiene que ser una lista de dominios")
+    agent = t.get("user_agent")
+    if not isinstance(agent, str) or not agent.strip():
+        raise OllamaError("text.user_agent tiene que ser un texto")
     return OllamaConfig(
         url=str(url).rstrip("/"),
         timeout_secs=int_at_least(o, "timeout_secs", 1),
@@ -122,7 +153,14 @@ def load_config(text: str) -> OllamaConfig:
             max_memory_gb=Decimal(int_at_least(s, "max_memory_gb", 1)),
             max_seconds_p95=Decimal(int_at_least(s, "max_seconds_p95", 1)),
             tie_points=Decimal(int_at_least(s, "tie_points", 0)),
+            min_signed_pairs_each=int_at_least(s, "min_signed_pairs_each", 1),
+            relevance_threshold=threshold,
+            min_relevance_accuracy_pct=rel_pct,
         ),
+        text_hosts=frozenset(hosts),
+        text_max_chars=int_at_least(t, "max_chars", 500),
+        text_user_agent=agent,
+        text_timeout_secs=int_at_least(t, "timeout_secs", 1),
     )
 
 
@@ -181,6 +219,7 @@ class OllamaInterpreter:
         cfg: OllamaConfig,
         model: str | None = None,
         transport: Transport = local_http,
+        text_for: Callable[[NewsItem], str] | None = None,
     ) -> None:
         """`model` vacío usa el elegido en la config; otro modelo, solo en la prueba de selección.
         El digest se lee de Ollama y, si hay uno fijado en la config, tiene que coincidir."""
@@ -194,6 +233,16 @@ class OllamaInterpreter:
         if model is None and cfg.digest and digest != cfg.digest:
             raise OllamaError(f"el digest instalado de {name} no es el fijado: {digest}")
         self._cfg, self._model, self._transport = cfg, name, transport
+        # Texto oficial de cada noticia; en los tests se reemplaza (sin red).
+        self._text_for = text_for or (
+            lambda item: fetch_text(
+                item,
+                cfg.text_hosts,
+                cfg.text_max_chars,
+                cfg.text_user_agent,
+                cfg.text_timeout_secs,
+            )
+        )
         self._info = InterpreterInfo(
             name="ollama",
             version=f"p{PROMPT_VERSION}",
@@ -205,10 +254,12 @@ class OllamaInterpreter:
     def info(self) -> InterpreterInfo:
         return self._info
 
-    def request_body(self, item: NewsItem, instruments: Sequence[str]) -> dict[str, Any]:
+    def request_body(self, item: NewsItem, instruments: Sequence[str], text: str) -> dict[str, Any]:
+        """El texto oficial va solo en el pedido al modelo local: no se guarda (ADR 0006)."""
         news = {
             "fuente": item.source,
             "titular": item.title,
+            "texto_oficial": text,
             "publicado_utc": item.published_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "instrumentos_permitidos": list(instruments),
         }
@@ -228,7 +279,7 @@ class OllamaInterpreter:
         resp = self._transport(
             "POST",
             f"{self._cfg.url}/api/chat",
-            self.request_body(item, instruments),
+            self.request_body(item, instruments, self._text_for(item)),
             self._cfg.timeout_secs,
         )
         content = resp.get("message", {}).get("content")

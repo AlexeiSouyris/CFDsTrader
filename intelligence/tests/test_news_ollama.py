@@ -44,6 +44,11 @@ ITEM = NewsItem(
     PUBLISHED,
 )
 INSTRUMENTS = ("DE40", "US100", "US30", "US500")
+TH = Decimal("0.5")
+
+
+def TEXT(item: NewsItem) -> str:  # noqa: N802 (hace de función de texto oficial en los tests)
+    return "The Committee decided to raise the target range for the federal funds rate."
 
 
 class Fake:
@@ -76,7 +81,7 @@ def test_repository_config_has_no_model_until_the_selection_test() -> None:
     assert CFG.model == "" and CFG.digest == ""
     assert CFG.selection.min_relevant_pairs == 20
     with pytest.raises(OllamaError, match="no hay modelo elegido"):
-        OllamaInterpreter(CFG, transport=Fake(answer()))
+        OllamaInterpreter(CFG, transport=Fake(answer()), text_for=TEXT)
 
 
 @pytest.mark.parametrize(
@@ -91,11 +96,11 @@ def test_only_localhost_is_accepted(url: str) -> None:
 
 def test_request_is_deterministic_structured_and_records_model_and_prompt() -> None:
     fake = Fake(answer(impacts=[{"instrument_id": "US500", "sentiment": "0", "relevance": "0.1"}]))
-    interp = OllamaInterpreter(CFG, model=MODEL, transport=fake)
+    interp = OllamaInterpreter(CFG, model=MODEL, transport=fake, text_for=TEXT)
     doc = interpret(ITEM, interp, INSTRUMENTS, PUBLISHED + timedelta(minutes=1)).to_contract()
     assert doc["interpreter"] == {
         "name": "ollama",
-        "version": "p1",
+        "version": "p2",
         "model": f"{MODEL}@{DIGEST}",
         "prompt_sha256": PROMPT_SHA256,
     }
@@ -107,6 +112,9 @@ def test_request_is_deterministic_structured_and_records_model_and_prompt() -> N
     assert body["format"]["required"] == ["summary_es", "impacts"]
     user = json.loads(body["messages"][1]["content"])
     assert user["titular"] == "Waller, Opening Remarks"
+    assert user["texto_oficial"] == TEXT(ITEM)
+    # El texto se usa para interpretar y no queda en el evento (ADR 0006).
+    assert TEXT(ITEM) not in json.dumps(doc)
     assert user["publicado_utc"] == "2026-11-20T13:25:00Z"
     assert user["instrumentos_permitidos"] == list(INSTRUMENTS)
 
@@ -118,13 +126,16 @@ def test_a_pinned_digest_must_match_the_installed_model() -> None:
         )
     )
     with pytest.raises(OllamaError, match="no es el fijado"):
-        OllamaInterpreter(pinned, transport=Fake(answer()))
+        OllamaInterpreter(pinned, transport=Fake(answer()), text_for=TEXT)
     ok = load_config(
         REAL.replace('name = ""', f'name = "{MODEL}"').replace(
             'digest = ""', f'digest = "{DIGEST}"'
         )
     )
-    assert OllamaInterpreter(ok, transport=Fake(answer())).info.model == f"{MODEL}@{DIGEST}"
+    assert (
+        OllamaInterpreter(ok, transport=Fake(answer()), text_for=TEXT).info.model
+        == f"{MODEL}@{DIGEST}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -140,7 +151,7 @@ def test_a_pinned_digest_must_match_the_installed_model() -> None:
     ],
 )
 def test_bad_model_answers_never_become_events(content: str) -> None:
-    interp = OllamaInterpreter(CFG, model=MODEL, transport=Fake(content))
+    interp = OllamaInterpreter(CFG, model=MODEL, transport=Fake(content), text_for=TEXT)
     with pytest.raises(InterpretationError):
         interpret(ITEM, interp, INSTRUMENTS, PUBLISHED + timedelta(minutes=1))
 
@@ -180,7 +191,9 @@ def test_wilson_interval_and_p95() -> None:
 def reading(
     sample_item: NewsItem, impacts: Any, summary: str = "La Fed sube los tipos."
 ) -> Interpretation:
-    interp = OllamaInterpreter(CFG, model=MODEL, transport=Fake(answer(summary, impacts)))
+    interp = OllamaInterpreter(
+        CFG, model=MODEL, transport=Fake(answer(summary, impacts)), text_for=TEXT
+    )
     return interpret(sample_item, interp, INSTRUMENTS, sample_item.published_at)
 
 
@@ -192,7 +205,9 @@ def test_score_counts_valid_deterministic_and_sign_hits() -> None:
         sample[0].item, [{"instrument_id": "US500", "sentiment": "-0.2", "relevance": "0.9"}]
     )
     english = reading(sample[1].item, [], summary="The Fed announces winners.")
-    r = score("m", sample, [(a, b), (english, english)], [Decimal(3)] * 4, 4 * 2**30)
+    r = score(
+        "m", sample, [(a, b), (english, english)], [Decimal(3)] * 4, 4 * 2**30, INSTRUMENTS, TH
+    )
     assert (r.items, r.valid, r.deterministic) == (2, 1, 0)  # el resumen en inglés no vale
     assert (r.sign_hits, r.sign_pairs) == (1, 2)  # US100 sin impacto cuenta como "0", no "-"
     assert r.memory_gb == Decimal("4.00")
@@ -209,10 +224,63 @@ def test_pick_prefers_accuracy_breaks_ties_by_memory_and_can_pick_none() -> None
         ],
     )
     none_ = reading(sample[1].item, [])
-    big = score("big", sample, [(good, good), (none_, none_)], [Decimal(1)] * 4, 7 * 2**30)
-    small = score("small", sample, [(good, good), (none_, none_)], [Decimal(1)] * 4, 5 * 2**30)
+    big = score(
+        "big", sample, [(good, good), (none_, none_)], [Decimal(1)] * 4, 7 * 2**30, INSTRUMENTS, TH
+    )
+    small = score(
+        "small",
+        sample,
+        [(good, good), (none_, none_)],
+        [Decimal(1)] * 4,
+        5 * 2**30,
+        INSTRUMENTS,
+        TH,
+    )
     winner, why = pick([big, small], CFG.selection)
     assert winner is small and "empate" in why
-    huge = score("huge", sample, [(good, good), (none_, none_)], [Decimal(1)] * 4, 9 * 2**30)
+    huge = score(
+        "huge", sample, [(good, good), (none_, none_)], [Decimal(1)] * 4, 9 * 2**30, INSTRUMENTS, TH
+    )
     winner, why = pick([huge], CFG.selection)
     assert winner is None and "ningún candidato" in why
+
+
+def test_relevance_is_measured_with_balanced_accuracy() -> None:
+    sample = load_labels(LABELS)
+    flags_one = [{"instrument_id": "US500", "sentiment": "-0.8", "relevance": "0.9"}]
+    a = reading(sample[0].item, flags_one)
+    none_ = reading(sample[1].item, [])
+    r = score("m", sample, [(a, a), (none_, none_)], [Decimal(1)] * 4, 2**30, INSTRUMENTS, TH)
+    # US500 bien (TP), US100 se le escapó (FN), y los 6 no relevantes bien (TN).
+    assert (r.rel_tp, r.rel_fn, r.rel_tn, r.rel_fp) == (1, 1, 6, 0)
+    assert r.relevance_accuracy() == Decimal("75.0")  # (1/2 + 6/6) / 2
+    always_no = score(
+        "no", sample, [(none_, none_), (none_, none_)], [Decimal(1)] * 4, 2**30, INSTRUMENTS, TH
+    )
+    assert always_no.relevance_accuracy() == Decimal("50.0")  # decir siempre "no" no aprueba
+    assert any("relevancia" in f for f in always_no.failures(CFG.selection))
+
+
+def test_selection_stops_without_enough_signed_pairs(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from cfds_intel.news.select_model import main
+
+    rows = [LABELS.splitlines()[0]]
+    for k in range(20):  # 20 relevantes, pero todos "-": faltan los "+"
+        rows.append(f"fed,press_all,i{k},T{k},https://f/{k},2026-11-20T19:00:00Z,US500,-,si")
+    labels = tmp_path / "labels.csv"
+    labels.write_text("\n".join(rows) + "\n")
+    assert main(["x", "--labels", str(labels), "--model", MODEL]) == 2
+    assert "signo +" in capsys.readouterr().err
+
+
+def test_config_rejects_bad_text_and_relevance_settings() -> None:
+    for old, new in [
+        ('relevance_threshold = "0.5"', "relevance_threshold = 0.5"),
+        ('relevance_threshold = "0.5"', 'relevance_threshold = "1.5"'),
+        ("min_relevance_accuracy_pct = 70", "min_relevance_accuracy_pct = 101"),
+        ('allowed_hosts = ["www.federalreserve.gov", "www.ecb.europa.eu"]', "allowed_hosts = []"),
+    ]:
+        with pytest.raises(OllamaError):
+            load_config(REAL.replace(old, new))
