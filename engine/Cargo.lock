@@ -231,9 +231,16 @@ dependencies = [
 name = "cfds-fund"
 version = "0.1.0"
 dependencies = [
+ "cfds-core",
+ "cfds-storage",
+ "chrono",
+ "jsonschema",
  "rust_decimal",
  "serde",
+ "serde_json",
+ "sqlx",
  "thiserror",
+ "tokio",
  "toml",
 ]
 

@@ -8,12 +8,18 @@
 //!   (reparto por el método del mayor resto).
 //!
 //! Funciones puras y decimales exactos. Cada liquidación devuelve el registro de cada
-//! movimiento para el historial auditable.
+//! movimiento para el historial auditable (`fund_movement.v1`, #179), y las cuentas se
+//! reconstruyen siempre desde ese historial (`Fund::replay`). `pg` lo guarda en PostgreSQL.
+
+pub mod pg;
 
 use std::collections::BTreeMap;
 
+use cfds_core::candle::utc_z;
+use cfds_core::decimal_str;
+use chrono::{DateTime, Utc};
 use rust_decimal::{Decimal, RoundingStrategy};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Decimales del dinero (céntimos).
 const CENTS: u32 = 2;
@@ -44,6 +50,10 @@ pub enum FundError {
     ValueWithoutUnits(Decimal),
     #[error("el NAV es cero: no se pueden comprar ni vender unidades")]
     ZeroNav,
+    #[error("{member}: el monto {amount} no alcanza para comprar ni una fracción de unidad")]
+    ZeroUnits { member: String, amount: Decimal },
+    #[error("historial inválido en {id}: {reason}")]
+    BadHistory { id: String, reason: String },
 }
 
 /// `config/fund.toml`, validado.
@@ -118,10 +128,29 @@ pub enum Request {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum MoveKind {
     Contribution,
     Withdrawal,
+}
+
+/// `contracts/fund_movement.v1`: un movimiento liquidado, tal como se guarda.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Record {
+    pub id: String,
+    #[serde(with = "utc_z")]
+    pub settled_at: DateTime<Utc>,
+    pub member_id: String,
+    pub kind: MoveKind,
+    #[serde(with = "decimal_str")]
+    pub amount: Decimal,
+    #[serde(with = "decimal_str")]
+    pub units: Decimal,
+    #[serde(with = "decimal_str")]
+    pub nav: Decimal,
+    pub currency: String,
 }
 
 /// Registro de un movimiento liquidado (historial auditable).
@@ -143,6 +172,27 @@ pub struct Settlement {
     pub movements: Vec<Movement>,
     /// Valor del fondo después de los movimientos.
     pub value_after: Decimal,
+}
+
+impl Settlement {
+    /// Las filas de `fund_movement.v1` de esta liquidación, con ids `fund:<fecha>:<orden>`.
+    pub fn records(&self, settled_at: DateTime<Utc>, cfg: &FundConfig) -> Vec<Record> {
+        let day = settled_at.format("%Y-%m-%d");
+        self.movements
+            .iter()
+            .enumerate()
+            .map(|(i, m)| Record {
+                id: format!("fund:{day}:{}", i + 1),
+                settled_at,
+                member_id: m.member.clone(),
+                kind: m.kind,
+                amount: m.amount,
+                units: m.units,
+                nav: m.nav,
+                currency: cfg.currency.clone(),
+            })
+            .collect()
+    }
 }
 
 /// Una línea del estado de cuenta.
@@ -171,6 +221,39 @@ fn cents_ok(x: Decimal) -> bool {
 impl Fund {
     pub fn accounts(&self) -> &BTreeMap<String, Account> {
         &self.accounts
+    }
+
+    /// Reconstruye las cuentas sumando el historial en orden. Falla si un movimiento no es
+    /// válido o si las unidades de alguien quedan negativas.
+    pub fn replay(records: &[Record], cfg: &FundConfig) -> Result<Fund, FundError> {
+        let mut fund = Fund::default();
+        for r in records {
+            let bad = |reason: &str| FundError::BadHistory {
+                id: r.id.clone(),
+                reason: reason.to_string(),
+            };
+            if r.currency != cfg.currency {
+                return Err(bad("otra moneda que la del fondo"));
+            }
+            if !cents_ok(r.amount) || r.units <= Decimal::ZERO || r.nav <= Decimal::ZERO {
+                return Err(bad("monto, unidades o NAV no positivos"));
+            }
+            let acc = fund.accounts.entry(r.member_id.clone()).or_default();
+            match r.kind {
+                MoveKind::Contribution => {
+                    acc.units += r.units;
+                    acc.contributed += r.amount;
+                }
+                MoveKind::Withdrawal => {
+                    if r.units > acc.units {
+                        return Err(bad("vende más unidades de las que tiene el miembro"));
+                    }
+                    acc.units -= r.units;
+                    acc.withdrawn += r.amount;
+                }
+            }
+        }
+        Ok(fund)
     }
 
     pub fn total_units(&self) -> Decimal {
@@ -225,6 +308,12 @@ impl Fund {
                         });
                     }
                     let units = (amount / nav).round_dp_with_strategy(dp, RoundingStrategy::ToZero);
+                    if units.is_zero() {
+                        return Err(FundError::ZeroUnits {
+                            member: member.clone(),
+                            amount: *amount,
+                        });
+                    }
                     let acc = next.accounts.entry(member.clone()).or_default();
                     acc.units += units;
                     acc.contributed += amount;

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/fund_movement.v1.schema.json",
+  "title": "Fund movement v1",
+  "description": "Un aporte o retiro del fondo del grupo ya liquidado (spec §14, #179): compra o vende unidades al valor de la unidad (NAV) del cierre del viernes. Solo se agrega, nunca se modifica: el estado de cada miembro se reconstruye sumando el historial. Lo escribe el motor (engine/crates/fund); lo leen la UI y el aprendizaje.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "settled_at", "member_id", "kind", "amount", "units", "nav", "currency"],
+  "properties": {
+    "id": {
+      "description": "Id propio e idempotente: fund:<fecha de la liquidación>:<orden dentro de la liquidación, desde 1>.",
+      "type": "string",
+      "pattern": "^fund:\\d{4}-\\d{2}-\\d{2}:[1-9]\\d{0,3}$"
+    },
+    "settled_at": {
+      "description": "Hora de la liquidación, en UTC.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "member_id": {
+      "description": "Id del miembro (minúsculas, dígitos, guion o guion bajo).",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+    },
+    "kind": {
+      "enum": ["contribution", "withdrawal"]
+    },
+    "amount": {
+      "description": "Dinero que entra (aporte) o sale (retiro) del fondo, positivo y en céntimos, como string decimal.",
+      "type": "string",
+      "pattern": "^\\d+(\\.\\d{1,2})?$"
+    },
+    "units": {
+      "description": "Unidades compradas o vendidas, positivas, como string decimal.",
+      "type": "string",
+      "pattern": "^\\d+(\\.\\d+)?$"
+    },
+    "nav": {
+      "description": "Valor de la unidad al que se liquidó, como string decimal.",
+      "type": "string",
+      "pattern": "^\\d+(\\.\\d+)?$"
+    },
+    "currency": {
+      "description": "Moneda del fondo (ISO 4217), la de config/fund.toml.",
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    }
+  }
+}

@@ -74,3 +74,13 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Los calcula y escribe **Rust** (`cfds-indicators` + `cargo run -p cfds-ingest --example daily_indicators`). Python los **lee** para los análogos (spec §13) y no los recalcula (CLAUDE.md §1).
 - Solo días con sesión de la bolsa del instrumento.
 - Tabla de **solo agregar**. Recalcular y obtener otro valor es un error (sería repintado), y no se guarda nada.
+
+### Fondo del grupo (#179)
+
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `fund_movement.v1` | `fund_movements` | Un aporte o retiro ya liquidado (spec §14): `id` (`fund:<fecha>:<orden>`), `settled_at`, `member_id`, `kind` (`contribution` o `withdrawal`), `amount` (en céntimos), `units`, `nav` y `currency`, con los decimales como string. |
+
+- Tabla de **solo agregar**: un trigger impide `UPDATE` y `DELETE`. Guardar el mismo movimiento otra vez no duplica nada, y otro contenido con el mismo id es un error.
+- El estado de cada miembro (unidades, aportes y retiros) **no se guarda aparte**: se reconstruye sumando el historial (`cfds_fund::Fund::replay`).
+- Lo escribe el motor (`cfds-fund`, `PgFund`). Lo leen la UI (vista Fondo) y el aprendizaje.
