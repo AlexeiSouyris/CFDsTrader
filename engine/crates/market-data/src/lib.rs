@@ -7,6 +7,7 @@
 //!
 //! Ninguna vela entra al sistema sin pasar por [`validation::validate_series`].
 
+pub mod aggregate;
 pub mod calendar;
 pub mod config;
 pub mod daily;
@@ -18,6 +19,7 @@ pub mod spread_filter;
 pub mod trading_window;
 pub mod validation;
 
+pub use aggregate::{AggregateError, H1Comparison, aggregate_h1, compare_h1};
 pub use calendar::{CalendarError, ExchangeCalendar, Session};
 pub use config::{ConfigError, ValidationConfig};
 pub use daily::{DailyIssue, DailyIssueKind, daily_bounds, local_day_bounds, validate_daily};
