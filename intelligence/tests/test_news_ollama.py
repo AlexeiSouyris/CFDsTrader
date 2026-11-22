@@ -15,6 +15,8 @@ from cfds_intel.news.ollama import (
     OllamaError,
     OllamaInterpreter,
     load_config,
+    load_model,
+    loaded_memory_bytes,
     local_http,
 )
 from cfds_intel.news.select_model import (
@@ -65,6 +67,8 @@ class Fake:
         self.calls.append((method, url, body))
         if url.endswith("/api/tags"):
             return {"models": [{"name": MODEL, "model": MODEL, "digest": self.digest}]}
+        if url.endswith("/api/generate"):
+            return {"model": MODEL, "done": True}
         if url.endswith("/api/ps"):
             return {"models": [{"name": MODEL, "model": MODEL, "size": 5_368_709_120}]}
         content = self.contents.pop(0) if len(self.contents) > 1 else self.contents[0]
@@ -77,7 +81,13 @@ def answer(summary: str = "La Fed abre un discurso sin anuncios.", impacts: Any 
 
 def test_repository_config_has_no_model_until_the_selection_test() -> None:
     assert CFG.url == "http://127.0.0.1:11434"
-    assert (CFG.temperature, CFG.seed, CFG.think, CFG.num_ctx) == (0, 42, False, 8192)
+    assert (CFG.temperature, CFG.seed, CFG.think, CFG.num_ctx, CFG.keep_alive) == (
+        0,
+        42,
+        False,
+        8192,
+        0,
+    )
     assert CFG.model == "" and CFG.digest == ""
     assert CFG.selection.min_relevant_pairs == 20
     with pytest.raises(OllamaError, match="no hay modelo elegido"):
@@ -301,3 +311,15 @@ def test_several_instruments_in_one_row_are_split_and_impact_is_ignored() -> Non
         load_labels(text.replace("US100;US500;US30", "US100;US100"))
     with pytest.raises(SelectionError):
         load_labels(text.replace("US100;US500;US30", "US100;;US30"))
+
+
+def test_each_request_unloads_the_model_and_memory_is_measured_loaded() -> None:
+    fake = Fake(answer())
+    interp = OllamaInterpreter(CFG, model=MODEL, transport=fake, text_for=TEXT)
+    interp.read(ITEM, ("US500",))
+    chat = [b for m, u, b in fake.calls if u.endswith("/api/chat")]
+    assert chat and chat[0] is not None and chat[0]["keep_alive"] == 0
+    load_model(CFG, MODEL, transport=fake)
+    gen = [b for m, u, b in fake.calls if u.endswith("/api/generate")]
+    assert gen == [{"model": MODEL, "keep_alive": 60, "options": {"num_ctx": 8192}}]
+    assert loaded_memory_bytes(CFG, MODEL, transport=fake) == 5_368_709_120

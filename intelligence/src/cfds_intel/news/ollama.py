@@ -12,8 +12,8 @@
 
 API usada, de la documentación oficial (github.com/ollama/ollama/blob/main/docs/api.md):
 `POST /api/chat` (`stream: false`, `format` con JSON Schema, `options.temperature`,
-`options.seed`, `options.num_ctx`, `think`), `GET /api/tags` (digest) y `GET /api/ps` (memoria
-del modelo cargado).
+`options.seed`, `options.num_ctx`, `keep_alive`, `think`), `POST /api/generate` sin prompt (cargar
+el modelo), `GET /api/tags` (digest) y `GET /api/ps` (memoria del modelo cargado).
 """
 
 import hashlib
@@ -88,6 +88,9 @@ class OllamaConfig:
     seed: int
     # Ventana de contexto fija (tokens): sin ella, Ollama reserva la máxima del modelo.
     num_ctx: int
+    # Segundos que el modelo queda cargado después de cada pedido. 0 = se descarga y la
+    # próxima noticia se procesa desde cero (sin reusar cálculos de la anterior).
+    keep_alive: int
     think: bool
     model: str
     digest: str
@@ -148,6 +151,7 @@ def load_config(text: str) -> OllamaConfig:
         temperature=int_at_least(g, "temperature", 0),
         seed=int_at_least(g, "seed", 0),
         num_ctx=int_at_least(g, "num_ctx", 512),
+        keep_alive=int_at_least(g, "keep_alive", 0),
         think=g["think"],
         model=string_field(m, "name"),
         digest=string_field(m, "digest"),
@@ -195,6 +199,17 @@ def installed_digest(cfg: OllamaConfig, model: str, transport: Transport = local
             if isinstance(digest, str) and digest:
                 return digest
     raise OllamaError(f"el modelo {model!r} no está instalado en Ollama")
+
+
+def load_model(cfg: OllamaConfig, model: str, transport: Transport = local_http) -> None:
+    """Carga `model` sin preguntarle nada (`POST /api/generate` sin prompt), con el mismo
+    `num_ctx` que la interpretación, y lo deja cargado 60 s para poder medir su memoria."""
+    transport(
+        "POST",
+        f"{cfg.url}/api/generate",
+        {"model": model, "keep_alive": 60, "options": {"num_ctx": cfg.num_ctx}},
+        cfg.timeout_secs,
+    )
 
 
 def loaded_memory_bytes(cfg: OllamaConfig, model: str, transport: Transport = local_http) -> int:
@@ -276,6 +291,7 @@ class OllamaInterpreter:
             "stream": False,
             "format": RESPONSE_SCHEMA,
             "think": self._cfg.think,
+            "keep_alive": self._cfg.keep_alive,
             "options": {
                 "temperature": self._cfg.temperature,
                 "seed": self._cfg.seed,

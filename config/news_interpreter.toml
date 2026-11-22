@@ -18,6 +18,11 @@ seed = 42
 # (el texto se recorta a text.max_chars). Decidido por el dueño el 22-11-2026, antes de ver
 # ningún resultado de acierto de la prueba.
 num_ctx = 8192
+# Cada noticia se procesa desde cero: el modelo se descarga después de cada respuesta. Sin esto,
+# Ollama reusa los cálculos del pedido anterior y la misma noticia puede dar otro resultado
+# (medido el 22-11-2026 con Ministral 3 8B: el titular #17 cambia de relevancia y suma un índice
+# al reusar; desde cero da siempre lo mismo). Cuesta unos segundos más por noticia.
+keep_alive = 0
 # Para modelos con "pensamiento" (por ejemplo Qwen3): no pensar, responder directo.
 think = false
 
