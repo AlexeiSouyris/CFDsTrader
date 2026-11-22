@@ -77,7 +77,7 @@ def answer(summary: str = "La Fed abre un discurso sin anuncios.", impacts: Any 
 
 def test_repository_config_has_no_model_until_the_selection_test() -> None:
     assert CFG.url == "http://127.0.0.1:11434"
-    assert (CFG.temperature, CFG.seed, CFG.think) == (0, 42, False)
+    assert (CFG.temperature, CFG.seed, CFG.think, CFG.num_ctx) == (0, 42, False, 8192)
     assert CFG.model == "" and CFG.digest == ""
     assert CFG.selection.min_relevant_pairs == 20
     with pytest.raises(OllamaError, match="no hay modelo elegido"):
@@ -108,7 +108,7 @@ def test_request_is_deterministic_structured_and_records_model_and_prompt() -> N
     assert (method, url) == ("POST", "http://127.0.0.1:11434/api/chat")
     assert body is not None
     assert body["stream"] is False and body["think"] is False
-    assert body["options"] == {"temperature": 0, "seed": 42}
+    assert body["options"] == {"temperature": 0, "seed": 42, "num_ctx": 8192}
     assert body["format"]["required"] == ["summary_es", "impacts"]
     user = json.loads(body["messages"][1]["content"])
     assert user["titular"] == "Waller, Opening Remarks"

@@ -12,7 +12,8 @@
 
 API usada, de la documentación oficial (github.com/ollama/ollama/blob/main/docs/api.md):
 `POST /api/chat` (`stream: false`, `format` con JSON Schema, `options.temperature`,
-`options.seed`, `think`), `GET /api/tags` (digest) y `GET /api/ps` (memoria del modelo cargado).
+`options.seed`, `options.num_ctx`, `think`), `GET /api/tags` (digest) y `GET /api/ps` (memoria
+del modelo cargado).
 """
 
 import hashlib
@@ -85,6 +86,8 @@ class OllamaConfig:
     timeout_secs: int
     temperature: int
     seed: int
+    # Ventana de contexto fija (tokens): sin ella, Ollama reserva la máxima del modelo.
+    num_ctx: int
     think: bool
     model: str
     digest: str
@@ -144,6 +147,7 @@ def load_config(text: str) -> OllamaConfig:
         timeout_secs=int_at_least(o, "timeout_secs", 1),
         temperature=int_at_least(g, "temperature", 0),
         seed=int_at_least(g, "seed", 0),
+        num_ctx=int_at_least(g, "num_ctx", 512),
         think=g["think"],
         model=string_field(m, "name"),
         digest=string_field(m, "digest"),
@@ -272,7 +276,11 @@ class OllamaInterpreter:
             "stream": False,
             "format": RESPONSE_SCHEMA,
             "think": self._cfg.think,
-            "options": {"temperature": self._cfg.temperature, "seed": self._cfg.seed},
+            "options": {
+                "temperature": self._cfg.temperature,
+                "seed": self._cfg.seed,
+                "num_ctx": self._cfg.num_ctx,
+            },
         }
 
     def read(self, item: NewsItem, instruments: Sequence[str]) -> Reading:
