@@ -17,11 +17,61 @@ use std::collections::BTreeMap;
 
 use cfds_core::{InstrumentId, NewsInterpretation};
 use cfds_liquidity::Side;
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, NaiveDate, TimeDelta, Utc};
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::{Decimal, RoundingStrategy};
+use serde::Deserialize;
 
 use crate::config::{NewsConfig, ScoreConfig};
+
+/// Fecha de corte del modelo intérprete (ADR 0008 §5, #194), de `[model].training_cutoff` en
+/// `config/news_interpreter.toml`. Un modelo entrenado después de una noticia puede "saber" qué
+/// pasó después: en el backtest solo cuentan las noticias publicadas **después** de esta fecha.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InterpreterCutoff {
+    pub training_cutoff: NaiveDate,
+}
+
+/// El archivo lo comparte Python (dueño del intérprete): acá solo se lee `[model]` y se ignora
+/// el resto, que valida `cfds_intel.news.ollama.load_config`.
+#[derive(Deserialize)]
+struct RawInterpreterFile {
+    model: RawInterpreterModel,
+}
+
+#[derive(Deserialize)]
+struct RawInterpreterModel {
+    training_cutoff: Option<String>,
+}
+
+impl InterpreterCutoff {
+    /// Lee y valida `config/news_interpreter.toml`. La clave es obligatoria: sin ella no se sabe
+    /// desde cuándo las interpretaciones no tienen look-ahead.
+    pub fn from_toml(text: &str) -> Result<Self, String> {
+        let raw: RawInterpreterFile = toml::from_str(text)
+            .map_err(|e| format!("config/news_interpreter.toml no es válido: {e}"))?;
+        let value = raw.model.training_cutoff.ok_or(
+            "config/news_interpreter.toml, model.training_cutoff: falta (ADR 0008 §5: fecha de \
+             corte de entrenamiento del modelo o, si no se publica, su fecha de publicación)",
+        )?;
+        let training_cutoff = NaiveDate::parse_from_str(&value, "%Y-%m-%d").map_err(|_| {
+            format!(
+                "config/news_interpreter.toml, model.training_cutoff: {value:?} no es AAAA-MM-DD"
+            )
+        })?;
+        Ok(Self { training_cutoff })
+    }
+
+    /// Primer instante en que una noticia publicada ya cuenta en el backtest: las 00:00 UTC del
+    /// día siguiente al corte (publicada **después** de la fecha, nunca el mismo día).
+    pub fn backtest_published_from(&self) -> DateTime<Utc> {
+        let next = self
+            .training_cutoff
+            .succ_opt()
+            .unwrap_or(self.training_cutoff);
+        next.and_time(chrono::NaiveTime::MIN).and_utc()
+    }
+}
 
 /// Ajuste de una noticia para un instrumento, antes de sumar y recortar.
 pub fn single_adjustment(sentiment: Decimal, relevance: Decimal) -> i32 {
@@ -358,5 +408,31 @@ mod tests {
         assert_eq!(got, ["strong"]);
         // Para un corto, la misma noticia negativa está a favor: no hay alerta.
         assert!(exit_alerts(&items, &id("US100"), Side::Short, since, t(AT), &n).is_empty());
+    }
+
+    #[test]
+    fn the_interpreter_cutoff_is_read_and_required() {
+        let real = include_str!("../../../../config/news_interpreter.toml");
+        let c = InterpreterCutoff::from_toml(real).unwrap();
+        assert_eq!(
+            c.training_cutoff,
+            NaiveDate::from_ymd_opt(2025, 12, 2).unwrap()
+        );
+        // "Después de la fecha": desde el día siguiente, a las 00:00 UTC.
+        assert_eq!(
+            c.backtest_published_from(),
+            "2025-12-03T00:00:00Z".parse::<DateTime<Utc>>().unwrap()
+        );
+        let line = "training_cutoff = \"2025-12-02\"";
+        assert!(real.contains(line));
+        let missing = InterpreterCutoff::from_toml(&real.replace(line, "")).unwrap_err();
+        assert!(missing.contains("falta"), "{missing}");
+        for bad in ["training_cutoff = \"2025-13-02\"", "training_cutoff = \"\""] {
+            assert!(
+                InterpreterCutoff::from_toml(&real.replace(line, bad)).is_err(),
+                "{bad}"
+            );
+        }
+        assert!(InterpreterCutoff::from_toml("[ollama]\nurl = \"x\"\n").is_err());
     }
 }
