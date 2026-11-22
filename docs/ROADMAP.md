@@ -9,20 +9,22 @@ Primero va el motor y la inteligencia. La UI viene después (fase 10).
 |---|---|---|---|
 | 0 | Fundaciones: reglas, arquitectura, ADRs | `docs/` | hecha (#1) |
 | 1 | Especificación (sin código) | `docs/spec/` | aprobada (#1) |
-| 2 | Datos | `engine/market-data`, `infra/` | en curso (#2) |
-| 3 | Motor de backtest | `engine/backtest` | pendiente |
-| 3b | Análisis técnico: indicadores, patrones, liquidez, multi-timeframe | `engine/indicators`, `engine/patterns`, `engine/liquidity` | pendiente |
-| 4 | Estrategia | `engine/strategy` | pendiente |
-| 4b | Inteligencia: noticias, análogos históricos, ML | `intelligence/` | pendiente |
-| 5 | Evaluación y anti-sobreajuste | `engine/backtest` + `intelligence/` | pendiente |
-| 6 | Gestión de riesgo (independiente) | `engine/risk` | pendiente |
+| 2 | Datos | `engine/market-data`, `infra/` | aprobada (#2, 20-11-2026). La carga de historia de IG sigue (#102) |
+| 3 | Motor de backtest | `engine/backtest` | aprobada (#74, 20-11-2026) |
+| 3b | Análisis técnico: indicadores, patrones, liquidez, multi-timeframe | `engine/indicators`, `engine/patterns`, `engine/liquidity` | aprobada (#36, 21-11-2026) |
+| 4 | Estrategia | `engine/strategy` | aprobada (#86, 21-11-2026) |
+| 4b | Inteligencia: noticias, análogos históricos, ML | `intelligence/` | **en curso** (#99) |
+| 5 | Evaluación y anti-sobreajuste | `engine/backtest` + `intelligence/` | pendiente. Adelantos: métricas (#58), financiación con el €STR diario (#79) |
+| 6 | Gestión de riesgo (independiente) | `engine/risk` | pendiente. Adelanto: el módulo `risk` ya lo usa el backtest |
 | 6b | Fondo del grupo: aportes, unidades, NAV, P&L por miembro | `engine/fund` | pendiente |
-| 7 | Capa de broker (simulado / real intercambiables) | `engine/market-data`, `engine/execution` | pendiente |
-| 8 | Paper trading en tiempo real | todo el motor | pendiente |
-| 8b | Aprendizaje continuo: diario, calibración, aporte por señal, reentrenamiento | `engine/journal`, `intelligence/learning` | pendiente |
+| 7 | Capa de broker (simulado / real intercambiables) | `engine/market-data`, `engine/execution` | pendiente. Adelanto: proveedor de IG de solo lectura (ADR 0002) |
+| 8 | Paper trading en tiempo real | todo el motor | pendiente. Adelanto: velas en vivo por REST (`ig_live`, #68) |
+| 8b | Aprendizaje continuo: diario, calibración, aporte por señal, reentrenamiento | `engine/journal`, `intelligence/learning` | pendiente. Adelanto: diario de propuestas (#60) |
 | 9 | Observabilidad y operación segura | `engine/`, `infra/` | pendiente |
-| 10 | UI en TypeScript | `ui/` | pendiente |
+| 10 | UI en TypeScript | `ui/` | pendiente. Adelanto: prototipo con datos de ejemplo (#30) |
 | 11 | Dinero real (requiere ADR firmado por ambos) | — | bloqueada |
+
+"Adelanto" = trabajo hecho antes de que su fase empiece formalmente. La fase sigue pendiente: se aprueba con su Issue y sus criterios, como todas.
 
 ---
 
