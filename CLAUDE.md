@@ -20,6 +20,7 @@ El objetivo de estas reglas es que **nunca existan dos versiones de lo mismo** y
 4. **Reclamá el Issue antes de empezar**: asignátelo y poné la etiqueta `in-progress`.
    - Si el Issue **ya está asignado a otra persona o tiene `in-progress`, NO lo trabajes**. Elegí otro o preguntá en el Issue.
 5. Si tu tarea necesita un módulo que **otro está construyendo** (PR abierto), **no lo reimplementes**: esperá, construí sobre su rama o coordiná en el Issue.
+6. **Dónde trabajar y cupo de IG:** leé `docs/guides/trabajo-en-paralelo.md`. Las cargas de datos que se quieren conservar van solo en el Mac mini. En la nube, solo pruebas chicas contra IG.
 
 ## 1. Arquitectura (fuente de verdad: `docs/ARCHITECTURE.md`)
 
