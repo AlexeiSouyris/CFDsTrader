@@ -65,3 +65,12 @@ startup_lookback_hours = 24
 [sentiment]
 # Cada cuántos minutos se graba, alineado a la hora (15 → :00, :15, :30, :45). 96 pedidos por día.
 interval_minutes = 15
+
+# Antes de una carga histórica (ig_backfill, ig_backfill_daily), #143. Los puntos se estiman con
+# el plan de huecos (#137) y el margen de cada pedido; `--dry-run` los muestra sin conectarse.
+[loads]
+# Arriba de esto se pide confirmación en la terminal, salvo `--yes`. Sin terminal (cron), se niega.
+confirm_above_points = 500
+# Tope de una carga en una máquina que no tiene CFDS_DATA_MACHINE=1 en su .env (solo el Mac mini
+# lo tiene, docs/guides/trabajo-en-paralelo.md). `--yes` no lo saltea.
+max_points_off_data_machine = 100

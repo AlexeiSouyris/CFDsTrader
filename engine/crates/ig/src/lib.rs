@@ -17,14 +17,19 @@ pub mod allowance;
 pub mod config;
 pub mod credentials;
 pub mod live;
+pub mod loads;
 pub mod model;
 pub mod provider;
 pub mod sentiment;
 pub mod transport;
 
 pub use allowance::{AllowanceObservation, AllowanceSummary, summarize};
-pub use config::{DEMO_BASE_URL, IgConfig, IgConfigError, LiveConfig};
+pub use config::{DEMO_BASE_URL, IgConfig, IgConfigError, LiveConfig, LoadLimits};
 pub use credentials::{Credentials, MissingEnv, Secret, api_key_from_env};
+pub use loads::{
+    DATA_MACHINE_ENV, LoadDecision, LoadFlags, decide, estimate_points, is_data_machine,
+    parse_flags,
+};
 pub use model::{DailyHistory, MarketTerms, median};
 pub use provider::{IgProvider, Recent, epics_from_catalog};
 pub use transport::{HttpRequest, HttpResponse, Method, ReqwestTransport, Transport};

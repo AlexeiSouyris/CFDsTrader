@@ -11,28 +11,33 @@
 
 #[path = "common/allowance.rs"]
 mod allowance;
+#[path = "common/gate.rs"]
+mod gate;
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use cfds_ig::{
     Credentials, IgConfig, IgProvider, ReqwestTransport, api_key_from_env, epics_from_catalog,
+    estimate_points, parse_flags,
 };
 use cfds_ingest::{daily_gaps, session_days};
 use cfds_market_data::{
     Catalog, DailyIssueKind, ExchangeCalendar, local_day_bounds, validate_daily,
 };
 use cfds_storage::PgStore;
-use chrono::{NaiveDate, Utc};
+use chrono::{NaiveDate, TimeDelta, Utc};
 
 const CONFIG: &str = include_str!("../../../../config/ig.toml");
 const CATALOG: &str = include_str!("../../../../config/instruments.toml");
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let (args, flags) = parse_flags(std::env::args().skip(1).collect())?;
     let [instrument, from, to] = args.as_slice() else {
-        return Err("uso: <INSTRUMENTO> <desde AAAA-MM-DD> <hasta AAAA-MM-DD>".into());
+        return Err(
+            "uso: <INSTRUMENTO> <desde AAAA-MM-DD> <hasta AAAA-MM-DD> [--dry-run] [--yes]".into(),
+        );
     };
     let id = instrument.parse()?;
     let (from, to): (NaiveDate, NaiveDate) = (from.parse()?, to.parse()?);
@@ -73,6 +78,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     if plan.ranges.is_empty() {
         println!("no falta nada: no se pide a IG (0 puntos)");
+        return Ok(());
+    }
+    // Cada día va de medianoche a medianoche en la zona de la cuenta: así se estima el pedido.
+    let mut bounds = Vec::new();
+    for &(from, to) in &plan.ranges {
+        let start = |d: NaiveDate| local_day_bounds(d, tz).map(|(s, _)| s);
+        match (start(from), start(to)) {
+            (Some(f), Some(t)) => bounds.push((f, t)),
+            _ => return Err(format!("{from}..{to}: sin medianoche en {tz}").into()),
+        }
+    }
+    let estimated = estimate_points(&bounds, TimeDelta::days(1), cfg.local_time_margin_hours);
+    if !gate::check(estimated, flags, &cfg)? {
         return Ok(());
     }
 

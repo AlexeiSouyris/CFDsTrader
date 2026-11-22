@@ -35,6 +35,7 @@ open -e .env      # se edita a mano; nunca se pega en un chat
 - `DATABASE_URL=postgres://USUARIO:CONTRASEÑA@127.0.0.1:5432/BASE`, con los mismos valores.
 - `REDIS_URL=redis://127.0.0.1:6379`.
 - `IG_USERNAME`, `IG_PASSWORD` e `IG_API_KEY` de la cuenta **demo** de IG.
+- `CFDS_DATA_MACHINE=1`, **solo en la computadora que guarda los datos** (el Mac mini). Sin esa línea, cualquier carga de IG de más de 100 puntos se niega (#143).
 
 Para que los comandos de abajo vean esas variables, en cada terminal nueva:
 
@@ -70,6 +71,8 @@ cd engine && env -u IG_API_KEY -u IG_USERNAME -u IG_PASSWORD \
 ## 6. Cargas iniciales
 
 El **cupo de IG es de 10.000 puntos por semana**, compartido por todo lo que use la cuenta demo, incluidas las sesiones en la nube. Antes de cada carga grande, probar con un año.
+
+Antes de cargar, `--dry-run` muestra qué falta y cuántos puntos estima, sin conectarse a IG. Una carga que estime más de 500 puntos (`loads.confirm_above_points` en `config/ig.toml`) pregunta antes de seguir, salvo que se agregue `--yes`. Sin terminal, por ejemplo desde `cron`, se niega.
 
 | Qué | Comando | Costo de cupo |
 |---|---|---|
