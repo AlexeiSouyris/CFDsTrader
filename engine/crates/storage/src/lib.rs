@@ -10,7 +10,7 @@
 mod pg;
 mod stream;
 
-pub use pg::{InsertReport, PgStore};
+pub use pg::{AllowanceRecord, InsertReport, PgStore};
 pub use stream::{CandlePublisher, Published, stream_id, stream_key};
 
 use chrono::{DateTime, Utc};

@@ -82,7 +82,7 @@ El **cupo de IG es de 10.000 puntos por semana**, compartido por todo lo que use
 | Velas de 15m recientes (con su spread) | `cd engine && cargo run -p cfds-ig --example ig_backfill -- DE40 15m <desde> <hasta>` | ~1 por vela |
 
 Notas:
-- **Los cuatro índices en diarias** son unos 5.300 puntos: si el cupo no alcanza, se terminan la semana siguiente. Al final de cada carga se muestra el cupo que queda.
+- **Los cuatro índices en diarias** son unos 5.300 puntos: si el cupo no alcanza, se terminan la semana siguiente. Al final de cada carga se muestra el cupo que queda, cuándo se renueva, lo gastado y lo **gastado por otro lado** desde la carga anterior registrada en esta base (#140).
 - **Si falta un día** de IG, se avisa y **no se rellena**. Por ejemplo, DE40 no tiene el 19-06-2026.
 - **Las cargas piden solo lo que falta** (#137). Antes de conectarse a IG muestran cuántas velas cerradas se esperan según el calendario, cuántas ya están guardadas y cuántas se van a pedir. Repetir una carga no gasta cupo por lo ya guardado, y si no falta nada no se conecta. Excepción: un día que IG no tiene (como el del ejemplo) se vuelve a pedir en cada carga que lo incluya, a unos pocos puntos cada vez.
 - **El filtro de spread (§7.3)** necesita el spread de los 20 días anteriores al período del backtest. Se carga con `ig_backfill` de 15m.

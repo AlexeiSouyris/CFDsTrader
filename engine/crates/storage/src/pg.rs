@@ -18,6 +18,19 @@ pub struct InsertReport {
     pub unchanged: usize,
 }
 
+/// Fila de `ig_allowance_log`: observed_at, points_returned, remaining, total, resets_at.
+type AllowanceRow = (DateTime<Utc>, i64, i64, i64, DateTime<Utc>);
+
+/// Una respuesta de `GET /prices` de IG para `ig_allowance_log` (#140).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AllowanceRecord {
+    pub observed_at: DateTime<Utc>,
+    pub points_returned: u64,
+    pub remaining: u64,
+    pub total: u64,
+    pub resets_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone)]
 pub struct PgStore {
     pool: PgPool,
@@ -228,6 +241,53 @@ impl PgStore {
         Ok(report)
     }
 
+    /// Agrega las observaciones del cupo de IG de una corrida de `command` (#140), en una sola
+    /// transacción. La tabla es de solo agregar.
+    pub async fn insert_allowance_log(
+        &self,
+        command: &str,
+        records: &[AllowanceRecord],
+    ) -> Result<(), StorageError> {
+        let mut tx = self.pool.begin().await?;
+        for r in records {
+            sqlx::query(
+                "INSERT INTO ig_allowance_log
+                    (observed_at, command, points_returned, remaining, total, resets_at)
+                 VALUES ($1, $2, $3, $4, $5, $6)",
+            )
+            .bind(r.observed_at)
+            .bind(command)
+            .bind(to_i64(r.points_returned)?)
+            .bind(to_i64(r.remaining)?)
+            .bind(to_i64(r.total)?)
+            .bind(r.resets_at)
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// La última observación del cupo de IG guardada, de cualquier comando.
+    pub async fn last_allowance(&self) -> Result<Option<AllowanceRecord>, StorageError> {
+        let row: Option<AllowanceRow> = sqlx::query_as(
+            "SELECT observed_at, points_returned, remaining, total, resets_at
+             FROM ig_allowance_log ORDER BY observed_at DESC, id DESC LIMIT 1",
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        row.map(|(observed_at, points, remaining, total, resets_at)| {
+            Ok(AllowanceRecord {
+                observed_at,
+                points_returned: to_u64(points)?,
+                remaining: to_u64(remaining)?,
+                total: to_u64(total)?,
+                resets_at,
+            })
+        })
+        .transpose()
+    }
+
     /// Spreads de cierre de un instrumento y timeframe con inicio en `[from, to)`, en orden.
     pub async fn spreads(
         &self,
@@ -436,4 +496,12 @@ fn row_to_daily(row: &PgRow) -> Result<DailyCandle, StorageError> {
         close: row.try_get::<Decimal, _>("close")?,
         volume: row.try_get::<Option<Decimal>, _>("volume")?,
     })
+}
+
+fn to_i64(v: u64) -> Result<i64, StorageError> {
+    i64::try_from(v).map_err(|_| StorageError::CorruptRow(format!("{v} no entra en BIGINT")))
+}
+
+fn to_u64(v: i64) -> Result<u64, StorageError> {
+    u64::try_from(v).map_err(|_| StorageError::CorruptRow(format!("{v} negativo en el cupo de IG")))
 }

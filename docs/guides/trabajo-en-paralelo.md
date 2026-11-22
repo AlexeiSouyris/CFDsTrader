@@ -19,7 +19,7 @@ Antecedente: en la semana del 17 al 22-11-2026 se gastaron unos 8.900 de los 10.
 Reglas:
 1. **Cargas grandes** (más de unos 100 puntos) **solo en el Mac mini**.
 2. **En la nube, solo pruebas chicas**: un día o una semana de datos. Nunca `ig_live` ni cargas de años.
-3. **Antes de una carga, mirar el cupo; después, anotarlo.** Cada carga muestra al final el `cupo semanal restante`. Se deja un comentario en el Issue de la carga con lo que se cargó y el cupo que quedó.
+3. **Antes de una carga, mirar el cupo; después, anotarlo.** Cada carga muestra al final el cupo que queda, **cuándo se renueva** y lo que gastó. Se deja un comentario en el Issue de la carga con lo que se cargó y el cupo que quedó. En el Mac mini, además, cada respuesta de IG queda en la tabla `ig_allowance_log` (#140), y la carga siguiente muestra lo **gastado por otro lado**: lo que bajó el cupo de la cuenta sin que lo pidiera el Mac mini (la nube u otra computadora).
 4. **El dato ya guardado no se vuelve a pedir.** Si falta algo, primero se revisa la base del Mac mini. Desde #137, `ig_backfill` e `ig_backfill_daily` lo hacen solas: miran la base y le piden a IG solo lo que falta.
 
 ## 3. Cómo elige tarea un agente

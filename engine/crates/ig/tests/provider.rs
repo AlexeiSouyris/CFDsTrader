@@ -949,3 +949,42 @@ async fn instruments_sharing_a_market_ask_for_it_once() {
         "/clientsentiment?marketIds=USTECH"
     );
 }
+
+#[tokio::test(start_paused = true)]
+async fn every_prices_response_leaves_an_allowance_observation() {
+    let t = Recorded::default()
+        .login()
+        .ok(US100_1H[0])
+        .ok(US100_1H[1])
+        .ok(US100_1H[2]);
+    let mut c = cfg();
+    c.page_size = 2;
+    let ig = provider(&t, c);
+    ig.history(
+        &us100(),
+        Timeframe::H1,
+        at("2026-11-19T14:00:00Z"),
+        at("2026-11-19T18:00:00Z"),
+    )
+    .await
+    .unwrap();
+    let log = ig.take_allowance_log().await;
+    let seen: Vec<_> = log
+        .iter()
+        .map(|o| (o.points_returned, o.remaining, o.total))
+        .collect();
+    // Respuestas grabadas de la demo: el cupo bajó 2, 2 y 1, igual que los precios devueltos.
+    assert_eq!(
+        seen,
+        [(2, 9993, 10_000), (2, 9991, 10_000), (1, 9990, 10_000)]
+    );
+    let last = log.last().unwrap();
+    assert_eq!((last.resets_at - last.at).num_seconds(), 604_631);
+    let s = cfds_ig::summarize(None, &log).unwrap();
+    assert_eq!(s.points_returned, 5);
+    assert_eq!(s.one_point_per_price, Some(true));
+    assert!(
+        ig.take_allowance_log().await.is_empty(),
+        "leer el registro lo vacía"
+    );
+}
