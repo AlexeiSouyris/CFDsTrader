@@ -186,13 +186,26 @@ impl ProbabilityTable {
         self.cells.get(&g).copied().unwrap_or((0, 0))
     }
 
+    /// Los grupos con al menos un caso, en orden, con (aciertos, casos).
+    pub fn groups(&self) -> impl Iterator<Item = (Group, (u32, u32))> + '_ {
+        self.cells.iter().map(|(g, c)| (*g, *c))
+    }
+
     /// La probabilidad que se muestra para `p`. Sin grupo (sin gatillos o puntaje por debajo
     /// del primer rango) es "datos insuficientes" con 0 casos.
     pub fn shown(&self, p: &Proposal) -> Shown {
+        match self.cfg.group(p) {
+            Some(g) => self.shown_for(g),
+            None => Shown::Insufficient {
+                cases: 0,
+                needed: self.cfg.min_cases,
+            },
+        }
+    }
+
+    /// La probabilidad que se muestra para un grupo.
+    pub fn shown_for(&self, g: Group) -> Shown {
         let needed = self.cfg.min_cases;
-        let Some(g) = self.cfg.group(p) else {
-            return Shown::Insufficient { cases: 0, needed };
-        };
         let (hits, cases) = self.counts(g);
         if cases < needed {
             return Shown::Insufficient { cases, needed };

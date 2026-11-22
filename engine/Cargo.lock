@@ -199,6 +199,7 @@ version = "0.1.0"
 dependencies = [
  "cfds-core",
  "cfds-indicators",
+ "cfds-journal",
  "cfds-liquidity",
  "cfds-market-data",
  "cfds-patterns",
