@@ -7,6 +7,7 @@ dependencies = [
     "defusedxml>=0.7.1",
     "nasdaq-100-ticker-history",
     "psycopg[binary]>=3.3.9",
+    "pypdf>=6.9.2,<7",
     "truststore>=0.10.5",
     "tzdata>=2026.6",
 ]
