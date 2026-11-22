@@ -5,14 +5,20 @@
 //! ```text
 //! DATABASE_URL=... cargo run -p cfds-ig --example ig_backfill_daily -- <INSTRUMENTO> <desde AAAA-MM-DD> <hasta AAAA-MM-DD>
 //! ```
-//! Gasta del cupo semanal de IG ~1 punto por día del rango. El día `hasta` no entra.
+//! Antes de pedir mira la base (#137): solo pide los tramos de días con sesión, ya cerrados,
+//! que faltan, y si no falta nada no se conecta a IG. Gasta del cupo semanal ~1 punto por día
+//! pedido. El día `hasta` no entra.
 
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use cfds_ig::{
     Credentials, IgConfig, IgProvider, ReqwestTransport, api_key_from_env, epics_from_catalog,
 };
-use cfds_market_data::{Catalog, DailyIssueKind, ExchangeCalendar, validate_daily};
+use cfds_ingest::{daily_gaps, session_days};
+use cfds_market_data::{
+    Catalog, DailyIssueKind, ExchangeCalendar, local_day_bounds, validate_daily,
+};
 use cfds_storage::PgStore;
 use chrono::{NaiveDate, Utc};
 
@@ -38,6 +44,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let cfg = IgConfig::from_toml(CONFIG)?;
     let (tz, tolerance) = (cfg.prices_tz, cfg.daily_start_tolerance);
+
+    // Mirar la base antes de pedir (#137): con IG, un día repetido igual gasta cupo.
+    let expected = session_days(session, from, to)
+        .ok_or("el calendario de sesiones no cubre ese rango: no se pide nada")?;
+    let stored: BTreeSet<_> = store
+        .daily_candles(&id, from, to)
+        .await?
+        .into_iter()
+        .map(|c| c.day)
+        .collect();
+    // Primer día que todavía no cerró en la zona de la cuenta: desde ahí no se pide.
+    let now = Utc::now();
+    let mut closed_by = now.with_timezone(&tz).date_naive();
+    while local_day_bounds(closed_by, tz).is_some_and(|(_, end)| end <= now) {
+        closed_by = closed_by.succ_opt().ok_or("fecha fuera de rango")?;
+    }
+    let plan = daily_gaps(&expected, &stored, closed_by);
+    println!(
+        "{id}: {} días con sesión cerrados, {} ya guardados, {} a pedir en {} tramo(s)",
+        plan.expected,
+        plan.stored,
+        plan.missing(),
+        plan.ranges.len()
+    );
+    if plan.ranges.is_empty() {
+        println!("no falta nada: no se pide a IG (0 puntos)");
+        return Ok(());
+    }
+
     let transport = ReqwestTransport::new(&cfg, api_key_from_env())?;
     let ig = IgProvider::new(
         transport,
@@ -45,10 +80,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Credentials::from_env()?,
         epics_from_catalog(&catalog),
     );
-    let fetched = ig.daily_history(&id, from, to).await;
+    let mut result = Ok(());
+    for &(from, to) in &plan.ranges {
+        match ig.daily_history(&id, from, to).await {
+            Ok(history) => {
+                if let Err(e) = save(&store, &id, history, tz, tolerance, session).await {
+                    result = Err(e);
+                    break;
+                }
+            }
+            Err(e) => {
+                result = Err(e.into());
+                break;
+            }
+        }
+    }
     let allowance = ig.allowance().await;
     ig.logout().await?;
-    let history = fetched?;
+    if let Some((left, _)) = allowance {
+        println!("cupo semanal restante: {left} puntos");
+    }
+    result
+}
+
+/// Valida y guarda un tramo de días.
+async fn save(
+    store: &PgStore,
+    id: &cfds_core::InstrumentId,
+    history: cfds_ig::DailyHistory,
+    tz: chrono_tz::Tz,
+    tolerance: chrono::TimeDelta,
+    session: &cfds_market_data::Session,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut daily = history.candles;
     // El día en curso todavía no cerró: no se guarda.
     let now = Utc::now();
@@ -86,8 +149,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         r.unchanged,
         open
     );
-    if let Some((left, _)) = allowance {
-        println!("cupo semanal restante: {left} puntos");
-    }
     Ok(())
 }

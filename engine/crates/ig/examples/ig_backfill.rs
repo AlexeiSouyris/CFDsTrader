@@ -4,15 +4,20 @@
 //! ```text
 //! DATABASE_URL=... cargo run -p cfds-ig --example ig_backfill -- <INSTRUMENTO> <15m|1h> <desde UTC> <hasta UTC>
 //! ```
-//! Gasta del cupo semanal de IG ~1 punto por vela del rango (más el margen horario).
+//! Antes de pedir mira la base (#137): solo pide los tramos de velas cerradas que faltan según
+//! el calendario de sesiones, y si no falta nada no se conecta a IG. Gasta del cupo semanal
+//! ~1 punto por vela pedida, más el margen horario de cada tramo.
 
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use cfds_ig::{
     Credentials, IgConfig, IgProvider, ReqwestTransport, api_key_from_env, epics_from_catalog,
 };
-use cfds_ingest::{IngestRequest, ingest};
-use cfds_market_data::{Catalog, ExchangeCalendar, StaticProvider, ValidationConfig};
+use cfds_ingest::{IngestRequest, ingest, intraday_gaps};
+use cfds_market_data::{
+    Catalog, ExchangeCalendar, SessionCalendar, StaticProvider, ValidationConfig,
+};
 use cfds_storage::PgStore;
 use chrono::Utc;
 
@@ -34,7 +39,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for spec in catalog.instruments.values() {
         store.upsert_instrument(&spec.instrument).await?;
     }
+    let (id, tf) = (instrument.parse()?, tf.parse()?);
+    let (from, to) = (from.parse()?, to.parse()?);
+    // Mirar la base antes de pedir (#137): con IG, una vela repetida igual gasta cupo.
+    let expected = calendar
+        .expected_starts(&id, tf, from, to)
+        .ok_or("el calendario de sesiones no cubre ese rango: no se pide nada")?;
+    let stored: BTreeSet<_> = store
+        .candles(&id, tf, from, to)
+        .await?
+        .into_iter()
+        .map(|c| c.start)
+        .collect();
+    let plan = intraday_gaps(&expected, &stored, tf, Utc::now());
+    println!(
+        "{id} {tf}: {} velas cerradas esperadas, {} ya guardadas, {} a pedir en {} tramo(s)",
+        plan.expected,
+        plan.stored,
+        plan.missing(),
+        plan.ranges.len()
+    );
+    if plan.ranges.is_empty() {
+        println!("no falta nada: no se pide a IG (0 puntos)");
+        return Ok(());
+    }
+
     let cfg = IgConfig::from_toml(CONFIG)?;
+    let validation = ValidationConfig::from_toml(VALIDATION)?;
     let transport = ReqwestTransport::new(&cfg, api_key_from_env())?;
     let ig = IgProvider::new(
         transport,
@@ -42,46 +73,62 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Credentials::from_env()?,
         epics_from_catalog(&catalog),
     );
-    let req = IngestRequest {
-        instrument: instrument.parse()?,
-        timeframe: tf.parse()?,
-        from: from.parse()?,
-        to: to.parse()?,
-    };
-    // Velas y spreads del mismo pedido (#95): el cupo semanal se paga una vez.
-    let fetched = ig
-        .history_with_spreads(&req.instrument, req.timeframe, req.from, req.to)
-        .await;
+    let mut result = Ok(());
+    for &(from, to) in &plan.ranges {
+        let req = IngestRequest {
+            instrument: id.clone(),
+            timeframe: tf,
+            from,
+            to,
+        };
+        if let Err(e) = load_range(&ig, &calendar, &validation, &store, &req).await {
+            result = Err(e);
+            break;
+        }
+    }
+    let allowance = ig.allowance().await;
     ig.logout().await?;
-    let (candles, spreads) = fetched?;
+    if let Some((left, _)) = allowance {
+        println!("cupo semanal restante: {left} puntos");
+    }
+    result
+}
+
+/// Un tramo: velas y spreads del mismo pedido (#95, el cupo se paga una vez), ingesta de
+/// siempre (validación incluida) y spread de las velas cerradas.
+async fn load_range(
+    ig: &IgProvider<ReqwestTransport>,
+    calendar: &ExchangeCalendar,
+    validation: &ValidationConfig,
+    store: &PgStore,
+    req: &IngestRequest,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let (candles, spreads) = ig
+        .history_with_spreads(&req.instrument, req.timeframe, req.from, req.to)
+        .await?;
     let now = Utc::now();
-    // Las velas pasan por la ingesta de siempre (validación incluida) desde la memoria.
     let r = ingest(
         &StaticProvider::new(candles),
-        &calendar,
-        &ValidationConfig::from_toml(VALIDATION)?,
-        &store,
+        calendar,
+        validation,
+        store,
         None,
-        &req,
+        req,
         now,
     )
     .await?;
     println!(
-        "{} {}: {} recibidas, {} nuevas, {} ya estaban, {} abiertas descartadas",
-        req.instrument, req.timeframe, r.fetched, r.inserted, r.unchanged, r.skipped_open
+        "{} → {}: {} recibidas, {} nuevas, {} ya estaban, {} abiertas descartadas",
+        req.from, req.to, r.fetched, r.inserted, r.unchanged, r.skipped_open
     );
-    // Solo el spread de las velas cerradas, que son las que se guardaron.
     let closed: Vec<_> = spreads
         .into_iter()
         .filter(|s| now >= s.start + s.timeframe.duration())
         .collect();
     let sr = store.insert_spreads(&closed).await?;
     println!(
-        "spreads: {} nuevos, {} ya estaban",
+        "  spreads: {} nuevos, {} ya estaban",
         sr.inserted, sr.unchanged
     );
-    if let Some((left, _)) = ig.allowance().await {
-        println!("cupo semanal restante: {left} puntos");
-    }
     Ok(())
 }

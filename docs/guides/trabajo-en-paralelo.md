@@ -20,7 +20,7 @@ Reglas:
 1. **Cargas grandes** (más de unos 100 puntos) **solo en el Mac mini**.
 2. **En la nube, solo pruebas chicas**: un día o una semana de datos. Nunca `ig_live` ni cargas de años.
 3. **Antes de una carga, mirar el cupo; después, anotarlo.** Cada carga muestra al final el `cupo semanal restante`. Se deja un comentario en el Issue de la carga con lo que se cargó y el cupo que quedó.
-4. **El dato ya guardado no se vuelve a pedir.** Si falta algo, primero se revisa la base del Mac mini.
+4. **El dato ya guardado no se vuelve a pedir.** Si falta algo, primero se revisa la base del Mac mini. Desde #137, `ig_backfill` e `ig_backfill_daily` lo hacen solas: miran la base y le piden a IG solo lo que falta.
 
 ## 3. Cómo elige tarea un agente
 
