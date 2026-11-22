@@ -22,6 +22,9 @@ cfds-market-data = { version = "0.1.0", path = "../market-data" }
 workspace = true
 
 [dev-dependencies]
+# Solo para el ejemplo `backtest_run`, que guarda la corrida en el diario (#181). Cargo permite
+# este ciclo en dev-dependencies: `cfds-journal` depende de la biblioteca de este crate.
+cfds-journal = { version = "0.1.0", path = "../journal" }
 cfds-liquidity = { version = "0.1.0", path = "../liquidity" }
 cfds-storage = { path = "../storage" }
 jsonschema = { version = "0.61.2", default-features = false }

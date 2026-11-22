@@ -3,8 +3,12 @@
 //!
 //! ```text
 //! DATABASE_URL=... cargo run -p cfds-backtest --example backtest_run -- \
-//!     <INSTRUMENTO> <desde UTC> <hasta UTC> <capital inicial> <tamaño comprar y mantener>
+//!     <INSTRUMENTO> <desde UTC> <hasta UTC> <capital inicial> <tamaño comprar y mantener> \
+//!     [<run_id>]
 //! ```
+//! Con `run_id`, además guarda cada operación en el diario (`proposals` y `outcomes`, de forma
+//! idempotente) y muestra la probabilidad de la spec §13 por gatillo y rango de puntaje, solo
+//! con los resultados anteriores al tramo fuera de muestra de `config/data_split.toml` (#181).
 //! Si al instrumento le falta algún dato del broker (por ejemplo el tipo de referencia de la
 //! financiación), no corre y dice qué falta. La financiación usa el tipo de referencia diario
 //! guardado (`reference_rates`, #79): si alguna noche no tiene un valor ya publicado, tampoco.
@@ -36,8 +40,15 @@ macro_rules! cfg {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let [instrument, from, to, equity, size] = args.as_slice() else {
-        return Err("uso: <INSTRUMENTO> <desde UTC> <hasta UTC> <capital> <tamaño B&H>".into());
+    let (instrument, from, to, equity, size, run_id) = match args.as_slice() {
+        [i, f, t, e, s] => (i, f, t, e, s, None),
+        [i, f, t, e, s, r] => (i, f, t, e, s, Some(r.as_str())),
+        _ => {
+            return Err(
+                "uso: <INSTRUMENTO> <desde UTC> <hasta UTC> <capital> <tamaño B&H> [<run_id>]"
+                    .into(),
+            );
+        }
     };
     let id = instrument.parse()?;
     let (from, to) = (from.parse()?, to.parse()?);
@@ -143,6 +154,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
+    if let Some(run_id) = run_id {
+        journal_and_probability(&store, run_id, &id, &report.trades, &m15).await?;
+    }
+
     let bh = buy_and_hold(&m15, size, &setup).ok_or("sin velas")?;
     let (first, last) = (&m15[0], &m15[m15.len() - 1]);
     println!(
@@ -150,5 +165,69 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         first.start, first.open, last.start, last.close
     );
     println!("  {bh:?}");
+    Ok(())
+}
+
+/// Guarda la corrida en el diario y muestra la probabilidad de la spec §13 (#181).
+async fn journal_and_probability(
+    store: &PgStore,
+    run_id: &str,
+    id: &cfds_core::InstrumentId,
+    trades: &[cfds_backtest::TradeRecord],
+    m15: &[cfds_core::Candle],
+) -> Result<(), Box<dyn std::error::Error>> {
+    use cfds_journal::pg::{PgJournal, Recorded};
+    use cfds_journal::probability::{ProbabilityConfig, ProbabilityTable, Shown};
+    use cfds_market_data::{SplitConfig, plan};
+
+    let journal = PgJournal::new(store.pool().clone());
+    let pairs: Vec<_> = trades
+        .iter()
+        .map(|t| cfds_journal::from_backtest(run_id, id, t))
+        .collect();
+    let mut new = 0;
+    for (p, o) in &pairs {
+        if journal.record(p, Some(o)).await? == Recorded::Inserted {
+            new += 1;
+        }
+    }
+    println!(
+        "diario: {} operaciones de la corrida {run_id} ({new} nuevas)",
+        pairs.len()
+    );
+
+    let (Some(first), Some(last)) = (m15.first(), m15.last()) else {
+        return Ok(());
+    };
+    let split = plan(
+        first.start,
+        last.end(),
+        &SplitConfig::from_toml(cfg!("data_split.toml"))?,
+    )?;
+    let cutoff = split.out_of_sample.start;
+    let cfg = ProbabilityConfig::from_toml(cfg!("probability.toml"))?;
+    let table = ProbabilityTable::build(&pairs, cutoff, &cfg)?;
+    println!("probabilidad §13 (TP1 antes que el stop), con resultados hasta {cutoff}:");
+    for (g, _) in table.groups() {
+        let lo = cfg.score_bands[g.band];
+        let band = match cfg.score_bands.get(g.band + 1) {
+            Some(next) if next - 1 > lo => format!("{lo}–{}", next - 1),
+            Some(_) => format!("{lo}"),
+            None => format!("≥{lo}"),
+        };
+        let shown = match table.shown_for(g) {
+            Shown::Estimate {
+                probability,
+                low,
+                high,
+                hits,
+                cases,
+            } => format!("{probability} [{low}; {high}] ({hits}/{cases})"),
+            Shown::Insufficient { cases, needed } => {
+                format!("datos insuficientes ({cases} de {needed})")
+            }
+        };
+        println!("  {:?}, puntaje {band}: {shown}", g.trigger);
+    }
     Ok(())
 }
