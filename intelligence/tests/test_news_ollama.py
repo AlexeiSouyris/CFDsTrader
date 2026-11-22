@@ -1,6 +1,7 @@
 """Intérprete con Ollama y prueba de selección (ADR 0008, #129). Sin red ni Ollama."""
 
 import json
+import re
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -32,6 +33,14 @@ from cfds_intel.news.select_model import (
 
 ROOT = Path(__file__).resolve().parents[2]
 REAL = (ROOT / "config" / "news_interpreter.toml").read_text()
+
+
+def with_model(name: str, digest: str) -> str:
+    """La configuración real con otro modelo y digest en `[model]`."""
+    out = re.sub(r'(?m)^name = ".*"$', f'name = "{name}"', REAL, count=1)
+    return re.sub(r'(?m)^digest = ".*"$', f'digest = "{digest}"', out, count=1)
+
+
 CFG = load_config(REAL)
 MODEL = "hf.co/Qwen/Qwen3-8B-GGUF:Q4_K_M"
 DIGEST = "a" * 64
@@ -79,7 +88,7 @@ def answer(summary: str = "La Fed abre un discurso sin anuncios.", impacts: Any 
     return json.dumps({"summary_es": summary, "impacts": list(impacts)})
 
 
-def test_repository_config_has_no_model_until_the_selection_test() -> None:
+def test_repository_config_fixes_the_model_chosen_by_the_selection_test() -> None:
     assert CFG.url == "http://127.0.0.1:11434"
     assert (CFG.temperature, CFG.seed, CFG.think, CFG.num_ctx, CFG.keep_alive) == (
         0,
@@ -88,10 +97,12 @@ def test_repository_config_has_no_model_until_the_selection_test() -> None:
         8192,
         0,
     )
-    assert CFG.model == "" and CFG.digest == ""
+    assert CFG.model == "hf.co/mistralai/Ministral-3-8B-Instruct-2512-GGUF:Q4_K_M"
+    assert len(CFG.digest) == 64 and all(c in "0123456789abcdef" for c in CFG.digest)
     assert CFG.selection.min_relevant_pairs == 20
+    empty = load_config(with_model("", ""))
     with pytest.raises(OllamaError, match="no hay modelo elegido"):
-        OllamaInterpreter(CFG, transport=Fake(answer()), text_for=TEXT)
+        OllamaInterpreter(empty, transport=Fake(answer()), text_for=TEXT)
 
 
 @pytest.mark.parametrize(
@@ -130,18 +141,10 @@ def test_request_is_deterministic_structured_and_records_model_and_prompt() -> N
 
 
 def test_a_pinned_digest_must_match_the_installed_model() -> None:
-    pinned = load_config(
-        REAL.replace('name = ""', f'name = "{MODEL}"').replace(
-            'digest = ""', f'digest = "{"b" * 64}"'
-        )
-    )
+    pinned = load_config(with_model(MODEL, "b" * 64))
     with pytest.raises(OllamaError, match="no es el fijado"):
         OllamaInterpreter(pinned, transport=Fake(answer()), text_for=TEXT)
-    ok = load_config(
-        REAL.replace('name = ""', f'name = "{MODEL}"').replace(
-            'digest = ""', f'digest = "{DIGEST}"'
-        )
-    )
+    ok = load_config(with_model(MODEL, DIGEST))
     assert (
         OllamaInterpreter(ok, transport=Fake(answer()), text_for=TEXT).info.model
         == f"{MODEL}@{DIGEST}"

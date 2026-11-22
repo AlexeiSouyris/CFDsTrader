@@ -27,11 +27,13 @@ keep_alive = 0
 think = false
 
 [model]
-# Elegido con la prueba de selección del ADR 0008 §4 y aprobado por el dueño. Mientras esté
-# vacío, el intérprete se niega a interpretar (no se elige un modelo sin la prueba).
-name = ""
+# Elegido con la prueba de selección del ADR 0008 §4 y aprobado por el dueño el 22-11-2026
+# ("si, elegí Ministral", #129). Resultado: válidas 100 %, deterministas 100 %, p95 25,2 s,
+# memoria 5,39 GB, acierto de signo 60,8 % [47,1, 73,0] en 51 pares, relevancia 83,6 %.
+# Qwen3-8B no pasó (relevancia 62,4 % < 70 %).
+name = "hf.co/mistralai/Ministral-3-8B-Instruct-2512-GGUF:Q4_K_M"
 # Digest de GET /api/tags del modelo elegido: si el instalado no coincide, no se interpreta.
-digest = ""
+digest = "e8294492472089284eff74350fbd8f076baee56577a125dd6f32205feba144e8"
 
 # Texto oficial de cada noticia (ADR 0008 §4, decisión del dueño del 22-11-2026): el intérprete
 # lee el comunicado del enlace del RSS, no solo el título. El texto nunca se guarda ni se
