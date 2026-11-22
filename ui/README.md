@@ -1,17 +1,53 @@
-# Interfaz de CFDsTrader: prototipo
+# Interfaz de CFDsTrader: prototipo integrado
 
-**Maqueta con datos de ejemplo** (Issue #30). No se conecta al motor ni a IG, y **no calcula nada**: la UI solo muestra lo que envía el motor (CLAUDE.md §1). La app real es la fase 10.
+**Maqueta con datos de ejemplo** (Issues #30 y #164). No se conecta al motor ni a IG, y **no calcula nada**: la UI solo muestra lo que envía el motor (CLAUDE.md §1). La app real es la fase 10.
 
-## Agregar un componente (por ejemplo de 21st.dev)
+## Qué hay
 
-1. Copiar el componente en `src/components/` (si usa `cn` de `@/lib/utils`, ya está).
-2. Si necesita datos, ponerlos en `src/mocks/`, marcados como ejemplo.
-3. Sumarlo a la lista de `src/gallery.ts`, con título, para qué lo usaríamos y el link al original.
+Una sola app (no una galería de piezas sueltas): carga → ingreso (email, contraseña y código 2FA) → armazón de vidrio con cinco vistas y una página 404.
+
+| Vista (`#hash`)          | Qué muestra                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| Panel (`#panel`)         | KPIs del fondo, comparación de índices con mini curvas, mapa de mercado, últimas operaciones y la tabla de la competencia |
+| Gráficos (`#graficos`)   | Velas o línea con volumen, RSI 14 y MACD 12·26·9 en paneles, y la profundidad del mercado                                 |
+| Noticias (`#noticias`)   | Una carpeta por miembro: todos ven todas, cada uno agrega solo en la suya                                                 |
+| Diario (`#operaciones`)  | Diario de operaciones simuladas, con filtro por período                                                                   |
+| Trofeos (`#competencia`) | Trofeo del día (plata) y de la semana (oro), y la tabla del grupo                                                         |
+
+El fondo es un flujo en semitono gris grafito y plata (WebGL, lento, quieto con `prefers-reduced-motion`). El vidrio se ajusta desde la barra superior (desenfoque y opacidad), y hay tema claro y oscuro.
+
+## Dónde vive cada cosa
+
+- `src/components/ui/`: los componentes. Cada uno dice en su encabezado de qué original de 21st.dev o AnimateIcons se inspira y qué se cambió.
+- `src/views/`: las vistas, que solo ubican componentes y les pasan datos.
+- `src/mocks/`: los datos de ejemplo, con la forma de los contratos (precios como texto decimal, horas en UTC). El RSI y el MACD de `us100-1h.json` vienen **precalculados** en el archivo: la UI no los calcula.
+- `src/lib/`: formato en español (`format.ts`), el reparto del mapa de mercado (`squarify.ts`, geometría de dibujo) y un hook de ancho.
+
+## Repetidos que se unificaron
+
+- Los dos paneles de vidrio ("glassy dashboard" y "adjustable glass dashboard") → un solo armazón, `glass-shell.tsx`.
+- El gráfico de velas y el de indicadores → un solo `trading-chart.tsx`, con paneles.
+- Las dos tarjetas holográficas (trofeo del día y de la semana) → un solo `trophy-card.tsx`, con dos acabados.
+- Los dos íconos animados comparten un solo hook de animación.
+- Una sola librería de animación (`motion`) y un solo control segmentado (`segmented.tsx`).
+
+## Agregar un componente
+
+1. Copiarlo en `src/components/ui/`, anotando el original y la licencia en el encabezado.
+2. Si necesita datos, ponerlos en `src/mocks/`, marcados como ejemplo y con la forma del contrato.
+3. Usarlo desde una vista de `src/views/`. Nada de lógica de trading en la UI.
+
+## Licencias de terceros
+
+- Íconos animados: AnimateIcons, de Avijit Dey, MIT. Íconos: `lucide-react`, ISC.
+- Fuente Manrope (`@fontsource-variable/manrope`), SIL OFL 1.1. Se sirve local, sin CDN.
+- `motion`, MIT.
 
 ## Comandos
 
 ```bash
 npm ci          # instalar
-npm run dev     # ver la página en el navegador
+npm run dev     # ver la app en el navegador
 npm test        # tests
+npm run build   # compilar
 ```
