@@ -42,6 +42,14 @@ digest = "e8294492472089284eff74350fbd8f076baee56577a125dd6f32205feba144e8"
 # 2025-12-02" (https://docs.mistral.ai/models/ministral-3-8b-25-12.md). La lee el motor (Rust).
 training_cutoff = "2025-12-02"
 
+# Intérprete cuyas interpretaciones usa el backtest del motor (#194): nombre y versión con que
+# Python las guarda (`cfds_intel.news.ollama`: name = "ollama", version = "p" + PROMPT_VERSION).
+# El motor además exige que cada interpretación sea de [model] (name@digest): la fecha de corte
+# de arriba es de ESE modelo. Si no coincide, el backtest no corre.
+[engine]
+interpreter_name = "ollama"
+interpreter_version = "p2"
+
 # Texto oficial de cada noticia (ADR 0008 §4, decisión del dueño del 22-11-2026): el intérprete
 # lee el comunicado del enlace del RSS, no solo el título. El texto nunca se guarda ni se
 # republica (ADR 0006): solo queda la interpretación.

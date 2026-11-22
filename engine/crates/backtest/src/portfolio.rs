@@ -15,10 +15,11 @@
 //! El valor de las abiertas no descuenta todavía sus costos de salida ni la financiación:
 //! esos se cobran al cerrar.
 
+use cfds_core::NewsInterpretation;
 use cfds_core::{Candle, InstrumentId};
 use cfds_indicators::wilder_atr;
 use cfds_risk::{Account, Rejection, Request, check};
-use cfds_strategy::{Analysis, Side};
+use cfds_strategy::{Analysis, Side, news_adjustment};
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 
@@ -39,6 +40,11 @@ pub struct Market<'a> {
     /// de cada uno no se abre hasta volver a tener el calentamiento completo. Vacío = datos sin
     /// problemas (series sintéticas).
     pub data_errors: &'a [DateTime<Utc>],
+    /// Interpretaciones de noticias para el ajuste del puntaje (spec §9, #194). En el backtest,
+    /// solo las de noticias publicadas después del corte del modelo intérprete (ADR 0008 §5).
+    /// En cada vela cuenta solo lo interpretado hasta su cierre (`news_adjustment`). Vacío =
+    /// sin ajuste de noticias.
+    pub news: &'a [NewsInterpretation],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -201,8 +207,20 @@ pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioErr
         // 4. Decidir en este instrumento.
         let market = &markets[mi];
         let setup = &market.setup;
+        // Ajuste de noticias con lo interpretado hasta el cierre de la vela (sin look-ahead).
+        let at = market.m15[t].end();
+        let news = |side| {
+            news_adjustment(
+                market.news,
+                &setup.instrument,
+                side,
+                at,
+                &setup.strategy.strategy.news,
+                &setup.strategy.strategy.score,
+            )
+        };
         let Some(signal) =
-            choose(&analyses[mi], t).map_err(|e| PortfolioError::Run(RunError::Score(e)))?
+            choose(&analyses[mi], t, news).map_err(|e| PortfolioError::Run(RunError::Score(e)))?
         else {
             continue;
         };

@@ -73,6 +73,68 @@ impl InterpreterCutoff {
     }
 }
 
+/// Intérprete cuyas interpretaciones usa el backtest (#194), de `config/news_interpreter.toml`:
+/// `[engine]` (nombre y versión) y `[model]` (el modelo de la fecha de corte).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BacktestInterpreter {
+    pub name: String,
+    pub version: String,
+    /// `name@digest` de `[model]`, como lo guarda Python en `interpreter.model` (hasta 200
+    /// caracteres).
+    pub model: String,
+}
+
+#[derive(Deserialize)]
+struct RawBacktestFile {
+    model: RawModelId,
+    engine: RawEngine,
+}
+
+#[derive(Deserialize)]
+struct RawModelId {
+    name: String,
+    digest: String,
+}
+
+#[derive(Deserialize)]
+struct RawEngine {
+    interpreter_name: String,
+    interpreter_version: String,
+}
+
+impl BacktestInterpreter {
+    pub fn from_toml(text: &str) -> Result<Self, String> {
+        let raw: RawBacktestFile = toml::from_str(text)
+            .map_err(|e| format!("config/news_interpreter.toml no es válido: {e}"))?;
+        let field = |name: &str, v: String| {
+            if v.trim().is_empty() {
+                Err(format!("config/news_interpreter.toml, {name}: vacío"))
+            } else {
+                Ok(v)
+            }
+        };
+        let model = format!(
+            "{}@{}",
+            field("model.name", raw.model.name)?,
+            field("model.digest", raw.model.digest)?
+        );
+        Ok(Self {
+            name: field("engine.interpreter_name", raw.engine.interpreter_name)?,
+            version: field("engine.interpreter_version", raw.engine.interpreter_version)?,
+            model: model.chars().take(200).collect(),
+        })
+    }
+
+    /// Las interpretaciones que no son de este modelo, si hay: con otro modelo la fecha de
+    /// corte no vale y el backtest no debe correr con ellas.
+    pub fn other_models<'a>(&self, items: &'a [NewsInterpretation]) -> Vec<&'a NewsInterpretation> {
+        items
+            .iter()
+            .filter(|n| n.interpreter.model.as_deref() != Some(self.model.as_str()))
+            .collect()
+    }
+}
+
 /// Ajuste de una noticia para un instrumento, antes de sumar y recortar.
 pub fn single_adjustment(sentiment: Decimal, relevance: Decimal) -> i32 {
     let raw = Decimal::TWO * sentiment * relevance;
@@ -434,5 +496,36 @@ mod tests {
             );
         }
         assert!(InterpreterCutoff::from_toml("[ollama]\nurl = \"x\"\n").is_err());
+    }
+
+    #[test]
+    fn the_backtest_interpreter_is_the_configured_one_with_its_model() {
+        let real = include_str!("../../../../config/news_interpreter.toml");
+        let b = BacktestInterpreter::from_toml(real).unwrap();
+        assert_eq!((b.name.as_str(), b.version.as_str()), ("ollama", "p2"));
+        assert!(
+            b.model
+                .starts_with("hf.co/mistralai/Ministral-3-8B-Instruct-2512-GGUF:Q4_K_M@")
+        );
+        assert!(
+            b.model
+                .ends_with("@e8294492472089284eff74350fbd8f076baee56577a125dd6f32205feba144e8")
+        );
+        assert!(
+            BacktestInterpreter::from_toml(
+                &real.replace("interpreter_version = \"p2\"", "interpreter_version = \"\"")
+            )
+            .is_err()
+        );
+        assert!(BacktestInterpreter::from_toml(&real.replace("[engine]", "[otro]")).is_err());
+
+        let mut n = news("n1", "2026-11-20T14:00:00Z", "2026-11-20T14:00:00Z", &[]);
+        n.interpreter.model = Some(b.model.clone());
+        let mut other = n.clone();
+        other.interpreter.model = Some("otro@modelo".to_owned());
+        let mut none = n.clone();
+        none.interpreter.model = None;
+        let items = [n, other.clone(), none.clone()];
+        assert_eq!(b.other_models(&items), [&other, &none]);
     }
 }

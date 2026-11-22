@@ -12,11 +12,17 @@
 //! Si al instrumento le falta algún dato del broker (por ejemplo el tipo de referencia de la
 //! financiación), no corre y dice qué falta. La financiación usa el tipo de referencia diario
 //! guardado (`reference_rates`, #79): si alguna noche no tiene un valor ya publicado, tampoco.
+//!
+//! Noticias (spec §9, #194): carga las interpretaciones del intérprete fijado en
+//! `config/news_interpreter.toml` (`[engine]`), solo de noticias publicadas después de la fecha
+//! de corte del modelo (ADR 0008 §5), y las pasa al ajuste del puntaje: en cada vela cuenta lo
+//! interpretado hasta su cierre. Si hay interpretaciones de otro modelo, no corre. Si no hay
+//! ninguna, corre sin ajuste de noticias y lo dice.
 
 use std::path::PathBuf;
 
 use cfds_backtest::{
-    BacktestConfig, DailyRates, FundingRates, buy_and_hold, run_checked, setup_from_catalog,
+    BacktestConfig, DailyRates, FundingRates, buy_and_hold, run_with_news, setup_from_catalog,
 };
 use cfds_core::Timeframe;
 use cfds_indicators::TrendConfig;
@@ -28,7 +34,7 @@ use cfds_market_data::{
 use cfds_patterns::PatternsConfig;
 use cfds_risk::RiskConfig;
 use cfds_storage::PgStore;
-use cfds_strategy::{Configs, StrategyConfig};
+use cfds_strategy::{BacktestInterpreter, Configs, InterpreterCutoff, StrategyConfig};
 use rust_decimal::Decimal;
 
 macro_rules! cfg {
@@ -134,8 +140,64 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         h1.len()
     );
 
-    let report = run_checked(&m15, &h1, &entries, &force_close, &data_errors, &setup)
-        .map_err(|e| format!("{e:?}"))?;
+    // Noticias (#194): solo las publicadas después del corte del modelo (ADR 0008 §5). Las que
+    // pueden contar en alguna vela del período: publicadas dentro de la ventana antes de `from`
+    // (`news.window_hours`) e interpretadas hasta `to`.
+    let interpreter = BacktestInterpreter::from_toml(cfg!("news_interpreter.toml"))?;
+    let cutoff = InterpreterCutoff::from_toml(cfg!("news_interpreter.toml"))?;
+    let published_from = cutoff.backtest_published_from();
+    let window = setup.strategy.strategy.news.window;
+    let news = store
+        .news_interpretations(
+            &interpreter.name,
+            &interpreter.version,
+            from - window - chrono::TimeDelta::seconds(1),
+            to,
+            Some(published_from),
+        )
+        .await?;
+    let foreign = interpreter.other_models(&news);
+    if let Some(n) = foreign.first() {
+        return Err(format!(
+            "{} interpretaciones de {} {} no son del modelo de config/news_interpreter.toml \
+             ({}), por ejemplo {:?}: la fecha de corte {} no vale para ellas",
+            foreign.len(),
+            interpreter.name,
+            interpreter.version,
+            interpreter.model,
+            n.interpreter.model,
+            cutoff.training_cutoff
+        )
+        .into());
+    }
+    let news_summary = format!(
+        "noticias: {} interpretaciones de {} {} (modelo {}), solo de noticias publicadas desde \
+         {published_from} (corte del modelo {}, ADR 0008 §5)",
+        news.len(),
+        interpreter.name,
+        interpreter.version,
+        interpreter.model,
+        cutoff.training_cutoff
+    );
+    println!("{news_summary}");
+    if news.is_empty() {
+        println!(
+            "⚠️  sin interpretaciones en el período: el backtest corre SIN ajuste de noticias \
+             del puntaje (spec §9)"
+        );
+    }
+
+    let report = run_with_news(
+        &m15,
+        &h1,
+        &entries,
+        &force_close,
+        &data_errors,
+        &news,
+        published_from,
+        &setup,
+    )
+    .map_err(|e| format!("{e:?}"))?;
     println!(
         "estrategia: {} operaciones, {} señales rechazadas por riesgo, capital final {}",
         report.trades.len(),

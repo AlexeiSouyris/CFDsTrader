@@ -3,7 +3,7 @@
 
 use cfds_backtest::{
     BacktestConfig, CloseReason, Commission, ExitReason, FundingRates, InstrumentCosts, Setup,
-    buy_and_hold, execute, pick, run, run_checked,
+    buy_and_hold, execute, pick, run, run_checked, run_with_news,
 };
 use cfds_core::{Candle, Timeframe};
 use cfds_indicators::TrendConfig;
@@ -575,6 +575,7 @@ fn markets<'a>(m15: &'a [Vec<Candle>], h1: &'a [Vec<Candle>], setups: &[Setup]) 
             entries: &[],
             force_close: &[],
             data_errors: &[],
+            news: &[],
         })
         .collect()
 }
@@ -920,4 +921,75 @@ fn no_decision_outside_the_entry_window() {
     assert!(some.trades.iter().all(|t| t.signal_index % 2 == 0));
     assert!(some.rejected.iter().all(|r| r.index % 2 == 0));
     assert_ne!(some.trades.len(), all.trades.len());
+}
+
+/// Interpretación de prueba con la forma del contrato `news_interpretation.v1`.
+fn interpretation(
+    k: u32,
+    published_at: DateTime<Utc>,
+    interpreted_at: DateTime<Utc>,
+    sentiment: &str,
+) -> cfds_core::NewsInterpretation {
+    let z = |t: DateTime<Utc>| t.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true);
+    serde_json::from_value(serde_json::json!({
+        "interpretation_id": format!("{k:064x}"),
+        "source": "fed",
+        "item_id": format!("noticia-{k}"),
+        "published_at": z(published_at),
+        "interpreted_at": z(interpreted_at),
+        "interpreter": {"name": "ollama", "version": "1", "model": null, "prompt_sha256": null},
+        "summary_es": "resumen",
+        "impacts": [{"instrument_id": "US100", "sentiment": sentiment, "relevance": "1"}],
+    }))
+    .unwrap()
+}
+
+fn news_points(t: &cfds_backtest::TradeRecord) -> i32 {
+    t.breakdown
+        .iter()
+        .find(|(c, _)| *c == Component::News)
+        .map_or(0, |(_, p)| *p)
+}
+
+#[test]
+fn news_adjust_the_score_from_the_close_they_were_interpreted_at() {
+    let m15 = random_walk(3000, 11);
+    let h1 = resample_h1(&m15);
+    let s = setup();
+    let base = run(&m15, &h1, &[], &[], &s).unwrap();
+    let first = base.trades.first().expect("hay operaciones").clone();
+    let close = m15[first.signal_index].end();
+    let long = first.side == Side::Long;
+    // A favor de la operación: +2 (2 × 1 × 1, recortado a news_max).
+    let favor = if long { "1" } else { "-1" };
+    let cutoff = utc("2020-01-01T00:00:00Z");
+    let published = close - TimeDelta::hours(1);
+
+    // Sin interpretaciones, el recorrido es el mismo que sin noticias.
+    let none = run_with_news(&m15, &h1, &[], &[], &[], &[], cutoff, &s).unwrap();
+    assert_eq!(none, base);
+
+    // Interpretada justo al cierre de la vela de la señal: ya cuenta.
+    let at_close = [interpretation(1, published, close, favor)];
+    let with = run_with_news(&m15, &h1, &[], &[], &[], &at_close, cutoff, &s).unwrap();
+    let t = &with.trades[0];
+    assert_eq!((t.signal_index, t.side), (first.signal_index, first.side));
+    assert_eq!(news_points(&first), 0);
+    assert_eq!(news_points(t), 2);
+    assert_eq!(t.score, first.score + 2);
+
+    // Un microsegundo después del cierre: todavía no existía (sin look-ahead).
+    let late = [interpretation(
+        2,
+        published,
+        close + TimeDelta::microseconds(1),
+        favor,
+    )];
+    let after = run_with_news(&m15, &h1, &[], &[], &[], &late, cutoff, &s).unwrap();
+    assert_eq!(after.trades[0], first);
+
+    // Publicada antes del corte del modelo (ADR 0008 §5): no cuenta aunque esté en la lista.
+    let model_cutoff = published + TimeDelta::seconds(1);
+    let old = run_with_news(&m15, &h1, &[], &[], &[], &at_close, model_cutoff, &s).unwrap();
+    assert_eq!(old, base);
 }
