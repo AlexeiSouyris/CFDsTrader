@@ -23,6 +23,8 @@ pub struct InsertReport {
 
 /// Fila de `ig_allowance_log`: observed_at, points_returned, remaining, total, resets_at.
 type AllowanceRow = (DateTime<Utc>, i64, i64, i64, DateTime<Utc>);
+/// Fila de `ig_allowance_log` con su comando (#167).
+type AllowanceCommandRow = (String, DateTime<Utc>, i64, i64, i64, DateTime<Utc>);
 
 /// Una respuesta de `GET /prices` de IG para `ig_allowance_log` (#140).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -289,6 +291,37 @@ impl PgStore {
             })
         })
         .transpose()
+    }
+
+    /// Las observaciones del cupo de IG de la ventana vigente (#167): las que anunciaron una
+    /// renovación posterior a `now`, con su comando, en el orden en que se guardaron.
+    pub async fn allowance_window(
+        &self,
+        now: DateTime<Utc>,
+    ) -> Result<Vec<(String, AllowanceRecord)>, StorageError> {
+        let rows: Vec<AllowanceCommandRow> = sqlx::query_as(
+            "SELECT command, observed_at, points_returned, remaining, total, resets_at
+             FROM ig_allowance_log WHERE resets_at > $1 ORDER BY observed_at, id",
+        )
+        .bind(now)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter()
+            .map(
+                |(command, observed_at, points, remaining, total, resets_at)| {
+                    Ok((
+                        command,
+                        AllowanceRecord {
+                            observed_at,
+                            points_returned: to_u64(points)?,
+                            remaining: to_u64(remaining)?,
+                            total: to_u64(total)?,
+                            resets_at,
+                        },
+                    ))
+                },
+            )
+            .collect()
     }
 
     /// Spreads de cierre de un instrumento y timeframe con inicio en `[from, to)`, en orden.

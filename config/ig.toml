@@ -74,3 +74,18 @@ confirm_above_points = 500
 # Tope de una carga en una máquina que no tiene CFDS_DATA_MACHINE=1 en su .env (solo el Mac mini
 # lo tiene, docs/guides/trabajo-en-paralelo.md). `--yes` no lo saltea.
 max_points_off_data_machine = 100
+
+# Presupuesto semanal del cupo de históricos por uso (#167, propuesta 6 del #132, aprobada por el
+# dueño el 22-11-2026). Cada comando sabe a qué uso pertenece y se frena ANTES de pasar su parte.
+# Lo gastado en la semana sale de la tabla `ig_allowance_log` (#140): no se lleva otra cuenta.
+# La suma no puede superar `limits.historical_points_per_week`. Se valida al arrancar.
+[budget]
+# `ig_live` en la máquina que guarda los datos (velas de 15m y 1h apenas cierran).
+live = 3400
+# `ig_backfill` e `ig_backfill_daily` en la máquina que guarda los datos.
+history = 5000
+# Todo lo que se pide desde una máquina sin CFDS_DATA_MACHINE=1 (pruebas en la nube u otra
+# computadora). En el Mac mini se cuenta como lo "gastado por otro lado".
+off_data_machine = 1000
+# Ningún comando deja el cupo restante de la cuenta por debajo de esto.
+reserve = 600

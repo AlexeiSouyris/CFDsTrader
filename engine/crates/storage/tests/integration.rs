@@ -587,6 +587,51 @@ async fn ig_allowance_log_is_append_only_and_returns_the_latest() {
 
 #[tokio::test]
 #[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
+async fn allowance_window_keeps_only_the_observations_not_yet_renewed() {
+    let s = store().await;
+    // Fechas lejanas, propias de este test y anteriores a las del test de arriba (que necesita
+    // tener la última observación). La tabla es de solo agregar: al repetir el test, las filas
+    // de corridas anteriores siguen ahí, así que se controla qué entra y qué no.
+    let at = |d: u32, h: u32| -> DateTime<Utc> {
+        format!("2090-01-{d:02}T{h:02}:00:00Z").parse().unwrap()
+    };
+    let rec = |observed_at, resets_at, points, remaining| AllowanceRecord {
+        observed_at,
+        points_returned: points,
+        remaining,
+        total: 10_000,
+        resets_at,
+    };
+    let old = rec(at(1, 10), at(2, 12), 40, 9_960);
+    let current = [
+        rec(at(3, 10), at(9, 12), 30, 9_970),
+        rec(at(3, 11), at(9, 12), 5, 9_965),
+    ];
+    s.insert_allowance_log("ig_backfill", &[old]).await.unwrap();
+    s.insert_allowance_log("ig_backfill_daily", &current[..1])
+        .await
+        .unwrap();
+    s.insert_allowance_log("ig_live", &current[1..])
+        .await
+        .unwrap();
+    let window = s.allowance_window(at(4, 0)).await.unwrap();
+    assert!(window.iter().all(|(_, r)| r.resets_at > at(4, 0)));
+    assert!(window.contains(&("ig_backfill_daily".to_owned(), current[0])));
+    assert!(window.contains(&("ig_live".to_owned(), current[1])));
+    assert!(!window.iter().any(|(_, r)| *r == old));
+    let pos = |r| window.iter().position(|(_, w)| *w == r).unwrap();
+    assert!(
+        pos(current[0]) < pos(current[1]),
+        "en el orden en que se guardaron"
+    );
+    // En la renovación anunciada, esa ventana terminó.
+    let later = s.allowance_window(at(9, 12)).await.unwrap();
+    assert!(later.iter().all(|(_, r)| r.resets_at > at(9, 12)));
+    assert!(!later.iter().any(|(_, r)| current.contains(r)));
+}
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
 async fn daily_indicators_are_idempotent_and_refuse_to_repaint() {
     let s = store().await;
     // La tabla es de solo agregar: un instrumento propio por corrida.

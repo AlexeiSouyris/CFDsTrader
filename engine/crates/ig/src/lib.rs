@@ -10,10 +10,12 @@
 //! - Sentimiento de clientes de IG (#27): [`IgProvider::client_sentiment`] y [`sentiment`].
 //! - Respeta los límites de IG (`config/ig.toml`): pedidos por minuto, cupo semanal de
 //!   históricos y reintentos con backoff.
+//! - Presupuesto semanal del cupo por uso (#167): [`budget`].
 //! - Credenciales solo por variables de entorno; nunca aparecen en `Debug` ni en errores.
 //! - Solo lectura: no existe ningún endpoint de órdenes en este crate.
 
 pub mod allowance;
+pub mod budget;
 pub mod config;
 pub mod credentials;
 pub mod live;
@@ -24,7 +26,8 @@ pub mod sentiment;
 pub mod transport;
 
 pub use allowance::{AllowanceObservation, AllowanceSummary, summarize};
-pub use config::{DEMO_BASE_URL, IgConfig, IgConfigError, LiveConfig, LoadLimits};
+pub use budget::{LoggedObservation, Usage, WeekSpend, usage_of, week_spend};
+pub use config::{DEMO_BASE_URL, IgConfig, IgConfigError, LiveConfig, LoadLimits, UsageBudget};
 pub use credentials::{Credentials, MissingEnv, Secret, api_key_from_env};
 pub use loads::{
     DATA_MACHINE_ENV, LoadDecision, LoadFlags, decide, estimate_points, is_data_machine,

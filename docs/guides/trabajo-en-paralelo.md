@@ -21,6 +21,16 @@ Reglas:
 2. **En la nube, solo pruebas chicas**: un día o una semana de datos. Nunca `ig_live` ni cargas de años.
 3. **Antes de una carga, mirar el cupo; después, anotarlo.** Cada carga muestra al final el cupo que queda, **cuándo se renueva** y lo que gastó. Se deja un comentario en el Issue de la carga con lo que se cargó y el cupo que quedó. En el Mac mini, además, cada respuesta de IG queda en la tabla `ig_allowance_log` (#140), y la carga siguiente muestra lo **gastado por otro lado**: lo que bajó el cupo de la cuenta sin que lo pidiera el Mac mini (la nube u otra computadora).
 4. **El dato ya guardado no se vuelve a pedir.** Si falta algo, primero se revisa la base del Mac mini. Desde #137, `ig_backfill` e `ig_backfill_daily` lo hacen solas: miran la base y le piden a IG solo lo que falta.
+5. **Cada uso tiene su parte del cupo** (#167, `[budget]` de `config/ig.toml`). La suma no puede pasar de 10.000 y se valida al arrancar:
+
+   | Uso | Quién | Puntos por semana |
+   |---|---|---|
+   | `live` | `ig_live` en el Mac mini | 3.400 |
+   | `history` | `ig_backfill` e `ig_backfill_daily` en el Mac mini | 5.000 |
+   | `off_data_machine` | cualquier pedido desde una máquina sin `CFDS_DATA_MACHINE=1` (la nube u otra computadora) | 1.000 |
+   | `reserve` | nadie: ningún comando deja el cupo de la cuenta por debajo de esto | 600 |
+
+   Cada comando se frena **antes** de pasar su parte. Las cargas se niegan aunque tengan `--yes`, y `--dry-run` avisa si la carga se negaría. `ig_live` para con el kill switch. Lo gastado sale de `ig_allowance_log` (#140), contando solo la semana vigente del cupo (hasta la renovación que anunció IG). En el Mac mini, lo que bajó el cupo sin que lo pidiera el Mac mini cuenta como `off_data_machine`. Otra máquina no ve el registro del Mac mini: controla su parte con lo que registró ella misma, más el tope de 100 puntos por carga de la regla 1. Para cambiar el reparto se edita `config/ig.toml` en un PR.
 
 ## 3. Cómo elige tarea un agente
 

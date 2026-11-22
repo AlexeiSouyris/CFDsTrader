@@ -36,6 +36,15 @@ pub fn due_range(
     Some((*ready.first()?, *ready.last()? + tf.duration()))
 }
 
+/// Puntos del cupo que cuesta pedir `[from, to)` con [`crate::Recent`] (sin margen: 1 por
+/// vela). Es la misma cuenta que hace el proveedor antes de cada pedido.
+pub fn due_points(from: DateTime<Utc>, to: DateTime<Utc>, tf: Timeframe) -> u64 {
+    if to <= from {
+        return 0;
+    }
+    crate::model::estimated_points(from, to - TimeDelta::seconds(1), tf, TimeDelta::zero())
+}
+
 /// Próximo momento en que una vela de la sesión queda lista (`cierre + delay`) después de
 /// `now`, mirando hasta `horizon` adelante. `None` si no hay ninguna en ese plazo.
 pub fn next_wake(
@@ -185,5 +194,13 @@ mod tests {
         let give_up = TimeDelta::minutes(10);
         assert!(!overdue(closed, at("2026-11-20T15:10:00Z"), give_up));
         assert!(overdue(closed, at("2026-11-20T15:10:01Z"), give_up));
+    }
+
+    #[test]
+    fn due_points_is_one_per_candle() {
+        let (f, t) = (at("2026-11-20T15:00:00Z"), at("2026-11-20T16:00:00Z"));
+        assert_eq!(due_points(f, t, Timeframe::M15), 4);
+        assert_eq!(due_points(f, t, Timeframe::H1), 1);
+        assert_eq!(due_points(f, f, Timeframe::H1), 0);
     }
 }
