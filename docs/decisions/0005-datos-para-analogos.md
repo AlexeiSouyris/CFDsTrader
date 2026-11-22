@@ -44,6 +44,8 @@ Fuentes de las afirmaciones: [comparativa Tiingo vs. Polygon (2026)](https://dev
 2. Con la cuenta gratuita, pedir el histórico **diario** de 3 empresas que salieron del índice entre 2021 y 2026 (se sacan del paquete del punto 1) y comparar con otra fuente.
 3. Llevar a votación del grupo el resultado y, si hace falta, el costo de un plan pago.
 
+**Resultado del paso 1 (22-11-2026, #10):** ninguna de las cuatro candidatas cumple **gratis**. Tiingo gratis prohíbe guardar los datos. EODHD gratis da un solo año. Massive no tiene un plan gratuito de acciones visible. FMP no se pudo leer. La opción paga que mejor encaja es EODHD. El paso 2 queda sin hacer porque ninguna cuenta gratuita sirve. Detalle y citas en `docs/research/precios-componentes-nasdaq100-2026-11.md`. No cambia la decisión de §4: los análogos v1 usan solo los índices.
+
 ## 3. Consecuencia para la spec (a decidir)
 
 La spec §13 compara la **forma de las últimas 32 velas de 15m**. Con fuentes gratuitas lo más probable es tener solo **velas diarias** de 5 años para las empresas que dejaron de cotizar. Opciones:
