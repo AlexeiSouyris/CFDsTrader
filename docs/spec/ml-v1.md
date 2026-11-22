@@ -1,6 +1,6 @@
-# Spec del modelo de ML v1 (fase 4b): BORRADOR
+# Spec del modelo de ML v1 (fase 4b)
 
-> **Estado: borrador para que lo apruebe el dueño (#158).** Se escribe **antes de mirar resultados**. Nada de esto se programa hasta que el dueño lo apruebe en el Issue (modo de un solo constructor, CLAUDE.md). Las decisiones abiertas están al final, cada una con una recomendación.
+> **Estado: aprobada por el dueño el 23-11-2026 (#158, #170)** con las cinco decisiones de §11 ("Sí, las 5", en la sesión de su agente en el Mac mini; modo de un solo constructor, CLAUDE.md). Se escribió **antes de mirar resultados**. Cambiarla pide otra aprobación del dueño registrada en el Issue.
 
 ## 1. Qué predice
 
@@ -89,13 +89,13 @@ Cada entrenamiento queda registrado, **también los que no funcionan**: fecha (U
 - **5 años de los 4 índices** (#102) para las variables diarias, y **la historia de 15m** del backtest que genera las propuestas. Hoy no alcanza: cuánto cargar lo decide el dueño (cupo de IG, solo en el Mac mini).
 - Con 12 meses fuera de muestra y ventanas de 24 + 3, la primera validación necesita **al menos 27 meses de 15m antes del tramo fuera de muestra**, es decir **unos 39 meses** de historia de 15m en total.
 
-## 11. Decisiones abiertas (para el dueño)
+## 11. Decisiones (aprobadas el 23-11-2026)
 
-1. **Salidas por tiempo y cierres forzados.** *Recomendación:* que cuenten como `y = 0`, porque la pregunta es "¿toca TP1?". La alternativa es sacarlas del entrenamiento, pero eso infla la probabilidad.
-2. **El modelo base en PyTorch o en una librería clásica** (scikit-learn). *Recomendación:* PyTorch, como dice el ROADMAP, para no sumar otra librería principal (que pediría un ADR).
-3. **Mínimo de datos por ventana** (300 propuestas y 50 de cada clase). *Recomendación:* dejarlo así; si con los datos reales no se llega, ML v1 queda en suspenso en vez de bajar el mínimo.
-4. **Cuánta historia de 15m cargar** (§10: unos 39 meses). Depende del cupo de IG y de #151.
-5. **Que v1 sea solo informativa** (§2). *Recomendación:* sí, hasta que mejore fuera de muestra y se vote.
+1. **Salidas por tiempo y cierres forzados:** cuentan como `y = 0`, porque la pregunta es "¿toca TP1?". Sacarlas del entrenamiento inflaría la probabilidad.
+2. **Modelo base en PyTorch**, como dice el ROADMAP. No se suma otra librería principal; eso pediría un ADR.
+3. **Mínimo de datos por ventana:** 300 propuestas y 50 de cada clase. Si con los datos reales no se llega, ML v1 queda en suspenso; no se baja el mínimo.
+4. **Se empieza solo con US500.** Antes de entrenar se mide cuántas propuestas por mes da el backtest con la historia de 15m disponible (§10). Los otros índices se suman después, con otra aprobación. La profundidad de la historia de 15m sigue dependiendo del cupo de IG y de la fuente de datos.
+5. **v1 es solo informativa** (§2), hasta que mejore fuera de muestra y se vote.
 
 ## 12. Supuestos y riesgos
 
