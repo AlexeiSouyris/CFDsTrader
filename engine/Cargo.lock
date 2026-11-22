@@ -228,6 +228,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cfds-fund"
+version = "0.1.0"
+dependencies = [
+ "rust_decimal",
+ "serde",
+ "thiserror",
+ "toml",
+]
+
+[[package]]
 name = "cfds-ig"
 version = "0.1.0"
 dependencies = [

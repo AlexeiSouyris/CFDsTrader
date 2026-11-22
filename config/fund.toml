@@ -1,0 +1,15 @@
+# Fondo del grupo (spec §14, #177): contabilidad por unidades.
+# Los aportes y retiros se liquidan el lunes al valor de la unidad (NAV) del cierre del viernes.
+
+# Moneda del fondo (spec §14: EUR).
+currency = "EUR"
+
+# Aporte mínimo, en la moneda del fondo (spec §14: 10 €).
+min_contribution = "10"
+
+# Valor de la unidad cuando el fondo todavía no tiene unidades (el primer aporte).
+initial_nav = "1"
+
+# Decimales de las unidades. Un aporte compra las unidades redondeadas hacia abajo (el resto
+# queda en el fondo, a favor de todos); un retiro vende las redondeadas hacia arriba.
+unit_decimals = 6
