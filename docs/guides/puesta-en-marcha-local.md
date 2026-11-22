@@ -99,8 +99,7 @@ Solo graban mientras la computadora está **prendida y despierta**. En macOS: Co
 **Con `cron`** (`crontab -e`). Reemplazar `RUTA` por la ruta absoluta de la carpeta:
 
 ```cron
-# En macOS, ver la sección 10 (por qué hacen falta estas dos líneas).
-SSL_CERT_FILE=/Users/USUARIO/.config/cfdstrader/macos-roots.pem
+# En macOS, ver la sección 10 (por qué hace falta esta línea).
 PYTHONPATH=RUTA/intelligence/src
 */15 * * * * cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.news >> ../logs/news.log 2>&1
 */15 * * * * cd "RUTA/engine" && set -a && . ../.env && set +a && $HOME/.cargo/bin/cargo run -q -p cfds-ig --example ig_sentiment -- --once >> ../logs/ig_sentiment.log 2>&1
@@ -144,15 +143,9 @@ Encontrados al ponerlo en marcha en el Mac mini (M4) el 21 y 22-11-2026.
 - Arreglo en una terminal: `chflags -R nohidden intelligence/.venv`.
 - Arreglo para `cron`: la línea `PYTHONPATH=RUTA/intelligence/src` del paso 7, que no depende de la marca.
 
-**`CERTIFICATE_VERIFY_FAILED` en los feeds del BCE** (`ecb/press`, `ecb/statpress`), mientras que los de la Fed andan y `curl` también:
+**`CERTIFICATE_VERIFY_FAILED` en los feeds del BCE** (`ecb/press`, `ecb**`CERTIFICATE_VERIFY_FAILED` en los feeds del BCE** (`ecb/press`, `ecb/statpress`), mientras que los de la Fed andan y `curl` también:
 - Causa: el Python que instala `uv` usa `/etc/ssl/cert.pem`, al que le falta la raíz de Sectigo que usa `www.ecb.europa.eu`. `curl` usa el llavero de macOS, que sí la tiene.
-- Arreglo (sin desactivar la verificación): exportar las raíces del sistema y apuntar `SSL_CERT_FILE` ahí.
+- Desde #121 **ya no hace falta ningún arreglo**: `intelligence/` verifica los certificados con el almacén del sistema (el llavero de macOS) y nunca desactiva la verificación. Si el error vuelve a aparecer, correr `uv sync` en `intelligence/` para que se instale `truststore`.
+- Antes se esquivaba exportando las raíces a un archivo y apuntando `SSL_CERT_FILE` ahí. Esa variable ya no hace falta: se puede sacar del `crontab` y borrar `~/.config/cfdstrader/macos-roots.pem`.
 
-  ```bash
-  mkdir -p ~/.config/cfdstrader
-  security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain > ~/.config/cfdstrader/macos-roots.pem
-  SSL_CERT_FILE=~/.config/cfdstrader/macos-roots.pem uv run python -m cfds_intel.news
-  ```
-- El arreglo de fondo (que el código use el almacén del sistema) está en #121.
-
-**`docker: command not found`** después de instalar Docker Desktop: abrir la app una vez. Mientras tanto, el binario está en `/Applications/Docker.app/Contents/Resources/bin/`.
+ir la app una vez. Mientras tanto, el binario está en `/Applications/Docker.app/Contents/Resources/bin/`.

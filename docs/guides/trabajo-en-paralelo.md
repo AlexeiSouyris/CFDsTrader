@@ -37,7 +37,6 @@ Son buenas para trabajar en paralelo desde la nube. La lista se actualiza en el 
 
 | Issue | Qué es |
 |---|---|
-| #121 | `intelligence`: usar el almacén de certificados del sistema (feeds del BCE en macOS) |
 | #122 | 4b: interpretación de noticias (ajuste de −2 a +2) como evento |
 | #79 | Backtest: tipo de referencia diario (€STR del BCE) en vez de constante |
 | #25 | Spec: psicología del mercado como capa de contexto (documento) |
