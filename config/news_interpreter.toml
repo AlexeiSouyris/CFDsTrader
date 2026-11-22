@@ -1,0 +1,32 @@
+# Intérprete de noticias con un modelo abierto local (ADR 0008, #129). Corre en el Mac mini con
+# Ollama (MIT), solo en localhost: ninguna noticia ni respuesta sale de la máquina.
+# API usada (documentación oficial, github.com/ollama/ollama/blob/main/docs/api.md):
+# POST /api/chat (stream=false, format=JSON Schema, options.temperature y options.seed),
+# GET /api/tags (digest de cada modelo) y GET /api/ps (memoria del modelo cargado).
+
+[ollama]
+# Solo http://127.0.0.1 o http://localhost: cualquier otro host es un error al cargar.
+url = "http://127.0.0.1:11434"
+timeout_secs = 120
+
+[generation]
+# Determinismo (ADR 0008 §4): temperatura 0 y semilla fija para todos los candidatos.
+temperature = 0
+seed = 42
+# Para modelos con "pensamiento" (por ejemplo Qwen3): no pensar, responder directo.
+think = false
+
+[model]
+# Elegido con la prueba de selección del ADR 0008 §4 y aprobado por el dueño. Mientras esté
+# vacío, el intérprete se niega a interpretar (no se elige un modelo sin la prueba).
+name = ""
+# Digest de GET /api/tags del modelo elegido: si el instalado no coincide, no se interpreta.
+digest = ""
+
+# Criterios de la prueba de selección (ADR 0008 §4), fijados antes de mirar resultados.
+[selection]
+min_relevant_pairs = 20
+min_valid_pct = 99
+max_memory_gb = 8
+max_seconds_p95 = 60
+tie_points = 5
