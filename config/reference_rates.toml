@@ -1,0 +1,27 @@
+# Tipos de referencia diarios de la financiación nocturna (#79). Los lee el motor para el costo
+# de financiación de cada noche; el valor constante de [funding_benchmarks] en
+# config/instruments.toml queda solo como respaldo documentado.
+#
+# Fuente: API de datos del BCE (fuente `ecb-estr` de config/instruments.toml).
+# "The ECB does not charge for the €STR or license its use".
+
+[api]
+base_url = "https://data-api.ecb.europa.eu/service/data"
+user_agent = "cfds-intel/0.1 (automated data reader)"
+timeout_secs = 60
+
+# Una tabla por serie. El nombre ("ESTR") es el mismo que el de [funding_benchmarks].
+[series.ESTR]
+# Clave de la serie en la API del BCE: flujo "EST", clave "B.EU000A2X2A25.WT".
+flow = "EST"
+key = "B.EU000A2X2A25.WT"
+# Primer valor publicado del €STR: el del 1-10-2019.
+start = "2019-10-01"
+# "The ECB publishes the €STR at 08:00 CET on each TARGET2 business day", con las operaciones
+# del día hábil anterior. Si hay un error de más de 2 puntos básicos, "the ECB will revise and
+# re-publish the €STR once on the same day at 09:00 CET" y no cambia más (página "€STR overview"
+# del BCE, consultada el 22-11-2026). Se toma las 09:00, la hora más conservadora.
+# El "día hábil siguiente" es la fecha del valor siguiente de la misma serie. Para el último
+# valor todavía no se conoce, así que vale desde que el sistema lo leyó.
+publication_time = "09:00"
+publication_timezone = "Europe/Berlin"

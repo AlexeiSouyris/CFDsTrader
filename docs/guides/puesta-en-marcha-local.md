@@ -74,6 +74,7 @@ El **cupo de IG es de 10.000 puntos por semana**, compartido por todo lo que use
 | Qué | Comando | Costo de cupo |
 |---|---|---|
 | COT de la CFTC (2010 → hoy) | `cd intelligence && uv run python -m cfds_intel.sentiment` | 0 (API pública) |
+| €STR del BCE (2019 → hoy), para la financiación del backtest | `cd intelligence && uv run python -m cfds_intel.rates` | 0 (API pública) |
 | Noticias de la Fed y del BCE (últimas de cada feed) | `cd intelligence && uv run python -m cfds_intel.news` | 0 |
 | Diarias de 5 años, **un año de prueba** | `cd engine && cargo run -p cfds-ig --example ig_backfill_daily -- DE40 2021-11-22 2022-11-22` | ~270 |
 | Diarias, el resto | `... ig_backfill_daily -- DE40 2022-11-22 <mañana>` | ~1.060 |
@@ -94,6 +95,7 @@ Solo graban mientras la computadora está **prendida y despierta**. En macOS: Co
 | Noticias de la Fed y del BCE | 15 min | `uv run python -m cfds_intel.news` (en `intelligence/`) |
 | Sentimiento de clientes de IG | 15 min | `cargo run -p cfds-ig --example ig_sentiment -- --once` (en `engine/`) |
 | COT | 1 vez por semana (por ejemplo, el sábado) | `uv run python -m cfds_intel.sentiment 2026-01-01` (en `intelligence/`) |
+| €STR del BCE | 1 vez por día hábil, después de las 09:00 CET | `uv run python -m cfds_intel.rates 2026-01-01` (en `intelligence/`) |
 | Velas de 15m y 1h en vivo | Proceso permanente | `cargo run -p cfds-ig --example ig_live` (en `engine/`), unos 3.400 puntos por semana con 4 índices |
 
 **Con `cron`** (`crontab -e`). Reemplazar `RUTA` por la ruta absoluta de la carpeta:
@@ -104,6 +106,7 @@ PYTHONPATH=RUTA/intelligence/src
 */15 * * * * cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.news >> ../logs/news.log 2>&1
 */15 * * * * cd "RUTA/engine" && set -a && . ../.env && set +a && $HOME/.cargo/bin/cargo run -q -p cfds-ig --example ig_sentiment -- --once >> ../logs/ig_sentiment.log 2>&1
 7 10 * * 6   cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.sentiment 2026-01-01 >> ../logs/cot.log 2>&1
+23 10 * * 1-5 cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.rates 2026-01-01 >> ../logs/rates.log 2>&1
 ```
 
 Antes, `mkdir -p "RUTA/logs"`. La carpeta `logs/` no se commitea.
