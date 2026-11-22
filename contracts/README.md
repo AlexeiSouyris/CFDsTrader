@@ -62,7 +62,8 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 
 - Una interpretación existe desde `interpreted_at`, que nunca es anterior a `published_at` de la noticia (CLAUDE.md §5b).
 - El **ajuste de −2 a +2** del puntaje (spec §6 y §9) **no** viaja en el evento: lo calcula el motor en Rust a partir de `sentiment` y `relevance`, porque el puntaje vive en un solo lugar.
-- La interpreta Python (`cfds_intel.news.interpret`, con un intérprete reemplazable). El stream de Redis y la tabla se definen junto con el primer intérprete real (#129). El ajuste del puntaje va en #130.
+- La interpreta Python (`cfds_intel.news.interpret`, con un intérprete reemplazable). El stream de Redis y la tabla se definen junto con el primer intérprete real (#129).
+- La lee Rust con `cfds_core::NewsInterpretation`, que acepta lo mismo que el contrato y además exige `interpreted_at >= published_at`. El ajuste del puntaje (`cfds_strategy::news_adjustment`, #130) usa solo las interpretaciones con `interpreted_at` ≤ el cierre de la vela.
 
 ### Indicadores diarios (#148)
 

@@ -7,12 +7,14 @@
 pub mod config;
 pub mod evidence;
 pub mod mtf;
+pub mod news;
 pub mod score;
 pub mod stop;
 
 pub use cfds_liquidity::Side;
-pub use config::{EvidenceConfig, ScoreConfig, StopConfig, StrategyConfig};
+pub use config::{EvidenceConfig, NewsConfig, ScoreConfig, StopConfig, StrategyConfig};
 pub use evidence::{Analysis, Configs, Signal};
 pub use mtf::align_closed;
+pub use news::{exit_alerts, news_adjustment, single_adjustment};
 pub use score::{Component, Evidence, Score, ScoreError, Trigger, TriggerKind, score};
 pub use stop::{risk_per_unit, structural_stop};

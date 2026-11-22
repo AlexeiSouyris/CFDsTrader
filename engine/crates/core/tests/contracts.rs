@@ -415,6 +415,99 @@ fn contract_and_rust_reject_the_same_bad_reference_rates() {
     }
 }
 
+/// Como lo escribe Python (`Interpretation.to_contract`, #122).
+fn news_doc() -> Value {
+    json!({
+        "interpretation_id": "a".repeat(64),
+        "source": "ecb",
+        "item_id": "https://www.ecb.europa.eu/press/x.html",
+        "published_at": "2026-11-19T12:45:00Z",
+        "interpreted_at": "2026-11-19T12:48:00Z",
+        "interpreter": {"name": "local-llm", "version": "0.1.0", "model": null, "prompt_sha256": null},
+        "summary_es": "El BCE mantiene los tipos.",
+        "impacts": [
+            {"instrument_id": "DE40", "sentiment": "-0.25", "relevance": "0.8"},
+            {"instrument_id": "US100", "sentiment": "1.0000", "relevance": "0"}
+        ]
+    })
+}
+
+#[test]
+fn news_interpretation_from_python_roundtrips_through_the_contract() {
+    let schema = "news_interpretation.v1.schema.json";
+    assert!(validator(schema).is_valid(&news_doc()));
+    let n: cfds_core::NewsInterpretation = serde_json::from_value(news_doc()).unwrap();
+    assert_eq!(n.impacts[0].sentiment, dec!(-0.25));
+    assert_eq!(n.impacts[1].sentiment, dec!(1.0000));
+    assert_eq!(
+        serde_json::to_value(&n).unwrap(),
+        news_doc(),
+        "vuelve idéntico"
+    );
+    assert_roundtrip(schema, &n);
+}
+
+#[test]
+fn contract_and_rust_reject_the_same_bad_news_interpretations() {
+    let schema = "news_interpretation.v1.schema.json";
+    let mut cases: Vec<(&str, Value)> = Vec::new();
+    for (field, bad) in [
+        ("sentiment", json!("1.5")),
+        ("sentiment", json!("-1.0001")),
+        ("sentiment", json!("0.12345")),
+        ("sentiment", json!("+0.5")),
+        ("sentiment", json!(".5")),
+        ("sentiment", json!(0.5)),
+        ("relevance", json!("-0.1")),
+        ("relevance", json!("-0")),
+        ("relevance", json!("1.01")),
+        ("instrument_id", json!("de40")),
+    ] {
+        let mut d = news_doc();
+        d["impacts"][0][field] = bad;
+        cases.push((field, d));
+    }
+    let mut d = news_doc();
+    d["interpretation_id"] = json!("abc");
+    cases.push(("id que no es SHA-256", d));
+    let mut d = news_doc();
+    d["source"] = json!("ECB");
+    cases.push(("fuente en mayúsculas", d));
+    let mut d = news_doc();
+    d["interpreter"]["name"] = json!("Local LLM");
+    cases.push(("nombre de intérprete con mayúsculas", d));
+    let mut d = news_doc();
+    d["interpreter"].as_object_mut().unwrap().remove("model");
+    cases.push(("falta model (tiene que venir, aunque sea null)", d));
+    let mut d = news_doc();
+    d["interpreter"]["prompt_sha256"] = json!("123");
+    cases.push(("prompt_sha256 que no es SHA-256", d));
+    let mut d = news_doc();
+    d["summary_es"] = json!("");
+    cases.push(("resumen vacío", d));
+    let mut d = news_doc();
+    d["published_at"] = json!("2026-11-19T13:45:00+01:00");
+    cases.push(("hora con zona que no es Z", d));
+    let mut d = news_doc();
+    d["adjustment"] = json!(1);
+    cases.push(("el ajuste no viaja en el evento", d));
+    for (what, doc) in cases {
+        eprintln!("caso: {what}");
+        assert_both_reject::<cfds_core::NewsInterpretation>(schema, doc);
+    }
+}
+
+#[test]
+fn rust_also_rejects_an_interpretation_before_its_publication() {
+    let mut d = news_doc();
+    d["interpreted_at"] = json!("2026-11-19T12:44:59Z");
+    assert!(
+        validator("news_interpretation.v1.schema.json").is_valid(&d),
+        "el schema no puede comparar dos campos"
+    );
+    assert!(serde_json::from_value::<cfds_core::NewsInterpretation>(d).is_err());
+}
+
 fn sample_indicator(warm: bool) -> cfds_core::DailyIndicator {
     cfds_core::DailyIndicator {
         instrument_id: "DE40".parse().unwrap(),

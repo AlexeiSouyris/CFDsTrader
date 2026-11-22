@@ -31,3 +31,15 @@ sma_period = 50
 # Se cuentan velas cerradas: la de 1h, recién cuando cerró (multi-timeframe).
 min_m15_candles = 200
 min_h1_candles = 60
+
+# Ajuste de noticias del puntaje y alerta de salida (spec §9, #130). Decidido por el dueño el
+# 22-11-2026: por noticia redondear(2 × sentimiento × relevancia), con ±0,5 hacia cero; las
+# noticias de la ventana se suman y se recortan a [score.news_min, score.news_max]; en un corto
+# el ajuste cambia de signo.
+[news]
+# Solo cuentan las noticias publicadas en las últimas N horas antes del cierre de la vela.
+window_hours = 4
+# Alerta de salida de una posición abierta: noticia en contra con relevancia y |sentimiento|
+# mayores o iguales a estos valores. No cierra sola: avisa al responsable.
+alert_min_relevance = "0.7"
+alert_min_abs_sentiment = "0.7"
