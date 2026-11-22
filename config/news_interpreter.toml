@@ -13,6 +13,11 @@ timeout_secs = 120
 # Determinismo (ADR 0008 §4): temperatura 0 y semilla fija para todos los candidatos.
 temperature = 0
 seed = 42
+# Ventana de contexto en tokens, igual para todos los candidatos. Sin fijarla, Ollama reserva la
+# máxima del modelo (40.960 en Qwen3-8B, ~10 GB cargado) aunque cada noticia use ~1.700 tokens
+# (el texto se recorta a text.max_chars). Decidido por el dueño el 22-11-2026, antes de ver
+# ningún resultado de acierto de la prueba.
+num_ctx = 8192
 # Para modelos con "pensamiento" (por ejemplo Qwen3): no pensar, responder directo.
 think = false
 
