@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/news_interpretation.v1.schema.json",
+  "title": "News interpretation v1",
+  "description": "Interpretación automática de una noticia de news_item.v1 (spec §9, #122): un resumen en español y, por instrumento afectado, sentimiento y relevancia. Es una transformación de la noticia, no la noticia (ADR 0006: se dice explícitamente). Vale desde 'interpreted_at', que nunca es anterior a 'published_at' (CLAUDE.md §5b). El ajuste de −2 a +2 del puntaje (spec §6) NO viaja acá: lo calcula el motor en Rust con estos valores, porque el puntaje vive en un solo lugar (CLAUDE.md §1).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "interpretation_id",
+    "source",
+    "item_id",
+    "published_at",
+    "interpreted_at",
+    "interpreter",
+    "summary_es",
+    "impacts"
+  ],
+  "properties": {
+    "interpretation_id": {
+      "description": "Id propio e idempotente: SHA-256 (hex) de la noticia (source, item_id) y del intérprete (name, version). La misma noticia con el mismo intérprete da siempre el mismo id.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source": {
+      "description": "Fuente de la noticia, igual que en news_item.v1.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,31}$"
+    },
+    "item_id": {
+      "description": "Id de la noticia en la fuente, igual que en news_item.v1. (source, item_id) identifica la noticia.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "published_at": {
+      "description": "Hora de publicación de la noticia (copiada de news_item.v1), en UTC, ISO 8601 terminado en Z.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "interpreted_at": {
+      "description": "Cuándo se hizo la interpretación, en UTC. Nunca anterior a 'published_at'. La interpretación existe para el sistema desde este momento.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "interpreter": {
+      "description": "Qué hizo la interpretación, registrado para poder reproducirla y medirla (#122).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "model", "prompt_sha256"],
+      "properties": {
+        "name": {
+          "description": "Nombre del intérprete en el código.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "version": {
+          "description": "Versión del intérprete. Cambia con cualquier cambio de modelo, prompt o reglas.",
+          "type": "string",
+          "pattern": "^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$"
+        },
+        "model": {
+          "description": "Modelo usado, con su versión exacta (por ejemplo el nombre y el hash del archivo de pesos), o null si el intérprete no usa un modelo.",
+          "oneOf": [
+            { "type": "string", "minLength": 1, "maxLength": 200 },
+            { "type": "null" }
+          ]
+        },
+        "prompt_sha256": {
+          "description": "SHA-256 (hex) del prompt usado, o null si el intérprete no usa un prompt.",
+          "oneOf": [
+            { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "summary_es": {
+      "description": "Resumen automático en español (spec §9). Se muestra junto al titular original y el enlace, nunca en su lugar.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "impacts": {
+      "description": "Un elemento por instrumento afectado, sin repetir instrumento. Vacío si la noticia no afecta a ningún instrumento configurado.",
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["instrument_id", "sentiment", "relevance"],
+        "properties": {
+          "instrument_id": {
+            "description": "Instrumento de config/instruments.toml (ver instrument.v1).",
+            "type": "string",
+            "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$"
+          },
+          "sentiment": {
+            "description": "Sentimiento para el instrumento, decimal exacto en texto, de −1 (negativo) a 1 (positivo), hasta 4 decimales.",
+            "type": "string",
+            "pattern": "^(-?0(\\.\\d{1,4})?|-?1(\\.0{1,4})?)$"
+          },
+          "relevance": {
+            "description": "Relevancia para el instrumento, decimal exacto en texto, de 0 a 1, hasta 4 decimales.",
+            "type": "string",
+            "pattern": "^(0(\\.\\d{1,4})?|1(\\.0{1,4})?)$"
+          }
+        }
+      }
+    }
+  }
+}

@@ -53,6 +53,17 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - `published_at` nunca es anterior al fin de `ref_date`: un valor solo se usa desde que se publicó (CLAUDE.md §5b).
 - La escribe Python (`cfds_intel.rates`). La lee el motor para el costo de financiación de cada noche.
 
+### Noticias (#109, #111, #122)
+
+| Contrato | Dónde | Contenido |
+|---|---|---|
+| `news_item.v1` | tabla `news_items` | Una noticia de una fuente aprobada (ADR 0006): fuente, feed, id, título, enlace, `published_at` y `retrieved_at`. Solo agregar. La escribe Python (`cfds_intel.news`). |
+| `news_interpretation.v1` | por definir en #129 (#122 solo define el contrato) | Interpretación automática de una noticia (spec §9): resumen en español y, por instrumento, `sentiment` ∈ [−1, 1] y `relevance` ∈ [0, 1] como string decimal, con el intérprete registrado (nombre, versión, modelo y SHA-256 del prompt). Id propio e idempotente. |
+
+- Una interpretación existe desde `interpreted_at`, que nunca es anterior a `published_at` de la noticia (CLAUDE.md §5b).
+- El **ajuste de −2 a +2** del puntaje (spec §6 y §9) **no** viaja en el evento: lo calcula el motor en Rust a partir de `sentiment` y `relevance`, porque el puntaje vive en un solo lugar.
+- La interpreta Python (`cfds_intel.news.interpret`, con un intérprete reemplazable). El stream de Redis y la tabla se definen junto con el primer intérprete real (#129). El ajuste del puntaje va en #130.
+
 ### Indicadores diarios (#148)
 
 | Contrato | Tabla | Contenido |
