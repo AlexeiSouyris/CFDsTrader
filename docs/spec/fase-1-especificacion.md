@@ -284,7 +284,7 @@ Por instrumento, en `config/`: [spread](../GLOSARIO.md#spread) por franja horari
   **3. Contexto macro (sin VIX).** El VIX quedó fuera por sus términos de uso (ADR 0004). En v1, el contexto de cada ventana (consulta y vecinos) es:
   - **Volatilidad:** la volatilidad realizada del índice (desvío estándar muestral de los últimos 20 retornos diarios, con retorno = cierre / cierre anterior − 1), en tercios de su propia historia de los 3 años anteriores: **baja / media / alta**. Sin 3 años de historia, "sin dato".
   - **Tasas:** la variación del tipo de referencia de financiación del índice (`[funding_benchmarks]`; hoy el €STR, #79) en las últimas 60 sesiones: **sube** (> +0,10 pp), **baja** (< −0,10 pp) o **estable**. Se usa el valor publicado hasta ese día. Los índices sin tipo de referencia confirmado (#67) quedan "sin dato".
-  - Se muestra, además del resultado de los 20 vecinos, el de los que comparten **el mismo contexto** que la consulta, con su propio "datos insuficientes" si son menos de 20.
+  - Además del resultado de los 20 vecinos, se muestra el de una **segunda búsqueda** con las mismas reglas, pero solo entre los candidatos que tienen **el mismo contexto** (volatilidad y tasas) que la consulta, con su propio "datos insuficientes" si son menos de 20. Si a la consulta le falta algún dato de contexto, este grupo queda vacío.
 
   **Dónde se calcula (CLAUDE.md §1).** El **ATR14 diario** y la **volatilidad realizada** son indicadores: los calcula **Rust** (`indicators`) sobre `daily_candles` y los guarda para que los lea Python, con un contrato nuevo (contratos primero). La búsqueda de análogos (z-score, DTW, vecinos, contexto y resultados) vive en **Python** (`intelligence/cfds_intel/analogs`) y no recalcula ningún indicador.
 
