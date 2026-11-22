@@ -74,15 +74,21 @@ pub enum LoadDecision {
     Refuse(String),
 }
 
-/// Decide según los puntos estimados, las opciones y la máquina.
+/// Decide según los puntos estimados, las opciones, la máquina y el presupuesto semanal del
+/// uso (`budget`, el resultado de [`crate::budget::check`], #167). Pasar el presupuesto se
+/// niega aunque haya `--yes`.
 pub fn decide(
     estimated: u64,
     flags: LoadFlags,
     data_machine: bool,
     limits: &LoadLimits,
+    budget: Result<(), String>,
 ) -> LoadDecision {
     if flags.dry_run {
         return LoadDecision::DryRun;
+    }
+    if let Err(why) = budget {
+        return LoadDecision::Refuse(why);
     }
     if !data_machine && estimated > limits.max_points_off_data_machine {
         return LoadDecision::Refuse(format!(
@@ -141,8 +147,11 @@ mod tests {
             dry_run: true,
             yes: true,
         };
-        assert_eq!(decide(1, f, true, &LIMITS), LoadDecision::DryRun);
-        assert_eq!(decide(9_999, f, false, &LIMITS), LoadDecision::DryRun);
+        assert_eq!(decide(1, f, true, &LIMITS, Ok(())), LoadDecision::DryRun);
+        assert_eq!(
+            decide(9_999, f, false, &LIMITS, Ok(())),
+            LoadDecision::DryRun
+        );
     }
 
     #[test]
@@ -151,9 +160,9 @@ mod tests {
             yes: true,
             ..Default::default()
         };
-        assert_eq!(decide(100, yes, false, &LIMITS), LoadDecision::Go);
+        assert_eq!(decide(100, yes, false, &LIMITS, Ok(())), LoadDecision::Go);
         assert!(matches!(
-            decide(101, yes, false, &LIMITS),
+            decide(101, yes, false, &LIMITS, Ok(())),
             LoadDecision::Refuse(m) if m.contains("CFDS_DATA_MACHINE=1")
         ));
     }
@@ -161,13 +170,34 @@ mod tests {
     #[test]
     fn on_the_data_machine_big_loads_ask_unless_yes() {
         let none = LoadFlags::default();
-        assert_eq!(decide(500, none, true, &LIMITS), LoadDecision::Go);
-        assert_eq!(decide(501, none, true, &LIMITS), LoadDecision::Confirm);
+        assert_eq!(decide(500, none, true, &LIMITS, Ok(())), LoadDecision::Go);
+        assert_eq!(
+            decide(501, none, true, &LIMITS, Ok(())),
+            LoadDecision::Confirm
+        );
         let yes = LoadFlags {
             yes: true,
             ..Default::default()
         };
-        assert_eq!(decide(5_000, yes, true, &LIMITS), LoadDecision::Go);
+        assert_eq!(decide(5_000, yes, true, &LIMITS, Ok(())), LoadDecision::Go);
+    }
+
+    #[test]
+    fn over_budget_is_refused_even_with_yes_but_dry_run_still_shows_the_plan() {
+        let yes = LoadFlags {
+            yes: true,
+            ..Default::default()
+        };
+        let over = || Err("presupuesto".to_owned());
+        assert_eq!(
+            decide(10, yes, true, &LIMITS, over()),
+            LoadDecision::Refuse("presupuesto".to_owned())
+        );
+        let dry = LoadFlags {
+            dry_run: true,
+            ..Default::default()
+        };
+        assert_eq!(decide(10, dry, true, &LIMITS, over()), LoadDecision::DryRun);
     }
 
     #[test]

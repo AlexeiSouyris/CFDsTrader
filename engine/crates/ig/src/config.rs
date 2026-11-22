@@ -41,6 +41,21 @@ pub struct IgConfig {
     pub sentiment_interval: Duration,
     /// Límites antes de una carga histórica (#143).
     pub loads: LoadLimits,
+    /// Presupuesto semanal del cupo por uso (#167).
+    pub budget: UsageBudget,
+}
+
+/// Presupuesto semanal del cupo de históricos por uso (#167, `[budget]`). Suma ≤ cupo semanal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UsageBudget {
+    /// `ig_live` en la máquina que guarda los datos.
+    pub live: u64,
+    /// `ig_backfill` e `ig_backfill_daily` en la máquina que guarda los datos.
+    pub history: u64,
+    /// Todo lo pedido desde una máquina sin `CFDS_DATA_MACHINE=1`.
+    pub off_data_machine: u64,
+    /// Ningún comando deja el cupo restante de la cuenta por debajo de esto.
+    pub reserve: u64,
 }
 
 /// Límites antes de una carga histórica (#143, `[loads]`).
@@ -71,6 +86,16 @@ struct Raw {
     live: RawLive,
     sentiment: RawSentiment,
     loads: RawLoads,
+    budget: RawBudget,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawBudget {
+    live: u64,
+    history: u64,
+    off_data_machine: u64,
+    reserve: u64,
 }
 
 #[derive(Deserialize)]
@@ -232,7 +257,38 @@ impl IgConfig {
                 return Err(invalid(field, "no puede superar el cupo semanal"));
             }
         }
+        let budget = UsageBudget {
+            live: at_least_one("budget.live", r.budget.live)?,
+            history: at_least_one("budget.history", r.budget.history)?,
+            off_data_machine: at_least_one("budget.off_data_machine", r.budget.off_data_machine)?,
+            reserve: r.budget.reserve,
+        };
+        let sum = [
+            budget.live,
+            budget.history,
+            budget.off_data_machine,
+            budget.reserve,
+        ]
+        .iter()
+        .try_fold(0u64, |acc, v| acc.checked_add(*v));
+        if sum.is_none_or(|s| s > r.limits.historical_points_per_week) {
+            return Err(invalid(
+                "budget",
+                format!(
+                    "live + history + off_data_machine + reserve no puede superar el cupo \
+                     semanal ({})",
+                    r.limits.historical_points_per_week
+                ),
+            ));
+        }
+        if loads.max_points_off_data_machine > budget.off_data_machine {
+            return Err(invalid(
+                "loads.max_points_off_data_machine",
+                "no puede superar budget.off_data_machine",
+            ));
+        }
         Ok(Self {
+            budget,
             loads,
             sentiment_interval: Duration::from_secs(minutes * 60),
             live,
@@ -316,6 +372,39 @@ mod tests {
                 "{new}"
             );
         }
+    }
+
+    #[test]
+    fn usage_budget_is_validated() {
+        assert_eq!(
+            IgConfig::from_toml(REAL).unwrap().budget,
+            UsageBudget {
+                live: 3_400,
+                history: 5_000,
+                off_data_machine: 1_000,
+                reserve: 600,
+            }
+        );
+        for (old, new, field) in [
+            ("history = 5000", "history = 5001", "budget"),
+            ("reserve = 600", "reserve = 18446744073709551615", "budget"),
+            ("live = 3400", "live = 0", "budget.live"),
+            ("history = 5000", "history = 0", "budget.history"),
+            (
+                "off_data_machine = 1000",
+                "off_data_machine = 99",
+                "loads.max_points_off_data_machine",
+            ),
+        ] {
+            let text = REAL.replace(old, new);
+            assert_ne!(text, REAL, "{new}");
+            assert!(
+                matches!(IgConfig::from_toml(&text), Err(IgConfigError::Invalid { field: f, .. }) if f == field),
+                "{new}"
+            );
+        }
+        // Sin reserva vale, mientras la suma entre en el cupo.
+        assert!(IgConfig::from_toml(&REAL.replace("reserve = 600", "reserve = 0")).is_ok());
     }
 
     #[test]

@@ -12,18 +12,24 @@
 //! - Solo pide las velas que el calendario de sesiones espera; fuera de horario no gasta cupo.
 //! - **Kill switch** (CLAUDE.md §5b): si una vela cerrada no se puede guardar pasado
 //!   `live.give_up_after_secs`, cierra la sesión y termina con error.
+//! - **Presupuesto semanal** (#167): antes de cada pedido controla que entre en su parte
+//!   (`budget.live` en el Mac mini, `budget.off_data_machine` en otra máquina) y que no toque
+//!   `budget.reserve`. Lo gastado sale de `ig_allowance_log`; sin base, de lo pedido en esta
+//!   corrida. Si no entra, kill switch: no pide y termina con error.
 
 #[path = "common/allowance.rs"]
 mod allowance;
+#[path = "common/budget.rs"]
+mod budget;
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use cfds_core::{InstrumentId, Timeframe};
-use cfds_ig::live::{due_range, next_wake, overdue};
+use cfds_ig::live::{due_points, due_range, next_wake, overdue};
 use cfds_ig::{
-    Credentials, IgConfig, IgProvider, Recent, ReqwestTransport, api_key_from_env,
-    epics_from_catalog,
+    Credentials, DATA_MACHINE_ENV, IgConfig, IgProvider, Recent, ReqwestTransport, WeekSpend,
+    api_key_from_env, epics_from_catalog, is_data_machine, usage_of,
 };
 use cfds_ingest::{IngestRequest, ingest, prepare};
 use cfds_market_data::{Catalog, ExchangeCalendar, MarketDataProvider, ValidationConfig};
@@ -50,6 +56,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let calendar = ExchangeCalendar::load(&config_dir, catalog.exchange_map())?;
     let validation = ValidationConfig::from_toml(VALIDATION)?;
     let live = cfg.live.clone();
+    let share = cfg.budget;
+    let data_machine = is_data_machine(std::env::var(DATA_MACHINE_ENV).ok().as_deref());
+    let usage = usage_of("ig_live", data_machine);
     let delay = TimeDelta::from_std(live.candle_delay)?;
     let give_up = TimeDelta::from_std(live.give_up_after)?;
     let lookback = TimeDelta::from_std(live.startup_lookback)?;
@@ -74,16 +83,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let transport = ReqwestTransport::new(&cfg, api_key_from_env())?;
     let ig = IgProvider::new(transport, cfg, Credentials::from_env()?, epics.clone());
     let mut last: BTreeMap<(InstrumentId, Timeframe), _> = BTreeMap::new();
+    // Sin base no hay registro: lo pedido en esta corrida es todo lo que se sabe (#167).
+    let mut run_spend = WeekSpend::default();
 
     let result = loop {
         let mut wake = Utc::now() + HORIZON;
         let mut failure = None;
-        for id in epics.keys() {
+        // Sin poder leer lo gastado no se pide nada: kill switch (CLAUDE.md §5b).
+        let mut spend = match &sink {
+            Some((store, _)) => match budget::spend(store, data_machine).await {
+                Ok(s) => s,
+                Err(e) => {
+                    break Err(format!(
+                        "kill switch: no se pudo leer ig_allowance_log: {e}"
+                    ));
+                }
+            },
+            None => run_spend,
+        };
+        println!("{}", budget::describe(usage, &spend, &share));
+        'cycle: for id in epics.keys() {
             for &tf in &live.timeframes {
                 let now = Utc::now();
                 let key = (id.clone(), tf);
                 let prev = last.get(&key).copied();
                 if let Some((from, to)) = due_range(&calendar, id, tf, prev, now, delay, lookback) {
+                    // Antes de pedir: si no entra en el presupuesto, kill switch (#167).
+                    let points = due_points(from, to, tf);
+                    if let Err(why) = cfds_ig::budget::check(usage, points, &spend, &share) {
+                        failure = Some(format!("kill switch: {id} {tf} [{from}, {to}): {why}"));
+                        break 'cycle;
+                    }
+                    spend.add(usage, points);
+                    run_spend.add(usage, points);
                     let req = IngestRequest {
                         instrument: id.clone(),
                         timeframe: tf,

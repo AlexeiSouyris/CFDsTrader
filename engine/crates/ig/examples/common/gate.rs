@@ -1,17 +1,30 @@
 //! Antes de conectarse a IG (#143): puntos estimados, `--dry-run`, confirmación de cargas
-//! grandes y tope en las máquinas que no guardan los datos.
+//! grandes, tope en las máquinas que no guardan los datos y presupuesto semanal del uso (#167).
 
 use std::io::{BufRead, IsTerminal, Write};
 
-use cfds_ig::{DATA_MACHINE_ENV, IgConfig, LoadDecision, LoadFlags, decide, is_data_machine};
+use cfds_ig::budget;
+use cfds_ig::{
+    DATA_MACHINE_ENV, IgConfig, LoadDecision, LoadFlags, decide, is_data_machine, usage_of,
+};
+use cfds_storage::PgStore;
+
+use crate::budget as week;
 
 /// `Ok(true)` si se carga, `Ok(false)` si fue `--dry-run`, `Err` si no se debe cargar.
-pub fn check(
+/// `command` es el nombre con que la carga se guarda en `ig_allowance_log`.
+pub async fn check(
     estimated: u64,
     flags: LoadFlags,
     cfg: &IgConfig,
+    store: &PgStore,
+    command: &str,
 ) -> Result<bool, Box<dyn std::error::Error>> {
     let data_machine = is_data_machine(std::env::var(DATA_MACHINE_ENV).ok().as_deref());
+    let usage = usage_of(command, data_machine);
+    let spend = week::spend(store, data_machine).await?;
+    println!("{}", week::describe(usage, &spend, &cfg.budget));
+    let budget = budget::check(usage, estimated, &spend, &cfg.budget);
     println!(
         "estimado: ~{estimated} puntos del cupo semanal (cota, con el margen de cada pedido){}",
         if data_machine {
@@ -20,7 +33,10 @@ pub fn check(
             " — esta máquina no guarda los datos"
         }
     );
-    match decide(estimated, flags, data_machine, &cfg.loads) {
+    if let (true, Err(why)) = (flags.dry_run, &budget) {
+        println!("sin --dry-run se negaría: {why}");
+    }
+    match decide(estimated, flags, data_machine, &cfg.loads, budget) {
         LoadDecision::Go => Ok(true),
         LoadDecision::DryRun => {
             println!("--dry-run: no se pide nada a IG");

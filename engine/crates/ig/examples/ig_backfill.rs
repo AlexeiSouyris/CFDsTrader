@@ -10,6 +10,8 @@
 
 #[path = "common/allowance.rs"]
 mod allowance;
+#[path = "common/budget.rs"]
+mod budget;
 #[path = "common/gate.rs"]
 mod gate;
 
@@ -74,7 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cfg = IgConfig::from_toml(CONFIG)?;
     let estimated = estimate_points(&plan.ranges, tf.duration(), cfg.local_time_margin_hours);
-    if !gate::check(estimated, flags, &cfg)? {
+    if !gate::check(estimated, flags, &cfg, &store, "ig_backfill").await? {
         return Ok(());
     }
     let validation = ValidationConfig::from_toml(VALIDATION)?;

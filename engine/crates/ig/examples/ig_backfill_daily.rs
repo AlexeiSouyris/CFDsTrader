@@ -11,6 +11,8 @@
 
 #[path = "common/allowance.rs"]
 mod allowance;
+#[path = "common/budget.rs"]
+mod budget;
 #[path = "common/gate.rs"]
 mod gate;
 
@@ -90,7 +92,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     let estimated = estimate_points(&bounds, TimeDelta::days(1), cfg.local_time_margin_hours);
-    if !gate::check(estimated, flags, &cfg)? {
+    if !gate::check(estimated, flags, &cfg, &store, "ig_backfill_daily").await? {
         return Ok(());
     }
 
