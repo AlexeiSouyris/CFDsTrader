@@ -43,7 +43,13 @@ from pathlib import Path
 
 from cfds_intel.news.feeds import NewsItem
 from cfds_intel.news.interpret import Interpretation, InterpretationError, instrument_ids, interpret
-from cfds_intel.news.ollama import OllamaInterpreter, Selection, load_config, loaded_memory_bytes
+from cfds_intel.news.ollama import (
+    OllamaInterpreter,
+    Selection,
+    load_config,
+    load_model,
+    loaded_memory_bytes,
+)
 
 ROOT = Path(__file__).resolve().parents[4]
 _WORD = re.compile(r"[a-záéíóúñü]+")
@@ -257,6 +263,9 @@ def run_model(
                 pair.append(None)
             seconds.append(Decimal(str(round(time.perf_counter() - start, 3))))
         runs.append((pair[0], pair[1]))
+    # Con keep_alive = 0 el modelo se descarga después de cada noticia: se carga a propósito
+    # para medir su memoria (si no, /api/ps diría que no está cargado).
+    load_model(cfg, model)
     memory = loaded_memory_bytes(cfg, model)
     threshold = cfg.selection.relevance_threshold
     return score(model, sample, runs, seconds, memory, instruments, threshold)
