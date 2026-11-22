@@ -2,8 +2,8 @@
 //! invariantes del recorrido sobre una serie larga.
 
 use cfds_backtest::{
-    BacktestConfig, CloseReason, Commission, ExitReason, InstrumentCosts, Setup, buy_and_hold,
-    execute, pick, run, run_checked,
+    BacktestConfig, CloseReason, Commission, ExitReason, FundingRates, InstrumentCosts, Setup,
+    buy_and_hold, execute, pick, run, run_checked,
 };
 use cfds_core::{Candle, Timeframe};
 use cfds_indicators::TrendConfig;
@@ -51,7 +51,7 @@ fn setup() -> Setup {
         initial_equity: dec!(1000),
         account_to_instrument: dec!(1),
         // 1,1 % + 2,5 % de tasa = 3,6 % anual para los largos.
-        benchmark_pct: dec!(1.1),
+        funding_rates: FundingRates::Constant(dec!(1.1)),
         funding_cutoff: NaiveTime::from_hms_opt(23, 0, 0).unwrap(),
         funding_tz: chrono_tz::Europe::Madrid,
         day_tz: chrono_tz::Europe::Madrid,

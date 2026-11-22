@@ -6,11 +6,14 @@
 //!     <INSTRUMENTO> <desde UTC> <hasta UTC> <capital inicial> <tamaño comprar y mantener>
 //! ```
 //! Si al instrumento le falta algún dato del broker (por ejemplo el tipo de referencia de la
-//! financiación), no corre y dice qué falta.
+//! financiación), no corre y dice qué falta. La financiación usa el tipo de referencia diario
+//! guardado (`reference_rates`, #79): si alguna noche no tiene un valor ya publicado, tampoco.
 
 use std::path::PathBuf;
 
-use cfds_backtest::{BacktestConfig, buy_and_hold, run_checked, setup_from_catalog};
+use cfds_backtest::{
+    BacktestConfig, DailyRates, FundingRates, buy_and_hold, run_checked, setup_from_catalog,
+};
 use cfds_core::Timeframe;
 use cfds_indicators::TrendConfig;
 use cfds_liquidity::LiquidityConfig;
@@ -47,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         trend: TrendConfig::from_toml(cfg!("indicators.toml"))?,
         strategy: StrategyConfig::from_toml(cfg!("strategy.toml"))?,
     };
-    let setup = setup_from_catalog(
+    let mut setup = setup_from_catalog(
         &catalog,
         &id,
         strategy,
@@ -57,6 +60,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     let store = PgStore::connect(&std::env::var("DATABASE_URL")?).await?;
+    // Tipo de referencia de cada noche (#79): la serie diaria guardada, nunca la constante.
+    let series = catalog
+        .instruments
+        .get(&id)
+        .and_then(|spec| spec.terms.funding_benchmark.value())
+        .ok_or("el instrumento no tiene tipo de referencia de financiación")?;
+    let daily = DailyRates::new(store.reference_rates(series, to).await?).ok_or_else(|| {
+        format!("no hay valores de {series} guardados: cargarlos con `python -m cfds_intel.rates`")
+    })?;
+    if let Some((day, pct)) = daily.at_with_day(from) {
+        println!("financiación: {series} diario (al inicio, {pct} % del {day})");
+    }
+    setup.funding_rates = FundingRates::Daily(daily);
     let raw_m15 = store.candles(&id, Timeframe::M15, from, to).await?;
     let raw_h1 = store.candles(&id, Timeframe::H1, from, to).await?;
     let config_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../config");

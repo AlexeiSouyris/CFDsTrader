@@ -8,7 +8,7 @@ use cfds_risk::{InstrumentLimits, RiskConfig};
 use cfds_strategy::Configs;
 use rust_decimal::Decimal;
 
-use crate::{BacktestConfig, InstrumentCosts, Setup};
+use crate::{BacktestConfig, FundingRates, InstrumentCosts, Setup};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SetupError {
@@ -59,7 +59,8 @@ fn pending<T>(item: &str, field: &'static str, v: &Sourced<T>) -> Option<Pending
 }
 
 /// [`Setup`] de `instrument` con los valores del catálogo. El tipo de referencia de la
-/// financiación se toma constante en todo el recorrido (`[funding_benchmarks]`).
+/// financiación queda **constante** (`[funding_benchmarks]`); para usar la serie diaria
+/// guardada (#79), reemplazar `funding_rates` por [`FundingRates::Daily`].
 pub fn setup_from_catalog(
     catalog: &Catalog,
     instrument: &InstrumentId,
@@ -116,7 +117,7 @@ pub fn setup_from_catalog(
                 backtest,
                 initial_equity,
                 account_to_instrument: Decimal::ONE,
-                benchmark_pct,
+                funding_rates: FundingRates::Constant(benchmark_pct),
                 funding_cutoff: cutoff,
                 funding_tz: catalog.funding_cutoff_timezone,
             })

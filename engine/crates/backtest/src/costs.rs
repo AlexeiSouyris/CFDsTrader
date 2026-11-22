@@ -21,6 +21,7 @@ use cfds_core::AssetClass;
 use cfds_market_data::{InstrumentSpec, PendingField};
 
 use crate::CostConfig;
+use crate::rates::FundingRates;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Commission {
@@ -142,18 +143,23 @@ pub fn funding(
 }
 
 /// Cortes de financiación (la hora `cutoff` local de `tz` de cada día) que hay en
-/// `(open, close]`. Si una posición sigue abierta en el corte, paga esa noche.
-pub fn funding_nights(open: DateTime<Utc>, close: DateTime<Utc>, cutoff: NaiveTime, tz: Tz) -> u32 {
+/// `(open, close]`, en orden. Si una posición sigue abierta en el corte, paga esa noche.
+pub fn funding_cutoffs(
+    open: DateTime<Utc>,
+    close: DateTime<Utc>,
+    cutoff: NaiveTime,
+    tz: Tz,
+) -> Vec<DateTime<Utc>> {
     let mut day = open.with_timezone(&tz).date_naive();
     let last = close.with_timezone(&tz).date_naive();
-    let mut nights = 0;
+    let mut out = Vec::new();
     while day <= last {
         // 23:00 nunca cae en el salto del cambio de hora; si una zona lo hiciera, ese día
         // no tiene corte y no se cobra (nunca se cobra dos veces).
         if let Some(at) = tz.from_local_datetime(&day.and_time(cutoff)).earliest() {
             let at = at.with_timezone(&Utc);
             if at > open && at <= close {
-                nights += 1;
+                out.push(at);
             }
         }
         day = match day.checked_add_days(Days::new(1)) {
@@ -161,5 +167,34 @@ pub fn funding_nights(open: DateTime<Utc>, close: DateTime<Utc>, cutoff: NaiveTi
             None => break,
         };
     }
-    nights
+    out
+}
+
+/// Cantidad de cortes de financiación en `(open, close]` (ver [`funding_cutoffs`]).
+pub fn funding_nights(open: DateTime<Utc>, close: DateTime<Utc>, cutoff: NaiveTime, tz: Tz) -> u32 {
+    u32::try_from(funding_cutoffs(open, close, cutoff, tz).len()).unwrap_or(u32::MAX)
+}
+
+/// Financiación noche por noche (#79): cada corte paga con la tasa de referencia **vigente en
+/// ese corte** (ver [`FundingRates::at`]). Si en algún corte todavía no había ninguna tasa
+/// publicada, devuelve ese corte como error: nunca se inventa una tasa.
+pub fn funding_over(
+    side: Side,
+    close: Decimal,
+    size: Decimal,
+    cutoffs: &[DateTime<Utc>],
+    rates: &FundingRates,
+    costs: &InstrumentCosts,
+) -> Result<Decimal, DateTime<Utc>> {
+    // Se suman las tasas de cada noche y se divide una sola vez: con una tasa constante da
+    // exactamente lo mismo que `funding` con `nights` (sin redondeos intermedios).
+    let mut rate_nights = Decimal::ZERO;
+    for &at in cutoffs {
+        let benchmark = rates.at(at).ok_or(at)?;
+        rate_nights += match side {
+            Side::Long => benchmark + costs.funding_admin_fee_pct,
+            Side::Short => costs.funding_admin_fee_pct - benchmark,
+        };
+    }
+    Ok(close * size * rate_nights / Decimal::ONE_HUNDRED / costs.funding_day_count)
 }
