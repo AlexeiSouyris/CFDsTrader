@@ -9,6 +9,9 @@
 //! que faltan, y si no falta nada no se conecta a IG. Gasta del cupo semanal ~1 punto por día
 //! pedido. El día `hasta` no entra.
 
+#[path = "common/allowance.rs"]
+mod allowance;
+
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
@@ -95,11 +98,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    let allowance = ig.allowance().await;
     ig.logout().await?;
-    if let Some((left, _)) = allowance {
-        println!("cupo semanal restante: {left} puntos");
-    }
+    allowance::record_and_report(&ig, Some(&store), "ig_backfill_daily").await?;
     result
 }
 

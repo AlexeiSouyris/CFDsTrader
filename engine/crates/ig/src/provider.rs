@@ -18,6 +18,7 @@ use rust_decimal::Decimal;
 use tokio::sync::Mutex;
 use tokio::time::{Duration, Instant, sleep, sleep_until};
 
+use crate::allowance::AllowanceObservation;
 use crate::model::{self, AllowanceBody, MarketTerms, PricesBody, RawPrice, SessionBody};
 use crate::transport::{HttpRequest, HttpResponse, Method, Transport};
 use crate::{Credentials, IgConfig, Secret};
@@ -30,6 +31,8 @@ const PER_MINUTE_LIMITS: [&str; 2] = [
     "error.public-api.exceeded-api-key-allowance",
 ];
 /// Límite **semanal** de históricos: no se reintenta.
+/// Tope de `allowanceExpiry` al calcular la renovación (el cupo de IG es semanal).
+const MAX_EXPIRY_SECS: u64 = 31 * 24 * 3600;
 const WEEKLY_HISTORY_LIMIT: &str = "error.public-api.exceeded-account-historical-data-allowance";
 
 struct Session {
@@ -52,6 +55,8 @@ struct State {
     session: Option<Session>,
     sent: VecDeque<Instant>,
     allowance: Option<Allowance>,
+    /// Cada respuesta de `GET /prices` desde la última vez que se leyó (#140).
+    allowance_log: Vec<AllowanceObservation>,
 }
 
 pub struct IgProvider<T> {
@@ -100,6 +105,7 @@ impl<T: Transport> IgProvider<T> {
                 session: None,
                 sent: VecDeque::new(),
                 allowance: None,
+                allowance_log: Vec::new(),
             }),
             market_ids: Mutex::new(BTreeMap::new()),
         }
@@ -114,6 +120,13 @@ impl<T: Transport> IgProvider<T> {
                 a.resets_at.saturating_duration_since(Instant::now()),
             )
         })
+    }
+
+    /// Lo que dijo IG del cupo en cada respuesta de `GET /prices` desde la última llamada, en
+    /// orden, y vacía el registro (#140). Para guardarlo y resumirlo con
+    /// [`crate::allowance::summarize`].
+    pub async fn take_allowance_log(&self) -> Vec<AllowanceObservation> {
+        std::mem::take(&mut self.state.lock().await.allowance_log)
     }
 
     /// Cierra la sesión en IG (`DELETE /session`). Sin sesión abierta no hace nada.
@@ -248,10 +261,22 @@ impl<T: Transport> IgProvider<T> {
         }
     }
 
-    fn update_allowance(st: &mut State, a: AllowanceBody) {
+    fn update_allowance(st: &mut State, a: AllowanceBody, points_returned: usize) {
         st.allowance = Some(Allowance {
             remaining: a.remaining,
             resets_at: Instant::now() + Duration::from_secs(a.expiry_secs),
+        });
+        let at = Utc::now();
+        st.allowance_log.push(AllowanceObservation {
+            at,
+            points_returned: u64::try_from(points_returned).unwrap_or(u64::MAX),
+            remaining: a.remaining,
+            total: a.total,
+            // El cupo es semanal; el tope solo evita desbordar con un valor absurdo.
+            resets_at: at
+                + TimeDelta::seconds(
+                    i64::try_from(a.expiry_secs.min(MAX_EXPIRY_SECS)).unwrap_or(0),
+                ),
         });
     }
 }
@@ -372,7 +397,7 @@ impl<T: Transport> IgProvider<T> {
             let resp = self.get(&mut st, path, 3, epic).await?;
             let body: PricesBody = serde_json::from_str(&resp.body)
                 .map_err(|e| ProviderError::InvalidResponse(format!("GET /prices: {e}")))?;
-            Self::update_allowance(&mut st, body.metadata.allowance);
+            Self::update_allowance(&mut st, body.metadata.allowance, body.prices.len());
             let pages = &body.metadata.page_data;
             if pages.page_number != page {
                 return Err(ProviderError::InvalidResponse(format!(
