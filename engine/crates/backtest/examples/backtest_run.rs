@@ -7,6 +7,9 @@
 //!     [<run_id>]
 //! ```
 //! Con `run_id`, además guarda cada operación en el diario (`proposals` y `outcomes`, de forma
+//! idempotente) y, al terminar, la corrida en `backtest_runs` (`backtest_run.v1`, #200): período,
+//! hash de la configuración, costos, intérprete y corte de las noticias y resumen de métricas.
+//! Las propuestas quedan ligadas a la corrida por el mismo `run_id`. Antes:
 //! idempotente) y muestra la probabilidad de la spec §13 por gatillo y rango de puntaje, solo
 //! con los resultados anteriores al tramo fuera de muestra de `config/data_split.toml` (#181).
 //! Si al instrumento le falta algún dato del broker (por ejemplo el tipo de referencia de la
@@ -43,8 +46,27 @@ macro_rules! cfg {
     };
 }
 
+/// Archivos de `config/` que lee la corrida, para el hash de `backtest_run.v1` (#200).
+const CONFIG_FILES: [(&str, &str); 14] = [
+    ("backtest.toml", cfg!("backtest.toml")),
+    ("data_split.toml", cfg!("data_split.toml")),
+    ("data_validation.toml", cfg!("data_validation.toml")),
+    ("indicators.toml", cfg!("indicators.toml")),
+    ("instruments.toml", cfg!("instruments.toml")),
+    ("liquidity.toml", cfg!("liquidity.toml")),
+    ("news_interpreter.toml", cfg!("news_interpreter.toml")),
+    ("patterns.toml", cfg!("patterns.toml")),
+    ("probability.toml", cfg!("probability.toml")),
+    ("risk.toml", cfg!("risk.toml")),
+    ("sessions.toml", cfg!("sessions.toml")),
+    ("spread_filter.toml", cfg!("spread_filter.toml")),
+    ("strategy.toml", cfg!("strategy.toml")),
+    ("trading_window.toml", cfg!("trading_window.toml")),
+];
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let started_at = chrono::Utc::now();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let (instrument, from, to, equity, size, run_id) = match args.as_slice() {
         [i, f, t, e, s] => (i, f, t, e, s, None),
@@ -218,6 +240,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if let Some(run_id) = run_id {
         journal_and_probability(&store, run_id, &id, &report.trades, &m15).await?;
+        let news_used = cfds_journal::RunNews {
+            interpreter_name: interpreter.name.clone(),
+            interpreter_version: interpreter.version.clone(),
+            interpreter_model: Some(interpreter.model.clone()),
+            published_from,
+            interpretations: u64::try_from(news.len())?,
+        };
+        let run = run_record(
+            run_id,
+            &id,
+            (from, to),
+            &setup,
+            &report,
+            &m15,
+            news_used,
+            started_at,
+        )?;
+        let journal = cfds_journal::pg::PgJournal::new(store.pool().clone());
+        let recorded = journal.record_run(&run).await?;
+        println!(
+            "corrida {run_id} en backtest_runs ({recorded:?}): config {}, {} operaciones",
+            &run.config_sha256[..12],
+            run.metrics.trades
+        );
     }
 
     let bh = buy_and_hold(&m15, size, &setup).ok_or("sin velas")?;
@@ -228,6 +274,62 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     println!("  {bh:?}");
     Ok(())
+}
+
+/// La corrida para `backtest_runs` (#200), con las métricas en la moneda de la cuenta.
+#[allow(clippy::too_many_arguments)]
+fn run_record(
+    run_id: &str,
+    id: &cfds_core::InstrumentId,
+    (from, to): (chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>),
+    setup: &cfds_backtest::Setup,
+    report: &cfds_backtest::Report,
+    m15: &[cfds_core::Candle],
+    news: cfds_journal::RunNews,
+    started_at: chrono::DateTime<chrono::Utc>,
+) -> Result<cfds_journal::BacktestRun, Box<dyn std::error::Error>> {
+    let net: Vec<Decimal> = report
+        .trades
+        .iter()
+        .map(|t| t.net_pnl / setup.account_to_instrument)
+        .collect();
+    let intervals: Vec<_> = report
+        .trades
+        .iter()
+        .map(|t| {
+            (
+                t.entry_time,
+                t.exits.last().map_or(t.entry_time, |e| e.time),
+            )
+        })
+        .collect();
+    let period = match (m15.first(), m15.last()) {
+        (Some(a), Some(b)) => (a.start, b.end()),
+        _ => (from, to),
+    };
+    let metrics = cfds_backtest::evaluate(
+        setup.initial_equity,
+        report.final_equity,
+        &report.daily_equity,
+        &net,
+        &intervals,
+        period,
+        &setup.backtest.metrics,
+    );
+    Ok(cfds_journal::BacktestRun {
+        run_id: run_id.to_owned(),
+        instruments: vec![id.clone()],
+        timeframe: cfds_journal::RunTimeframe::M15,
+        from,
+        to,
+        config_sha256: cfds_journal::config_sha256(&CONFIG_FILES),
+        initial_equity: setup.initial_equity,
+        costs: cfds_journal::RunCosts::new(&setup.backtest.costs, &[(id.clone(), setup.costs)]),
+        news: Some(news),
+        metrics: cfds_journal::RunMetrics::new(report.final_equity, &metrics),
+        started_at,
+        finished_at: chrono::Utc::now(),
+    })
 }
 
 /// Guarda la corrida en el diario y muestra la probabilidad de la spec §13 (#181).

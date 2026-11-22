@@ -71,6 +71,27 @@ pub mod option {
     }
 }
 
+/// Variante con signo para campos opcionales (por ejemplo un Sharpe negativo o indefinido).
+pub mod signed_option {
+    use super::*;
+
+    pub fn serialize<S: Serializer>(d: &Option<Decimal>, s: S) -> Result<S::Ok, S::Error> {
+        match d {
+            Some(d) => super::signed::serialize(d, s),
+            None => s.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Decimal>, D::Error> {
+        Option::<String>::deserialize(d)?
+            .map(|text| match text.strip_prefix('-') {
+                Some(rest) => parse::<D::Error>(rest).map(|v| -v),
+                None => parse(&text),
+            })
+            .transpose()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::is_contract_decimal;

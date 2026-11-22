@@ -8,7 +8,7 @@ use rust_decimal::Decimal;
 use sqlx::postgres::{PgPool, PgRow};
 use sqlx::{Postgres, Row, Transaction};
 
-use crate::{Outcome, OutcomeKind, Proposal};
+use crate::{BacktestRun, Outcome, OutcomeKind, Proposal, RunInvalid};
 
 #[derive(Debug, thiserror::Error)]
 pub enum JournalError {
@@ -18,6 +18,8 @@ pub enum JournalError {
     Json(#[from] serde_json::Error),
     #[error("ya hay una entrada {id} con otro contenido: el diario no se reescribe")]
     Conflict { id: String },
+    #[error("corrida inválida: {0}")]
+    InvalidRun(#[from] RunInvalid),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -157,6 +159,110 @@ impl PgJournal {
             .map(|r| row_to_outcome(&r))
             .transpose()
     }
+}
+
+impl PgJournal {
+    /// Guarda una corrida de backtest (#200). Idempotente: si ya estaba la misma corrida (todo
+    /// igual salvo `started_at` y `finished_at`) no guarda nada y conserva la primera; con otro
+    /// contenido es `Conflict`, porque reusar un `run_id` mezclaría corridas en el diario.
+    pub async fn record_run(&self, run: &BacktestRun) -> Result<Recorded, JournalError> {
+        run.validate()?;
+        let mut tx = self.pool.begin().await?;
+        let done = sqlx::query(
+            "INSERT INTO backtest_runs (run_id, instruments, timeframe, from_at, to_at,
+               config_sha256, initial_equity, costs, news, metrics, started_at, finished_at)
+             VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12)
+             ON CONFLICT (run_id) DO NOTHING",
+        )
+        .bind(&run.run_id)
+        .bind(serde_json::to_string(&run.instruments)?)
+        .bind(run.timeframe.as_str())
+        .bind(run.from)
+        .bind(run.to)
+        .bind(&run.config_sha256)
+        .bind(run.initial_equity)
+        .bind(serde_json::to_string(&run.costs)?)
+        .bind(run.news.as_ref().map(serde_json::to_string).transpose()?)
+        .bind(serde_json::to_string(&run.metrics)?)
+        .bind(run.started_at)
+        .bind(run.finished_at)
+        .execute(&mut *tx)
+        .await?;
+        let inserted = done.rows_affected() == 1;
+        if !inserted {
+            let stored =
+                select_run(&mut tx, &run.run_id)
+                    .await?
+                    .ok_or_else(|| JournalError::Conflict {
+                        id: run.run_id.clone(),
+                    })?;
+            if !stored.same_run(run) {
+                return Err(JournalError::Conflict {
+                    id: run.run_id.clone(),
+                });
+            }
+        }
+        tx.commit().await?;
+        Ok(if inserted {
+            Recorded::Inserted
+        } else {
+            Recorded::Unchanged
+        })
+    }
+
+    pub async fn run(&self, run_id: &str) -> Result<Option<BacktestRun>, JournalError> {
+        let mut tx = self.pool.begin().await?;
+        let run = select_run(&mut tx, run_id).await?;
+        tx.commit().await?;
+        Ok(run)
+    }
+}
+
+/// Lee una corrida y la vuelve a armar como documento de `backtest_run.v1`, validado igual que
+/// un mensaje del contrato.
+async fn select_run(
+    tx: &mut Transaction<'_, Postgres>,
+    run_id: &str,
+) -> Result<Option<BacktestRun>, JournalError> {
+    let Some(r) = sqlx::query(
+        "SELECT run_id, instruments::text AS instruments, timeframe, from_at, to_at,
+                config_sha256, initial_equity, costs::text AS costs, news::text AS news,
+                metrics::text AS metrics, started_at, finished_at
+         FROM backtest_runs WHERE run_id = $1",
+    )
+    .bind(run_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    else {
+        return Ok(None);
+    };
+    let json = |col: &str| -> Result<serde_json::Value, JournalError> {
+        let text: Option<String> = r.try_get(col)?;
+        Ok(match text {
+            Some(t) => serde_json::from_str(&t)?,
+            None => serde_json::Value::Null,
+        })
+    };
+    let utc = |col: &str| -> Result<String, JournalError> {
+        let t: chrono::DateTime<chrono::Utc> = r.try_get(col)?;
+        Ok(t.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true))
+    };
+    let equity: Decimal = r.try_get("initial_equity")?;
+    let doc = serde_json::json!({
+        "run_id": r.try_get::<String, _>("run_id")?,
+        "instruments": json("instruments")?,
+        "timeframe": r.try_get::<String, _>("timeframe")?,
+        "from": utc("from_at")?,
+        "to": utc("to_at")?,
+        "config_sha256": r.try_get::<String, _>("config_sha256")?,
+        "initial_equity": equity.to_string(),
+        "costs": json("costs")?,
+        "news": json("news")?,
+        "metrics": json("metrics")?,
+        "started_at": utc("started_at")?,
+        "finished_at": utc("finished_at")?,
+    });
+    Ok(Some(serde_json::from_value(doc)?))
 }
 
 /// `true` si era nueva; si ya estaba, tiene que ser idéntica.
