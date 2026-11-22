@@ -1,10 +1,16 @@
 # Reglas del proyecto CFDsTrader (para agentes de IA y humanos)
 
 Este archivo lo leen automáticamente Claude Code y otros agentes (`AGENTS.md` apunta acá).
-Somos **dos personas, cada una con su propio agente de IA**, trabajando en el mismo repo.
+Las reglas están escritas para **dos personas, cada una con su propio agente de IA**, trabajando en el mismo repo (ver el modo de un solo constructor, abajo).
 El objetivo de estas reglas es que **nunca existan dos versiones de lo mismo** y que los PRs sean ordenados.
 
 > Si una regla te impide hacer lo que te pidieron, **no la rompas en silencio**: decíselo a tu humano y proponé el cambio a la regla en un PR aparte.
+
+> **Modo de un solo constructor (vigente desde el 22-11-2026, #155).** Por ahora el proyecto lo construyen **solo el dueño (Alexei) y sus agentes de IA**. Mientras dure, donde estas reglas o los demás documentos piden la aprobación de "las dos personas" o "ambos" para una **fase, un ADR o un cambio de spec**, **alcanza con la aprobación del dueño**:
+> - Tiene que ser explícita y quedar registrada en el Issue o en el PR. Si la informa un agente, cita las palabras del dueño y la fecha.
+> - Un agente **nunca** se aprueba a sí mismo, ni da por aprobado nada sin esa aprobación explícita.
+> - **Excepciones que no cambian:** el **dinero real** (§5 y fase 11) y cualquier paso del modo simulación/paper a órdenes reales siguen pidiendo un ADR aprobado por **dos personas**. Mientras el dueño construya solo, quedan bloqueados.
+> - El modo termina cuando se sume otra persona al proyecto. Desde ahí vuelve a regir "las dos personas" para lo que todavía no se aprobó.
 
 ---
 

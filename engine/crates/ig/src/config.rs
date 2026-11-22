@@ -39,6 +39,17 @@ pub struct IgConfig {
     pub live: LiveConfig,
     /// Cada cuánto se graba el sentimiento de clientes de IG (#27).
     pub sentiment_interval: Duration,
+    /// Límites antes de una carga histórica (#143).
+    pub loads: LoadLimits,
+}
+
+/// Límites antes de una carga histórica (#143, `[loads]`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LoadLimits {
+    /// Arriba de estos puntos estimados se pide confirmación (salvo `--yes`).
+    pub confirm_above_points: u64,
+    /// Tope de una carga en una máquina sin `CFDS_DATA_MACHINE=1`.
+    pub max_points_off_data_machine: u64,
 }
 
 /// Modo en vivo (#68).
@@ -59,6 +70,14 @@ struct Raw {
     history: RawHistory,
     live: RawLive,
     sentiment: RawSentiment,
+    loads: RawLoads,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawLoads {
+    confirm_above_points: u64,
+    max_points_off_data_machine: u64,
 }
 
 #[derive(Deserialize)]
@@ -192,7 +211,29 @@ impl IgConfig {
                 "tiene que dividir exacto al día (1, 5, 15, 30, 60...)",
             ));
         }
+        let loads = LoadLimits {
+            confirm_above_points: at_least_one(
+                "loads.confirm_above_points",
+                r.loads.confirm_above_points,
+            )?,
+            max_points_off_data_machine: at_least_one(
+                "loads.max_points_off_data_machine",
+                r.loads.max_points_off_data_machine,
+            )?,
+        };
+        for (field, v) in [
+            ("loads.confirm_above_points", loads.confirm_above_points),
+            (
+                "loads.max_points_off_data_machine",
+                loads.max_points_off_data_machine,
+            ),
+        ] {
+            if v > r.limits.historical_points_per_week {
+                return Err(invalid(field, "no puede superar el cupo semanal"));
+            }
+        }
         Ok(Self {
+            loads,
             sentiment_interval: Duration::from_secs(minutes * 60),
             live,
             base_url: DEMO_BASE_URL.to_owned(),
@@ -251,6 +292,30 @@ mod tests {
         assert_eq!(c.max_attempts, 4);
         assert_eq!(c.prices_tz, chrono_tz::Europe::Madrid);
         assert_eq!(c.daily_start_tolerance, TimeDelta::hours(1));
+        assert_eq!(
+            c.loads,
+            LoadLimits {
+                confirm_above_points: 500,
+                max_points_off_data_machine: 100,
+            }
+        );
+    }
+
+    #[test]
+    fn load_limits_are_validated() {
+        for (old, new) in [
+            ("confirm_above_points = 500", "confirm_above_points = 0"),
+            (
+                "max_points_off_data_machine = 100",
+                "max_points_off_data_machine = 0",
+            ),
+            ("confirm_above_points = 500", "confirm_above_points = 10001"),
+        ] {
+            assert!(
+                IgConfig::from_toml(&REAL.replace(old, new)).is_err(),
+                "{new}"
+            );
+        }
     }
 
     #[test]

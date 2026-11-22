@@ -1,6 +1,6 @@
 # Roadmap por fases
 
-Regla: **no se empieza una fase sin que la anterior esté aprobada por las dos personas** (en el Issue de la fase).
+Regla: **no se empieza una fase sin que la anterior esté aprobada por las dos personas** (en el Issue de la fase). Mientras el dueño construya solo, alcanza con su aprobación (`CLAUDE.md`, modo de un solo constructor). Para la fase 11 (dinero real) siempre hacen falta dos personas.
 Cada entrega incluye qué se hizo, código, tests, cómo verificarlo, supuestos y riesgos, y el checklist de trading de la plantilla de PR.
 
 Primero va el motor y la inteligencia. La UI viene después (fase 10).
