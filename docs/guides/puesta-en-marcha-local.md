@@ -60,6 +60,13 @@ cd intelligence && uv sync && cd ..
 
 Las migraciones (`infra/migrations/`) las aplica el motor la primera vez que guarda algo. Por ejemplo, con la carga del paso 6.
 
+Para aplicarlas **sin gastar cupo de IG** (por ejemplo, para cargar primero noticias y COT, que las necesitan): correr una carga diaria **sin** las variables de IG. Migra y frena con `MissingEnv("IG_USERNAME")` antes de conectarse a IG.
+
+```bash
+cd engine && env -u IG_API_KEY -u IG_USERNAME -u IG_PASSWORD \
+  cargo run -q -p cfds-ig --example ig_backfill_daily -- DE40 2021-11-22 2021-11-23; cd ..
+```
+
 ## 6. Cargas iniciales
 
 El **cupo de IG es de 10.000 puntos por semana**, compartido por todo lo que use la cuenta demo, incluidas las sesiones en la nube. Antes de cada carga grande, probar con un año.
@@ -92,12 +99,17 @@ Solo graban mientras la computadora está **prendida y despierta**. En macOS: Co
 **Con `cron`** (`crontab -e`). Reemplazar `RUTA` por la ruta absoluta de la carpeta:
 
 ```cron
+# En macOS, ver la sección 10 (por qué hacen falta estas dos líneas).
+SSL_CERT_FILE=/Users/USUARIO/.config/cfdstrader/macos-roots.pem
+PYTHONPATH=RUTA/intelligence/src
 */15 * * * * cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.news >> ../logs/news.log 2>&1
 */15 * * * * cd "RUTA/engine" && set -a && . ../.env && set +a && $HOME/.cargo/bin/cargo run -q -p cfds-ig --example ig_sentiment -- --once >> ../logs/ig_sentiment.log 2>&1
 7 10 * * 6   cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.sentiment 2026-01-01 >> ../logs/cot.log 2>&1
 ```
 
 Antes, `mkdir -p "RUTA/logs"`. La carpeta `logs/` no se commitea.
+
+En las variables de `cron` no se expande `$HOME` ni `~`: van rutas absolutas. Si se instala desde un archivo con una ruta larga, `crontab archivo` de macOS puede cortarla; usar `crontab - < archivo`.
 
 En macOS, `cron` puede necesitar **Acceso total al disco**: Configuración → Privacidad y seguridad → Acceso total al disco → agregar `/usr/sbin/cron`.
 
@@ -116,8 +128,31 @@ tail -n 5 logs/*.log
 - **"Rate limited" o "cupo semanal":** esperar a que se renueve el cupo de IG. No reintentar en bucle.
 - **"no empieza a medianoche":** IG cambió la hora de sus velas diarias. No se guarda nada; revisar `docs/research/ig-velas-diarias.md`.
 - **Un feed de noticias falla:** los demás siguen. Se reintenta solo en la próxima corrida.
+- **"No module named 'cfds_intel'" o `CERTIFICATE_VERIFY_FAILED` en macOS:** ver la sección 10.
 - **La computadora estuvo apagada:**
   - **Noticias:** se pierden las que salieron del RSS en ese tiempo, porque un RSS solo guarda las últimas.
   - **Sentimiento de IG:** no hay historia, así que ese tiempo queda sin dato.
   - **Velas:** se recuperan con `ig_backfill`.
   - **COT:** se recupera sin costo.
+
+## 10. Problemas conocidos en macOS
+
+Encontrados al ponerlo en marcha en el Mac mini (M4) el 21 y 22-11-2026.
+
+**`No module named 'cfds_intel'`** aunque `uv sync` terminó bien:
+- Causa: macOS marca la carpeta `.venv` como oculta (`ls -lO` muestra `hidden`), y Python 3.13 **ignora los `.pth` ocultos**. El paquete del proyecto se instala justamente con un `.pth`. La marca vuelve a aparecer sola cada tanto.
+- Arreglo en una terminal: `chflags -R nohidden intelligence/.venv`.
+- Arreglo para `cron`: la línea `PYTHONPATH=RUTA/intelligence/src` del paso 7, que no depende de la marca.
+
+**`CERTIFICATE_VERIFY_FAILED` en los feeds del BCE** (`ecb/press`, `ecb/statpress`), mientras que los de la Fed andan y `curl` también:
+- Causa: el Python que instala `uv` usa `/etc/ssl/cert.pem`, al que le falta la raíz de Sectigo que usa `www.ecb.europa.eu`. `curl` usa el llavero de macOS, que sí la tiene.
+- Arreglo (sin desactivar la verificación): exportar las raíces del sistema y apuntar `SSL_CERT_FILE` ahí.
+
+  ```bash
+  mkdir -p ~/.config/cfdstrader
+  security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain > ~/.config/cfdstrader/macos-roots.pem
+  SSL_CERT_FILE=~/.config/cfdstrader/macos-roots.pem uv run python -m cfds_intel.news
+  ```
+- El arreglo de fondo (que el código use el almacén del sistema) está en #121.
+
+**`docker: command not found`** después de instalar Docker Desktop: abrir la app una vez. Mientras tanto, el binario está en `/Applications/Docker.app/Contents/Resources/bin/`.
