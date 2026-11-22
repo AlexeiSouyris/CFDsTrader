@@ -13,6 +13,7 @@ import { SignIn } from '@/components/ui/sign-in'
 import { CURRENT_MEMBER, NOTICES } from '@/mocks'
 import { ChartsView, CompetitionView, JournalView, NewsView, OverviewView } from '@/views'
 import { VIEWS } from '@/views/nav'
+import { FundView, GlossaryView, ProposalsView } from '@/views/phase10'
 
 const NOT_FOUND = 'no-encontrada'
 const viewFromHash = () => {
@@ -78,10 +79,13 @@ export default function App({ initialStage = 'loading' as Stage }: { initialStag
             user={CURRENT_MEMBER}
           >
             {view === 'panel' && <OverviewView onOpen={select} />}
+            {view === 'propuestas' && <ProposalsView member={CURRENT_MEMBER} />}
             {view === 'graficos' && <ChartsView />}
             {view === 'noticias' && <NewsView />}
             {view === 'operaciones' && <JournalView />}
+            {view === 'fondo' && <FundView />}
             {view === 'competencia' && <CompetitionView />}
+            {view === 'glosario' && <GlossaryView />}
             {view === NOT_FOUND && (
               <NotFound onHome={() => select('panel')} onExplore={() => select('graficos')} />
             )}

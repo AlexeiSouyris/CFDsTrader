@@ -343,7 +343,7 @@ function Dock({
         'glass z-20 flex gap-1 rounded-full p-1.5',
         side
           ? 'sticky top-6 hidden h-fit flex-col self-start md:flex'
-          : 'fixed inset-x-3 bottom-3 justify-between md:hidden',
+          : 'fixed inset-x-3 bottom-3 justify-between overflow-x-auto [scrollbar-width:none] md:hidden',
       )}
     >
       {views.map(({ id, label, short, icon: Icon }) => {
@@ -362,7 +362,7 @@ function Dock({
             }}
             className={cn(
               'flex min-h-11 items-center justify-center gap-1 rounded-full text-[10px] font-bold transition-colors',
-              side ? 'size-11' : 'flex-1 flex-col px-1 py-1',
+              side ? 'size-11' : 'min-w-[60px] flex-1 shrink-0 flex-col px-1 py-1',
               on
                 ? 'bg-primary text-primary-foreground'
                 : 'hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]',
