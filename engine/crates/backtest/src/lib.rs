@@ -25,6 +25,6 @@ pub use portfolio::{
 pub use rates::{DailyRates, FundingRates};
 pub use runner::{
     BuyAndHold, CloseReason, ExitRecord, RejectedSignal, Report, RunError, Setup, TradeRecord,
-    buy_and_hold, choose, execute, pick, run, run_checked,
+    buy_and_hold, choose, execute, pick, run, run_checked, run_with_news,
 };
 pub use setup::{SetupError, setup_from_catalog};

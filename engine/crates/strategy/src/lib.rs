@@ -15,6 +15,8 @@ pub use cfds_liquidity::Side;
 pub use config::{EvidenceConfig, NewsConfig, ScoreConfig, StopConfig, StrategyConfig};
 pub use evidence::{Analysis, Configs, Signal};
 pub use mtf::align_closed;
-pub use news::{InterpreterCutoff, exit_alerts, news_adjustment, single_adjustment};
+pub use news::{
+    BacktestInterpreter, InterpreterCutoff, exit_alerts, news_adjustment, single_adjustment,
+};
 pub use score::{Component, Evidence, Score, ScoreError, Trigger, TriggerKind, score};
 pub use stop::{risk_per_unit, structural_stop};

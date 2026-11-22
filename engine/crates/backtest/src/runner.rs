@@ -16,7 +16,7 @@
 //!   hora de cada salida es el **fin** de su vela (si un corte cae dentro, se cobra).
 //! - Si los datos terminan con la posición abierta, se cierra al último cierre (`EndOfData`).
 
-use cfds_core::{Candle, InstrumentId};
+use cfds_core::{Candle, InstrumentId, NewsInterpretation};
 use cfds_risk::{InstrumentLimits, Rejection, RiskConfig};
 use cfds_strategy::{Analysis, Component, Configs, ScoreError, Side, Signal, TriggerKind};
 use chrono::{DateTime, NaiveTime, Utc};
@@ -149,10 +149,15 @@ fn sign(side: Side) -> Decimal {
 }
 
 /// Elige la señal del cierre de `t`: la candidata de mayor puntaje; con empate, ninguna.
-pub fn choose(analysis: &Analysis, t: usize) -> Result<Option<Signal>, ScoreError> {
+/// `news` da el ajuste de noticias de cada dirección en esa vela (spec §9, #194).
+pub fn choose(
+    analysis: &Analysis,
+    t: usize,
+    news: impl Fn(Side) -> i32,
+) -> Result<Option<Signal>, ScoreError> {
     let mut candidates = Vec::new();
     for side in [Side::Long, Side::Short] {
-        candidates.extend(analysis.signal_at(t, side, 0)?);
+        candidates.extend(analysis.signal_at(t, side, news(side))?);
     }
     Ok(pick(candidates))
 }
@@ -311,8 +316,14 @@ pub fn run_checked(
         entries,
         force_close,
         data_errors,
+        news: &[],
     };
-    let p = run_portfolio(std::slice::from_ref(&market)).map_err(|e| match e {
+    report_of(&market)
+}
+
+/// El recorrido de la cartera con un solo instrumento, como [`Report`].
+fn report_of(market: &Market) -> Result<Report, RunError> {
+    let p = run_portfolio(std::slice::from_ref(market)).map_err(|e| match e {
         PortfolioError::Run(e) => e,
         // Con un solo instrumento no puede haber mezcla ni cartera vacía.
         PortfolioError::Empty | PortfolioError::MixedSetup(_) => {
@@ -330,6 +341,40 @@ pub fn run_checked(
         final_equity: p.final_equity,
         daily_equity: p.daily_equity,
     })
+}
+
+/// Como [`run_checked`], con el ajuste de noticias del puntaje (spec §9, #194).
+///
+/// `published_from` es `InterpreterCutoff::backtest_published_from` (ADR 0008 §5): solo cuentan
+/// las noticias publicadas desde ahí. Se aplica acá aunque la lectura de la base ya lo haga
+/// (`PgStore::news_interpretations`), porque es la regla contra el look-ahead del modelo. En
+/// cada vela cuenta solo lo interpretado hasta su cierre (`news_adjustment`).
+#[allow(clippy::too_many_arguments)]
+pub fn run_with_news(
+    m15: &[Candle],
+    h1: &[Candle],
+    entries: &[bool],
+    force_close: &[bool],
+    data_errors: &[DateTime<Utc>],
+    news: &[NewsInterpretation],
+    published_from: DateTime<Utc>,
+    setup: &Setup,
+) -> Result<Report, RunError> {
+    let news: Vec<NewsInterpretation> = news
+        .iter()
+        .filter(|n| n.published_at >= published_from)
+        .cloned()
+        .collect();
+    let market = Market {
+        setup: setup.clone(),
+        m15,
+        h1,
+        entries,
+        force_close,
+        data_errors,
+        news: &news,
+    };
+    report_of(&market)
 }
 
 /// Comprar y mantener (benchmark de la Fase 5): compra `size` en la apertura de la primera
