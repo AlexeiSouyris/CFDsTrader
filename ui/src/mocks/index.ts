@@ -353,3 +353,200 @@ export const RANKING: RankingRow[] = [
   { member: MEMBERS[3], result: '-1.4', trades: 8 },
   { member: MEMBERS[5], result: '-2.9', trades: 6 },
 ]
+
+// --- Fase 10, adelanto (#171) ---
+
+/** Quién aprueba propuestas (spec §1: roles responsable y miembro). */
+export const RESPONSIBLE_ID = 'alexei'
+
+/** Una propuesta con los campos de `contracts/proposal.v1.schema.json`. */
+export type Proposal = {
+  id: string
+  source: 'backtest' | 'paper' | 'live'
+  run_id: string
+  instrument_id: string
+  side: 'long' | 'short'
+  signal_at: string
+  reference: string
+  stop: string
+  tp1: string
+  size: string
+  leverage: string
+  score: number
+  breakdown: { component: BreakdownComponent; points: number }[]
+  triggers: ('candle_pattern' | 'double_break' | 'level_rejection' | 'sweep')[]
+}
+export type BreakdownComponent =
+  | 'trend'
+  | 'sma_side'
+  | 'candle_pattern'
+  | 'double_break'
+  | 'level_rejection'
+  | 'sweep'
+  | 'fvg_or_order_block'
+  | 'recent_choch'
+  | 'news'
+
+/**
+ * Lo que la pantalla necesita y `proposal.v1` todavía no trae: el vencimiento (spec §6, 10
+ * minutos) y la probabilidad de §13 con su rango. **A definir en un contrato** antes de la app real.
+ */
+export type ProposalExtras = {
+  expiresAt: string
+  probability:
+    | { status: 'ok'; pct: string; lowPct: string; highPct: string; cases: number }
+    | { status: 'insufficient'; cases: number; needed: number }
+}
+export type PendingProposal = { proposal: Proposal; extras: ProposalExtras }
+
+// Las horas de ejemplo se arman alrededor de "ahora" para que el vencimiento se vea correr.
+const quarter = Math.floor(Date.now() / 900_000) * 900_000
+const iso = (ms: number) => new Date(ms).toISOString().replace('.000Z', 'Z')
+
+/** Propuestas pendientes de ejemplo (paper). Los números los arma el motor, no la UI. */
+export const PROPOSALS: PendingProposal[] = [
+  {
+    proposal: {
+      id: `paper-demo:US100:${iso(quarter)}:long`,
+      source: 'paper',
+      run_id: 'paper-demo',
+      instrument_id: 'US100',
+      side: 'long',
+      signal_at: iso(quarter),
+      reference: '28204.6',
+      stop: '28150.2',
+      tp1: '28313.4',
+      size: '0.19',
+      leverage: '5.15',
+      score: 6,
+      breakdown: [
+        { component: 'trend', points: 2 },
+        { component: 'sma_side', points: 1 },
+        { component: 'sweep', points: 2 },
+        { component: 'fvg_or_order_block', points: 1 },
+      ],
+      triggers: ['sweep'],
+    },
+    extras: {
+      expiresAt: iso(Date.now() + 8 * 60_000),
+      probability: { status: 'ok', pct: '58', lowPct: '49', highPct: '66', cases: 84 },
+    },
+  },
+  {
+    proposal: {
+      id: `paper-demo:DE40:${iso(quarter)}:short`,
+      source: 'paper',
+      run_id: 'paper-demo',
+      instrument_id: 'DE40',
+      side: 'short',
+      signal_at: iso(quarter),
+      reference: '23518.0',
+      stop: '23561.5',
+      tp1: '23431.0',
+      size: '0.24',
+      leverage: '5.42',
+      score: 5,
+      breakdown: [
+        { component: 'trend', points: 2 },
+        { component: 'candle_pattern', points: 1 },
+        { component: 'level_rejection', points: 1 },
+        { component: 'recent_choch', points: 1 },
+      ],
+      triggers: ['candle_pattern', 'level_rejection'],
+    },
+    extras: {
+      expiresAt: iso(Date.now() + 4 * 60_000),
+      probability: { status: 'insufficient', cases: 21, needed: 30 },
+    },
+  },
+]
+
+export type FundMember = {
+  member: Member
+  units: string
+  netContributions: string
+  value: string
+  pnl: string
+}
+export type FundMove = {
+  id: string
+  member: Member
+  kind: 'aporte' | 'retiro'
+  amount: string
+  units: string
+  nav: string
+  at: string
+}
+
+/** El fondo (spec §14). Todo llega calculado por el motor (`fund`): la UI solo lo muestra. */
+export const FUND = {
+  currency: 'EUR',
+  nav: '1.0412',
+  navAt: '2026-11-20T21:00:00Z',
+  total: '1041.20',
+  units: '1000.00',
+  members: [
+    {
+      member: MEMBERS[0],
+      units: '300.00',
+      netContributions: '300.00',
+      value: '312.36',
+      pnl: '12.36',
+    },
+    {
+      member: MEMBERS[1],
+      units: '200.00',
+      netContributions: '200.00',
+      value: '208.24',
+      pnl: '8.24',
+    },
+    {
+      member: MEMBERS[2],
+      units: '150.00',
+      netContributions: '150.00',
+      value: '156.18',
+      pnl: '6.18',
+    },
+    {
+      member: MEMBERS[3],
+      units: '150.00',
+      netContributions: '150.00',
+      value: '156.18',
+      pnl: '6.18',
+    },
+    {
+      member: MEMBERS[4],
+      units: '100.00',
+      netContributions: '100.00',
+      value: '104.12',
+      pnl: '4.12',
+    },
+    {
+      member: MEMBERS[5],
+      units: '100.00',
+      netContributions: '100.00',
+      value: '104.12',
+      pnl: '4.12',
+    },
+  ] satisfies FundMember[],
+  moves: [
+    {
+      id: 'mv3',
+      member: MEMBERS[2],
+      kind: 'aporte',
+      amount: '50.00',
+      units: '48.02',
+      nav: '1.0412',
+      at: '2026-11-23T07:00:00Z',
+    },
+    {
+      id: 'mv2',
+      member: MEMBERS[5],
+      kind: 'retiro',
+      amount: '20.00',
+      units: '19.21',
+      nav: '1.0412',
+      at: '2026-11-23T07:00:00Z',
+    },
+  ] satisfies FundMove[],
+}

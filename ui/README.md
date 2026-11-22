@@ -1,20 +1,27 @@
 # Interfaz de CFDsTrader: prototipo integrado
 
-**Maqueta con datos de ejemplo** (Issues #30 y #164). No se conecta al motor ni a IG, y **no calcula nada**: la UI solo muestra lo que envía el motor (CLAUDE.md §1). La app real es la fase 10.
+**Maqueta con datos de ejemplo** (Issues #30, #164 y #171). No se conecta al motor ni a IG, y **no calcula nada**: la UI solo muestra lo que envía el motor (CLAUDE.md §1). La app real es la fase 10.
 
 ## Qué hay
 
-Una sola app (no una galería de piezas sueltas): carga → ingreso (email, contraseña y código 2FA) → armazón de vidrio con cinco vistas y una página 404.
+Una sola app (no una galería de piezas sueltas): carga → ingreso (email, contraseña y código 2FA) → armazón de vidrio con ocho vistas y una página 404.
 
-| Vista (`#hash`)          | Qué muestra                                                                                                               |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| Panel (`#panel`)         | KPIs del fondo, comparación de índices con mini curvas, mapa de mercado, últimas operaciones y la tabla de la competencia |
-| Gráficos (`#graficos`)   | Velas o línea con volumen, RSI 14 y MACD 12·26·9 en paneles, y la profundidad del mercado                                 |
-| Noticias (`#noticias`)   | Una carpeta por miembro: todos ven todas, cada uno agrega solo en la suya                                                 |
-| Diario (`#operaciones`)  | Diario de operaciones simuladas, con filtro por período                                                                   |
-| Trofeos (`#competencia`) | Trofeo del día (plata) y de la semana (oro), y la tabla del grupo                                                         |
+| Vista (`#hash`)            | Qué muestra                                                                                                                                                    |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Panel (`#panel`)           | KPIs del fondo, comparación de índices con mini curvas, mapa de mercado, últimas operaciones y la tabla de la competencia                                      |
+| Gráficos (`#graficos`)     | Velas o línea con volumen, RSI 14 y MACD 12·26·9 en paneles, y la profundidad del mercado                                                                      |
+| Propuestas (`#propuestas`) | Las propuestas del motor (campos de `proposal.v1`), con su desglose, la probabilidad de §13, cuándo vencen y aprobar o rechazar (maqueta, solo el responsable) |
+| Noticias (`#noticias`)     | Una carpeta por miembro: todos ven todas, cada uno agrega solo en la suya                                                                                      |
+| Diario (`#operaciones`)    | Diario de operaciones simuladas, con filtro por período                                                                                                        |
+| Fondo (`#fondo`)           | Valor de la unidad, y unidades, aportes, valor y P&L de cada miembro, tal como llegan                                                                          |
+| Trofeos (`#competencia`)   | Trofeo del día (plata) y de la semana (oro), y la tabla del grupo                                                                                              |
+| Glosario (`#glosario`)     | Buscador de todos los términos de `docs/GLOSARIO.md`                                                                                                           |
 
 El fondo es un flujo en semitono gris grafito y plata (WebGL, lento, quieto con `prefers-reduced-motion`). El vidrio se ajusta desde la barra superior (desenfoque y opacidad), y hay tema claro y oscuro.
+
+## Diccionario interactivo
+
+Los términos subrayados con puntos (`<Term id="...">`) muestran su definición y su ejemplo al tocarlos. El texto sale de `docs/GLOSARIO.md` al compilar (`src/lib/glossary.ts`), que sigue siendo la única fuente: la UI no copia definiciones. Un test falla si la UI usa un término que no está en el glosario.
 
 ## Dónde vive cada cosa
 

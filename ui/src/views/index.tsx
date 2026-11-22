@@ -11,6 +11,7 @@ import { MarketHeatmap } from '@/components/ui/market-heatmap'
 import { SparkTable } from '@/components/ui/spark-table'
 import { TradeJournal } from '@/components/ui/trade-journal'
 import { TradingChart } from '@/components/ui/trading-chart'
+import { Term } from '@/components/ui/term'
 import { TrophyCard } from '@/components/ui/trophy-card'
 import { decimal, isNegative, signed } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -37,12 +38,20 @@ function Card({
   className?: string
 }) {
   return (
-    <section className={cn('glass min-w-0 rounded-[20px] p-4', className)}>
+    <section
+      className={cn(
+        'glass relative min-w-0 rounded-[20px] p-4 has-[[role=dialog]]:z-30',
+        className,
+      )}
+    >
       {title && <h2 className="mb-3 text-[14px] font-bold">{title}</h2>}
       {children}
     </section>
   )
 }
+
+/** Términos del glosario de cada indicador del panel. */
+const KPI_TERM: Record<string, string> = { nav: 'nav', pnl: 'pl', dd: 'drawdown' }
 
 export function OverviewView({ onOpen }: { onOpen: (view: string) => void }) {
   return (
@@ -51,7 +60,7 @@ export function OverviewView({ onOpen }: { onOpen: (view: string) => void }) {
         {KPIS.map((k) => (
           <Card key={k.id} className="flex min-h-28 flex-col justify-between">
             <span className="flex items-center justify-between text-[11px] font-bold text-muted-foreground">
-              {k.label}
+              {KPI_TERM[k.id] ? <Term id={KPI_TERM[k.id]}>{k.label}</Term> : k.label}
               {k.id === 'pnl' && <CoinsIcon size={16} />}
             </span>
             <strong
@@ -66,7 +75,17 @@ export function OverviewView({ onOpen }: { onOpen: (view: string) => void }) {
                 <span className="ml-1 text-[12px] font-bold text-muted-foreground">{k.unit}</span>
               )}
             </strong>
-            <span className="text-[10.5px] text-muted-foreground">{k.detail}</span>
+            {k.id === 'props' ? (
+              <button
+                type="button"
+                onClick={() => onOpen('propuestas')}
+                className="text-left text-[10.5px] text-muted-foreground underline-offset-2 hover:underline"
+              >
+                {k.detail} →
+              </button>
+            ) : (
+              <span className="text-[10.5px] text-muted-foreground">{k.detail}</span>
+            )}
           </Card>
         ))}
       </div>
