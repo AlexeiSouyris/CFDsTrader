@@ -3,8 +3,15 @@
 //!
 //! ```text
 //! cargo run -p cfds-ig --example ig_live            # corre hasta el kill switch o Ctrl+C
-//! cargo run -p cfds-ig --example ig_live -- --once  # un solo ciclo y sale
+//! cargo run -p cfds-ig --example ig_live -- --once  # un solo ciclo y sale (cron, #124)
+//! cargo run -p cfds-ig --example ig_live -- --dry-run  # qué pediría y cuánto, sin conectarse a IG
 //! ```
+//!
+//! - Al arrancar retoma desde la última vela guardada en la base (como mucho
+//!   `live.startup_lookback_hours` atrás). Así cada `--once` del cron pide solo las velas que
+//!   cerraron desde la corrida anterior (#124).
+//! - `--dry-run` muestra las velas que tocaría pedir, los puntos y el presupuesto, y sale sin
+//!   credenciales ni conexión a IG.
 //!
 //! - Con `DATABASE_URL` y `REDIS_URL`, las velas entran por el circuito de ingesta completo:
 //!   validación → PostgreSQL → Redis Streams. Sin ellas, es una corrida en seco: valida y
@@ -49,7 +56,18 @@ type Sink = Option<(PgStore, CandlePublisher)>;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let once = std::env::args().any(|a| a == "--once");
+    let (mut once, mut dry_run) = (false, false);
+    for a in std::env::args().skip(1) {
+        match a.as_str() {
+            "--once" => once = true,
+            "--dry-run" => dry_run = true,
+            other => {
+                return Err(
+                    format!("opción desconocida: {other} (se aceptan --once y --dry-run)").into(),
+                );
+            }
+        }
+    }
     let cfg = IgConfig::from_toml(CONFIG)?;
     let catalog = Catalog::from_toml(CATALOG)?;
     let config_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../config");
@@ -80,9 +98,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let epics = epics_from_catalog(&catalog);
+    // Retomar desde la base (#124): sin esto, cada `--once` volvería a pedir todo el lookback.
+    let mut last: BTreeMap<(InstrumentId, Timeframe), _> = BTreeMap::new();
+    if let Some((store, _)) = &sink {
+        let now = Utc::now();
+        for id in epics.keys() {
+            for &tf in &live.timeframes {
+                let stored = store.candles(id, tf, now - lookback, now).await?;
+                if let Some(c) = stored.last() {
+                    last.insert((id.clone(), tf), c.start);
+                }
+            }
+        }
+    }
+    if dry_run {
+        let now = Utc::now();
+        let spend = match &sink {
+            Some((store, _)) => budget::spend(store, data_machine).await?,
+            None => WeekSpend::default(),
+        };
+        println!("{}", budget::describe(usage, &spend, &share));
+        let mut total = 0;
+        for id in epics.keys() {
+            for &tf in &live.timeframes {
+                let prev = last.get(&(id.clone(), tf)).copied();
+                if let Some((from, to)) = due_range(&calendar, id, tf, prev, now, delay, lookback) {
+                    let points = due_points(from, to, tf);
+                    println!("{id} {tf}: pediría [{from}, {to}), {points} puntos");
+                    total += points;
+                }
+            }
+        }
+        match cfds_ig::budget::check(usage, total, &spend, &share) {
+            Ok(()) => println!("total: {total} puntos; entra en el presupuesto"),
+            Err(why) => println!("total: {total} puntos; sin --dry-run frenaría: {why}"),
+        }
+        println!("--dry-run: no se pide nada a IG");
+        return Ok(());
+    }
     let transport = ReqwestTransport::new(&cfg, api_key_from_env())?;
     let ig = IgProvider::new(transport, cfg, Credentials::from_env()?, epics.clone());
-    let mut last: BTreeMap<(InstrumentId, Timeframe), _> = BTreeMap::new();
     // Sin base no hay registro: lo pedido en esta corrida es todo lo que se sabe (#167).
     let mut run_spend = WeekSpend::default();
 

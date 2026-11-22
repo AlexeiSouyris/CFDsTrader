@@ -51,7 +51,7 @@ Son buenas para trabajar en paralelo desde la nube. La lista se actualiza en el 
 | #79 | Backtest: tipo de referencia diario (€STR del BCE) en vez de constante |
 | #25 | Spec: psicología del mercado como capa de contexto (documento) |
 
-**Solo en el Mac mini:** el resto de las diarias (#102) y la programación del sentimiento y de las velas en vivo (#124).
+**Solo en el Mac mini:** el resto de las diarias (#102) y las velas en vivo, que corren desde el `cron` con `ig_live --once` (#124, ver `puesta-en-marcha-local.md`, paso 7).
 
 ## 5. Dónde está el estado de los datos
 

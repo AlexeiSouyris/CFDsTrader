@@ -103,7 +103,7 @@ Solo graban mientras la computadora está **prendida y despierta**. En macOS: Co
 | Sentimiento de clientes de IG | 15 min | `cargo run -p cfds-ig --example ig_sentiment -- --once` (en `engine/`) |
 | COT | 1 vez por semana (por ejemplo, el sábado) | `uv run python -m cfds_intel.sentiment 2026-01-01` (en `intelligence/`) |
 | €STR del BCE | 1 vez por día hábil, después de las 09:00 CET | `uv run python -m cfds_intel.rates 2026-01-01` (en `intelligence/`) |
-| Velas de 15m y 1h en vivo | Proceso permanente | `cargo run -p cfds-ig --example ig_live` (en `engine/`), unos 3.400 puntos por semana con 4 índices |
+| Velas de 15m y 1h en vivo (#124) | 15 min, un minuto después de cada cierre (`:01`, `:16`, `:31`, `:46`) | `cargo run -q -p cfds-ig --example ig_live -- --once` (en `engine/`). Gasta unos 690 puntos por semana con 4 índices, de los 3.400 de `budget.live` |
 
 **Con `cron`** (`crontab -e`). Reemplazar `RUTA` por la ruta absoluta de la carpeta:
 
@@ -114,9 +114,20 @@ PYTHONPATH=RUTA/intelligence/src
 */15 * * * * cd "RUTA/engine" && set -a && . ../.env && set +a && $HOME/.cargo/bin/cargo run -q -p cfds-ig --example ig_sentiment -- --once >> ../logs/ig_sentiment.log 2>&1
 7 10 * * 6   cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.sentiment 2026-01-01 >> ../logs/cot.log 2>&1
 23 10 * * 1-5 cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.rates 2026-01-01 >> ../logs/rates.log 2>&1
+1,16,31,46 * * * * cd "RUTA/engine" && set -a && . ../.env && set +a && /usr/bin/lockf -t 0 ../logs/ig_live.lock $HOME/.cargo/bin/cargo run -q -p cfds-ig --example ig_live -- --once >> ../logs/ig_live.log 2>&1
 ```
 
 Antes, `mkdir -p "RUTA/logs"`. La carpeta `logs/` no se commitea.
+
+**Velas en vivo (`ig_live --once`, #124).** Cómo funciona cada corrida del `cron`:
+
+- **Qué pide:** retoma desde la última vela guardada en la base y pide solo las velas de 15m y 1h que cerraron desde entonces, en horario de sesión. Si la última vela guardada es de hace más de `live.startup_lookback_hours` (24 h), no va más atrás: los huecos viejos se completan con `ig_backfill`.
+- **Cuándo corre:** las velas de 15m cierran en `:00`, `:15`, `:30` y `:45`, y las de 1h en `:00`. Se piden 20 s después del cierre (`live.candle_delay_secs`). El `cron` trabaja de a minutos, así que corre un minuto después del cierre.
+- **Corridas superpuestas:** `lockf -t 0` evita que se pisen. Si la anterior sigue corriendo, por ejemplo compilando después de un `git pull`, la nueva sale sin hacer nada.
+- **Costo:** una vela es un punto. Por día hábil son 138: 26 velas de 15m y 6 de 1h por cada índice de EE. UU., y 34 y 8 para DE40. Eso da unas **690 por semana** contra los 3.400 de `budget.live`. Un test lo controla con el calendario real (`a_week_of_live_candles_fits_the_live_budget`). Se suman los reintentos y lo que haya que completar después de un apagón, hasta 24 h.
+- **Si se agota el presupuesto:** antes de cada pedido se controla que entre en `budget.live` y que no toque `budget.reserve` (#167). Si no entra, la corrida termina con `kill switch: … presupuesto semanal de IG …` en `logs/ig_live.log`, **sin pedir nada**. Las corridas siguientes hacen lo mismo, sin gastar, hasta que IG renueve el cupo. Ahí siguen solas desde la última vela guardada, hasta 24 h atrás.
+- **Si una vela no llega:** la corrida avisa y la siguiente la vuelve a pedir. Si pasan 10 minutos (`live.give_up_after_secs`), la corrida termina con `kill switch` y la siguiente vuelve a intentar. Cada intento puede gastar puntos si IG devuelve velas que no validan. Por eso conviene mirar el log, y el presupuesto pone el techo.
+- **Antes de prenderlo:** `cargo run -q -p cfds-ig --example ig_live -- --dry-run` (en `engine/`, con el `.env` cargado) muestra qué pediría, cuántos puntos y cómo está el presupuesto, sin conectarse a IG.
 
 En las variables de `cron` no se expande `$HOME` ni `~`: van rutas absolutas. Si se instala desde un archivo con una ruta larga, `crontab archivo` de macOS puede cortarla; usar `crontab - < archivo`.
 
