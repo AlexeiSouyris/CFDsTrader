@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from cfds_intel.news.feeds import NewsItem
-from cfds_intel.news.fulltext import fetch_text, follow_patterns
+from cfds_intel.news.fulltext import Layout, fetch_text, follow_patterns, layout_from
 from cfds_intel.news.interpret import Impact, InterpretationError, InterpreterInfo, Reading
 
 PROMPT_VERSION = "2"
@@ -102,6 +102,10 @@ class OllamaConfig:
     text_timeout_secs: int
     # Documentos que el comunicado solo enlaza (actas y proyecciones del FOMC, #168).
     text_follow: tuple[re.Pattern[str], ...]
+    # Qué parte del texto se lee cuando no entra entero (#190).
+    text_layout: Layout
+    # SHA-256 de todo lo de `[text]` que cambia el texto que lee el modelo: entra en la versión.
+    text_sha256: str
 
 
 def load_config(text: str) -> OllamaConfig:
@@ -172,7 +176,32 @@ def load_config(text: str) -> OllamaConfig:
         text_user_agent=agent,
         text_timeout_secs=int_at_least(t, "timeout_secs", 1),
         text_follow=follow_patterns(t),
+        text_layout=layout_from(t, int_at_least(t, "max_chars", 500)),
+        text_sha256=_text_sha256(t),
     )
+
+
+def _text_sha256(t: dict[str, Any]) -> str:
+    """Huella de lo que cambia el texto de entrada (no el cliente ni la espera)."""
+    keys = (
+        "allowed_hosts",
+        "max_chars",
+        "follow",
+        "drop",
+        "head_chars",
+        "sections",
+        "section_max_chars",
+        "scan_max_chars",
+    )
+    canon = json.dumps({k: t.get(k) for k in keys}, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(canon.encode()).hexdigest()
+
+
+def interpreter_version(text_sha256: str, digest: str) -> str:
+    """Versión del intérprete (#190): prompt, texto de entrada y modelo. Si cambia cualquiera de
+    los tres, cambia la versión y las noticias se vuelven a interpretar (id nuevo)."""
+    model = re.sub(r"[^0-9A-Za-z]", "", digest.removeprefix("sha256:"))[:12] or "x"
+    return f"p{PROMPT_VERSION}.t{text_sha256[:8]}.m{model}"
 
 
 # (método, URL, cuerpo JSON o None, timeout) → respuesta JSON. Se reemplaza en los tests.
@@ -264,11 +293,12 @@ class OllamaInterpreter:
                 cfg.text_user_agent,
                 cfg.text_timeout_secs,
                 follow=cfg.text_follow,
+                layout=cfg.text_layout,
             )
         )
         self._info = InterpreterInfo(
             name="ollama",
-            version=f"p{PROMPT_VERSION}",
+            version=interpreter_version(cfg.text_sha256, digest),
             model=f"{name}@{digest}"[:200],
             prompt_sha256=PROMPT_SHA256,
         )

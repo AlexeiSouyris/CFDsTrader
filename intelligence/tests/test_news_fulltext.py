@@ -1,5 +1,6 @@
 """Texto oficial de una noticia (ADR 0008 §4). Sin red."""
 
+import re
 import urllib.request
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -7,7 +8,16 @@ from datetime import UTC, datetime
 import pytest
 
 from cfds_intel.news import NewsItem
-from cfds_intel.news.fulltext import FullTextError, fetch_text, follow_patterns, html_to_text
+from cfds_intel.news.fulltext import (
+    GAP,
+    FullTextError,
+    Layout,
+    fetch_text,
+    follow_patterns,
+    html_to_text,
+    layout_from,
+    select_text,
+)
 
 HOSTS = {"www.federalreserve.gov", "www.ecb.europa.eu"}
 AT = datetime(2026, 11, 20, 19, 0, tzinfo=UTC)
@@ -202,3 +212,99 @@ def test_shipped_config_patterns_are_valid() -> None:
         (Path(__file__).parents[2] / "config" / "news_interpreter.toml").read_text()
     )
     assert follow_patterns(cfg["text"])
+
+
+# --- Selección del texto (#190) ---------------------------------------------------------------
+
+
+# Documento largo de juguete: inicio, relleno, tres secciones con relleno entre medio.
+FILL = "x " * 200
+DOC = (
+    f"Inicio del comunicado. {FILL}"
+    f"Staff Outlook staff dice cosas. {FILL}"
+    f"Discussion miembros discuten. {FILL}"
+    f"Policy Actions decidieron subir. {FILL}"
+)
+SECTIONS = tuple(re.compile(p) for p in ["Policy Actions", "Discussion", "Staff Outlook"])
+
+
+def test_without_layout_it_is_the_beginning_as_before() -> None:
+    assert select_text(DOC, 100, Layout()) == DOC[:100].strip()
+
+
+def test_short_text_is_whole() -> None:
+    lay = Layout(head_chars=10, sections=SECTIONS, section_max_chars=20)
+    assert select_text("Inicio corto.", 100, lay) == "Inicio corto."
+
+
+def test_takes_head_then_sections_by_priority_in_document_order() -> None:
+    lay = Layout(head_chars=22, sections=SECTIONS, section_max_chars=32)
+    # Lugar justo para el inicio, dos secciones y las marcas: la de menor prioridad no entra.
+    out = select_text(DOC, 22 + 3 * len(GAP) + 32 + 29, lay)
+    assert out.startswith("Inicio del comunicado.")
+    assert "Discussion miembros discuten." in out and "Policy Actions decidieron subir" in out
+    assert "Staff Outlook" not in out
+    assert out.index("Discussion") < out.index("Policy Actions"), "orden del documento"
+    assert GAP in out
+
+
+def test_never_exceeds_max_chars() -> None:
+    lay = Layout(head_chars=30, sections=SECTIONS, section_max_chars=500)
+    for n in (60, 100, 333, 1000, len(DOC) - 1):
+        assert len(select_text(DOC, n, lay)) <= n
+
+
+def test_section_ends_at_the_next_listed_heading() -> None:
+    text = "Inicio. " + FILL + "Discussion a b c. Policy Actions subir. " + FILL
+    first_discussion = (re.compile("Discussion"), re.compile("Policy Actions"))
+    lay = Layout(head_chars=8, sections=first_discussion, section_max_chars=1000)
+    # Inicio + marcas + justo la sección "Discussion": no sigue de largo en "Policy Actions".
+    out = select_text(text, 8 + 2 * len(GAP) + len("Discussion a b c. "), lay)
+    assert out == f"Inicio.{GAP}Discussion a b c."
+
+
+def test_leftover_budget_extends_the_head() -> None:
+    lay = Layout(head_chars=10, sections=(re.compile("no existe"),), section_max_chars=50)
+    assert select_text(DOC, 120, lay) == DOC[:120].strip()
+
+
+def test_section_inside_the_head_is_not_taken_twice() -> None:
+    text = "Policy Actions al principio. " + FILL
+    lay = Layout(head_chars=40, sections=SECTIONS, section_max_chars=40)
+    out = select_text(text, 100, lay)
+    assert out.count("Policy Actions") == 1 and len(out) <= 100
+
+
+def test_drop_removes_site_chrome_first() -> None:
+    lay = Layout(drop=(re.compile(r"Skip to main content .*? Search Toggle Button", re.S),))
+    text = "Título Skip to main content menú\nlargo Search Toggle Button Cuerpo."
+    assert select_text(text, 100, lay) == "Título Cuerpo."
+
+
+@pytest.mark.parametrize(
+    ("table", "msg"),
+    [
+        ({"sections": "Policy"}, "text.sections"),
+        ({"drop": ["(unclosed"]}, "text.drop"),
+        ({"head_chars": -1}, "head_chars"),
+        ({"head_chars": 7000}, "no puede pasar"),
+        ({"sections": ["Policy"]}, "section_max_chars"),
+        ({"scan_max_chars": 10}, "scan_max_chars"),
+    ],
+)
+def test_layout_config_is_validated(table: dict[str, object], msg: str) -> None:
+    with pytest.raises(FullTextError, match=msg):
+        layout_from(table, 6000)
+
+
+def test_linked_pdf_is_scanned_beyond_max_chars_to_find_sections() -> None:
+    pdf_doc = "https://www.federalreserve.gov/monetarypolicy/files/fomcminutes20261105.pdf"
+    _, fake = site(
+        {
+            RELEASE: release_page("/monetarypolicy/files/fomcminutes20261105.pdf"),
+            pdf_doc: tiny_pdf("Policy Actions held"),
+        }
+    )
+    lay = Layout(head_chars=5, sections=SECTIONS, section_max_chars=40, scan_max_chars=10_000)
+    text = fetch_text(item(RELEASE), HOSTS, 40, "ua", 5, opener=fake, follow=FOLLOW, layout=lay)
+    assert "Policy Actions held" in text and len(text) <= 40
