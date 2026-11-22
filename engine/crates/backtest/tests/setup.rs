@@ -62,8 +62,8 @@ fn de40_setup_comes_only_from_the_configuration() {
         }
     );
     assert_eq!(
-        s.benchmark_pct,
-        dec!(2.441),
+        s.funding_rates.at(chrono::Utc::now()),
+        Some(dec!(2.441)),
         "€STR del BCE (fuente ecb-estr)"
     );
     assert_eq!(s.limits.margin_pct, dec!(5));

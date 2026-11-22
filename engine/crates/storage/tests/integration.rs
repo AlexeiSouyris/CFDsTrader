@@ -496,3 +496,54 @@ async fn the_database_rejects_impossible_daily_candles() {
     let (from, to) = ("2026-10-01".parse().unwrap(), "2026-11-01".parse().unwrap());
     assert!(s.daily_candles(&us, from, to).await.unwrap().is_empty());
 }
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
+async fn reference_rates_are_read_only_once_published_in_publication_order() {
+    let s = store().await;
+    // La tabla es de solo agregar: una serie propia por corrida.
+    let nanos = Utc::now().timestamp_nanos_opt().unwrap();
+    let series = format!("ITRATE{nanos}");
+    let pool = sqlx::PgPool::connect(&env("DATABASE_URL")).await.unwrap();
+    for (day, published, rate) in [
+        ("2026-11-13", "2026-11-16T08:00:00Z", "2.437"),
+        ("2026-11-12", "2026-11-13T08:00:00Z", "2.443"),
+        ("2026-11-12", "2026-11-17T10:00:00Z", "2.5"),
+    ] {
+        sqlx::query(
+            "INSERT INTO reference_rates (series, ref_date, published_at, rate_pct)
+             VALUES ($1, $2::date, $3::timestamptz, $4::numeric)",
+        )
+        .bind(&series)
+        .bind(day)
+        .bind(published)
+        .bind(rate)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    let until: DateTime<Utc> = "2026-11-17T00:00:00Z".parse().unwrap();
+    let got = s.reference_rates(&series, until).await.unwrap();
+    let summary: Vec<(String, Decimal)> = got
+        .iter()
+        .map(|r| (r.ref_date.to_string(), r.rate_pct))
+        .collect();
+    // La corrección del 17 todavía no estaba publicada.
+    assert_eq!(
+        summary,
+        vec![
+            ("2026-11-12".to_string(), dec!(2.443)),
+            ("2026-11-13".to_string(), dec!(2.437)),
+        ]
+    );
+    assert!(got.iter().all(|r| r.series == series));
+    // Un valor publicado antes de que termine su día no entra.
+    let early = sqlx::query(
+        "INSERT INTO reference_rates (series, ref_date, published_at, rate_pct)
+         VALUES ($1, '2026-11-20', '2026-11-20T12:00:00Z', 1)",
+    )
+    .bind(&series)
+    .execute(&pool)
+    .await;
+    assert!(early.is_err());
+}

@@ -9,6 +9,7 @@ pub mod decimal_str;
 pub mod economic_event;
 pub mod instrument;
 pub mod money;
+pub mod rate;
 pub mod sentiment;
 pub mod spread;
 
@@ -17,6 +18,7 @@ pub use daily::DailyCandle;
 pub use economic_event::{EconomicEvent, Impact};
 pub use instrument::{AssetClass, Instrument, InstrumentId};
 pub use money::{Currency, Money, MoneyError};
+pub use rate::ReferenceRate;
 pub use sentiment::SentimentObservation;
 pub use spread::CandleSpread;
 

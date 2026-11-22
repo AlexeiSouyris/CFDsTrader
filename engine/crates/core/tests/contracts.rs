@@ -374,3 +374,43 @@ fn contract_and_rust_reject_the_same_bad_daily_candles() {
         assert_both_reject::<cfds_core::DailyCandle>(schema, d);
     }
 }
+
+fn sample_rate() -> cfds_core::ReferenceRate {
+    cfds_core::ReferenceRate {
+        series: "ESTR".into(),
+        ref_date: "2021-03-01".parse().unwrap(),
+        published_at: "2021-03-02T08:00:00Z".parse().unwrap(),
+        rate_pct: dec!(-0.567),
+    }
+}
+
+#[test]
+fn reference_rate_roundtrips_through_the_contract() {
+    assert_roundtrip("reference_rate.v1.schema.json", &sample_rate());
+}
+
+#[test]
+fn contract_and_rust_reject_the_same_bad_reference_rates() {
+    let schema = "reference_rate.v1.schema.json";
+    let doc = || serde_json::to_value(sample_rate()).unwrap();
+    let mut cases: Vec<Value> = Vec::new();
+    for (key, value) in [
+        ("series", json!("estr")),
+        ("series", json!("")),
+        ("ref_date", json!("01-03-2021")),
+        ("published_at", json!("2021-03-02T09:00:00+01:00")),
+        ("rate_pct", json!(-0.567)),
+        ("rate_pct", json!("-0,567")),
+        ("extra", json!(1)),
+    ] {
+        let mut d = doc();
+        d[key] = value;
+        cases.push(d);
+    }
+    let mut d = doc();
+    d.as_object_mut().unwrap().remove("published_at");
+    cases.push(d);
+    for d in cases {
+        assert_both_reject::<cfds_core::ReferenceRate>(schema, d);
+    }
+}

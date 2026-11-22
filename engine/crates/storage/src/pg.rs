@@ -1,7 +1,8 @@
 //! Histórico en PostgreSQL.
 
 use cfds_core::{
-    Candle, CandleSpread, DailyCandle, Instrument, InstrumentId, SentimentObservation, Timeframe,
+    Candle, CandleSpread, DailyCandle, Instrument, InstrumentId, ReferenceRate,
+    SentimentObservation, Timeframe,
 };
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -254,6 +255,33 @@ impl PgStore {
                 start,
                 spread,
                 source,
+            })
+            .collect())
+    }
+
+    /// Valores de un tipo de referencia (#79, `reference_rate.v1`) publicados hasta `until`, en
+    /// orden de publicación. Incluye las correcciones (otra fila con otra `published_at`).
+    pub async fn reference_rates(
+        &self,
+        series: &str,
+        until: DateTime<Utc>,
+    ) -> Result<Vec<ReferenceRate>, StorageError> {
+        let rows: Vec<(NaiveDate, DateTime<Utc>, Decimal)> = sqlx::query_as(
+            "SELECT ref_date, published_at, rate_pct FROM reference_rates
+             WHERE series = $1 AND published_at <= $2
+             ORDER BY published_at, ref_date",
+        )
+        .bind(series)
+        .bind(until)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(ref_date, published_at, rate_pct)| ReferenceRate {
+                series: series.to_string(),
+                ref_date,
+                published_at,
+                rate_pct,
             })
             .collect())
     }

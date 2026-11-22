@@ -24,8 +24,8 @@ use chrono_tz::Tz;
 use rust_decimal::Decimal;
 
 use crate::{
-    BacktestConfig, Execution, ExitReason, InstrumentCosts, Market, PortfolioError, Trade,
-    commission, fill_price, funding, funding_nights, run_portfolio, simulate,
+    BacktestConfig, Execution, ExitReason, FundingRates, InstrumentCosts, Market, PortfolioError,
+    Trade, commission, fill_price, funding_cutoffs, funding_over, run_portfolio, simulate,
 };
 
 /// Todo lo fijo de un recorrido.
@@ -41,8 +41,8 @@ pub struct Setup {
     pub initial_equity: Decimal,
     /// Moneda del instrumento por unidad de la moneda de la cuenta (constante en el recorrido).
     pub account_to_instrument: Decimal,
-    /// Tipo de referencia anual de la financiación, en % (constante en el recorrido).
-    pub benchmark_pct: Decimal,
+    /// Tipo de referencia anual de la financiación, en %, en cada momento (#79).
+    pub funding_rates: FundingRates,
     pub funding_cutoff: NaiveTime,
     pub funding_tz: Tz,
     /// Zona del "día" de la pérdida diaria (spec §10: desde las 00:00 de Madrid).
@@ -136,6 +136,9 @@ pub enum RunError {
     Score(ScoreError),
     /// Las velas no tienen la vela `t+1` para entrar.
     NoEntryCandle,
+    /// En este corte de financiación todavía no había ningún tipo de referencia publicado
+    /// (#79): no se inventa uno.
+    MissingFundingRate(DateTime<Utc>),
 }
 
 fn sign(side: Side) -> Decimal {
@@ -237,15 +240,16 @@ pub fn execute(
     for e in &exits {
         let part = size * e.fraction;
         commission_total += commission(&setup.costs, part, e.price);
-        let nights = funding_nights(entry_time, e.time, setup.funding_cutoff, setup.funding_tz);
-        funding_total += funding(
+        let cutoffs = funding_cutoffs(entry_time, e.time, setup.funding_cutoff, setup.funding_tz);
+        funding_total += funding_over(
             side,
             entry_mid,
             part,
-            nights,
-            setup.benchmark_pct,
+            &cutoffs,
+            &setup.funding_rates,
             &setup.costs,
-        );
+        )
+        .map_err(RunError::MissingFundingRate)?;
         mid_pnl += part * (e.mid - entry_mid) * s;
         gross_pnl += part * (e.price - entry_price) * s;
     }
@@ -341,27 +345,30 @@ pub struct BuyAndHold {
     pub net_pnl: Decimal,
 }
 
+/// `None` si no hay velas o si en alguna noche falta el tipo de referencia (#79).
 pub fn buy_and_hold(candles: &[Candle], size: Decimal, setup: &Setup) -> Option<BuyAndHold> {
     let (first, last) = (candles.first()?, candles.last()?);
     let cfg = &setup.backtest.costs;
     let entry_price = fill_price(Side::Long, Execution::Entry, first.open, &setup.costs, cfg);
     let exit_price = fill_price(Side::Long, Execution::Exit, last.close, &setup.costs, cfg);
-    let nights = funding_nights(
+    let cutoffs = funding_cutoffs(
         first.start,
         last.end(),
         setup.funding_cutoff,
         setup.funding_tz,
     );
+    let nights = u32::try_from(cutoffs.len()).unwrap_or(u32::MAX);
     let commission_total =
         commission(&setup.costs, size, entry_price) + commission(&setup.costs, size, exit_price);
-    let funding_total = funding(
+    let funding_total = funding_over(
         Side::Long,
         first.open,
         size,
-        nights,
-        setup.benchmark_pct,
+        &cutoffs,
+        &setup.funding_rates,
         &setup.costs,
-    );
+    )
+    .ok()?;
     let gross_pnl = size * (exit_price - entry_price);
     Some(BuyAndHold {
         entry_price,

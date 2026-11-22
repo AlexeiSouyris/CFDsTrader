@@ -7,12 +7,14 @@ pub mod exits;
 pub mod export;
 pub mod metrics;
 pub mod portfolio;
+pub mod rates;
 pub mod runner;
 pub mod setup;
 
 pub use config::{BacktestConfig, CostConfig, ExitConfig, MetricsConfig};
 pub use costs::{
-    Commission, Execution, InstrumentCosts, commission, fill_price, funding, funding_nights,
+    Commission, Execution, InstrumentCosts, commission, fill_price, funding, funding_cutoffs,
+    funding_nights, funding_over,
 };
 pub use exits::{ExitReason, Fill, Outcome, Trade, simulate};
 pub use export::{ChartExport, chart_export};
@@ -20,6 +22,7 @@ pub use metrics::{Metrics, evaluate};
 pub use portfolio::{
     Market, PortfolioError, PortfolioRejected, PortfolioReport, PortfolioTrade, run_portfolio,
 };
+pub use rates::{DailyRates, FundingRates};
 pub use runner::{
     BuyAndHold, CloseReason, ExitRecord, RejectedSignal, Report, RunError, Setup, TradeRecord,
     buy_and_hold, choose, execute, pick, run, run_checked,
