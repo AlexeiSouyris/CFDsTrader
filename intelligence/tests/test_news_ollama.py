@@ -323,3 +323,10 @@ def test_each_request_unloads_the_model_and_memory_is_measured_loaded() -> None:
     gen = [b for m, u, b in fake.calls if u.endswith("/api/generate")]
     assert gen == [{"model": MODEL, "keep_alive": 60, "options": {"num_ctx": 8192}}]
     assert loaded_memory_bytes(CFG, MODEL, transport=fake) == 5_368_709_120
+
+
+def test_the_interpreter_follows_the_linked_official_document() -> None:
+    assert [p.pattern for p in CFG.text_follow][:2] == [
+        "^/monetarypolicy/fomcminutes\\d{8}\\.htm$",
+        "^/monetarypolicy/fomcprojtabl\\d{8}\\.htm$",
+    ]
