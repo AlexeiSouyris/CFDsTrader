@@ -1,11 +1,18 @@
 //! Diario de propuestas y resultados (spec §15b, diseño en #13).
 //!
 //! Los tipos de este crate serializan exactamente `contracts/proposal.v1` y
-//! `contracts/outcome.v1`: el diario lo escribe el motor y lo lee el aprendizaje en Python.
+//! `contracts/outcome.v1`, y cada corrida de backtest, `contracts/backtest_run.v1` (#200): el
+//! diario lo escribe el motor y lo lee el aprendizaje en Python.
 //! Montos en la moneda del instrumento. `pg` los guarda en PostgreSQL.
 
 pub mod pg;
 pub mod probability;
+pub mod run;
+
+pub use run::{
+    BacktestRun, RunCommission, RunCosts, RunInstrumentCosts, RunInvalid, RunMetrics, RunNews,
+    RunTimeframe, config_sha256,
+};
 
 use cfds_backtest::{CloseReason, ExitReason, TradeRecord};
 use cfds_core::InstrumentId;

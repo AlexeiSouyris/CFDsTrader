@@ -10,6 +10,9 @@ use cfds_strategy::{Component, Side, TriggerKind};
 use chrono::{DateTime, Utc};
 use rust_decimal::dec;
 
+#[path = "common/run_sample.rs"]
+mod run_sample;
+
 const NEEDS: &str = "necesita PostgreSQL: DATABASE_URL";
 
 fn at(s: &str) -> DateTime<Utc> {
@@ -172,4 +175,59 @@ async fn the_database_rejects_impossible_proposals() {
     assert!(matches!(j.record(&q, None).await, Err(JournalError::Db(_))));
     // Y nada quedó a medias (la transacción se deshizo).
     assert_eq!(j.proposal(&p.id).await.unwrap(), None);
+}
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn a_backtest_run_is_stored_once_and_never_rewritten() {
+    // La tabla es de solo agregar: un run_id propio por corrida del test.
+    let run_id = format!("bt-run-{}", Utc::now().timestamp_nanos_opt().unwrap());
+    let j = journal(&run_id).await;
+    let run = run_sample::sample(&run_id);
+    assert!(j.run(&run_id).await.unwrap().is_none());
+    assert_eq!(j.record_run(&run).await.unwrap(), Recorded::Inserted);
+    assert_eq!(j.run(&run_id).await.unwrap(), Some(run.clone()));
+
+    // La misma corrida otra vez, más tarde: no guarda nada y conserva la primera.
+    let mut again = run.clone();
+    again.started_at = run.started_at + chrono::TimeDelta::hours(1);
+    again.finished_at = run.finished_at + chrono::TimeDelta::hours(1);
+    assert_eq!(j.record_run(&again).await.unwrap(), Recorded::Unchanged);
+    assert_eq!(j.run(&run_id).await.unwrap(), Some(run.clone()));
+
+    // El mismo run_id con otro resultado: error, el diario no se reescribe.
+    let mut other = run.clone();
+    other.metrics.trades = 99;
+    assert!(matches!(
+        j.record_run(&other).await,
+        Err(JournalError::Conflict { .. })
+    ));
+
+    // Sin noticias también se guarda (news = NULL).
+    let quiet_id = format!("{run_id}-sin-noticias");
+    let mut quiet = run_sample::sample(&quiet_id);
+    quiet.news = None;
+    assert_eq!(j.record_run(&quiet).await.unwrap(), Recorded::Inserted);
+    assert_eq!(j.run(&quiet_id).await.unwrap(), Some(quiet));
+
+    // Una corrida inválida no llega a la base.
+    let mut bad = run_sample::sample(&format!("{run_id}-mala"));
+    bad.finished_at = bad.started_at - chrono::TimeDelta::seconds(1);
+    assert!(matches!(
+        j.record_run(&bad).await,
+        Err(JournalError::InvalidRun(_))
+    ));
+
+    // La base impide modificar o borrar.
+    let url = std::env::var("DATABASE_URL").expect(NEEDS);
+    let pool = sqlx::PgPool::connect(&url).await.unwrap();
+    for sql in [
+        "UPDATE backtest_runs SET timeframe = '1h' WHERE run_id = $1",
+        "DELETE FROM backtest_runs WHERE run_id = $1",
+    ] {
+        assert!(
+            sqlx::query(sql).bind(&run_id).execute(&pool).await.is_err(),
+            "{sql}"
+        );
+    }
 }

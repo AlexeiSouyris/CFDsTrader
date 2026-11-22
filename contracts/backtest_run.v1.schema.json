@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/backtest_run.v1.schema.json",
+  "title": "Backtest run v1",
+  "description": "Una corrida de backtest del diario (spec §15b, #200): con qué datos, configuración, costos y noticias se corrió, y el resumen de sus métricas. Las operaciones de la corrida son las propuestas (proposal.v1) con el mismo run_id. La escribe el motor (Rust) al terminar; la lee el aprendizaje (Python). Montos en la moneda de la cuenta salvo los costos, que van en la moneda de cada instrumento.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id", "instruments", "timeframe", "from", "to", "config_sha256", "initial_equity",
+    "costs", "news", "metrics", "started_at", "finished_at"
+  ],
+  "properties": {
+    "run_id": {
+      "description": "Id propio de la corrida, el mismo run_id de sus propuestas. Idempotente: volver a guardar la misma corrida (todo igual salvo started_at y finished_at) no guarda nada; con otro contenido es un error.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,100}$"
+    },
+    "instruments": {
+      "description": "Instrumentos de la corrida, sin repetir.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/instrument_id" }
+    },
+    "timeframe": {
+      "description": "Timeframe de decisión: la señal se evalúa al cierre de cada vela de este timeframe (el mayor se usa solo cerrado, spec §3).",
+      "enum": ["15m", "1h"]
+    },
+    "from": { "description": "Comienzo del período pedido, inclusive.", "$ref": "#/$defs/utc" },
+    "to": { "description": "Fin del período pedido, exclusive.", "$ref": "#/$defs/utc" },
+    "config_sha256": {
+      "description": "SHA-256 (hex) de los archivos de config/ usados, cada uno con su nombre, en orden alfabético. Misma configuración, mismo hash.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "initial_equity": { "description": "Capital inicial.", "$ref": "#/$defs/decimal" },
+    "costs": {
+      "description": "Costos usados (spec §11): slippage del backtest y costos de cada instrumento.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slippage_spread_fraction", "slippage_ticks", "instruments"],
+      "properties": {
+        "slippage_spread_fraction": { "$ref": "#/$defs/decimal" },
+        "slippage_ticks": { "$ref": "#/$defs/decimal" },
+        "instruments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "instrument_id", "spread", "tick", "commission", "funding_admin_fee_pct",
+              "funding_day_count"
+            ],
+            "properties": {
+              "instrument_id": { "$ref": "#/$defs/instrument_id" },
+              "spread": { "description": "Spread típico en puntos.", "$ref": "#/$defs/decimal" },
+              "tick": { "$ref": "#/$defs/decimal" },
+              "commission": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["kind"],
+                    "properties": { "kind": { "const": "none" } }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["kind", "per_share", "min"],
+                    "properties": {
+                      "kind": { "const": "per_share" },
+                      "per_share": { "$ref": "#/$defs/decimal" },
+                      "min": { "$ref": "#/$defs/decimal" }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["kind", "pct", "min"],
+                    "properties": {
+                      "kind": { "const": "percent" },
+                      "pct": { "$ref": "#/$defs/decimal" },
+                      "min": { "$ref": "#/$defs/decimal" }
+                    }
+                  }
+                ]
+              },
+              "funding_admin_fee_pct": { "$ref": "#/$defs/decimal" },
+              "funding_day_count": { "$ref": "#/$defs/decimal" }
+            }
+          }
+        }
+      }
+    },
+    "news": {
+      "description": "Noticias del ajuste del puntaje (spec §9, #194), o null si la corrida no las usó.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "interpreter_name", "interpreter_version", "interpreter_model", "published_from",
+            "interpretations"
+          ],
+          "properties": {
+            "interpreter_name": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
+            "interpreter_version": {
+              "type": "string",
+              "pattern": "^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$"
+            },
+            "interpreter_model": {
+              "oneOf": [
+                { "type": "string", "minLength": 1, "maxLength": 200 },
+                { "type": "null" }
+              ]
+            },
+            "published_from": {
+              "description": "Corte del modelo (ADR 0008 §5): solo contaron las noticias publicadas desde acá.",
+              "$ref": "#/$defs/utc"
+            },
+            "interpretations": {
+              "description": "Interpretaciones cargadas para la corrida (0 = corrió sin ajuste de noticias).",
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "metrics": {
+      "description": "Resumen de métricas (ROADMAP Fase 5). null cuando la métrica no está definida (por ejemplo, sin operaciones).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trades", "final_equity", "total_return", "max_drawdown", "sharpe", "sortino",
+        "win_rate", "profit_factor", "exposure"
+      ],
+      "properties": {
+        "trades": { "type": "integer", "minimum": 0 },
+        "final_equity": { "$ref": "#/$defs/signed" },
+        "total_return": { "description": "Fracción (0.1 = +10 %).", "$ref": "#/$defs/signed" },
+        "max_drawdown": { "description": "Fracción positiva.", "$ref": "#/$defs/decimal" },
+        "sharpe": { "$ref": "#/$defs/signed_or_null" },
+        "sortino": { "$ref": "#/$defs/signed_or_null" },
+        "win_rate": { "$ref": "#/$defs/decimal_or_null" },
+        "profit_factor": { "$ref": "#/$defs/decimal_or_null" },
+        "exposure": { "$ref": "#/$defs/decimal_or_null" }
+      }
+    },
+    "started_at": { "$ref": "#/$defs/utc" },
+    "finished_at": { "description": "Nunca anterior a started_at.", "$ref": "#/$defs/utc" }
+  },
+  "$defs": {
+    "instrument_id": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" },
+    "decimal": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "signed": { "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" },
+    "decimal_or_null": {
+      "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }]
+    },
+    "signed_or_null": {
+      "oneOf": [{ "$ref": "#/$defs/signed" }, { "type": "null" }]
+    },
+    "utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    }
+  }
+}

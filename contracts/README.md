@@ -33,6 +33,15 @@ Python puede **leerla**, pero solo el motor en Rust **escribe** velas.
 
 Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/migrations/0002_journal.sql`); los lee el aprendizaje en Python. Las columnas tienen los mismos nombres que los contratos; `breakdown`, `triggers` y `exits` son `JSONB` con la forma del contrato. Montos en la moneda del instrumento.
 
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `backtest_run.v1` | `backtest_runs` | Una corrida de backtest (#200): `run_id`, instrumentos, timeframe de decisión, período `[from, to)`, `config_sha256` (SHA-256 de los archivos de `config/` que leyó, cada uno con su nombre), capital inicial, costos usados (slippage y costos de cada instrumento), noticias (intérprete, modelo, `published_from` del corte del ADR 0008 §5 y cantidad de interpretaciones, o `null`), resumen de métricas (decimales como texto, `null` si no están definidas) y `started_at`/`finished_at` en UTC. |
+
+- Las operaciones de una corrida son las filas de `proposals` con el mismo `run_id`: `proposal.v1` no cambia.
+- Tabla de **solo agregar** (`infra/migrations/0012_backtest_runs.sql`, trigger). `from` y `to` se llaman `from_at` y `to_at`. `costs`, `news` y `metrics` son `JSONB` con la forma del contrato, y `news` es `NULL` sin noticias.
+- **Idempotente por `run_id`:** guardar otra vez la misma corrida (todo igual salvo `started_at` y `finished_at`) no guarda nada y conserva la primera. Con otro contenido es un error: un `run_id` no se reusa.
+- La escribe el motor al terminar `backtest_run` con `run_id` (`cfds_journal::pg::PgJournal::record_run`). La lee el aprendizaje en Python.
+
 ### Sentimiento (#25, #27)
 
 | Contrato | Tabla | Contenido |
