@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/reference_rate.v1.schema.json",
+  "title": "Reference rate v1",
+  "description": "Un valor diario de un tipo de referencia de la financiación nocturna (#79), tal como lo publicó la fuente. Solo se agrega, nunca se modifica: una corrección de la fuente es otro registro con otra published_at. Lo escribe Python (intelligence/, cfds_intel.rates); lo lee el motor para el costo de financiación.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["series", "ref_date", "published_at", "rate_pct"],
+  "properties": {
+    "series": {
+      "description": "Serie, con el mismo nombre que [funding_benchmarks] de config/instruments.toml. Hoy: 'ESTR' (€STR del BCE).",
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{0,31}$"
+    },
+    "ref_date": {
+      "description": "Día hábil al que corresponde el valor (fecha de referencia de la fuente), AAAA-MM-DD.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "published_at": {
+      "description": "Desde cuándo el valor estuvo disponible para el sistema, en UTC. Siempre posterior al fin de ref_date. Nada lo puede usar antes de esta hora (CLAUDE.md §5b).",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "rate_pct": {
+      "description": "Tasa anual en %, como string decimal exacto (puede ser negativa), nunca número JSON.",
+      "type": "string",
+      "pattern": "^-?\\d+(\\.\\d+)?$"
+    }
+  }
+}
