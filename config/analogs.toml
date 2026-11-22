@@ -1,0 +1,29 @@
+# Análogos v1 (#148, spec §13 propuesta en #149): forma de las velas diarias de los índices.
+# Valores INICIALES: se fijan antes de mirar resultados y no se ajustan con el período fuera
+# de muestra. Solo informativos: no suman al puntaje.
+
+[shape]
+# Velas diarias cerradas (solo días con sesión) de cada ventana.
+window = 20
+# Banda de Sakoe-Chiba del DTW, en velas.
+dtw_band = 2
+# Vecinos más cercanos y mínimo para mostrar un resultado ("datos insuficientes" si hay menos).
+neighbors = 20
+min_neighbors = 20
+
+[outcome]
+# Sesiones después del cierre de la ventana para los retornos.
+horizons = [1, 5, 20]
+# "+2R antes que −1R" dentro de `r_horizon` sesiones, con R = ATR diario al cierre de la ventana.
+r_up = 2
+r_down = 1
+r_horizon = 20
+# Percentiles que se muestran de cada horizonte (método: rango más cercano).
+percentiles = [10, 25, 50, 75, 90]
+
+[context]
+# Volatilidad realizada en tercios de su propia historia de `vol_history_years` años anteriores.
+vol_history_years = 3
+# Tendencia del tipo de referencia: variación en `rates_lookback` sesiones, umbral en puntos %.
+rates_lookback = 60
+rates_threshold_pp = "0.10"
