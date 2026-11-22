@@ -259,11 +259,36 @@ Por instrumento, en `config/`: [spread](../GLOSARIO.md#spread) por franja horari
 ## 13. Probabilidad y [análogos](../GLOSARIO.md#analogos)
 
 - **Probabilidad mostrada** = frecuencia histórica de "toca TP1 antes que el stop" en propuestas con el mismo tipo de gatillo y el mismo rango de puntaje, medida en el backtest de entrenamiento y validación, **con su intervalo de confianza**. Si hay menos de 30 casos, se muestra "datos insuficientes".
-- **Análogos (v1: solo informativos, no suman al puntaje)**, sobre un universo de índices + componentes del NASDAQ 100, 5 años, **incluidas las empresas que salieron del índice**:
-  1. **Mismo patrón técnico:** el mismo gatillo, con la misma tendencia de 1h, en otros instrumentos.
-  2. **Forma del gráfico:** las últimas 32 velas normalizadas (z-score), con distancia DTW, los 20 más cercanos.
-  3. **Contexto macro:** el mismo rango de VIX (<15, 15–25, >25) y la misma tendencia de tasas.
-  - Para cada grupo se muestra qué pasó después: la distribución del movimiento a 4 h y 24 h, y el % de veces que tocó +2R antes que −1R.
+- **Análogos (v1: solo informativos, no suman al puntaje).** El objetivo final es un universo de índices + componentes del NASDAQ 100, 5 años, **incluidas las empresas que salieron del índice**. La **v1** se limita a lo que se puede tener sin costo (ADR 0005 §4, #148):
+
+  **Universo y datos.** Las velas **diarias** de IG de los índices operables (DE40, US100, US500 y US30), guardadas en `daily_candles`. Solo cuentan los días con sesión de la bolsa de cada índice (`config/sessions.toml`): las velas que IG manda en fines de semana o feriados se ignoran. Un índice sin al menos `ventana + 20` diarias guardadas no participa. Los componentes del NASDAQ 100 se suman cuando haya una fuente de precios aprobada (#10).
+
+  **1. Forma del gráfico (único grupo de v1).**
+  ```
+  ventana      = las últimas N = 20 velas diarias cerradas (consulta y candidatos)
+  normalización = z-score de los cierres de la ventana: (cierre − media) / desvío
+                  (desvío muestral; si es 0, la ventana no se usa)
+  distancia    = DTW con banda de Sakoe-Chiba de 2 velas, costo |a − b|
+  vecinos      = los K = 20 candidatos más cercanos, de cualquiera de los índices
+  ```
+  - **Sin look-ahead:** un candidato vale solo si su **resultado completo** ya existía al cierre de la consulta. Es decir, la última vela de su horizonte más largo (20 sesiones) cerró antes que la última vela de la ventana consultada.
+  - **Sin repetir el mismo episodio:** dentro de un mismo índice, dos vecinos elegidos no pueden tener ventanas que se superpongan. Se recorren de menor a mayor distancia y se saltean los que se superponen con uno ya elegido. La propia ventana consultada y las que se superponen con ella tampoco cuentan.
+  - Con menos de 20 vecinos válidos se muestra **"datos insuficientes"**.
+
+  **Qué pasó después** (de cada vecino, desde el cierre de su última vela):
+  - Retorno a **1, 5 y 20 sesiones** (cierre / cierre − 1). Se muestran los percentiles 10, 25, 50, 75 y 90 y el % de retornos positivos.
+  - **% que tocó +2R antes que −1R** en las 20 sesiones siguientes, con `R = ATR14 diario` al cierre de la ventana (la misma definición de Wilder de §4, sobre velas diarias). Se miran el máximo y el mínimo de cada vela siguiente. Si una misma vela toca los dos, cuenta como **−1R** (conservador). Si no toca ninguno en 20 sesiones, cuenta aparte, como "ninguno".
+
+  **2. Mismo patrón técnico (el mismo gatillo, con la misma tendencia de 1h): pendiente.** Necesita historia de 15m y 1h de los cuatro índices, que no está cargada (cupo de IG). Se define cuando la haya.
+
+  **3. Contexto macro (sin VIX).** El VIX quedó fuera por sus términos de uso (ADR 0004). En v1, el contexto de cada ventana (consulta y vecinos) es:
+  - **Volatilidad:** la volatilidad realizada del índice (desvío estándar muestral de los últimos 20 retornos diarios, con retorno = cierre / cierre anterior − 1), en tercios de su propia historia de los 3 años anteriores: **baja / media / alta**. Sin 3 años de historia, "sin dato".
+  - **Tasas:** la variación del tipo de referencia de financiación del índice (`[funding_benchmarks]`; hoy el €STR, #79) en las últimas 60 sesiones: **sube** (> +0,10 pp), **baja** (< −0,10 pp) o **estable**. Se usa el valor publicado hasta ese día. Los índices sin tipo de referencia confirmado (#67) quedan "sin dato".
+  - Además del resultado de los 20 vecinos, se muestra el de una **segunda búsqueda** con las mismas reglas, pero solo entre los candidatos que tienen **el mismo contexto** (volatilidad y tasas) que la consulta, con su propio "datos insuficientes" si son menos de 20. Si a la consulta le falta algún dato de contexto, este grupo queda vacío.
+
+  **Dónde se calcula (CLAUDE.md §1).** El **ATR14 diario** y la **volatilidad realizada** son indicadores: los calcula **Rust** (`indicators`) sobre `daily_candles` y los guarda para que los lea Python, con un contrato nuevo (contratos primero). La búsqueda de análogos (z-score, DTW, vecinos, contexto y resultados) vive en **Python** (`intelligence/cfds_intel/analogs`) y no recalcula ningún indicador.
+
+  Todos los números de este punto (N, banda, K, horizontes, R, umbrales) van en `config/` y son **iniciales**: se fijan antes de mirar resultados y no se ajustan con el período fuera de muestra.
 - Los métodos son **probabilísticos** (frecuencias, intervalos de confianza, Monte Carlo para el riesgo del fondo). No se usa computación cuántica.
 - Las opciones (volatilidad implícita, put/call, VIX) son **solo contexto**.
 
