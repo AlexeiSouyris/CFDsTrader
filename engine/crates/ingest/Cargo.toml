@@ -7,6 +7,7 @@ publish.workspace = true
 
 [dependencies]
 cfds-core = { version = "0.1.0", path = "../core" }
+cfds-indicators = { path = "../indicators" }
 cfds-market-data = { version = "0.1.0", path = "../market-data" }
 cfds-storage = { version = "0.1.0", path = "../storage" }
 chrono = { version = "0.4.45", default-features = false, features = ["std"] }

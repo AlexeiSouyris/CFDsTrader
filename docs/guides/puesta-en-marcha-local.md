@@ -81,6 +81,7 @@ Antes de cargar, `--dry-run` muestra qué falta y cuántos puntos estima, sin co
 | Noticias de la Fed y del BCE (últimas de cada feed) | `cd intelligence && uv run python -m cfds_intel.news` | 0 |
 | Diarias de 5 años, **un año de prueba** | `cd engine && cargo run -p cfds-ig --example ig_backfill_daily -- DE40 2021-11-22 2022-11-22` | ~270 |
 | Diarias, el resto | `... ig_backfill_daily -- DE40 2022-11-22 <mañana>` | ~1.060 |
+| Indicadores de las diarias (ATR diario y volatilidad realizada, #148), **después de cada carga de diarias** | `cd engine && cargo run -p cfds-ingest --example daily_indicators` | 0 (no usa IG) |
 | Ídem para US100, US500 y US30 | Cambiar el instrumento | ~1.330 cada uno |
 | Velas de 15m recientes (con su spread) | `cd engine && cargo run -p cfds-ig --example ig_backfill -- DE40 15m <desde> <hasta>` | ~1 por vela |
 

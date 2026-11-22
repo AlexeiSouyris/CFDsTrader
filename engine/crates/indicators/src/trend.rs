@@ -35,6 +35,9 @@ impl TrendConfig {
         #[serde(deny_unknown_fields)]
         struct File {
             trend: TrendConfig,
+            /// Lo lee [`crate::DailyConfig`].
+            #[allow(dead_code)]
+            daily: toml::Table,
         }
         let cfg = toml::from_str::<File>(text)
             .map_err(|e| e.to_string())?

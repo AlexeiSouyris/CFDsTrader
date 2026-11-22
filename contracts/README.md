@@ -52,3 +52,13 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Tabla de **solo agregar**: un trigger impide `UPDATE` y `DELETE`. Una corrección de la fuente es otra fila con otra `published_at`.
 - `published_at` nunca es anterior al fin de `ref_date`: un valor solo se usa desde que se publicó (CLAUDE.md §5b).
 - La escribe Python (`cfds_intel.rates`). La lee el motor para el costo de financiación de cada noche.
+
+### Indicadores diarios (#148)
+
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `daily_indicator.v1` | `daily_indicators` | Indicadores de una vela diaria cerrada: `instrument_id`, `day`, `published_at` (fin de la vela), `atr_period` y `atr`, `realized_vol_window` y `realized_vol` (los dos valores son `null` durante el calentamiento). |
+
+- Los calcula y escribe **Rust** (`cfds-indicators` + `cargo run -p cfds-ingest --example daily_indicators`). Python los **lee** para los análogos (spec §13) y no los recalcula (CLAUDE.md §1).
+- Solo días con sesión de la bolsa del instrumento.
+- Tabla de **solo agregar**. Recalcular y obtener otro valor es un error (sería repintado), y no se guarda nada.
