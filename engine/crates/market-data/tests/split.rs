@@ -181,3 +181,44 @@ fn rejects_too_little_data_and_invalid_config() {
         include_str!("../../../../config/data_split.toml").replace("train_months", "train_meses");
     assert!(SplitConfig::from_toml(&typo).is_err());
 }
+
+/// El mismo plan que `cfds_intel.models.splits.plan` (Python, ML v1 #158): los dos lenguajes
+/// prueban el mismo fixture, así no divergen.
+#[test]
+fn the_plan_matches_the_fixture_shared_with_python() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../intelligence/tests/fixtures/data_split_plan.json");
+    let doc: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    let z = |t: DateTime<Utc>| t.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let cases = doc["cases"].as_array().unwrap();
+    assert!(cases.len() >= 3);
+    for case in cases {
+        let (first, last) = (
+            utc(case["first"].as_str().unwrap()),
+            utc(case["last"].as_str().unwrap()),
+        );
+        match plan(first, last, &cfg()) {
+            Ok(split) => {
+                let windows: Vec<serde_json::Value> = split
+                    .windows
+                    .iter()
+                    .map(|w| {
+                        assert_eq!(w.train.end, w.validation.start);
+                        serde_json::json!([z(w.train.start), z(w.train.end), z(w.validation.end)])
+                    })
+                    .collect();
+                assert_eq!(serde_json::Value::from(windows), case["windows"], "{case}");
+                assert_eq!(
+                    serde_json::json!([z(split.out_of_sample.start), z(split.out_of_sample.end)]),
+                    case["out_of_sample"],
+                    "{case}"
+                );
+            }
+            Err(SplitError::NotEnoughData { .. }) => {
+                assert_eq!(case["error"], "not_enough_data", "{case}");
+            }
+            Err(e) => panic!("{e}"),
+        }
+    }
+}
