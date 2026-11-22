@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from cfds_intel.news.feeds import NewsItem
-from cfds_intel.news.fulltext import fetch_text
+from cfds_intel.news.fulltext import fetch_text, follow_patterns
 from cfds_intel.news.interpret import Impact, InterpretationError, InterpreterInfo, Reading
 
 PROMPT_VERSION = "2"
@@ -100,6 +100,8 @@ class OllamaConfig:
     text_max_chars: int
     text_user_agent: str
     text_timeout_secs: int
+    # Documentos que el comunicado solo enlaza (actas y proyecciones del FOMC, #168).
+    text_follow: tuple[re.Pattern[str], ...]
 
 
 def load_config(text: str) -> OllamaConfig:
@@ -169,6 +171,7 @@ def load_config(text: str) -> OllamaConfig:
         text_max_chars=int_at_least(t, "max_chars", 500),
         text_user_agent=agent,
         text_timeout_secs=int_at_least(t, "timeout_secs", 1),
+        text_follow=follow_patterns(t),
     )
 
 
@@ -260,6 +263,7 @@ class OllamaInterpreter:
                 cfg.text_max_chars,
                 cfg.text_user_agent,
                 cfg.text_timeout_secs,
+                follow=cfg.text_follow,
             )
         )
         self._info = InterpreterInfo(

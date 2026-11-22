@@ -45,7 +45,8 @@ timeout_secs = 30
 # Documentos que la página del comunicado solo enlaza (actas del FOMC, proyecciones, #168): se
 # sigue un solo enlace, el primero cuya ruta coincide con uno de estos patrones, solo por HTTPS
 # y en un sitio de allowed_hosts. El orden es la preferencia: HTML antes que PDF.
-# Rutas a verificar contra las páginas reales en el Mac mini (la nube no llega a la Fed).
+# Verificado en el Mac mini el 22-11-2026: el comunicado de actas del 18-11-2026 lleva a
+# fomcminutes20261028.htm y el de proyecciones del 16-09-2026 a fomcprojtabl20260916.htm.
 follow = [
   "^/monetarypolicy/fomcminutes\\d{8}\\.htm$",
   "^/monetarypolicy/fomcprojtabl\\d{8}\\.htm$",
