@@ -143,9 +143,9 @@ Encontrados al ponerlo en marcha en el Mac mini (M4) el 21 y 22-11-2026.
 - Arreglo en una terminal: `chflags -R nohidden intelligence/.venv`.
 - Arreglo para `cron`: la línea `PYTHONPATH=RUTA/intelligence/src` del paso 7, que no depende de la marca.
 
-**`CERTIFICATE_VERIFY_FAILED` en los feeds del BCE** (`ecb/press`, `ecb**`CERTIFICATE_VERIFY_FAILED` en los feeds del BCE** (`ecb/press`, `ecb/statpress`), mientras que los de la Fed andan y `curl` también:
+**`CERTIFICATE_VERIFY_FAILED` en los feeds del BCE** (`ecb/press`, `ecb/statpress`), mientras que los de la Fed andan y `curl` también:
 - Causa: el Python que instala `uv` usa `/etc/ssl/cert.pem`, al que le falta la raíz de Sectigo que usa `www.ecb.europa.eu`. `curl` usa el llavero de macOS, que sí la tiene.
 - Desde #121 **ya no hace falta ningún arreglo**: `intelligence/` verifica los certificados con el almacén del sistema (el llavero de macOS) y nunca desactiva la verificación. Si el error vuelve a aparecer, correr `uv sync` en `intelligence/` para que se instale `truststore`.
 - Antes se esquivaba exportando las raíces a un archivo y apuntando `SSL_CERT_FILE` ahí. Esa variable ya no hace falta: se puede sacar del `crontab` y borrar `~/.config/cfdstrader/macos-roots.pem`.
 
-ir la app una vez. Mientras tanto, el binario está en `/Applications/Docker.app/Contents/Resources/bin/`.
+**`docker: command not found`** después de instalar Docker Desktop: abrir la app una vez. Mientras tanto, el binario está en `/Applications/Docker.app/Contents/Resources/bin/`.
