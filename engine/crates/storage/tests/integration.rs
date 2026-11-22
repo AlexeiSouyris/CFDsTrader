@@ -584,3 +584,46 @@ async fn ig_allowance_log_is_append_only_and_returns_the_latest() {
     let bad = s.insert_allowance_log("IG Backfill", &records[..1]).await;
     assert!(bad.is_err(), "el nombre del comando se valida en la base");
 }
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
+async fn daily_indicators_are_idempotent_and_refuse_to_repaint() {
+    let s = store().await;
+    // La tabla es de solo agregar: un instrumento propio por corrida.
+    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
+    let us = with_instrument(&s, &format!("ITIND{nanos}")).await;
+    let row = |day: &str, atr: Option<Decimal>| cfds_core::DailyIndicator {
+        instrument_id: us.clone(),
+        day: day.parse().unwrap(),
+        published_at: format!("{day}T23:00:00Z").parse().unwrap(),
+        atr_period: 14,
+        atr,
+        realized_vol_window: 20,
+        realized_vol: atr.map(|_| dec!(0.01)),
+    };
+    let rows = vec![
+        row("2026-11-19", None),
+        row("2026-11-20", Some(dec!(250.5))),
+    ];
+    let first = s.insert_daily_indicators(&rows).await.unwrap();
+    let again = s.insert_daily_indicators(&rows).await.unwrap();
+    assert_eq!((first.inserted, again.unchanged), (2, 2));
+
+    let (from, to) = ("2026-11-01".parse().unwrap(), "2026-12-01".parse().unwrap());
+    assert_eq!(
+        s.daily_indicators(&us, 14, 20, from, to).await.unwrap(),
+        rows
+    );
+    assert!(
+        s.daily_indicators(&us, 14, 21, from, to)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    let repainted = vec![row("2026-11-20", Some(dec!(251)))];
+    assert!(matches!(
+        s.insert_daily_indicators(&repainted).await,
+        Err(StorageError::DailyIndicatorConflict { .. })
+    ));
+}

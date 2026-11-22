@@ -44,6 +44,13 @@ pub enum StorageError {
         day: chrono::NaiveDate,
     },
     #[error(
+        "el indicador diario de {instrument} {day} ya está guardado con otro valor: sería repintado (revisar el cálculo o las velas)"
+    )]
+    DailyIndicatorConflict {
+        instrument: String,
+        day: chrono::NaiveDate,
+    },
+    #[error(
         "ya existe {instrument} {timeframe} {start} con otros valores: no se pisa (revisar la fuente)"
     )]
     Conflict {

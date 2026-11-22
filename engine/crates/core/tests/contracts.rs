@@ -414,3 +414,50 @@ fn contract_and_rust_reject_the_same_bad_reference_rates() {
         assert_both_reject::<cfds_core::ReferenceRate>(schema, d);
     }
 }
+
+fn sample_indicator(warm: bool) -> cfds_core::DailyIndicator {
+    cfds_core::DailyIndicator {
+        instrument_id: "DE40".parse().unwrap(),
+        day: "2022-03-08".parse().unwrap(),
+        published_at: "2022-03-08T23:00:00Z".parse().unwrap(),
+        atr_period: 14,
+        atr: warm.then_some(dec!(515.2)),
+        realized_vol_window: 20,
+        realized_vol: warm.then_some(dec!(0.0219)),
+    }
+}
+
+#[test]
+fn daily_indicator_roundtrips_through_the_contract() {
+    let schema = "daily_indicator.v1.schema.json";
+    assert_roundtrip(schema, &sample_indicator(true));
+    assert_roundtrip(schema, &sample_indicator(false));
+}
+
+#[test]
+fn contract_and_rust_reject_the_same_bad_daily_indicators() {
+    let schema = "daily_indicator.v1.schema.json";
+    let doc = || serde_json::to_value(sample_indicator(true)).unwrap();
+    let mut cases: Vec<Value> = Vec::new();
+    for (key, value) in [
+        ("atr", json!(515.2)),
+        ("atr", json!("-1")),
+        ("realized_vol", json!("2,19")),
+        ("atr_period", json!(-1)),
+        ("realized_vol_window", json!("20")),
+        ("day", json!("08-03-2022")),
+        ("published_at", json!("2022-03-09T00:00:00+01:00")),
+        ("instrument_id", json!("de40")),
+        ("extra", json!(1)),
+    ] {
+        let mut d = doc();
+        d[key] = value;
+        cases.push(d);
+    }
+    let mut d = doc();
+    d.as_object_mut().unwrap().remove("atr");
+    cases.push(d); // tiene que venir, aunque sea null
+    for d in cases {
+        assert_both_reject::<cfds_core::DailyIndicator>(schema, d);
+    }
+}
