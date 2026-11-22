@@ -75,7 +75,8 @@ jobs:
         working-directory: intelligence
         run: |
           uv sync --locked
-          uv run pytest tests/test_news_store.py tests/test_cot_store.py
+          uv run pytest tests/test_news_store.py tests/test_cot_store.py \
+            tests/test_news_interpretations_store.py
 
   intelligence:
     name: intelligence (Python)
