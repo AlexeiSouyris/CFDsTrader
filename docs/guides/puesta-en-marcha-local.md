@@ -156,6 +156,14 @@ docker compose -f infra/docker-compose.yml exec postgres psql -U "$POSTGRES_USER
 tail -n 5 logs/*.log
 ```
 
+**Interpretaciones de noticias, de Python a Rust (#201).** Después de una corrida de `infra/scripts/interpret_news.sh`, comprobar que el motor las recibe por Redis:
+
+```bash
+cd engine && set -a && . ../.env && set +a && cargo run -q -p cfds-storage --example news_stream_tail -- --from-start --once
+```
+
+Muestra cada interpretación nueva: hora, fuente, intérprete, resumen y sentimiento y relevancia por instrumento. Usa su propio grupo de lectura y no le quita nada al motor. Una segunda corrida muestra solo lo nuevo. Sin `--once`, se queda esperando las próximas.
+
 ## 9. Si algo falla
 
 - **"Rate limited" o "cupo semanal":** esperar a que se renueve el cupo de IG. No reintentar en bucle.
