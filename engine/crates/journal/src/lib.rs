@@ -5,6 +5,7 @@
 //! Montos en la moneda del instrumento. `pg` los guarda en PostgreSQL.
 
 pub mod pg;
+pub mod probability;
 
 use cfds_backtest::{CloseReason, ExitReason, TradeRecord};
 use cfds_core::InstrumentId;
@@ -40,7 +41,7 @@ impl From<Side> for Direction {
 }
 
 /// Nombre de una señal en el contrato (spec §6).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Signal {
     Trend,

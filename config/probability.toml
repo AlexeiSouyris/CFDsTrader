@@ -1,0 +1,18 @@
+# Probabilidad mostrada de la spec §13 (#175): frecuencia histórica de "toca TP1 antes que el
+# stop" en propuestas con el mismo tipo de gatillo y el mismo rango de puntaje, medida en el
+# backtest de entrenamiento y validación (nunca en el tramo fuera de muestra), con su intervalo.
+# Valores iniciales: se fijan antes de mirar resultados.
+
+# Con menos casos que esto en el grupo se muestra "datos insuficientes" (spec §13: 30).
+min_cases = 30
+
+# Intervalo de Wilson: z de la normal. 1.96 = 95 %.
+z = "1.96"
+
+# Límite inferior de cada rango de puntaje, de menor a mayor; el último no tiene techo.
+# [5, 6, 7, 9] = 5 | 6 | 7–8 | ≥ 9. El primero tiene que ser el umbral de propuesta (§6: 5).
+score_bands = [5, 6, 7, 9]
+
+# Una propuesta con varios gatillos cuenta en el grupo del primero de esta lista que tenga
+# (de más a menos puntos en §6). Tienen que estar los cuatro gatillos, una vez cada uno.
+trigger_priority = ["sweep", "double_break", "level_rejection", "candle_pattern"]
