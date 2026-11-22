@@ -111,10 +111,34 @@ describe('propuestas', () => {
 })
 
 describe('fondo', () => {
+  it('el historial de ejemplo tiene la forma de fund_movement.v1 y suma las unidades del fondo', () => {
+    const decimalRe = /^\d+(\.\d+)?$/
+    for (const mv of FUND.history) {
+      expect(Object.keys(mv).sort()).toEqual(
+        ['amount', 'currency', 'id', 'kind', 'member_id', 'nav', 'settled_at', 'units'].sort(),
+      )
+      expect(mv.id).toMatch(/^fund:\d{4}-\d{2}-\d{2}:[1-9]\d{0,3}$/)
+      expect(mv.settled_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/)
+      expect(mv.amount).toMatch(/^\d+(\.\d{1,2})?$/)
+      expect(mv.units).toMatch(decimalRe)
+      expect(mv.nav).toMatch(decimalRe)
+    }
+    // Coherencia de los datos de ejemplo (el motor es el que suma de verdad).
+    const cents = FUND.history.reduce((acc, mv) => acc + Math.round(Number(mv.units) * 100), 0)
+    expect(cents).toBe(Math.round(Number(FUND.units) * 100))
+  })
+
+  it('muestra el historial, del más reciente al más antiguo', () => {
+    render(<FundView />)
+    expect(screen.getByRole('heading', { name: 'Historial' })).toBeInTheDocument()
+    expect(screen.getAllByText('aporte').length).toBeGreaterThanOrEqual(FUND.history.length)
+  })
+
   it('muestra el valor de la unidad y lo de cada miembro tal como llega', () => {
     render(<FundView />)
     expect(screen.getByText('1,0412 €')).toBeInTheDocument()
-    expect(screen.getAllByRole('row')).toHaveLength(FUND.members.length + 1)
-    expect(screen.getByRole('row', { name: /Alexei/ })).toHaveTextContent('+12,36 €')
+    const members = screen.getAllByRole('table')[0]
+    expect(within(members).getAllByRole('row')).toHaveLength(FUND.members.length + 1)
+    expect(within(members).getByRole('row', { name: /Alexei/ })).toHaveTextContent('+12,36 €')
   })
 })
