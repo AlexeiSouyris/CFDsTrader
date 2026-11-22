@@ -37,11 +37,23 @@ pub struct EvidenceConfig {
     pub min_h1_candles: usize,
 }
 
+/// Ajuste de noticias y alerta de salida (spec §9, #130).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NewsConfig {
+    /// Solo cuentan las noticias publicadas en esta ventana antes del cierre de la vela.
+    pub window: chrono::TimeDelta,
+    /// Alerta de salida: relevancia mínima.
+    pub alert_min_relevance: Decimal,
+    /// Alerta de salida: |sentimiento| mínimo.
+    pub alert_min_abs_sentiment: Decimal,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StrategyConfig {
     pub score: ScoreConfig,
     pub stop: StopConfig,
     pub evidence: EvidenceConfig,
+    pub news: NewsConfig,
 }
 
 impl StrategyConfig {
@@ -53,10 +65,18 @@ impl StrategyConfig {
         }
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
+        struct RawNews {
+            window_hours: u32,
+            alert_min_relevance: String,
+            alert_min_abs_sentiment: String,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Raw {
             score: ScoreConfig,
             stop: RawStop,
             evidence: EvidenceConfig,
+            news: RawNews,
         }
         let raw: Raw = toml::from_str(text).map_err(|e| e.to_string())?;
         let s = raw.score;
@@ -95,10 +115,29 @@ impl StrategyConfig {
                 "el calentamiento (evidence.min_*_candles) tiene que ser mayor que 0".into(),
             );
         }
+        if raw.news.window_hours == 0 || raw.news.window_hours > 24 {
+            return Err("news.window_hours tiene que estar entre 1 y 24".into());
+        }
+        let unit = |name: &str, text: &str| -> Result<Decimal, String> {
+            let v = Decimal::from_str(text).map_err(|e| format!("news.{name}: {e}"))?;
+            if v < Decimal::ZERO || v > Decimal::ONE {
+                return Err(format!("news.{name} tiene que estar entre 0 y 1"));
+            }
+            Ok(v)
+        };
+        let news = NewsConfig {
+            window: chrono::TimeDelta::hours(i64::from(raw.news.window_hours)),
+            alert_min_relevance: unit("alert_min_relevance", &raw.news.alert_min_relevance)?,
+            alert_min_abs_sentiment: unit(
+                "alert_min_abs_sentiment",
+                &raw.news.alert_min_abs_sentiment,
+            )?,
+        };
         Ok(Self {
             score: s,
             stop: StopConfig { atr_buffer },
             evidence: raw.evidence,
+            news,
         })
     }
 }
@@ -109,6 +148,31 @@ mod tests {
     use rust_decimal::dec;
 
     pub(crate) const REAL: &str = include_str!("../../../../config/strategy.toml");
+
+    #[test]
+    fn news_settings_are_validated() {
+        let c = StrategyConfig::from_toml(REAL).unwrap();
+        assert_eq!(c.news.window, chrono::TimeDelta::hours(4));
+        assert_eq!(c.news.alert_min_relevance, dec!(0.7));
+        assert_eq!(c.news.alert_min_abs_sentiment, dec!(0.7));
+        for (old, new) in [
+            ("window_hours = 4", "window_hours = 0"),
+            ("window_hours = 4", "window_hours = 25"),
+            (
+                "alert_min_relevance = \"0.7\"",
+                "alert_min_relevance = \"1.1\"",
+            ),
+            (
+                "alert_min_abs_sentiment = \"0.7\"",
+                "alert_min_abs_sentiment = \"-0.1\"",
+            ),
+        ] {
+            assert!(
+                StrategyConfig::from_toml(&REAL.replace(old, new)).is_err(),
+                "{new}"
+            );
+        }
+    }
 
     #[test]
     fn the_repository_config_matches_the_spec() {
