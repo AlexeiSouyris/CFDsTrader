@@ -2,7 +2,7 @@
 
 - **Estado:** propuesta | aceptada | reemplazada por NNNN
 - **Fecha:** AAAA-MM-DD
-- **Aprobada por:** (las dos personas)
+- **Aprobada por:** (las dos personas; mientras el dueño construya solo, el dueño. Ver `CLAUDE.md`, modo de un solo constructor. Dinero real: siempre dos personas)
 
 ## Contexto
 
