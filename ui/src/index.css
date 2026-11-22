@@ -1,1 +1,125 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/manrope';
+
+/*
+ * Tema del prototipo (#164): grafito metalizado con plata.
+ * Un solo juego de tokens para toda la app: los componentes no definen colores propios,
+ * leen estas variables. Oscuro por defecto; el claro se activa con data-theme="light".
+ */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+:root,
+[data-theme='dark'] {
+  --background: #101113;
+  --foreground: #eceef1;
+  --muted-foreground: #a3a8b0;
+  --card: #1a1c1f;
+  --surface: #1f2226;
+  --border: rgb(214 220 228 / 14%);
+  --ring: #c9ced6;
+  --primary: #d9dde3;
+  --primary-foreground: #121316;
+  /* vidrio */
+  --glass-opacity: 0.7;
+  --glass-strong: rgb(38 41 46 / 78%);
+  --glass-rim: rgb(226 231 238 / 22%);
+  --glass-edge: rgb(255 255 255 / 30%);
+  --glass-shade: rgb(0 0 0 / 35%);
+  --glass-blur: 22px;
+  /* gráficos: dirección = color, nada más */
+  --chart-up: #3fbf8c;
+  --chart-down: #e0686a;
+  --chart-line: #c9ced6;
+  --chart-accent: #9fb4ff;
+  --chart-signal: #e3b25b;
+  --chart-grid: rgb(214 220 228 / 10%);
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --background: #e7e9ec;
+  --foreground: #17191c;
+  --muted-foreground: #4f555d;
+  --card: #f4f5f7;
+  --surface: #ffffff;
+  --border: rgb(23 25 28 / 13%);
+  --ring: #3a4048;
+  --primary: #23262b;
+  --primary-foreground: #f4f5f7;
+  --glass-opacity: 0.55;
+  --glass-strong: rgb(252 253 254 / 82%);
+  --glass-rim: rgb(255 255 255 / 70%);
+  --glass-edge: rgb(255 255 255 / 85%);
+  --glass-shade: rgb(30 34 40 / 16%);
+  --chart-up: #13865c;
+  --chart-down: #c2393c;
+  --chart-line: #2b3036;
+  --chart-accent: #3a55c9;
+  --chart-signal: #9a6500;
+  --chart-grid: rgb(23 25 28 / 9%);
+  color-scheme: light;
+}
+
+@theme inline {
+  --font-sans: 'Manrope Variable', Manrope, system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-up: var(--chart-up);
+  --color-down: var(--chart-down);
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Panel de vidrio: el mismo material en toda la app (shell, tarjetas, menús). */
+@utility glass {
+  background:
+    linear-gradient(150deg, var(--glass-edge) -60%, transparent 38%),
+    color-mix(in srgb, var(--card) calc(var(--glass-opacity) * 100%), transparent);
+  border: 1px solid var(--glass-rim);
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    0 18px 50px -24px var(--glass-shade);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+}
+
+@utility glass-strong {
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-rim);
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    0 24px 60px -24px var(--glass-shade);
+  backdrop-filter: blur(calc(var(--glass-blur) + 8px)) saturate(1.2);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 8px)) saturate(1.2);
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .glass,
+  .glass-strong {
+    background: var(--surface);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
