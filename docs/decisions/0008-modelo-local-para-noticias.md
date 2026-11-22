@@ -43,13 +43,15 @@ Software para correrlos: [Ollama](https://github.com/ollama/ollama/blob/main/LIC
 3. **El modelo final se elige con la prueba del punto 4, con criterios fijados ahora, antes de mirar resultados.** Lo elige el dueño con esos números. El elegido queda **fijado** por nombre, cuantización y hash del archivo, y eso se registra en `interpreter.model` de cada evento.
 4. **Prueba de selección** (en el Mac mini, una sola vez por candidato; no gasta cupo de IG):
    - **Muestra:** 60 titulares de `news_items` (Fed y BCE). El dueño los etiqueta **antes** de correr los modelos: para cada instrumento afectado, el signo del sentimiento (−, 0 o +) y si es relevante (sí o no). Las etiquetas se guardan en el repo (`intelligence/tests/fixtures/`, solo título, enlace y etiqueta, como en el ADR 0006). Esos titulares no se usan para nada más.
+     - **Hacen falta al menos 20 pares (titular, instrumento) marcados como relevantes.** Muchos titulares son institucionales, sin impacto. Si no se llega a 20, se agregan titulares a la muestra y se etiquetan **antes** de correr ningún modelo.
    - **Configuración:** temperatura 0, semilla fija y el mismo prompt para todos, guardado en el repo con su SHA-256 (`interpreter.prompt_sha256`).
    - **Criterios mínimos** (un candidato que no los cumple queda fuera):
      - ≥ 99 % de respuestas que pasan la validación de `interpret()` (#122): JSON válido, rangos e instrumentos de la config;
-     - 100 % de respuestas idénticas al correr dos veces lo mismo;
+     - 100 % de **resultados estructurados** idénticos al correr dos veces lo mismo: los mismos instrumentos y el mismo ajuste por noticia que usa el puntaje, `redondear(2 × sentimiento × relevancia)` (#130). El texto del resumen puede variar: con aceleración Metal, Ollama no siempre es reproducible bit a bit, ni con temperatura 0 y semilla fija;
      - pico de memoria del proceso ≤ 8 GB, para dejar lugar a macOS y Docker;
      - ≤ 60 s por noticia (p95).
-   - **Entre los que pasan:** gana el de mayor acierto de signo contra las etiquetas del dueño, solo en los pares que el dueño marcó como relevantes. Si la diferencia es menor a 5 puntos, gana el más chico en memoria. El resultado de todos los candidatos se registra, incluidos los que fallaron (ADR 0003 §D).
+   - **Entre los que pasan:** gana el de mayor acierto de signo contra las etiquetas del dueño, solo en los pares que el dueño marcó como relevantes. Cada acierto se reporta con su **intervalo de confianza del 95 %** (Wilson). Si los intervalos de dos candidatos se superponen, o la diferencia es menor a 5 puntos, se toman como empatados y gana el más chico en memoria. El resultado de todos los candidatos se registra, incluidos los que fallaron (ADR 0003 §D).
+   - **Si ningún candidato pasa los criterios mínimos,** no se elige ninguno y la decisión vuelve al dueño (otro candidato u otro criterio). Los umbrales no se relajan después de ver los resultados.
 5. **Look-ahead en el backtest:** un modelo entrenado después de una noticia puede "saber" qué pasó después. Reglas:
    - En vivo, la interpretación vale desde `interpreted_at` (ya está así en el contrato).
    - **En el backtest solo se usan interpretaciones de noticias publicadas después de la fecha de corte de entrenamiento del modelo**, si el fabricante la publica. Si no la publica, se toma la fecha de publicación del modelo.
@@ -66,7 +68,7 @@ Software para correrlos: [Ollama](https://github.com/ollama/ollama/blob/main/LIC
 ## Consecuencias
 
 - **Hay que instalar Ollama** (MIT) en el Mac mini y bajar los dos o tres candidatos: unos 5 GB cada uno de los 81 GB libres. Lo hace el Mac mini con el ok del dueño (Issue con la etiqueta `mac-mini`).
-- **El dueño etiqueta 60 titulares** antes de la prueba. Es el único trabajo manual.
+- **El dueño etiqueta 60 titulares** antes de la prueba (PR #161), y algunos más si no llegan a 20 pares relevantes. Es el único trabajo manual. Los titulares son de noviembre de 2026, posteriores a la fecha de corte de todos los candidatos, así que la prueba de selección tampoco tiene fuga.
 - **Más fácil:** cada evento dice qué modelo y qué prompt lo produjo, así que se puede reproducir y medir.
 - **Más difícil:** el backtest solo tiene noticias interpretables desde la fecha de corte del modelo. Al principio va a haber poca historia de noticias para validar el ajuste (spec §9: "experimental" hasta la fase 5).
 - **Después de aprobar este ADR** (en el #129): el `Interpreter` real con Ollama, la tabla de interpretaciones y el stream de Redis, y la prueba de selección como script reproducible.
