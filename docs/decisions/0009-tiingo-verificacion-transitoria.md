@@ -1,8 +1,8 @@
 # 0009 – Tiingo (plan gratis) solo para verificación transitoria
 
-- **Estado:** propuesta
+- **Estado:** aceptada
 - **Fecha:** 2026-11-23
-- **Aprobada por:** pendiente. La aprueba el dueño, por el modo de un solo constructor de `CLAUDE.md`. No habilita dinero real.
+- **Aprobada por:** el dueño, el 23-11-2026, por el modo de un solo constructor de `CLAUDE.md`. Eligió la **opción B** del punto 2 ("B: solo sí/no", con una tarjeta de preguntas en la sesión de su agente en el Mac mini), con la autorización "TENES EL PERMISO EXPLICITO MIO DE HACER TODAS LAS MODIFICACIONES QUE SEAN NECESARIAS OBVIAMENTE SIGUIENDO NUESTRA RUBRICA". Registrado en el PR #204. No habilita dinero real.
 - **Issue:** #203 (relacionado: ADR 0005, `docs/research/precios-componentes-nasdaq100-2026-11.md`, #132, #140, #167)
 
 ## Contexto
@@ -24,7 +24,7 @@ Lo que ya sabemos de antes:
 - **No sirve como histórico.** El ADR 0005 y la investigación de noviembre ya descartaron Tiingo gratis por la prohibición de guardar.
 - **Nuestros datos son CFD de índices de IG** (US500, US100, US30 y DE40). Tiingo no tiene esos índices, pero sí ETFs que los siguen: SPY (S&P 500), QQQ (NASDAQ 100) y DIA (Dow Jones). No hay un ETF de EE. UU. equivalente al DAX en moneda local.
 
-## Decisión (propuesta)
+## Decisión
 
 ### 1. Uso permitido: verificación transitoria, nunca histórico
 
@@ -50,7 +50,7 @@ Tiingo se usa **solo para controlar nuestras velas**, comparándolas en memoria 
 - Alimentar la estrategia, el backtest, los análogos ni el ML. La verificación no cambia ninguna vela: solo avisa.
 - Rellenar huecos con datos de Tiingo.
 
-### 2. Qué se puede guardar del resultado: pregunta abierta para el dueño (§1.6(c))
+### 2. Qué se guarda del resultado: solo el veredicto (opción B, §1.6(c))
 
 La comparación da, por fecha e instrumento, algo como "coincide o no" y "diferencia de X %". Ese resultado se calcula **con** datos de Tiingo, así que podría contar como "Derived Product" según §1.6(c). No está claro:
 - **A favor de que no lo sea:** no se puede reconstruir ningún precio de Tiingo a partir de un "sí/no", y es un control de calidad de **nuestros** datos.
@@ -64,9 +64,10 @@ Opciones, de la más segura a la menos:
 | **B** | Solo el veredicto por fecha e instrumento ("coincide", "no coincide" o "sin dato"), **sin** la diferencia ni ningún número de Tiingo | Bajo, pero dudoso |
 | **C** | El veredicto **y** la diferencia en % | Alto: con nuestra variación se reconstruye la del ETF |
 
-**Recomendación:** empezar con **A**. Pasar a **B** solo si el dueño lo aprueba, idealmente después de preguntarle a Tiingo por escrito si un veredicto de control de calidad cuenta como producto derivado. **C** queda descartada mientras el plan sea el gratis.
-
-**Pregunta al dueño:** ¿A, o B con la consulta a Tiingo?
+**Decisión del dueño (23-11-2026): opción B.** De cada comparación se guarda **solo el veredicto** por fecha e instrumento: "coincide", "no coincide" o "sin dato". No se guarda ningún número que salga de Tiingo: ni la diferencia, ni la variación del ETF, ni la tolerancia usada en ese día. Lo demás se muestra en la terminal y se pierde.
+- El comando puede correr desde `cron`, siempre que en el log tampoco quede ningún número de Tiingo: solo el veredicto, los conteos y el uso del cupo.
+- Sigue siendo recomendable preguntarle a Tiingo por escrito si un veredicto de control de calidad cuenta como producto derivado. Si Tiingo dice que sí, se vuelve a la opción A y se dejan de guardar los veredictos.
+- **C** queda descartada mientras el plan sea el gratis.
 
 ### 3. Presupuesto, registro de uso y kill switch (lo que aprendimos con IG)
 
@@ -103,12 +104,12 @@ Todo en un archivo nuevo, `config/tiingo.toml`, validado al arrancar. Valores pr
 ### 4. Dónde vive
 
 - **Rust, en un crate propio `engine/crates/tiingo`**, como `ig`: la validación de datos de mercado es del motor (CLAUDE.md §1), y los proveedores reales van en su propio crate (registro de módulos, fila `market-data`).
-- **Un comando que se corre a mano** (opción A) y muestra el resultado en la terminal.
+- **Un comando** que compara, guarda solo el veredicto (opción B) y muestra el detalle en la terminal sin guardarlo.
 
 ### 5. Orden
 
-1. El dueño aprueba este ADR y elige A o B.
-2. PR de implementación: crate, `config/tiingo.toml`, migración del registro de uso y tests sin red (respuestas armadas a mano en los tests, nunca grabadas de Tiingo).
+1. ~~El dueño aprueba este ADR y elige A o B.~~ Hecho el 23-11-2026: opción B.
+2. PR de implementación: crate, `config/tiingo.toml`, migraciones del registro de uso y de los veredictos, y tests sin red (respuestas armadas a mano en los tests, nunca grabadas de Tiingo).
 3. Una primera corrida a mano con un rango corto, por ejemplo 10 días: unos pocos pedidos.
 
 ## Alternativas consideradas
@@ -124,7 +125,7 @@ Todo en un archivo nuevo, `config/tiingo.toml`, validado al arrancar. Valores pr
 
 - **Más fácil:** hay un control externo y gratis de nuestras velas de US500, US100 y US30, con el uso medido desde el primer pedido y topes que no dejan pasar los límites del plan.
 - **Más difícil:**
-  - Con la opción A no queda historia de las verificaciones: cada control es un momento, y hay que volver a correrlo.
+  - Con la opción B solo queda el veredicto: para ver la diferencia de un día hay que volver a correr la comparación.
   - DE40 no tiene verificación.
   - Las tolerancias hay que calibrarlas, y no se puede guardar lo que se usó para calibrarlas.
 - **Riesgo con los términos:** se cuida el alcance de §1.6(a) y §1.6(c). Si Tiingo cambia sus términos o sus límites, este ADR se revisa antes de seguir usándolo.
