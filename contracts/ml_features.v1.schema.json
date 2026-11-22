@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/ml_features.v1.schema.json",
+  "title": "ML features v1",
+  "description": "Variables de una propuesta para el modelo de ML v1 que no viajan en proposal.v1 (docs/spec/ml-v1.md §3, #158). Las arma el motor (Rust) con la información disponible al cierre de la vela de la señal: as_of es siempre el signal_at de la propuesta (CLAUDE.md §5b). Una fila por propuesta. Si a la propuesta le falta alguna variable (por ejemplo, durante el calentamiento), no hay fila: no se rellena.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["proposal_id", "as_of", "atr14_m15", "realized_vol_tercile", "session_band"],
+  "properties": {
+    "proposal_id": {
+      "description": "Id de la propuesta (proposal.v1.id).",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,200}$"
+    },
+    "as_of": {
+      "description": "Hasta cuándo se usó información: el cierre de la vela de la señal (proposal.v1.signal_at), en UTC.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "atr14_m15": {
+      "description": "ATR de 14 velas de 15m al cierre de la vela de la señal, en puntos. Decimal exacto en texto, mayor que cero.",
+      "type": "string",
+      "pattern": "^\\d+(\\.\\d+)?$"
+    },
+    "realized_vol_tercile": {
+      "description": "Tercio de la volatilidad realizada diaria del último día cerrado antes de as_of, contra su propia historia (como la spec §13).",
+      "enum": ["low", "mid", "high"]
+    },
+    "session_band": {
+      "description": "Franja de la sesión de la bolsa del instrumento en la que cae as_of.",
+      "enum": ["open", "mid", "close"]
+    }
+  }
+}
