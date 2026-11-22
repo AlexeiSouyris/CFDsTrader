@@ -79,7 +79,7 @@ Antes de cargar, `--dry-run` muestra qué falta y cuántos puntos estima, sin co
 | COT de la CFTC (2010 → hoy) | `cd intelligence && uv run python -m cfds_intel.sentiment` | 0 (API pública) |
 | €STR del BCE (2019 → hoy), para la financiación del backtest | `cd intelligence && uv run python -m cfds_intel.rates` | 0 (API pública) |
 | Noticias de la Fed y del BCE (últimas de cada feed) | `cd intelligence && uv run python -m cfds_intel.news` | 0 |
-| Interpretación de las noticias nuevas con Ollama (ADR 0008, #186): guarda en `news_interpretations` y publica en Redis. Necesita Ollama con el modelo fijado; ~25 s por noticia. `--limit N` para ir de a poco. **No está en el `crontab`** | `cd intelligence && uv run python -m cfds_intel.news.interpret_new [--limit N]` | 0 (no usa IG) |
+| Interpretación de las noticias nuevas con Ollama (ADR 0008, #186): guarda en `news_interpretations` y publica en Redis. Necesita Ollama con el modelo fijado; ~25 s por noticia. `--limit N` para ir de a poco. Para `cron`, ver la sección 7 | `infra/scripts/interpret_news.sh [--limit N]` (desde la raíz del repo) | 0 (no usa IG) |
 | Diarias de 5 años, **un año de prueba** | `cd engine && cargo run -p cfds-ig --example ig_backfill_daily -- DE40 2021-11-22 2022-11-22` | ~270 |
 | Diarias, el resto | `... ig_backfill_daily -- DE40 2022-11-22 <mañana>` | ~1.060 |
 | Indicadores de las diarias (ATR diario y volatilidad realizada, #148), **después de cada carga de diarias** | `cd engine && cargo run -p cfds-ingest --example daily_indicators` | 0 (no usa IG) |
@@ -104,6 +104,7 @@ Solo graban mientras la computadora está **prendida y despierta**. En macOS: Co
 | COT | 1 vez por semana (por ejemplo, el sábado) | `uv run python -m cfds_intel.sentiment 2026-01-01` (en `intelligence/`) |
 | €STR del BCE | 1 vez por día hábil, después de las 09:00 CET | `uv run python -m cfds_intel.rates 2026-01-01` (en `intelligence/`) |
 | Velas de 15m y 1h en vivo (#124) | 15 min, un minuto después de cada cierre (`:01`, `:16`, `:31`, `:46`) | `cargo run -q -p cfds-ig --example ig_live -- --once` (en `engine/`). Gasta unos 690 puntos por semana con 4 índices, de los 3.400 de `budget.live` |
+| Interpretación de las noticias nuevas con Ollama (#186, #191). **La agrega el dueño cuando decida** | 15 min, 3 minutos después de la ingesta de noticias (`:03`, `:18`, `:33`, `:48`) | `infra/scripts/interpret_news.sh --limit 20` (desde la raíz del repo) |
 
 **Con `cron`** (`crontab -e`). Reemplazar `RUTA` por la ruta absoluta de la carpeta:
 
@@ -115,6 +116,7 @@ PYTHONPATH=RUTA/intelligence/src
 7 10 * * 6   cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.sentiment 2026-01-01 >> ../logs/cot.log 2>&1
 23 10 * * 1-5 cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.rates 2026-01-01 >> ../logs/rates.log 2>&1
 1,16,31,46 * * * * cd "RUTA/engine" && set -a && . ../.env && set +a && /usr/bin/lockf -t 0 ../logs/ig_live.lock $HOME/.cargo/bin/cargo run -q -p cfds-ig --example ig_live -- --once >> ../logs/ig_live.log 2>&1
+3,18,33,48 * * * * "RUTA/infra/scripts/interpret_news.sh" --limit 20 >> "RUTA/logs/interpret_news.log" 2>&1
 ```
 
 Antes, `mkdir -p "RUTA/logs"`. La carpeta `logs/` no se commitea.
@@ -128,6 +130,17 @@ Antes, `mkdir -p "RUTA/logs"`. La carpeta `logs/` no se commitea.
 - **Si se agota el presupuesto:** antes de cada pedido se controla que entre en `budget.live` y que no toque `budget.reserve` (#167). Si no entra, la corrida termina con `kill switch: … presupuesto semanal de IG …` en `logs/ig_live.log`, **sin pedir nada**. Las corridas siguientes hacen lo mismo, sin gastar, hasta que IG renueve el cupo. Ahí siguen solas desde la última vela guardada, hasta 24 h atrás.
 - **Si una vela no llega:** la corrida avisa y la siguiente la vuelve a pedir. Si pasan 10 minutos (`live.give_up_after_secs`), la corrida termina con `kill switch` y la siguiente vuelve a intentar. Cada intento puede gastar puntos si IG devuelve velas que no validan. Por eso conviene mirar el log, y el presupuesto pone el techo.
 - **Antes de prenderlo:** `cargo run -q -p cfds-ig --example ig_live -- --dry-run` (en `engine/`, con el `.env` cargado) muestra qué pediría, cuántos puntos y cómo está el presupuesto, sin conectarse a IG.
+
+**Interpretación de noticias (`interpret_news.sh`, #191).** Interpreta con Ollama las noticias de `news_items` que todavía no tienen interpretación del intérprete fijado, las guarda en `news_interpretations` y las publica en Redis (#186):
+
+- **Antes de prenderlo:** Ollama tiene que estar corriendo y escuchando solo en `127.0.0.1:11434`, que es lo que pide `config/news_interpreter.toml`. Hoy en el Mac mini se arranca a mano con `ollama serve`, así que no sobrevive a un reinicio. Para que arranque solo: `brew services start ollama`, que por defecto también escucha solo en `127.0.0.1`. Lo decide el dueño.
+- **Probarlo a mano:** `infra/scripts/interpret_news.sh --limit 2`, desde la raíz del repo. El script carga el `.env` y fija `PYTHONPATH` (sección 10).
+- **Tiempo:** unos 25 a 35 s por noticia, porque el modelo se carga y se descarga en cada una (`keep_alive = 0`). Con `--limit 20`, una corrida dura menos de 15 minutos. La primera vez hay atraso: se va poniendo al día de a 20 por corrida.
+- **Corridas superpuestas:** `lockf -t 0` evita que se pisen. Si la anterior sigue, la nueva sale con `already locked` y código 75, sin hacer nada.
+- **Si Ollama no responde o el digest del modelo no es el fijado:** sale con código 2 y un mensaje con ❌, sin guardar nada.
+- **Si se caen Ollama, PostgreSQL o Redis en el medio:** corta ahí. Lo ya guardado queda, y la próxima corrida sigue.
+- **Si una noticia no se puede leer** (su página da error) **o la respuesta del modelo no cumple las reglas:** se avisa con ⚠️, se sigue con las demás y sale con código 1. Esa noticia se vuelve a intentar en cada corrida.
+- **Memoria:** el modelo ocupa unos 5,4 GB mientras interpreta y se libera al terminar cada noticia.
 
 En las variables de `cron` no se expande `$HOME` ni `~`: van rutas absolutas. Si se instala desde un archivo con una ruta larga, `crontab archivo` de macOS puede cortarla; usar `crontab - < archivo`.
 
