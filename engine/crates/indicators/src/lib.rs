@@ -7,7 +7,9 @@
 pub mod atr;
 pub mod moving_average;
 pub mod trend;
+pub mod volatility;
 
-pub use atr::{true_range, wilder_atr};
+pub use atr::{Hlc, true_range, wilder_atr};
 pub use moving_average::{ema, sma};
 pub use trend::{Trend, TrendConfig, trend};
+pub use volatility::{DailyConfig, realized_volatility};

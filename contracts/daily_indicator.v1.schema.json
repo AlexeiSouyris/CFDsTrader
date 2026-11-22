@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/daily_indicator.v1.schema.json",
+  "title": "Daily indicator v1",
+  "description": "Indicadores de una vela diaria cerrada de un instrumento (#148, spec §13): ATR de Wilder y volatilidad realizada. Los calcula y escribe Rust (indicators + ingest); Python los lee (análogos) y no los recalcula (CLAUDE.md §1). Un valor ya guardado nunca cambia: si al recalcular da distinto, es un error (sin repintado).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instrument_id", "day", "published_at", "atr_period", "atr", "realized_vol_window", "realized_vol"],
+  "properties": {
+    "instrument_id": {
+      "description": "Instrumento (ver instrument.v1).",
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$"
+    },
+    "day": {
+      "description": "Día de la vela diaria (ver daily_candle.v1), AAAA-MM-DD. Solo días con sesión de la bolsa del instrumento.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "published_at": {
+      "description": "Desde cuándo existe el valor: el fin de la vela diaria, en UTC. Nada lo usa antes (CLAUDE.md §5b).",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "atr_period": { "description": "Período del ATR (config/indicators.toml [daily]).", "type": "integer", "minimum": 1 },
+    "atr": {
+      "description": "ATR de Wilder diario (spec §4), en puntos del instrumento; null durante el calentamiento.",
+      "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }]
+    },
+    "realized_vol_window": { "description": "Cantidad de retornos diarios de la volatilidad realizada.", "type": "integer", "minimum": 2 },
+    "realized_vol": {
+      "description": "Desvío estándar muestral de los últimos realized_vol_window retornos diarios, en fracción (0.01 = 1 %); null durante el calentamiento.",
+      "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }]
+    }
+  },
+  "$defs": {
+    "decimal": {
+      "description": "Número decimal exacto como string, nunca como número JSON.",
+      "type": "string",
+      "pattern": "^\\d+(\\.\\d+)?$"
+    }
+  }
+}

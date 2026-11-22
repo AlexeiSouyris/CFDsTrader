@@ -6,22 +6,55 @@
 //!   de los primeros `n` TR. Después: `ATR_t = (ATR_{t−1} · (n − 1) + TR_t) / n`.
 //! - Calentamiento: las primeras `n − 1` velas devuelven `None`.
 //! - Sin repintado: el valor de la vela `t` solo depende de las velas `0..=t`.
+//! - Sirve para cualquier timeframe: velas de 15m y 1h ([`Candle`]) o diarias ([`DailyCandle`],
+//!   #148). Es la misma fórmula, sin copias.
 
-use cfds_core::Candle;
+use cfds_core::{Candle, DailyCandle};
 use rust_decimal::Decimal;
 
+/// Máximo, mínimo y cierre de una vela: lo único que usan el True Range y el ATR.
+pub trait Hlc {
+    fn high(&self) -> Decimal;
+    fn low(&self) -> Decimal;
+    fn close(&self) -> Decimal;
+}
+
+impl Hlc for Candle {
+    fn high(&self) -> Decimal {
+        self.high
+    }
+    fn low(&self) -> Decimal {
+        self.low
+    }
+    fn close(&self) -> Decimal {
+        self.close
+    }
+}
+
+impl Hlc for DailyCandle {
+    fn high(&self) -> Decimal {
+        self.high
+    }
+    fn low(&self) -> Decimal {
+        self.low
+    }
+    fn close(&self) -> Decimal {
+        self.close
+    }
+}
+
 /// True Range de cada vela, alineado por índice.
-pub fn true_range(candles: &[Candle]) -> Vec<Decimal> {
+pub fn true_range<T: Hlc>(candles: &[T]) -> Vec<Decimal> {
     candles
         .iter()
         .enumerate()
         .map(|(i, c)| {
-            let range = c.high - c.low;
-            match i.checked_sub(1).map(|p| candles[p].close) {
+            let range = c.high() - c.low();
+            match i.checked_sub(1).map(|p| candles[p].close()) {
                 None => range,
                 Some(prev_close) => range
-                    .max((c.high - prev_close).abs())
-                    .max((c.low - prev_close).abs()),
+                    .max((c.high() - prev_close).abs())
+                    .max((c.low() - prev_close).abs()),
             }
         })
         .collect()
@@ -31,7 +64,7 @@ pub fn true_range(candles: &[Candle]) -> Vec<Decimal> {
 ///
 /// # Panics
 /// Si `period` es 0: es un error de configuración que se rechaza al cargar `config/`.
-pub fn wilder_atr(candles: &[Candle], period: usize) -> Vec<Option<Decimal>> {
+pub fn wilder_atr<T: Hlc>(candles: &[T], period: usize) -> Vec<Option<Decimal>> {
     assert!(period > 0, "el período del ATR tiene que ser mayor que 0");
     let n = Decimal::from(period);
     let tr = true_range(candles);
@@ -131,6 +164,6 @@ mod tests {
 
     #[test]
     fn empty_series_gives_empty_output() {
-        assert!(wilder_atr(&[], 14).is_empty());
+        assert!(wilder_atr::<Candle>(&[], 14).is_empty());
     }
 }

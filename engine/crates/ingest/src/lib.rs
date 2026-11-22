@@ -10,8 +10,10 @@
 //!   devuelven los problemas. Nada se corrige en silencio.
 //! - Se publica en Redis solo si se pide (modo en vivo), y siempre **después** de guardar.
 
+pub mod daily_indicators;
 pub mod gaps;
 
+pub use daily_indicators::daily_indicators;
 pub use gaps::{GapPlan, daily_gaps, intraday_gaps, missing_runs, missing_runs_by, session_days};
 
 use cfds_core::{Candle, InstrumentId, Timeframe};

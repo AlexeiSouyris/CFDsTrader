@@ -1,7 +1,7 @@
 //! Histórico en PostgreSQL.
 
 use cfds_core::{
-    Candle, CandleSpread, DailyCandle, Instrument, InstrumentId, ReferenceRate,
+    Candle, CandleSpread, DailyCandle, DailyIndicator, Instrument, InstrumentId, ReferenceRate,
     SentimentObservation, Timeframe,
 };
 use chrono::{DateTime, NaiveDate, Utc};
@@ -10,6 +10,9 @@ use sqlx::postgres::{PgPool, PgRow};
 use sqlx::{Postgres, Row, Transaction};
 
 use crate::StorageError;
+
+/// Fila de `daily_indicators`: día, publicación, ATR y volatilidad realizada.
+type IndicatorRow = (NaiveDate, DateTime<Utc>, Option<Decimal>, Option<Decimal>);
 
 /// Resultado de una carga: cuántas velas eran nuevas y cuántas ya estaban, idénticas.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -315,6 +318,100 @@ impl PgStore {
                 start,
                 spread,
                 source,
+            })
+            .collect())
+    }
+
+    /// Guarda indicadores diarios (#148) en **una sola transacción**. Uno idéntico ya guardado
+    /// cuenta como `unchanged`; otro valor para la misma clave es
+    /// [`StorageError::DailyIndicatorConflict`] (sería repintado) y no se guarda nada.
+    pub async fn insert_daily_indicators(
+        &self,
+        rows: &[DailyIndicator],
+    ) -> Result<InsertReport, StorageError> {
+        let mut tx = self.pool.begin().await?;
+        let mut report = InsertReport::default();
+        for r in rows {
+            let atr_period = i32::try_from(r.atr_period).unwrap_or(i32::MAX);
+            let window = i32::try_from(r.realized_vol_window).unwrap_or(i32::MAX);
+            let inserted = sqlx::query(
+                "INSERT INTO daily_indicators (instrument_id, day, published_at, atr_period, atr,
+                     realized_vol_window, realized_vol)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)
+                 ON CONFLICT (instrument_id, day, atr_period, realized_vol_window) DO NOTHING",
+            )
+            .bind(r.instrument_id.as_str())
+            .bind(r.day)
+            .bind(r.published_at)
+            .bind(atr_period)
+            .bind(r.atr)
+            .bind(window)
+            .bind(r.realized_vol)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected()
+                == 1;
+            if inserted {
+                report.inserted += 1;
+                continue;
+            }
+            let stored: (DateTime<Utc>, Option<Decimal>, Option<Decimal>) = sqlx::query_as(
+                "SELECT published_at, atr, realized_vol FROM daily_indicators
+                 WHERE instrument_id = $1 AND day = $2 AND atr_period = $3
+                   AND realized_vol_window = $4",
+            )
+            .bind(r.instrument_id.as_str())
+            .bind(r.day)
+            .bind(atr_period)
+            .bind(window)
+            .fetch_one(&mut *tx)
+            .await?;
+            if stored == (r.published_at, r.atr, r.realized_vol) {
+                report.unchanged += 1;
+            } else {
+                return Err(StorageError::DailyIndicatorConflict {
+                    instrument: r.instrument_id.to_string(),
+                    day: r.day,
+                });
+            }
+        }
+        tx.commit().await?;
+        Ok(report)
+    }
+
+    /// Indicadores diarios de un instrumento con día en `[from, to)` y los parámetros dados,
+    /// en orden.
+    pub async fn daily_indicators(
+        &self,
+        instrument: &InstrumentId,
+        atr_period: u32,
+        realized_vol_window: u32,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<DailyIndicator>, StorageError> {
+        let rows: Vec<IndicatorRow> = sqlx::query_as(
+            "SELECT day, published_at, atr, realized_vol FROM daily_indicators
+                 WHERE instrument_id = $1 AND atr_period = $2 AND realized_vol_window = $3
+                   AND day >= $4 AND day < $5
+                 ORDER BY day",
+        )
+        .bind(instrument.as_str())
+        .bind(i32::try_from(atr_period).unwrap_or(i32::MAX))
+        .bind(i32::try_from(realized_vol_window).unwrap_or(i32::MAX))
+        .bind(from)
+        .bind(to)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(day, published_at, atr, realized_vol)| DailyIndicator {
+                instrument_id: instrument.clone(),
+                day,
+                published_at,
+                atr_period,
+                atr,
+                realized_vol_window,
+                realized_vol,
             })
             .collect())
     }

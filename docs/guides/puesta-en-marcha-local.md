@@ -35,6 +35,7 @@ open -e .env      # se edita a mano; nunca se pega en un chat
 - `DATABASE_URL=postgres://USUARIO:CONTRASEÑA@127.0.0.1:5432/BASE`, con los mismos valores.
 - `REDIS_URL=redis://127.0.0.1:6379`.
 - `IG_USERNAME`, `IG_PASSWORD` e `IG_API_KEY` de la cuenta **demo** de IG.
+- `CFDS_DATA_MACHINE=1`, **solo en la computadora que guarda los datos** (el Mac mini). Sin esa línea, cualquier carga de IG de más de 100 puntos se niega (#143).
 
 Para que los comandos de abajo vean esas variables, en cada terminal nueva:
 
@@ -71,6 +72,8 @@ cd engine && env -u IG_API_KEY -u IG_USERNAME -u IG_PASSWORD \
 
 El **cupo de IG es de 10.000 puntos por semana**, compartido por todo lo que use la cuenta demo, incluidas las sesiones en la nube. Antes de cada carga grande, probar con un año.
 
+Antes de cargar, `--dry-run` muestra qué falta y cuántos puntos estima, sin conectarse a IG. Una carga que estime más de 500 puntos (`loads.confirm_above_points` en `config/ig.toml`) pregunta antes de seguir, salvo que se agregue `--yes`. Sin terminal, por ejemplo desde `cron`, se niega.
+
 | Qué | Comando | Costo de cupo |
 |---|---|---|
 | COT de la CFTC (2010 → hoy) | `cd intelligence && uv run python -m cfds_intel.sentiment` | 0 (API pública) |
@@ -78,6 +81,7 @@ El **cupo de IG es de 10.000 puntos por semana**, compartido por todo lo que use
 | Noticias de la Fed y del BCE (últimas de cada feed) | `cd intelligence && uv run python -m cfds_intel.news` | 0 |
 | Diarias de 5 años, **un año de prueba** | `cd engine && cargo run -p cfds-ig --example ig_backfill_daily -- DE40 2021-11-22 2022-11-22` | ~270 |
 | Diarias, el resto | `... ig_backfill_daily -- DE40 2022-11-22 <mañana>` | ~1.060 |
+| Indicadores de las diarias (ATR diario y volatilidad realizada, #148), **después de cada carga de diarias** | `cd engine && cargo run -p cfds-ingest --example daily_indicators` | 0 (no usa IG) |
 | Ídem para US100, US500 y US30 | Cambiar el instrumento | ~1.330 cada uno |
 | Velas de 15m recientes (con su spread) | `cd engine && cargo run -p cfds-ig --example ig_backfill -- DE40 15m <desde> <hasta>` | ~1 por vela |
 
