@@ -284,3 +284,20 @@ def test_config_rejects_bad_text_and_relevance_settings() -> None:
     ]:
         with pytest.raises(OllamaError):
             load_config(REAL.replace(old, new))
+
+
+def test_several_instruments_in_one_row_are_split_and_impact_is_ignored() -> None:
+    text = (
+        "source,feed,item_id,title,url,published_at,instrument_id,sign,relevant,impact\n"
+        "fed,press_monetary,x,FOMC cuts,https://f/x,2025-12-10T19:00:00Z,US100;US500;US30,+,si,5\n"
+        "fed,press_all,y,Bank approval,https://f/y,2025-12-11T19:00:00Z,,0,no,1\n"
+    )
+    sample = load_labels(text)
+    assert [x.relevant for x in sample] == [
+        (("US100", "+"), ("US500", "+"), ("US30", "+")),
+        (),
+    ]
+    with pytest.raises(SelectionError):
+        load_labels(text.replace("US100;US500;US30", "US100;US100"))
+    with pytest.raises(SelectionError):
+        load_labels(text.replace("US100;US500;US30", "US100;;US30"))

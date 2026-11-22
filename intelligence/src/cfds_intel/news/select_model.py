@@ -65,8 +65,10 @@ class Labeled:
 
 
 def load_labels(text: str) -> list[Labeled]:
-    """Lee el CSV de titulares etiquetados (#161). Una fila por (titular, instrumento); un titular
-    sin impacto va con `instrument_id` vacío y `relevant = no`. Toda fila va etiquetada."""
+    """Lee el CSV de titulares etiquetados (#161). Una fila por (titular, instrumento), o varios
+    instrumentos con el mismo signo en una fila separados por ";". Un titular sin impacto va con
+    `instrument_id` vacío y `relevant = no`. Toda fila va etiquetada. La columna `impact` (1 a 5)
+    todavía no se usa: cómo compararla con la relevancia lo decide el dueño (#129)."""
     rows = list(csv.DictReader(io.StringIO(text)))
     if not rows:
         raise SelectionError("el CSV de etiquetas está vacío")
@@ -84,10 +86,14 @@ def load_labels(text: str) -> list[Labeled]:
             by_item[key] = (item, [])
         if relevant != "no":
             sign = (r.get("sign") or "").strip()
-            instrument = (r.get("instrument_id") or "").strip()
-            if sign not in {"-", "0", "+"} or not instrument:
+            # Varios instrumentos con el mismo signo van en una fila, separados por ";".
+            instruments = [i.strip() for i in (r.get("instrument_id") or "").split(";")]
+            if sign not in {"-", "0", "+"} or not all(instruments):
                 raise SelectionError(f"fila {n}: un par relevante necesita instrumento y signo")
-            by_item[key][1].append((instrument, sign))
+            for instrument in instruments:
+                if instrument in {i for i, _ in by_item[key][1]}:
+                    raise SelectionError(f"fila {n}: {instrument} repetido en el mismo titular")
+                by_item[key][1].append((instrument, sign))
     return [Labeled(item, tuple(pairs)) for item, pairs in by_item.values()]
 
 
