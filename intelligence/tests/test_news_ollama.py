@@ -333,3 +333,21 @@ def test_the_interpreter_follows_the_linked_official_document() -> None:
         "^/monetarypolicy/fomcminutes\\d{8}\\.htm$",
         "^/monetarypolicy/fomcprojtabl\\d{8}\\.htm$",
     ]
+
+
+def test_impact_is_read_per_headline_and_spearman_is_informative() -> None:
+    from cfds_intel.news.select_model import spearman
+
+    text = (
+        "source,feed,item_id,title,url,published_at,instrument_id,sign,relevant,impact\n"
+        "fed,press_monetary,x,FOMC cuts,https://f/x,2025-12-10T19:00:00Z,US100;US500,+,si,5\n"
+        "fed,press_all,y,Bank approval,https://f/y,2025-12-11T19:00:00Z,,0,no,1\n"
+    )
+    assert [x.impact for x in load_labels(text)] == [5, 1]
+    with pytest.raises(SelectionError, match="impact"):
+        load_labels(text.replace(",si,5", ",si,7"))
+    d = [Decimal(x) for x in ("1", "2", "3", "4")]
+    assert spearman(d, d) == Decimal("1.000")
+    assert spearman(d, list(reversed(d))) == Decimal("-1.000")
+    assert spearman(d, [Decimal(1)] * 4) is None  # sin variación no hay correlación
+    assert spearman(d[:2], d[:2]) is None  # con menos de 3 no se calcula

@@ -68,6 +68,8 @@ class Labeled:
     item: NewsItem
     # (instrumento, signo) de los pares que el dueño marcó como relevantes.
     relevant: tuple[tuple[str, str], ...]
+    # Impacto del titular de 1 (nulo) a 5 (muy alto), o None si el CSV no lo trae (#129).
+    impact: int | None = None
 
 
 def load_labels(text: str) -> list[Labeled]:
@@ -79,6 +81,7 @@ def load_labels(text: str) -> list[Labeled]:
     if not rows:
         raise SelectionError("el CSV de etiquetas está vacío")
     by_item: dict[tuple[str, str], tuple[NewsItem, list[tuple[str, str]]]] = {}
+    impacts: dict[tuple[str, str], int] = {}
     for n, r in enumerate(rows, start=2):
         relevant = (r.get("relevant") or "").strip().lower()
         if relevant not in {"si", "sí", "no"}:
@@ -90,6 +93,11 @@ def load_labels(text: str) -> list[Labeled]:
                 r["source"], r["feed"], r["item_id"], r["title"], r["url"], published, published
             )
             by_item[key] = (item, [])
+        raw_impact = (r.get("impact") or "").strip()
+        if raw_impact:
+            if raw_impact not in {"1", "2", "3", "4", "5"}:
+                raise SelectionError(f"fila {n}: impact tiene que ser de 1 a 5")
+            impacts[key] = max(impacts.get(key, 0), int(raw_impact))
         if relevant != "no":
             sign = (r.get("sign") or "").strip()
             # Varios instrumentos con el mismo signo van en una fila, separados por ";".
@@ -100,7 +108,7 @@ def load_labels(text: str) -> list[Labeled]:
                 if instrument in {i for i, _ in by_item[key][1]}:
                     raise SelectionError(f"fila {n}: {instrument} repetido en el mismo titular")
                 by_item[key][1].append((instrument, sign))
-    return [Labeled(item, tuple(pairs)) for item, pairs in by_item.values()]
+    return [Labeled(item, tuple(pairs), impacts.get(key)) for key, (item, pairs) in by_item.items()]
 
 
 def is_spanish(text: str) -> bool:
@@ -160,6 +168,9 @@ class Result:
     rel_fn: int = 0
     rel_tn: int = 0
     rel_fp: int = 0
+    # Correlación de rangos (Spearman) entre el impacto del dueño (1-5) y la relevancia máxima que
+    # le da el modelo al titular. Solo informativa: no entra en los criterios (#129).
+    impact_spearman: Decimal | None = None
 
     def pct(self, k: int) -> Decimal:
         return (
@@ -197,6 +208,37 @@ class Result:
         return out
 
 
+def spearman(xs: Sequence[Decimal], ys: Sequence[Decimal]) -> Decimal | None:
+    """Correlación de rangos de Spearman (rangos promedio en los empates). None si no se puede."""
+
+    def ranks(v: Sequence[Decimal]) -> list[Decimal]:
+        order = sorted(range(len(v)), key=lambda i: v[i])
+        out = [Decimal(0)] * len(v)
+        i = 0
+        while i < len(order):
+            j = i
+            while j + 1 < len(order) and v[order[j + 1]] == v[order[i]]:
+                j += 1
+            avg = Decimal(i + j + 2) / 2
+            for k in range(i, j + 1):
+                out[order[k]] = avg
+            i = j + 1
+        return out
+
+    if len(xs) != len(ys) or len(xs) < 3:
+        return None
+    rx, ry = ranks(xs), ranks(ys)
+    zero = Decimal(0)
+    mx, my = sum(rx, zero) / len(rx), sum(ry, zero) / len(ry)
+    cov = sum(((a - mx) * (b - my) for a, b in zip(rx, ry, strict=True)), zero)
+    vx = sum(((a - mx) ** 2 for a in rx), zero)
+    vy = sum(((b - my) ** 2 for b in ry), zero)
+    if vx == 0 or vy == 0:
+        return None
+    rho: Decimal = cov / (vx * vy).sqrt()
+    return rho.quantize(Decimal("0.001"))
+
+
 def score(
     model: str,
     sample: Sequence[Labeled],
@@ -226,6 +268,12 @@ def score(
             r.rel_fn += truth and not said
             r.rel_tn += not truth and not said
             r.rel_fp += not truth and said
+    pairs = [
+        (Decimal(lab.impact), max((x.relevance for x in a.impacts), default=Decimal(0)))
+        for lab, (a, _) in zip(sample, runs, strict=True)
+        if lab.impact is not None and a is not None
+    ]
+    r.impact_spearman = spearman([p[0] for p in pairs], [p[1] for p in pairs])
     return r
 
 
@@ -306,7 +354,8 @@ def main(argv: list[str]) -> int:
             f"{r.model}: válidas {r.pct(r.valid)} %, deterministas {r.pct(r.deterministic)} %, "
             f"p95 {p95(r.seconds)} s, memoria {r.memory_gb} GB, acierto {acc:.1f} % "
             f"[{low:.1f}, {high:.1f}] en {r.sign_pairs} pares, "
-            f"relevancia {r.relevance_accuracy()} % (balanceado)"
+            f"relevancia {r.relevance_accuracy()} % (balanceado), "
+            f"impacto vs relevancia (Spearman, informativo) {r.impact_spearman}"
         )
         for f in r.failures(selection):
             print(f"  no pasa: {f}")
