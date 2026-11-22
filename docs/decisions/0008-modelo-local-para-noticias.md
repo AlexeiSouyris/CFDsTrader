@@ -1,8 +1,8 @@
 # 0008 – Modelo abierto local para interpretar noticias
 
-- **Estado:** propuesta
+- **Estado:** aceptada
 - **Fecha:** 2026-11-22
-- **Aprobada por:** pendiente (el dueño; ver `CLAUDE.md`)
+- **Aprobada por:** el dueño, el 22-11-2026 ("te doy el OK para todo", registrado en #159), por el modo de un solo constructor de `CLAUDE.md`
 - **Issue:** #129 (relacionado: ADR 0006 §4, #122, #130, spec §9)
 
 ## Contexto
