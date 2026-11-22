@@ -4,12 +4,18 @@
 //!   **no pisa datos**: si llega una vela con la misma clave pero otros precios, es un error.
 //! - [`CandlePublisher`]: publica cada vela **cerrada** en `candles.v1.<instrumento>.<timeframe>`,
 //!   con el JSON del contrato `candle.v1`.
+//! - [`NewsInterpretationConsumer`]: lee las interpretaciones de noticias que publica Python en
+//!   `news_interpretations.v1`, sin perder ni repetir entradas entre reinicios (#197).
 //!
 //! Las migraciones viven en `infra/migrations/` y se aplican con [`PgStore::migrate`].
 
+mod news_stream;
 mod pg;
 mod stream;
 
+pub use news_stream::{
+    Delivery, NEWS_INTERPRETATIONS_STREAM, NewsBatch, NewsInterpretationConsumer, Rejected, StartAt,
+};
 pub use pg::{AllowanceRecord, InsertReport, PgStore};
 pub use stream::{CandlePublisher, Published, stream_id, stream_key};
 
