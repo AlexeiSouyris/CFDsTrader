@@ -10,6 +10,10 @@
 //!   devuelven los problemas. Nada se corrige en silencio.
 //! - Se publica en Redis solo si se pide (modo en vivo), y siempre **después** de guardar.
 
+pub mod gaps;
+
+pub use gaps::{GapPlan, daily_gaps, intraday_gaps, missing_runs, missing_runs_by, session_days};
+
 use cfds_core::{Candle, InstrumentId, Timeframe};
 use cfds_market_data::{
     Issue, MarketDataProvider, ProviderError, SessionCalendar, ValidationConfig, validate_series,

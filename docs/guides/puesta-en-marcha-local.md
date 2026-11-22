@@ -60,7 +60,7 @@ cd intelligence && uv sync && cd ..
 
 Las migraciones (`infra/migrations/`) las aplica el motor la primera vez que guarda algo. Por ejemplo, con la carga del paso 6.
 
-Para aplicarlas **sin gastar cupo de IG** (por ejemplo, para cargar primero noticias y COT, que las necesitan): correr una carga diaria **sin** las variables de IG. Migra y frena con `MissingEnv("IG_USERNAME")` antes de conectarse a IG.
+Para aplicarlas **sin gastar cupo de IG** (por ejemplo, para cargar primero noticias y COT, que las necesitan): correr una carga diaria **sin** las variables de IG. Migra y frena con `MissingEnv("IG_USERNAME")` antes de conectarse a IG. Si ese día ya estaba guardado, termina con "no falta nada", también sin conectarse.
 
 ```bash
 cd engine && env -u IG_API_KEY -u IG_USERNAME -u IG_PASSWORD \
@@ -84,6 +84,7 @@ El **cupo de IG es de 10.000 puntos por semana**, compartido por todo lo que use
 Notas:
 - **Los cuatro índices en diarias** son unos 5.300 puntos: si el cupo no alcanza, se terminan la semana siguiente. Al final de cada carga se muestra el cupo que queda.
 - **Si falta un día** de IG, se avisa y **no se rellena**. Por ejemplo, DE40 no tiene el 19-06-2026.
+- **Las cargas piden solo lo que falta** (#137). Antes de conectarse a IG muestran cuántas velas cerradas se esperan según el calendario, cuántas ya están guardadas y cuántas se van a pedir. Repetir una carga no gasta cupo por lo ya guardado, y si no falta nada no se conecta. Excepción: un día que IG no tiene (como el del ejemplo) se vuelve a pedir en cada carga que lo incluya, a unos pocos puntos cada vez.
 - **El filtro de spread (§7.3)** necesita el spread de los 20 días anteriores al período del backtest. Se carga con `ig_backfill` de 15m.
 
 ## 7. Ingestas programadas
