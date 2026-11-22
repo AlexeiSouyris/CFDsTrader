@@ -1,8 +1,8 @@
 //! Histórico en PostgreSQL.
 
 use cfds_core::{
-    Candle, CandleSpread, DailyCandle, DailyIndicator, Instrument, InstrumentId, ReferenceRate,
-    SentimentObservation, Timeframe,
+    Candle, CandleSpread, DailyCandle, DailyIndicator, Instrument, InstrumentId,
+    NewsInterpretation, ReferenceRate, SentimentObservation, Timeframe,
 };
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -23,6 +23,22 @@ pub struct InsertReport {
 
 /// Fila de `ig_allowance_log`: observed_at, points_returned, remaining, total, resets_at.
 type AllowanceRow = (DateTime<Utc>, i64, i64, i64, DateTime<Utc>);
+/// Fila de `news_interpretations` (#194): id, source, item_id, published_at, interpreted_at,
+/// interpreter_name, interpreter_version, interpreter_model, interpreter_prompt_sha256,
+/// summary_es e impacts (JSONB leído como texto).
+type NewsInterpretationRow = (
+    String,
+    String,
+    String,
+    DateTime<Utc>,
+    DateTime<Utc>,
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    String,
+    String,
+);
 /// Fila de `ig_allowance_log` con su comando (#167).
 type AllowanceCommandRow = (String, DateTime<Utc>, i64, i64, i64, DateTime<Utc>);
 
@@ -322,6 +338,44 @@ impl PgStore {
                 },
             )
             .collect()
+    }
+
+    /// Interpretaciones de noticias de un intérprete (nombre y versión) que pasaron a existir en
+    /// `(after, until]` según `interpreted_at` (#194). El extremo `until` entra: en la vela que
+    /// cierra en `until` ya cuenta lo interpretado en ese instante (`news_adjustment` usa
+    /// `interpreted_at <= at`); `after` no entra, para leer por tramos sin repetir.
+    ///
+    /// `published_from`: en el backtest, `InterpreterCutoff::backtest_published_from` (ADR 0008
+    /// §5): solo noticias publicadas desde ahí. En vivo, `None`.
+    ///
+    /// Cada fila se convierte con la misma validación del contrato `news_interpretation.v1` que
+    /// usa `cfds_core::NewsInterpretation` (decimales en texto → `Decimal`, sin `float`).
+    pub async fn news_interpretations(
+        &self,
+        interpreter_name: &str,
+        interpreter_version: &str,
+        after: DateTime<Utc>,
+        until: DateTime<Utc>,
+        published_from: Option<DateTime<Utc>>,
+    ) -> Result<Vec<NewsInterpretation>, StorageError> {
+        let rows: Vec<NewsInterpretationRow> = sqlx::query_as(
+            "SELECT interpretation_id, source, item_id, published_at, interpreted_at,
+                    interpreter_name, interpreter_version, interpreter_model,
+                    interpreter_prompt_sha256, summary_es, impacts::text
+             FROM news_interpretations
+             WHERE interpreter_name = $1 AND interpreter_version = $2
+               AND interpreted_at > $3 AND interpreted_at <= $4
+               AND ($5::timestamptz IS NULL OR published_at >= $5)
+             ORDER BY interpreted_at, interpretation_id",
+        )
+        .bind(interpreter_name)
+        .bind(interpreter_version)
+        .bind(after)
+        .bind(until)
+        .bind(published_from)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter().map(row_to_news_interpretation).collect()
     }
 
     /// Spreads de cierre de un instrumento y timeframe con inicio en `[from, to)`, en orden.
@@ -630,6 +684,43 @@ fn row_to_daily(row: &PgRow) -> Result<DailyCandle, StorageError> {
 
 fn to_i64(v: u64) -> Result<i64, StorageError> {
     i64::try_from(v).map_err(|_| StorageError::CorruptRow(format!("{v} no entra en BIGINT")))
+}
+
+/// Arma el documento del contrato `news_interpretation.v1` con la fila (el `interpreter`
+/// aplanado vuelve a ser un objeto) y lo valida con `NewsInterpretation`, igual que un mensaje.
+fn row_to_news_interpretation(
+    r: NewsInterpretationRow,
+) -> Result<NewsInterpretation, StorageError> {
+    let (
+        id,
+        source,
+        item_id,
+        published,
+        interpreted,
+        name,
+        version,
+        model,
+        prompt,
+        summary,
+        impacts,
+    ) = r;
+    let utc = |t: DateTime<Utc>| t.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true);
+    let doc = serde_json::json!({
+        "interpretation_id": id,
+        "source": source,
+        "item_id": item_id,
+        "published_at": utc(published),
+        "interpreted_at": utc(interpreted),
+        "interpreter": {
+            "name": name,
+            "version": version,
+            "model": model,
+            "prompt_sha256": prompt,
+        },
+        "summary_es": summary,
+        "impacts": serde_json::from_str::<serde_json::Value>(&impacts)?,
+    });
+    Ok(serde_json::from_value(doc)?)
 }
 
 fn to_u64(v: i64) -> Result<u64, StorageError> {

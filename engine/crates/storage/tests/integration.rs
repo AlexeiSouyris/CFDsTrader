@@ -672,3 +672,145 @@ async fn daily_indicators_are_idempotent_and_refuse_to_repaint() {
         Err(StorageError::DailyIndicatorConflict { .. })
     ));
 }
+
+/// Guarda una noticia y su interpretación con SQL directo, como lo hace Python (#186).
+#[allow(clippy::too_many_arguments)]
+async fn put_interpretation(
+    pool: &sqlx::PgPool,
+    id: &str,
+    item_id: &str,
+    version: &str,
+    published_at: DateTime<Utc>,
+    interpreted_at: DateTime<Utc>,
+    impacts: &str,
+) {
+    sqlx::query(
+        "INSERT INTO news_items (source, feed, item_id, title, url, published_at, retrieved_at)
+         VALUES ('fed', 'press', $1, 'titular de prueba', 'https://www.federalreserve.gov/x', $2, $2)
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(item_id)
+    .bind(published_at)
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO news_interpretations
+            (interpretation_id, source, item_id, published_at, interpreted_at, interpreter_name,
+             interpreter_version, interpreter_model, interpreter_prompt_sha256, summary_es, impacts)
+         VALUES ($1, 'fed', $2, $3, $4, 'ollama', $5, 'modelo:q4', NULL, 'resumen', $6::jsonb)",
+    )
+    .bind(id)
+    .bind(item_id)
+    .bind(published_at)
+    .bind(interpreted_at)
+    .bind(version)
+    .bind(impacts)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
+async fn news_interpretations_are_read_by_interpreter_range_and_cutoff() {
+    let s = store().await;
+    let pool = s.pool().clone();
+    // La tabla es de solo agregar: ids y versión del intérprete propios de esta corrida.
+    let run = Utc::now().timestamp_nanos_opt().unwrap();
+    let version = format!("t{run}");
+    let other = format!("u{run}");
+    let id = |k: i64| format!("{:064x}", i128::from(run) * 10 + i128::from(k));
+    let item = |k: i64| format!("it-{run}-{k}");
+    let t = |x: &str| -> DateTime<Utc> { x.parse().unwrap() };
+    // La vela cierra a las 15:00: la interpretación de las 15:00 justas ya cuenta.
+    let close = t("2026-11-20T15:00:00Z");
+    let impacts = r#"[{"instrument_id": "US500", "sentiment": "-0.75", "relevance": "1"}]"#;
+    put_interpretation(
+        &pool,
+        &id(1),
+        &item(1),
+        &version,
+        t("2026-11-20T14:00:00Z"),
+        close,
+        impacts,
+    )
+    .await;
+    // Un microsegundo después del cierre: no entra.
+    let late = close + TimeDelta::microseconds(1);
+    put_interpretation(
+        &pool,
+        &id(2),
+        &item(2),
+        &version,
+        t("2026-11-20T14:30:00Z"),
+        late,
+        "[]",
+    )
+    .await;
+    // Justo en el comienzo del tramo: no entra (el tramo anterior ya la leyó).
+    let start = t("2026-11-20T12:00:00Z");
+    put_interpretation(
+        &pool,
+        &id(3),
+        &item(3),
+        &version,
+        t("2026-11-20T11:00:00Z"),
+        start,
+        "[]",
+    )
+    .await;
+    // Otra versión del intérprete: no entra.
+    put_interpretation(
+        &pool,
+        &id(4),
+        &item(4),
+        &other,
+        t("2026-11-20T14:00:00Z"),
+        close,
+        "[]",
+    )
+    .await;
+    // Publicada antes del corte del modelo (ADR 0008 §5): entra en vivo, no en el backtest.
+    let old = t("2025-12-02T23:59:59Z");
+    put_interpretation(
+        &pool,
+        &id(5),
+        &item(5),
+        &version,
+        old,
+        t("2026-11-20T13:00:00Z"),
+        "[]",
+    )
+    .await;
+
+    let live = s
+        .news_interpretations("ollama", &version, start, close, None)
+        .await
+        .unwrap();
+    let ids: Vec<_> = live.iter().map(|n| n.interpretation_id.clone()).collect();
+    assert_eq!(ids, [id(5), id(1)], "por interpreted_at, (start, close]");
+
+    let n = &live[1];
+    assert_eq!(n.interpreter.name, "ollama");
+    assert_eq!(n.interpreter.version, version);
+    assert_eq!(n.interpreter.model.as_deref(), Some("modelo:q4"));
+    assert_eq!(n.interpreter.prompt_sha256, None);
+    assert_eq!(n.interpreted_at, close);
+    assert_eq!(n.impacts.len(), 1);
+    assert_eq!(n.impacts[0].instrument_id, id_of("US500"));
+    assert_eq!(n.impacts[0].sentiment, dec!(-0.75));
+    assert_eq!(n.impacts[0].relevance, dec!(1));
+
+    let cutoff = t("2025-12-03T00:00:00Z");
+    let backtest = s
+        .news_interpretations("ollama", &version, start, close, Some(cutoff))
+        .await
+        .unwrap();
+    assert_eq!(backtest.len(), 1);
+    assert_eq!(backtest[0].interpretation_id, id(1));
+}
+
+fn id_of(s: &str) -> InstrumentId {
+    s.parse().unwrap()
+}
