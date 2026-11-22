@@ -8,6 +8,9 @@
 //! el calendario de sesiones, y si no falta nada no se conecta a IG. Gasta del cupo semanal
 //! ~1 punto por vela pedida, más el margen horario de cada tramo.
 
+#[path = "common/allowance.rs"]
+mod allowance;
+
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
@@ -86,11 +89,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             break;
         }
     }
-    let allowance = ig.allowance().await;
     ig.logout().await?;
-    if let Some((left, _)) = allowance {
-        println!("cupo semanal restante: {left} puntos");
-    }
+    allowance::record_and_report(&ig, Some(&store), "ig_backfill").await?;
     result
 }
 

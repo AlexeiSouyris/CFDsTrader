@@ -13,6 +13,9 @@
 //! - **Kill switch** (CLAUDE.md §5b): si una vela cerrada no se puede guardar pasado
 //!   `live.give_up_after_secs`, cierra la sesión y termina con error.
 
+#[path = "common/allowance.rs"]
+mod allowance;
+
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -108,6 +111,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
+        // Registro del cupo de cada ciclo (#140). Si falla, se avisa: no frena el modo en vivo.
+        let store = sink.as_ref().map(|(s, _)| s);
+        if let Err(e) = allowance::record_and_report(&ig, store, "ig_live").await {
+            eprintln!("⚠️  no se pudo registrar el cupo de IG: {e}");
+        }
         if let Some(f) = failure {
             break Err(f);
         }
@@ -119,9 +127,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tokio::time::sleep(wait).await;
     };
     ig.logout().await?;
-    if let Some((left, _)) = ig.allowance().await {
-        println!("cupo semanal restante: {left} puntos");
-    }
     result.map_err(Into::into)
 }
 

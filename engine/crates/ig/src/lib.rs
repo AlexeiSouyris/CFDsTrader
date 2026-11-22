@@ -13,6 +13,7 @@
 //! - Credenciales solo por variables de entorno; nunca aparecen en `Debug` ni en errores.
 //! - Solo lectura: no existe ningún endpoint de órdenes en este crate.
 
+pub mod allowance;
 pub mod config;
 pub mod credentials;
 pub mod live;
@@ -21,6 +22,7 @@ pub mod provider;
 pub mod sentiment;
 pub mod transport;
 
+pub use allowance::{AllowanceObservation, AllowanceSummary, summarize};
 pub use config::{DEMO_BASE_URL, IgConfig, IgConfigError, LiveConfig};
 pub use credentials::{Credentials, MissingEnv, Secret, api_key_from_env};
 pub use model::{DailyHistory, MarketTerms, median};

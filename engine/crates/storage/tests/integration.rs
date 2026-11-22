@@ -8,7 +8,9 @@ use cfds_core::{
     AssetClass, Candle, CandleSpread, Currency, DailyCandle, Instrument, InstrumentId,
     SentimentObservation, Timeframe,
 };
-use cfds_storage::{CandlePublisher, PgStore, Published, StorageError, stream_key};
+use cfds_storage::{
+    AllowanceRecord, CandlePublisher, PgStore, Published, StorageError, stream_key,
+};
 use chrono::{DateTime, TimeDelta, Utc};
 use rust_decimal::{Decimal, dec};
 
@@ -546,4 +548,39 @@ async fn reference_rates_are_read_only_once_published_in_publication_order() {
     .execute(&pool)
     .await;
     assert!(early.is_err());
+}
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
+async fn ig_allowance_log_is_append_only_and_returns_the_latest() {
+    let s = store().await;
+    // Fechas lejanas: esta es la última observación aunque otros tests corran antes.
+    let at = |h: u32| -> DateTime<Utc> { format!("2100-01-01T{h:02}:00:00Z").parse().unwrap() };
+    let records = [
+        AllowanceRecord {
+            observed_at: at(10),
+            points_returned: 2,
+            remaining: 9_993,
+            total: 10_000,
+            resets_at: at(10) + TimeDelta::days(7),
+        },
+        AllowanceRecord {
+            observed_at: at(11),
+            points_returned: 1,
+            remaining: 9_992,
+            total: 10_000,
+            resets_at: at(11) + TimeDelta::days(7),
+        },
+    ];
+    s.insert_allowance_log("ig_backfill", &records)
+        .await
+        .unwrap();
+    assert_eq!(s.last_allowance().await.unwrap(), Some(records[1]));
+    let pool = s.pool().clone();
+    let update = sqlx::query("UPDATE ig_allowance_log SET remaining = 0")
+        .execute(&pool)
+        .await;
+    assert!(update.is_err(), "la tabla es de solo agregar");
+    let bad = s.insert_allowance_log("IG Backfill", &records[..1]).await;
+    assert!(bad.is_err(), "el nombre del comando se valida en la base");
 }
