@@ -18,6 +18,8 @@ from typing import Protocol
 
 from defusedxml import DefusedXmlException, ElementTree
 
+from cfds_intel.net import https_get
+
 _LABEL = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 _MAX_TEXT = 500
 _MAX_URL = 1000
@@ -155,13 +157,7 @@ def parse_rss(xml: bytes, feed: FeedConfig, retrieved_at: datetime) -> list[News
 Opener = Callable[[urllib.request.Request, int], bytes]
 
 
-def _urlopen(req: urllib.request.Request, timeout: int) -> bytes:
-    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (solo https, validado)
-        body: bytes = resp.read()
-        return body
-
-
-def fetch(feed: FeedConfig, cfg: NewsConfig, opener: Opener = _urlopen) -> list[NewsItem]:
+def fetch(feed: FeedConfig, cfg: NewsConfig, opener: Opener = https_get) -> list[NewsItem]:
     """Baja un feed y lo convierte. `opener` se reemplaza en los tests (sin red en CI)."""
     req = urllib.request.Request(feed.url, headers={"User-Agent": cfg.user_agent})  # noqa: S310
     body = opener(req, cfg.timeout_secs)

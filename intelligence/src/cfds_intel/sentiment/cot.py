@@ -21,6 +21,8 @@ from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
 
+from cfds_intel.net import https_get
+
 SOURCE = "cftc_cot"
 _LABEL = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 _INSTRUMENT = re.compile(r"^[A-Z0-9][A-Z0-9._-]{0,31}$")
@@ -161,14 +163,8 @@ def to_observations(
 Opener = Callable[[urllib.request.Request, int], bytes]
 
 
-def _urlopen(req: urllib.request.Request, timeout: int) -> bytes:
-    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (https, validado)
-        body: bytes = resp.read()
-        return body
-
-
 def fetch_rows(
-    cfg: CotConfig, since: date, opener: Opener = _urlopen
+    cfg: CotConfig, since: date, opener: Opener = https_get
 ) -> Iterator[dict[str, object]]:
     """Filas de los mercados configurados con informe desde `since`, paginadas, en orden."""
     codes = ", ".join(f"'{c}'" for c in sorted(cfg.markets))
