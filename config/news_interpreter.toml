@@ -42,6 +42,16 @@ allowed_hosts = ["www.federalreserve.gov", "www.ecb.europa.eu"]
 max_chars = 6000
 user_agent = "cfds-intel/0.1 (automated news reader)"
 timeout_secs = 30
+# Documentos que la página del comunicado solo enlaza (actas del FOMC, proyecciones, #168): se
+# sigue un solo enlace, el primero cuya ruta coincide con uno de estos patrones, solo por HTTPS
+# y en un sitio de allowed_hosts. El orden es la preferencia: HTML antes que PDF.
+# Rutas a verificar contra las páginas reales en el Mac mini (la nube no llega a la Fed).
+follow = [
+  "^/monetarypolicy/fomcminutes\\d{8}\\.htm$",
+  "^/monetarypolicy/fomcprojtabl\\d{8}\\.htm$",
+  "^/monetarypolicy/files/fomcminutes\\d{8}\\.pdf$",
+  "^/monetarypolicy/files/fomcprojtabl\\d{8}\\.pdf$",
+]
 
 # Criterios de la prueba de selección (ADR 0008 §4), fijados antes de mirar resultados.
 # Números aprobados por el dueño el 22-11-2026.
