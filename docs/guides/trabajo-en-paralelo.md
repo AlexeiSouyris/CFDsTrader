@@ -17,7 +17,7 @@ Antecedente: en la semana del 17 al 22-11-2026 se gastaron unos 8.900 de los 10.
 - El **streaming** de IG no está habilitado para la cuenta demo: `CHART` responde "Insufficient permissions" y `PRICE` responde "Invalid group" (medido el 20 y el 22-11-2026). Las velas solo se consiguen por REST, con cupo. Ver `docs/research/fuentes-datos-gratis-2026-11.md`.
 
 Reglas:
-1. **Cargas grandes** (más de unos 100 puntos) **solo en el Mac mini**.
+1. **Cargas grandes** (más de unos 100 puntos) **solo en el Mac mini**. Desde #143 el código lo impone: sin `CFDS_DATA_MACHINE=1` en el `.env`, que solo tiene el Mac mini, las cargas de más de 100 puntos se niegan, aunque se agregue `--yes`.
 2. **En la nube, solo pruebas chicas**: un día o una semana de datos. Nunca `ig_live` ni cargas de años.
 3. **Antes de una carga, mirar el cupo; después, anotarlo.** Cada carga muestra al final el cupo que queda, **cuándo se renueva** y lo que gastó. Se deja un comentario en el Issue de la carga con lo que se cargó y el cupo que quedó. En el Mac mini, además, cada respuesta de IG queda en la tabla `ig_allowance_log` (#140), y la carga siguiente muestra lo **gastado por otro lado**: lo que bajó el cupo de la cuenta sin que lo pidiera el Mac mini (la nube u otra computadora).
 4. **El dato ya guardado no se vuelve a pedir.** Si falta algo, primero se revisa la base del Mac mini. Desde #137, `ig_backfill` e `ig_backfill_daily` lo hacen solas: miran la base y le piden a IG solo lo que falta.

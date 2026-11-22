@@ -10,12 +10,15 @@
 
 #[path = "common/allowance.rs"]
 mod allowance;
+#[path = "common/gate.rs"]
+mod gate;
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use cfds_ig::{
     Credentials, IgConfig, IgProvider, ReqwestTransport, api_key_from_env, epics_from_catalog,
+    estimate_points, parse_flags,
 };
 use cfds_ingest::{IngestRequest, ingest, intraday_gaps};
 use cfds_market_data::{
@@ -30,9 +33,11 @@ const VALIDATION: &str = include_str!("../../../../config/data_validation.toml")
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let (args, flags) = parse_flags(std::env::args().skip(1).collect())?;
     let [instrument, tf, from, to] = args.as_slice() else {
-        return Err("uso: <INSTRUMENTO> <15m|1h> <desde UTC> <hasta UTC>".into());
+        return Err(
+            "uso: <INSTRUMENTO> <15m|1h> <desde UTC> <hasta UTC> [--dry-run] [--yes]".into(),
+        );
     };
     let catalog = Catalog::from_toml(CATALOG)?;
     let config_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../config");
@@ -68,6 +73,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let cfg = IgConfig::from_toml(CONFIG)?;
+    let estimated = estimate_points(&plan.ranges, tf.duration(), cfg.local_time_margin_hours);
+    if !gate::check(estimated, flags, &cfg)? {
+        return Ok(());
+    }
     let validation = ValidationConfig::from_toml(VALIDATION)?;
     let transport = ReqwestTransport::new(&cfg, api_key_from_env())?;
     let ig = IgProvider::new(
