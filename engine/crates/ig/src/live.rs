@@ -15,6 +15,9 @@ use chrono::{DateTime, TimeDelta, Utc};
 /// Rango `[from, to)` de velas cerradas que toca pedir ahora, o `None` si no hay ninguna.
 ///
 /// - `last_start`: inicio de la última vela ya guardada; sin ella se arranca `lookback` atrás.
+///   Tampoco se va más atrás que `lookback` aunque la última guardada sea más vieja (#124): los
+///   huecos viejos se completan con `ig_backfill`, que mira la base y pide solo lo que falta.
+///   Así una corrida no queda trabada pidiendo un rango que el presupuesto nunca deja pasar.
 /// - Una vela está lista cuando `start + timeframe + delay <= now`.
 /// - `None` también si el calendario no cubre esas fechas: nunca se supone "cerrado".
 pub fn due_range(
@@ -26,7 +29,8 @@ pub fn due_range(
     delay: TimeDelta,
     lookback: TimeDelta,
 ) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
-    let from = last_start.map_or(now - lookback, |s| s + tf.duration());
+    let floor = now - lookback;
+    let from = last_start.map_or(floor, |s| (s + tf.duration()).max(floor));
     let ready_until = now - delay;
     let starts = calendar.expected_starts(instrument, tf, from, ready_until)?;
     let ready: Vec<_> = starts
@@ -43,6 +47,27 @@ pub fn due_points(from: DateTime<Utc>, to: DateTime<Utc>, tf: Timeframe) -> u64 
         return 0;
     }
     crate::model::estimated_points(from, to - TimeDelta::seconds(1), tf, TimeDelta::zero())
+}
+
+/// Puntos que cuesta mantener al día `instruments` × `timeframes` en `[from, to)`: una vela
+/// por cada inicio que el calendario espera y que cierra antes de `to` (#124). `None` si el
+/// calendario no cubre el rango. Sirve para comparar con `budget.live`.
+pub fn session_points(
+    calendar: &impl SessionCalendar,
+    instruments: &[InstrumentId],
+    timeframes: &[Timeframe],
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> Option<u64> {
+    let mut total = 0u64;
+    for id in instruments {
+        for &tf in timeframes {
+            let starts = calendar.expected_starts(id, tf, from, to)?;
+            let closed = starts.iter().filter(|s| **s + tf.duration() <= to).count();
+            total = total.saturating_add(u64::try_from(closed).unwrap_or(u64::MAX));
+        }
+    }
+    Some(total)
 }
 
 /// Próximo momento en que una vela de la sesión queda lista (`cierre + delay`) después de
@@ -202,5 +227,43 @@ mod tests {
         assert_eq!(due_points(f, t, Timeframe::M15), 4);
         assert_eq!(due_points(f, t, Timeframe::H1), 1);
         assert_eq!(due_points(f, f, Timeframe::H1), 0);
+    }
+
+    #[test]
+    fn an_old_last_candle_does_not_reach_past_the_lookback() {
+        // Última guardada hace una semana: se arranca 24 h atrás, como sin datos.
+        assert_eq!(
+            due(
+                Timeframe::M15,
+                Some("2026-11-13T20:45:00Z"),
+                "2026-11-20T21:12:00Z"
+            ),
+            due(Timeframe::M15, None, "2026-11-20T21:12:00Z")
+        );
+    }
+
+    #[test]
+    fn a_week_of_live_candles_fits_the_live_budget() {
+        let catalog = cfds_market_data::Catalog::from_toml(include_str!(
+            "../../../../config/instruments.toml"
+        ))
+        .unwrap();
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../config");
+        let calendar = ExchangeCalendar::load(&dir, catalog.exchange_map()).unwrap();
+        let ids: Vec<_> = catalog.instruments.keys().cloned().collect();
+        let cfg = crate::IgConfig::from_toml(include_str!("../../../../config/ig.toml")).unwrap();
+        // Semana del 16 al 20-11-2026, sin feriados. Por día: 3 índices de EE. UU. con 26 velas
+        // de 15m y 6 de 1h, y DE40 con 34 y 8 → 138; por semana, 690.
+        let week = session_points(
+            &calendar,
+            &ids,
+            &cfg.live.timeframes,
+            at("2026-11-16T00:00:00Z"),
+            at("2026-11-23T00:00:00Z"),
+        )
+        .unwrap();
+        assert_eq!(ids.len(), 4);
+        assert_eq!(week, 690);
+        assert!(week <= cfg.budget.live, "{week} > budget.live");
     }
 }
