@@ -390,6 +390,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "cfds-tiingo"
+version = "0.1.0"
+dependencies = [
+ "cfds-core",
+ "cfds-ig",
+ "cfds-storage",
+ "chrono",
+ "chrono-tz",
+ "reqwest",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "toml",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
