@@ -228,6 +228,85 @@ Si la vela anterior al cierre de la semana es un feriado, aplica el último día
 - Fuentes pedidas: Forex Factory, Investing.com, Bloomberg, Wall Street Journal, Financial Times, El Mundo, TradingView y Yahoo Finance, además de fuentes oficiales: Fed, BCE, BLS y SEC EDGAR.
   - ⚠️ Varias de estas fuentes tienen muro de pago o prohíben el acceso automatizado en sus términos de uso. En la fase 4b se define **la vía legal de acceso de cada una** (RSS oficial, API con licencia o plan pago) en un ADR. **No se hará scraping que viole los términos de uso.**
 
+<a id="psicologia-del-mercado"></a>
+### 9.1 Psicología del mercado (capa de contexto experimental, #25)
+
+Mide miedo, euforia y los demás estados emocionales del mercado como **números objetivos**, para estudiar si anticipan el precio. Es una capa de contexto del [ADR 0003 §C](../decisions/0003-modelo-adaptativo-y-contexto.md): **se registra y se mide, pero no suma al puntaje** hasta demostrar valor fuera de muestra en la fase 5 y ganar una votación. Las fuentes son las del [ADR 0004](../decisions/0004-fuentes-de-sentimiento.md). Todos los valores de esta sección son **iniciales** y van en `config/`.
+
+**Alcance v1:** US 500, US Tech 100 y Wall Street. Germany 40 queda afuera, porque no tiene COT y el resto de las fuentes miden el mercado de EE. UU.
+
+#### Índice de sentimiento v1 ∈ [−1, +1]
+
+−1 = miedo extremo, +1 = euforia extrema. Se calcula por instrumento.
+
+```
+ventana_i    = valores de la fuente i publicados en los 3 años anteriores al dato actual
+               (sin incluirlo; solo lo que estaba publicado en ese momento)
+percentil_i  = (valores de la ventana menores que el actual + 0,5 × valores iguales) / tamaño de la ventana
+componente_i = 2 × percentil_i − 1          (o 1 − 2 × percentil_i si la fuente se invierte)
+índice       = Σ peso_i × componente_i / Σ peso_i      (solo con componentes válidos)
+```
+
+| Componente | Valor crudo | Sentido | Disponible desde | Dónde se calcula |
+|---|---|---|---|---|
+| **COT** (TFF, futuros) | (largos − cortos de *Leveraged Funds*) / interés abierto, del mercado de `config/cot.toml` | + = euforia | su `published_at` (`config/cot.toml`) | dato crudo: Python (`sentiment`, ya guardado en `sentiment_observations`) |
+| **Volatilidad realizada** | desvío estándar muestral de los últimos 20 retornos diarios, con retorno = cierre / cierre anterior − 1 | **invertido** (alta = miedo) | fin de la vela diaria (`daily_candles`) | Rust (`indicators`) |
+| **Caída desde el máximo** | (cierre − máximo de las últimas 252 velas diarias, incluida la actual) / ese máximo. Vale ≤ 0 | + (más negativo = más miedo; no se invierte) | fin de la vela diaria | Rust (`indicators`) |
+| Amplitud | % de componentes del NASDAQ 100 **de esa fecha** con cierre por encima de su SMA50 | + = euforia | fin de la vela diaria | Rust. **Pendiente de datos** (precios de componentes, ADR 0005). Solo US Tech 100 |
+| Nuevos máximos y mínimos | (componentes en máximo de 52 semanas − en mínimo de 52 semanas) / total | + = euforia | fin de la vela diaria | Rust. **Pendiente de datos**, como la amplitud |
+
+- **Combinación:** el percentil, el componente y el índice se calculan en Python (`intelligence/cfds_intel/sentiment`), leyendo los valores crudos de PostgreSQL. Las medidas que salen del precio se calculan **solo en Rust** (CLAUDE.md §1).
+- **Pesos iniciales:** iguales. **Mínimo de componentes válidos:** 3. Con las tres fuentes que hoy tienen datos, el índice v1 necesita las tres.
+- **Componente válido:** tiene al menos 3 años de historia publicada (calentamiento) y su último dato no está vencido. Vencimiento inicial: COT 21 días, medidas diarias 5 días.
+- **Cuándo se recalcula:** cada vez que un componente publica un dato nuevo. La hora del índice es la del dato más reciente que usa.
+- **Zonas:** **miedo extremo ≤ −0,6** y **euforia extrema ≥ +0,6**.
+- **Sin repintado:** un valor publicado no cambia. Si la fuente corrige un dato, se guarda como dato nuevo con su propia hora de publicación.
+- **Fuera del índice v1:**
+  - **% de clientes de IG largos:** no tiene historia (se graba desde el 20-11-2026). Se usa solo en H3, con umbrales absolutos.
+  - **Sentimiento de noticias (§9):** entra cuando tenga 3 años de interpretaciones grabadas.
+  - **VIX, put/call y AAII:** quedan afuera por términos de uso (ADR 0004).
+- **Contrato:** `sentiment.v1` (nuevo, no `context_event.v1`, que es para eventos con fecha). Lleva instrumento, hora del dato, `published_at`, valor, cada componente usado con su valor crudo y su percentil, y si terminó el calentamiento. Se define en el PR que lo implemente, antes del código.
+- **Cómo lo usa Rust:** solo lo guarda en el diario con cada propuesta (§15b). No toca el puntaje.
+
+#### Estados emocionales (definiciones objetivas)
+
+Lo que sale del precio se calcula en Rust, dentro de los módulos que ya existen. Lo externo, en Python. **No hay un módulo `market_mood`:** si algún estado demuestra valor, la combinación la hace el puntaje de `strategy`, como con las demás señales.
+
+| Estado | Regla (al cierre de la vela, solo velas cerradas) | Timeframe | Dónde |
+|---|---|---|---|
+| **FOMO de precio** | (cierre − EMA20) / ATR14 ≥ 3 **y** el cierre es el más alto de las últimas 20 velas | 1h | Rust (`regime`) |
+| **Pánico / clímax de venta** | (EMA20 − cierre) / ATR14 ≥ 3 **y** el cierre es el más bajo de las últimas 20 velas | 1h | Rust (`regime`) |
+| **Rechazo** | Martillo o estrella fugaz (§5.1) cuya mecha toca un soporte o una resistencia (§5.3), un FVG o un order block (§5.4); o un sweep de liquidez (§5.4) que cierra de vuelta dentro del rango. No es un detector nuevo: reúne los que ya existen | 15m y 1h | Rust (`patterns` y `liquidity`) |
+| **Distribución** | Día de distribución: cierre diario ≥ 0,2 % por debajo del anterior, con más volumen que el día anterior. Estado: ≥ 5 días de distribución en las últimas 25 sesiones | diario | Rust (`regime`). **Pendiente de volumen real** |
+| **Miedo extremo** | Índice ≤ −0,6 | según el índice | Python (`sentiment`) |
+| **Euforia extrema** | Índice ≥ +0,6 | según el índice | Python (`sentiment`) |
+| **Complacencia** | Percentil de la volatilidad realizada ≤ 0,10 | diario | Python (`sentiment`) |
+
+- EMA20 de 1h: media exponencial de 20 períodos con α = 2 / 21, que arranca con la SMA de los primeros 20 cierres. ATR14 de 1h: la definición de Wilder de §4, aplicada a velas de 1h. Cada regla tiene su calentamiento: no se evalúa sin 20 velas válidas, además de lo que necesite cada indicador.
+- **Volumen:** IG no informa volumen de mercado en sus CFD (el campo queda `null`). Por eso FOMO y clímax se definen **sin volumen** en v1, y la distribución no se calcula hasta tener volumen real del subyacente con una fuente legal (ADR 0004 y #10). Si después se le suma una condición de volumen a un estado, es un estado **nuevo**, con su propia hipótesis registrada, y no un cambio del anterior.
+
+#### Hipótesis registradas antes de mirar los datos
+
+Para todas: "la media" es el retorno medio del mismo instrumento y horizonte en el mismo tramo de datos. Una hipótesis se da por **apoyada** solo si el intervalo de confianza del 95 % (bootstrap) de la diferencia contra la media no incluye el 0. Retornos de cierre a cierre, sin costos (la operativa con costos se mide aparte, en la fase 5).
+
+| | Condición | Instrumentos | Se espera |
+|---|---|---|---|
+| **H1** (miedo, al revés) | Índice ≤ −0,6 | US 500, US Tech 100, Wall Street | retorno a 20 días hábiles **mayor** que la media |
+| **H2** (euforia, al revés) | Índice ≥ +0,6 | ídem | retorno a 20 días hábiles **menor** que la media |
+| **H3** (posicionamiento de IG) | ≥ 75 % de clientes de IG largos (o ≥ 75 % cortos) | los instrumentos con dato de IG | retorno medio a 1 y a 5 días hábiles **en contra de la mayoría** |
+| **H4** (FOMO) | FOMO de precio en 1h | US 500, US Tech 100, Wall Street | retorno a 4 h **mayor** que la media (continúa) **y** retorno a 5 días hábiles **menor** que la media |
+| **H5** (capitulación) | Clímax de venta en 1h con índice ≤ −0,6 | ídem | retorno a 5 días hábiles **mayor** que la media |
+| **H6** (rechazo) | Rechazo confirmado, con stop estructural (§8) y objetivo en el nivel opuesto más cercano (§5.3) | todos los operables | toca el objetivo antes que el stop **con más frecuencia** que una entrada aleatoria con el mismo stop, objetivo y frecuencia |
+| **H7** (distribución) | Estado de distribución | US 500, US Tech 100, Wall Street | retorno a 20 días hábiles **menor** que la media. **No se prueba hasta tener volumen real** |
+
+**Cómo se validan (fase 5, no antes):**
+- Retornos futuros agrupados por quintil del índice, con su intervalo de confianza. Si un grupo tiene menos de 30 casos: "datos insuficientes".
+- Walk-forward, con el período fuera de muestra sin tocar, comparando contra comprar y mantener y contra entradas aleatorias (ADR 0003 §D).
+- **Cada hipótesis, horizonte e instrumento probado va al registro de experimentos**, y el Sharpe deflactado los cuenta a todos. Son muchas combinaciones: ese es el principal riesgo de sobreajuste de esta capa.
+- **Si aporta**, entra al puntaje con un peso de **±1 como máximo**, sin superar el ±2 del ajuste de noticias, y solo después de votarse (ADR 0003 §C.3).
+
+**Limitación aceptada:** el sentimiento actúa en horizontes de días o semanas, no en velas de 15 minutos. Su uso esperado es como **filtro o ajuste del puntaje**, nunca como gatillo de entrada. Las medidas propias salen del precio, así que pueden repetir lo que la estrategia ya ve. Por eso se comparan contra no usarlas.
+
 ## 10. Límites de riesgo (módulo independiente, la estrategia no los puede saltear)
 
 | Límite | Valor | Qué pasa |
@@ -291,6 +370,7 @@ Por instrumento, en `config/`: [spread](../GLOSARIO.md#spread) por franja horari
   Todos los números de este punto (N, banda, K, horizontes, R, umbrales) van en `config/` y son **iniciales**: se fijan antes de mirar resultados y no se ajustan con el período fuera de muestra.
 - Los métodos son **probabilísticos** (frecuencias, intervalos de confianza, Monte Carlo para el riesgo del fondo). No se usa computación cuántica.
 - Las opciones (volatilidad implícita, put/call, VIX) son **solo contexto**.
+- **Psicología del mercado (§9.1): solo informativa en v1.** La propuesta muestra el índice de sentimiento con su zona y los estados emocionales activos, y se guardan en el diario. No cambian la probabilidad mostrada ni el puntaje hasta que la fase 5 lo valide y se vote.
 
 ## 14. Fondo del grupo
 
@@ -330,7 +410,7 @@ El sistema aprende de sus resultados, pero **nunca cambia solo sus propios pará
 
 ## 16. Qué decidió el grupo y qué decidió el agente
 
-**Lo decidió el grupo:** instrumentos, país y regulación, timeframes 15m/1h, cierre los viernes, rol del sistema (propone + responsable aprueba), señales de entrada, entrada en la ruptura del neckline, marco ICT/SMC, puntaje de confluencia, stop por estructura + ATR, TP parcial en 2R + trailing, perfil de riesgo moderado, apalancamiento que sale del riesgo, los 4 roles de las noticias, el LLM para interpretarlas, ventana de ±15 min, fuentes de noticias, modelos probabilísticos, horario de sesiones, datos gratuitos primero, tipos de análogos, universo de 5 años, idioma, capital de 1.000 €, aportes de los lunes con mínimo de 10 €, opciones solo como contexto, 3 meses de paper trading, titular único y retiros semanales.
+**Lo decidió el grupo:** instrumentos, país y regulación, timeframes 15m/1h, cierre los viernes, rol del sistema (propone + responsable aprueba), señales de entrada, entrada en la ruptura del neckline, marco ICT/SMC, puntaje de confluencia, stop por estructura + ATR, TP parcial en 2R + trailing, perfil de riesgo moderado, apalancamiento que sale del riesgo, los 4 roles de las noticias, el LLM para interpretarlas, ventana de ±15 min, fuentes de noticias, modelos probabilísticos, horario de sesiones, datos gratuitos primero, tipos de análogos, universo de 5 años, idioma, capital de 1.000 €, aportes de los lunes con mínimo de 10 €, opciones solo como contexto, 3 meses de paper trading, titular único y retiros semanales. También la psicología del mercado como capa de contexto (§9.1), con las fuentes del ADR 0004, alcance solo en EE. UU. en v1, el contrato `sentiment.v1` y los estados de precio dentro de los módulos que ya existen (#25, 22-11-2026).
 
 **Lo decidió el agente** (el grupo no es experto en lo técnico; se puede revisar en cualquier momento, y la fase 5 lo valida con datos):
 - Todos los parámetros técnicos: N = 3 de los pivotes, tolerancias, ATR14 Wilder, pesos del puntaje, umbral 5, 10 minutos de validez, tope de stop de 0,5–3 ATR, trailing a 2 ATR.
@@ -339,6 +419,7 @@ El sistema aprende de sus resultados, pero **nunca cambia solo sus propios pará
 - Filtros extra: primeros 15 minutos de sesión, spread anormal, 1 posición por instrumento.
 - Índices de Asia solo como contexto en v1.
 - Análogos solo informativos en v1, y la noticia como señal propia en modo experimental.
+- Las reglas de §9.1: la serie del COT (*Leveraged Funds* netos sobre interés abierto), las ventanas de 20 y 252 días, la EMA20 y el umbral de 3 ATR del FOMO y del clímax, el percentil de 0,10 de la complacencia, los 5 días de distribución en 25 sesiones, los vencimientos y los horizontes de H1–H7.
 
 ## 17. Supuestos y riesgos
 

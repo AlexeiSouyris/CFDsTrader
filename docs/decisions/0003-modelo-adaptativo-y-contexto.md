@@ -1,8 +1,9 @@
 # 0003 – Modelo adaptativo por régimen, capas de contexto y blindaje anti-sobreajuste
 
-- **Estado:** propuesta
+- **Estado:** aceptada
 - **Fecha:** 2026-11-20
-- **Aprobada por:** pendiente (las dos personas). Los puntos que cambian reglas de riesgo o parámetros también pasan por la votación de 4 de 6 (spec §1.2).
+- **Aprobada por:** las dos personas, el 22-11-2026 (informado en el #25). Los puntos que cambian reglas de riesgo o parámetros también pasan por la votación de 4 de 6 (spec §1.2).
+- **Actualizada por:** el [ADR 0004](0004-fuentes-de-sentimiento.md), que deja el VIX, el put/call y la AAII fuera de v1, y el #25 (spec §9.1), que pone la capa de miedo y sentimiento en el módulo `sentiment` y no en `news`.
 - **Issue:** #19
 - **Base:** [Por qué fallan los algoritmos de trading](../research/por-que-fallan-los-algoritmos.md)
 

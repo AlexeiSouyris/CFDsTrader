@@ -5,7 +5,7 @@ Los ejemplos usan el US Tech 100 (NASDAQ) cerca de 26.750 puntos, como en el gr�
 
 > Más adelante la UI (fase 10) va a mostrar estas mismas definiciones al pasar el mouse o tocar cada término. Este archivo es la **única fuente** de las definiciones: si cambia una, cambia acá.
 
-**Índice:** [Operar](#operar) · [Costos](#costos) · [Gestión de la operación](#gestion) · [Velas e indicadores](#velas) · [Patrones](#patrones) · [Liquidez (ICT/SMC)](#liquidez-ict) · [Medir resultados](#medir) · [Probar sin engañarse](#probar) · [Fondo del grupo](#fondo)
+**Índice:** [Operar](#operar) · [Costos](#costos) · [Gestión de la operación](#gestion) · [Velas e indicadores](#velas) · [Patrones](#patrones) · [Liquidez (ICT/SMC)](#liquidez-ict) · [Medir resultados](#medir) · [Probar sin engañarse](#probar) · [Psicología del mercado](#psicologia) · [Fondo del grupo](#fondo)
 
 ---
 
@@ -317,6 +317,48 @@ Situaciones del pasado (en este u otros activos) parecidas a la actual, para ver
 <a id="sentimiento"></a>
 ### Sentimiento de noticias
 Clasificar una noticia como positiva, negativa o neutral para un activo, con una magnitud de impacto estimada.
+
+---
+
+<a id="psicologia"></a>
+## Psicología del mercado
+
+Capa de contexto experimental ([spec §9.1](spec/fase-1-especificacion.md#psicologia-del-mercado)): se mide y se registra, pero no suma al puntaje hasta demostrar valor.
+
+<a id="indice-sentimiento"></a>
+### Índice de sentimiento
+Un número de −1 (miedo extremo) a +1 (euforia extrema) que combina varias fuentes. Cada fuente se compara con sus propios últimos 3 años: importa si el dato de hoy es alto o bajo **para esa fuente**.
+*Ejemplo:* si la volatilidad de hoy está entre las más altas de los últimos 3 años y el NASDAQ cayó mucho desde su máximo, el índice queda cerca de −1. Con −0,6 o menos se habla de "miedo extremo".
+
+<a id="indicador-contrario"></a>
+### Indicador contrario
+Un dato que se lee **al revés**: cuando casi todos esperan lo mismo, el precio suele ir en contra, porque ya no queda quién compre (o venda). Es una hipótesis que se mide, no una regla.
+*Ejemplo:* si el 80 % de los clientes de IG está largo en el NASDAQ, el indicador contrario espera que baje.
+
+<a id="fomo"></a>
+### FOMO
+"Miedo a quedarse afuera": compras apuradas después de una suba fuerte. Acá se mide con el precio, sin opiniones: el cierre queda muy por encima de su media (3 ATR o más) y es el más alto de las últimas 20 velas.
+*Ejemplo:* el NASDAQ sube 400 puntos en pocas horas y cierra en 27.150, muy lejos de su EMA20 de 1h en 26.800.
+
+<a id="capitulacion"></a>
+### Capitulación (pánico, clímax de venta)
+El momento en que muchos venden a cualquier precio para salir. Se mide como el FOMO, pero hacia abajo, y se llama capitulación cuando además el índice de sentimiento está en miedo extremo.
+*Ejemplo:* el NASDAQ cae 500 puntos en una tarde, cierra en el mínimo de 20 velas, y el índice marca −0,7.
+
+<a id="rechazo"></a>
+### Rechazo
+El precio llega a un nivel importante y lo devuelven con fuerza: queda una mecha larga y la vela cierra lejos del nivel. Se arma con detectores que ya existen: [martillo](#martillo) o [estrella fugaz](#estrella-fugaz) sobre un [soporte](#soporte) o una [resistencia](#resistencia), o un [sweep](#sweep) que vuelve al rango.
+*Ejemplo:* el NASDAQ baja hasta el soporte de 26.500, deja una mecha hasta 26.480 y cierra en 26.620.
+
+<a id="distribucion"></a>
+### Distribución
+Los grandes inversores venden de a poco mientras el precio todavía se sostiene. Se mide contando días de cierre en baja con más volumen que el día anterior. Necesita **volumen real**, que los CFD de IG no informan, así que todavía no se calcula.
+*Ejemplo:* 5 o más días así en las últimas 25 sesiones.
+
+<a id="complacencia"></a>
+### Complacencia
+Calma excesiva: el mercado casi no se mueve y nadie espera sustos. Se mide con la volatilidad realizada en su 10 % más bajo de los últimos 3 años.
+*Ejemplo:* el NASDAQ pasa semanas moviéndose menos de 0,5 % por día.
 
 ---
 
