@@ -478,6 +478,29 @@ export type FundMove = {
   at: string
 }
 
+/** Un movimiento ya liquidado, con los campos de `contracts/fund_movement.v1.schema.json`. */
+export type FundMovement = {
+  id: string
+  settled_at: string
+  member_id: string
+  kind: 'contribution' | 'withdrawal'
+  amount: string
+  units: string
+  nav: string
+  currency: string
+}
+
+const opening = (member: Member, n: number, amount: string): FundMovement => ({
+  id: `fund:2026-10-05:${n}`,
+  settled_at: '2026-10-05T06:00:00Z',
+  member_id: member.id,
+  kind: 'contribution',
+  amount,
+  units: amount,
+  nav: '1',
+  currency: 'EUR',
+})
+
 /** El fondo (spec §14). Todo llega calculado por el motor (`fund`): la UI solo lo muestra. */
 export const FUND = {
   currency: 'EUR',
@@ -529,6 +552,15 @@ export const FUND = {
       pnl: '4.12',
     },
   ] satisfies FundMember[],
+  /** Historial liquidado (`fund_movement.v1`): de acá salen las cuentas, nunca al revés. */
+  history: [
+    opening(MEMBERS[0], 1, '300.00'),
+    opening(MEMBERS[1], 2, '200.00'),
+    opening(MEMBERS[2], 3, '150.00'),
+    opening(MEMBERS[3], 4, '150.00'),
+    opening(MEMBERS[4], 5, '100.00'),
+    opening(MEMBERS[5], 6, '100.00'),
+  ] satisfies FundMovement[],
   moves: [
     {
       id: 'mv3',

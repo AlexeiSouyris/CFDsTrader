@@ -10,7 +10,7 @@ import { Term } from '@/components/ui/term'
 import { dateTimeUtc, decimal, isNegative, signed } from '@/lib/format'
 import { GLOSSARY } from '@/lib/glossary'
 import { cn } from '@/lib/utils'
-import { FUND, PROPOSALS, RESPONSIBLE_ID, type Member } from '@/mocks'
+import { FUND, MEMBERS, PROPOSALS, RESPONSIBLE_ID, type Member } from '@/mocks'
 
 export function ProposalsView({ member }: { member: Member }) {
   const canApprove = member.id === RESPONSIBLE_ID
@@ -85,6 +85,46 @@ export function FundView() {
                   >
                     {signed(m.pnl)} €
                   </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="glass min-w-0 rounded-[20px] p-4">
+        <h2 className="text-[14px] font-bold">Historial</h2>
+        <p className="mb-3 text-[11px] text-muted-foreground">
+          Movimientos ya liquidados. Las cuentas de cada miembro salen de este registro, que no se
+          modifica ni se borra.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[520px] text-[12px]">
+            <thead>
+              <tr className="border-b border-border text-left text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
+                <th className="py-2 font-bold">Liquidación</th>
+                <th className="py-2 font-bold">Miembro</th>
+                <th className="py-2 font-bold">Tipo</th>
+                <th className="py-2 text-right font-bold">Monto</th>
+                <th className="py-2 text-right font-bold">Unidades</th>
+                <th className="py-2 text-right font-bold">NAV</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...FUND.history].reverse().map((mv) => (
+                <tr key={mv.id} className="border-b border-border last:border-b-0">
+                  <td className="py-2 text-muted-foreground">{dateTimeUtc(mv.settled_at)}</td>
+                  <td className="py-2 font-semibold">
+                    {MEMBERS.find((m) => m.id === mv.member_id)?.name ?? mv.member_id}
+                  </td>
+                  <td className={mv.kind === 'contribution' ? 'py-2 text-up' : 'py-2 text-down'}>
+                    {mv.kind === 'contribution' ? 'aporte' : 'retiro'}
+                  </td>
+                  <td className="py-2 text-right tabular-nums">
+                    {decimal(mv.amount)} {mv.currency === 'EUR' ? '€' : mv.currency}
+                  </td>
+                  <td className="py-2 text-right tabular-nums">{decimal(mv.units)}</td>
+                  <td className="py-2 text-right tabular-nums">{decimal(mv.nav)}</td>
                 </tr>
               ))}
             </tbody>
