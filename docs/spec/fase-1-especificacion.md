@@ -255,16 +255,24 @@ componente_i = 2 × percentil_i − 1          (o 1 − 2 × percentil_i si la f
 | Amplitud | % de componentes del NASDAQ 100 **de esa fecha** con cierre por encima de su SMA50 | + = euforia | fin de la vela diaria | Rust. **Pendiente de datos** (precios de componentes, ADR 0005). Solo US Tech 100 |
 | Nuevos máximos y mínimos | (componentes en máximo de 52 semanas − en mínimo de 52 semanas) / total | + = euforia | fin de la vela diaria | Rust. **Pendiente de datos**, como la amplitud |
 
+- **Qué cierre se usa:** el de la vela diaria de IG, que va de **medianoche a medianoche de Madrid** (`docs/research/ig-velas-diarias.md`), no el cierre de la NYSE. No cambia las reglas, pero los valores no se comparan con un cierre de Nueva York.
 - **Combinación:** el percentil, el componente y el índice se calculan en Python (`intelligence/cfds_intel/sentiment`), leyendo los valores crudos de PostgreSQL. Las medidas que salen del precio se calculan **solo en Rust** (CLAUDE.md §1).
 - **Pesos iniciales:** iguales. **Mínimo de componentes válidos:** 3. Con las tres fuentes que hoy tienen datos, el índice v1 necesita las tres.
 - **Componente válido:** tiene al menos 3 años de historia publicada (calentamiento) y su último dato no está vencido. Vencimiento inicial: COT 21 días, medidas diarias 5 días.
+- ⚠️ **Pendiente de decidir por las dos personas, antes de mirar datos (revisión del PR #133):** con 5 años de diarias en el Mac mini (#102, desde 2021-11) y 3 años de calentamiento, el índice existe recién desde fines de 2024. Quedan unos 2 años, de los que además sale el tramo fuera de muestra, y con un horizonte de 20 días los quintiles extremos de H1 y H2 probablemente den "datos insuficientes". Opciones:
+  1. **Cargar más historia diaria** de US 500, US Tech 100 y Wall Street: 5 años más son unos 1.300 puntos de IG por índice, una sola vez, en el Mac mini. Mantiene los 3 años.
+  2. **Bajar el calentamiento**, por ejemplo a 2 años, dejándolo escrito antes de mirar datos. Más muestra, pero cada percentil se compara con una historia más corta.
+  3. **Las dos:** más historia y además un calentamiento más corto.
+
+  Hasta que se decida, vale lo escrito (3 años), y no se analiza ningún dato de H1 ni H2.
 - **Cuándo se recalcula:** cada vez que un componente publica un dato nuevo. La hora del índice es la del dato más reciente que usa.
 - **Zonas:** **miedo extremo ≤ −0,6** y **euforia extrema ≥ +0,6**.
 - **Sin repintado:** un valor publicado no cambia. Si la fuente corrige un dato, se guarda como dato nuevo con su propia hora de publicación.
 - **Fuera del índice v1:**
-  - **% de clientes de IG largos:** no tiene historia (se graba desde el 20-11-2026). Se usa solo en H3, con umbrales absolutos.
+  - **% de clientes de IG largos:** no tiene historia. La serie que se conserva es la del Mac mini, que se graba desde el **22-11-2026** (`cron` cada 15 min, #124); lo grabado antes en una sesión en la nube se perdió. Se usa solo en H3, con umbrales absolutos, contando desde el 22-11-2026.
   - **Sentimiento de noticias (§9):** entra cuando tenga 3 años de interpretaciones grabadas.
   - **VIX, put/call y AAII:** quedan afuera por términos de uso (ADR 0004).
+  - **X (ex Twitter):** afuera por ahora. El [ADR 0007](../decisions/0007-x-como-fuente-de-sentimiento.md) (propuesta) recomienda no incorporarlo: es pago y hay dudas sobre sus términos.
 - **Contrato:** `sentiment.v1` (nuevo, no `context_event.v1`, que es para eventos con fecha). Lleva instrumento, hora del dato, `published_at`, valor, cada componente usado con su valor crudo y su percentil, y si terminó el calentamiento. Se define en el PR que lo implemente, antes del código.
 - **Cómo lo usa Rust:** solo lo guarda en el diario con cada propuesta (§15b). No toca el puntaje.
 
