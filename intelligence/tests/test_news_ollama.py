@@ -15,6 +15,7 @@ from cfds_intel.news.ollama import (
     PROMPT_SHA256,
     OllamaError,
     OllamaInterpreter,
+    interpreter_version,
     load_config,
     load_model,
     loaded_memory_bytes,
@@ -121,7 +122,7 @@ def test_request_is_deterministic_structured_and_records_model_and_prompt() -> N
     doc = interpret(ITEM, interp, INSTRUMENTS, PUBLISHED + timedelta(minutes=1)).to_contract()
     assert doc["interpreter"] == {
         "name": "ollama",
-        "version": "p2",
+        "version": interpreter_version(CFG.text_sha256, DIGEST),
         "model": f"{MODEL}@{DIGEST}",
         "prompt_sha256": PROMPT_SHA256,
     }
@@ -351,3 +352,17 @@ def test_impact_is_read_per_headline_and_spearman_is_informative() -> None:
     assert spearman(d, list(reversed(d))) == Decimal("-1.000")
     assert spearman(d, [Decimal(1)] * 4) is None  # sin variación no hay correlación
     assert spearman(d[:2], d[:2]) is None  # con menos de 3 no se calcula
+
+
+def test_version_changes_with_the_text_config_and_the_model() -> None:
+    """#190: otro texto de entrada u otro modelo es otro intérprete (id nuevo)."""
+    base = interpreter_version(CFG.text_sha256, DIGEST)
+    assert re.fullmatch(r"p\d+\.t[0-9a-f]{8}\.m[0-9a-f]{12}", base)
+    other_text = load_config(REAL.replace("head_chars = 1500", "head_chars = 1400"))
+    assert other_text.text_sha256 != CFG.text_sha256
+    assert interpreter_version(other_text.text_sha256, DIGEST) != base
+    assert interpreter_version(CFG.text_sha256, "b" * 64) != base
+    # El cliente y la espera no cambian el texto: no cambian la versión.
+    same = load_config(REAL.replace("timeout_secs = 30", "timeout_secs = 31"))
+    assert same.text_sha256 == CFG.text_sha256
+    assert CFG.text_layout.sections and CFG.text_layout.drop

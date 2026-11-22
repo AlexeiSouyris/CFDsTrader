@@ -40,7 +40,8 @@ digest = "e8294492472089284eff74350fbd8f076baee56577a125dd6f32205feba144e8"
 # republica (ADR 0006): solo queda la interpretación.
 [text]
 allowed_hosts = ["www.federalreserve.gov", "www.ecb.europa.eu"]
-# Recorte del texto para que entre en el contexto del modelo local.
+# Recorte del texto para que entre en el contexto del modelo local. Es el total, con el inicio, las
+# secciones y las marcas de corte " […] ".
 max_chars = 6000
 user_agent = "cfds-intel/0.1 (automated news reader)"
 timeout_secs = 30
@@ -55,6 +56,34 @@ follow = [
   "^/monetarypolicy/files/fomcminutes\\d{8}\\.pdf$",
   "^/monetarypolicy/files/fomcprojtabl\\d{8}\\.pdf$",
 ]
+
+# Selección del texto (#190). Las actas del FOMC tienen ~45.000 caracteres y la decisión y la
+# discusión de los miembros están al final. Cualquier cambio de esta tabla cambia la versión del
+# intérprete (huella de [text]) y las noticias se vuelven a interpretar.
+#
+# Texto del sitio que no es la noticia (menús, avisos, cookies): se quita antes de elegir.
+# Expresiones regulares (el punto cubre saltos de línea). Verificado el 23-11-2026 en las páginas de
+# la Fed (~870 caracteres por página, dos páginas en actas y proyecciones) y del BCE.
+drop = [
+  "Skip to main content .*? Search Toggle Button",
+  "Skip to: Skip to navigation .*? Sort by Relevance Date",
+  "We are always working to improve this website for our users\\..*$",
+]
+# Caracteres del inicio que siempre se leen (título, comunicado y comienzo del documento).
+head_chars = 1500
+# Secciones clave, en orden de prioridad. Cada una va desde su título hasta el próximo título de
+# la lista o section_max_chars. Solo se usan si el texto no entra entero; lo que sobra completa el
+# inicio. Títulos verificados el 23-11-2026 en las actas del 28-10-2026 y las proyecciones del
+# 16-09-2026.
+sections = [
+  "Committee Policy Actions",
+  "Policymakers' Discussion of Current Conditions",
+  "Table 1\\. Economic projections",
+  "Staff Economic Outlook",
+]
+section_max_chars = 1500
+# Caracteres de un PDF enlazado que se leen para encontrar las secciones (las actas en PDF).
+scan_max_chars = 80000
 
 # Criterios de la prueba de selección (ADR 0008 §4), fijados antes de mirar resultados.
 # Números aprobados por el dueño el 22-11-2026.
