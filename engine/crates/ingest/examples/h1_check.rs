@@ -4,7 +4,9 @@
 //! ```text
 //! DATABASE_URL=... cargo run -p cfds-ingest --example h1_check -- <INSTRUMENTO> <desde UTC> <hasta UTC>
 //! ```
-//! Solo se comparan las horas completas de sesión según el calendario de la bolsa.
+//! Solo se comparan las horas completas de sesión según el calendario de la bolsa. Da, por
+//! campo, la diferencia máxima y el p99, y cuántas horas muestran el efecto de los picos de bid
+//! y ask (esperable) o el signo contrario (error de datos), `H1Comparison::stats`.
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -62,9 +64,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         r.identical,
         r.differing.len()
     );
+    let st = r.stats();
     for (k, (name, max)) in FIELDS.iter().zip(r.max_abs_diff).enumerate() {
         let n = r.differing.iter().filter(|(_, d)| !d[k].is_zero()).count();
-        println!("  {name}: difiere en {n} horas, diferencia máxima {max} puntos");
+        println!(
+            "  {name}: difiere en {n} horas, diferencia máxima {max} puntos, p99 {} puntos",
+            st.p99_abs_diff[k]
+        );
+    }
+    println!(
+        "efecto de los picos de bid y ask (IG con el máximo más alto o el mínimo más bajo que la \
+         armada): {} horas ({} por el máximo, {} por el mínimo)",
+        st.peak_hours, st.peak_high, st.peak_low
+    );
+    if st.wrong_hours > 0 {
+        println!(
+            "⚠️  ERROR DE DATOS: {} horas con el signo contrario ({} con el máximo de IG por \
+             debajo del armado, {} con el mínimo de IG por encima): con los mismos precios no \
+             puede pasar",
+            st.wrong_hours, st.wrong_high, st.wrong_low
+        );
+    } else {
+        println!("signo contrario (error de datos): 0 horas");
     }
     for (start, d) in r.differing.iter().take(SHOW) {
         println!("  {start}: IG − armada = {d:?}");

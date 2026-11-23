@@ -22,7 +22,7 @@ pub mod spread_filter;
 pub mod trading_window;
 pub mod validation;
 
-pub use aggregate::{AggregateError, H1Comparison, aggregate_h1, compare_h1};
+pub use aggregate::{AggregateError, H1Comparison, H1Stats, aggregate_h1, compare_h1};
 pub use calendar::{CalendarError, ExchangeCalendar, Session};
 pub use candle_source::{CandleSource, CandleSources, RollDay};
 pub use config::{ConfigError, ValidationConfig};
