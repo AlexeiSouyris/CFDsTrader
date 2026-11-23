@@ -459,6 +459,7 @@ dependencies = [
  "cfds-strategy",
  "chrono",
  "chrono-tz",
+ "jsonschema",
  "rust_decimal",
  "serde",
  "serde_json",

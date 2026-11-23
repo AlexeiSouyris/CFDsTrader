@@ -14,6 +14,8 @@
 //! `submit_and_record` (así queda en el registro). El mismo id para la misma decisión hace que
 //! un reinicio no la duplique: el broker restaurado devuelve el informe guardado.
 
+pub mod compare;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use cfds_backtest::choose;

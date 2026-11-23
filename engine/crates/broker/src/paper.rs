@@ -142,6 +142,37 @@ struct OpenTrade {
     opened_at: DateTime<Utc>,
 }
 
+/// Una salida de una operación del broker simulado.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PaperExit {
+    /// Fin de la vela de la salida.
+    pub time: DateTime<Utc>,
+    pub mid: Decimal,
+    pub price: Decimal,
+    pub fraction: Decimal,
+    /// Seguía abierta: se cierra al último cierre (como `EndOfData` en el backtest).
+    pub end_of_data: bool,
+}
+
+/// Una operación del broker simulado, valuada (ver [`PaperBroker::trade_outcomes`]). Montos en la
+/// moneda del instrumento.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PaperTrade {
+    pub order_id: ClientId,
+    pub instrument: InstrumentId,
+    pub side: OrderSide,
+    pub opened_at: DateTime<Utc>,
+    pub entry_mid: Decimal,
+    pub entry_fill: Decimal,
+    pub size: Decimal,
+    pub stop: Decimal,
+    pub exits: Vec<PaperExit>,
+    pub commission: Decimal,
+    pub funding: Decimal,
+    pub gross_pnl: Decimal,
+    pub net_pnl: Decimal,
+}
+
 /// Lo que pasó en el broker, para los logs estructurados y las alertas (fase 9, #297). Quien
 /// usa el broker los saca con [`PaperBroker::take_events`]; el broker no escribe logs.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -332,6 +363,87 @@ impl PaperBroker {
                 funding_over(side, t.entry_mid, size, &known, &f.rates, &m.costs)
                     .unwrap_or(Decimal::ZERO)
             }
+        }
+    }
+
+    /// Cada operación abierta hasta `now`, valuada como la valúa el broker (las mismas salidas
+    /// de `valuate`), para compararla con el backtest (fase 8, #315). Lo que sigue abierto se
+    /// cierra al último cierre ya cerrado, como `EndOfData` en el backtest. Montos en la moneda
+    /// del instrumento.
+    pub fn trade_outcomes(&self, now: DateTime<Utc>) -> Vec<PaperTrade> {
+        self.trades
+            .iter()
+            .filter(|t| t.opened_at <= now)
+            .map(|t| self.outcome(t, now))
+            .collect()
+    }
+
+    fn outcome(&self, t: &OpenTrade, now: DateTime<Utc>) -> PaperTrade {
+        let m = &self.markets[&t.instrument];
+        let side = strategy_side(t.side);
+        let closed: Vec<Candle> = m
+            .candles
+            .iter()
+            .filter(|c| c.end() <= now)
+            .cloned()
+            .collect();
+        let exit_px = |mid| fill_price(side, Execution::Exit, mid, &m.costs, &self.cfg.costs);
+        let mut exits = Vec::new();
+        let mut open = Decimal::ONE;
+        if closed.len() > t.entry_index {
+            let atr = wilder_atr(&closed, self.cfg.atr_period);
+            let trade = Trade {
+                side,
+                entry_index: t.entry_index,
+                entry: t.entry_mid,
+                stop: t.stop,
+            };
+            if let Some(out) = simulate(&trade, &closed, &atr, &[], &self.cfg.exits) {
+                for f in &out.fills {
+                    exits.push(PaperExit {
+                        time: closed[f.index].end(),
+                        mid: f.price,
+                        price: exit_px(f.price),
+                        fraction: f.fraction,
+                        end_of_data: false,
+                    });
+                }
+                open = out.open_fraction;
+            }
+        }
+        if open > Decimal::ZERO
+            && let Some(last) = closed.last()
+        {
+            exits.push(PaperExit {
+                time: last.end(),
+                mid: last.close,
+                price: exit_px(last.close),
+                fraction: open,
+                end_of_data: true,
+            });
+        }
+        let (mut commission_total, mut funding, mut gross) =
+            (t.entry_commission, Decimal::ZERO, Decimal::ZERO);
+        for e in &exits {
+            let part = t.size * e.fraction;
+            commission_total += commission(&m.costs, part, e.price);
+            funding += self.funding(t, part, e.time);
+            gross += part * (e.price - t.entry_fill) * sign(t.side);
+        }
+        PaperTrade {
+            order_id: t.order_id.clone(),
+            instrument: t.instrument.clone(),
+            side: t.side,
+            opened_at: t.opened_at,
+            entry_mid: t.entry_mid,
+            entry_fill: t.entry_fill,
+            size: t.size,
+            stop: t.stop,
+            exits,
+            commission: commission_total,
+            funding,
+            gross_pnl: gross,
+            net_pnl: gross - commission_total - funding,
         }
     }
 

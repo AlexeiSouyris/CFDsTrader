@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/paper_comparison.v1.schema.json",
+  "title": "Paper comparison v1",
+  "description": "Comparación de paper trading (registro del broker simulado) contra el backtest del mismo período, sobre las mismas velas cerradas y la misma config (fase 8, #315). Las operaciones se emparejan por vela de decisión. La diferencia total (P/L paper − P/L backtest) se reparte por causa y la suma de las causas es exactamente la diferencia. Montos en la moneda del instrumento, redondeados a 8 decimales. Solo paper: nunca dinero real.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["comparison_id", "instrument_id", "from", "to", "created_at", "paper", "backtest", "difference", "causes", "matched", "missing", "extra", "paper_rejections"],
+  "properties": {
+    "comparison_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,200}$" },
+    "instrument_id": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" },
+    "from": { "description": "Inicio del período de las decisiones (incluido), UTC.", "$ref": "#/$defs/utc" },
+    "to": { "description": "Fin del período (excluido), UTC.", "$ref": "#/$defs/utc" },
+    "created_at": { "$ref": "#/$defs/utc" },
+    "paper": { "$ref": "#/$defs/totals" },
+    "backtest": { "$ref": "#/$defs/totals" },
+    "difference": { "description": "P/L paper − P/L backtest.", "$ref": "#/$defs/signed" },
+    "causes": {
+      "description": "La diferencia repartida por causa. fill_price, size, commission y swap salen de las operaciones emparejadas; weekend_close, de las emparejadas que el backtest cerró por el cierre de fin de semana (el broker simulado no lo hace, #278: toda su diferencia va acá); risk_rejection, de lo que un lado rechazó y el otro operó; missing_in_paper y extra_in_paper, del resto de las faltantes y las sobrantes.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fill_price", "size", "commission", "swap", "weekend_close", "risk_rejection", "missing_in_paper", "extra_in_paper"],
+      "properties": {
+        "fill_price": { "$ref": "#/$defs/signed" },
+        "size": { "$ref": "#/$defs/signed" },
+        "commission": { "$ref": "#/$defs/signed" },
+        "swap": { "$ref": "#/$defs/signed" },
+        "weekend_close": { "$ref": "#/$defs/signed" },
+        "risk_rejection": { "$ref": "#/$defs/signed" },
+        "missing_in_paper": { "$ref": "#/$defs/signed" },
+        "extra_in_paper": { "$ref": "#/$defs/signed" }
+      }
+    },
+    "matched": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["decision_at", "side", "order_id", "paper", "backtest", "difference", "weekend_close"],
+        "properties": {
+          "decision_at": { "description": "Cierre de la vela de la decisión (created_at de la orden).", "$ref": "#/$defs/utc" },
+          "side": { "enum": ["long", "short"] },
+          "order_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,200}$" },
+          "paper": { "$ref": "#/$defs/leg" },
+          "backtest": { "$ref": "#/$defs/leg" },
+          "difference": {
+            "description": "Paper − backtest.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["entry_price", "exit_price", "size", "net_pnl"],
+            "properties": {
+              "entry_price": { "$ref": "#/$defs/signed" },
+              "exit_price": { "$ref": "#/$defs/signed" },
+              "size": { "$ref": "#/$defs/signed" },
+              "net_pnl": { "$ref": "#/$defs/signed" }
+            }
+          },
+          "weekend_close": { "type": "boolean" }
+        }
+      }
+    },
+    "missing": {
+      "description": "Operaciones del backtest que no están en paper.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["decision_at", "side", "backtest_net_pnl", "paper"],
+        "properties": {
+          "decision_at": { "$ref": "#/$defs/utc" },
+          "side": { "enum": ["long", "short"] },
+          "backtest_net_pnl": { "$ref": "#/$defs/signed" },
+          "paper": { "description": "no_order (no hubo orden) o el motivo del rechazo del broker (order_report.v1).", "type": "string" }
+        }
+      }
+    },
+    "extra": {
+      "description": "Operaciones de paper que el backtest no hizo.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["decision_at", "side", "order_id", "paper_net_pnl", "backtest"],
+        "properties": {
+          "decision_at": { "$ref": "#/$defs/utc" },
+          "side": { "enum": ["long", "short"] },
+          "order_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,200}$" },
+          "paper_net_pnl": { "$ref": "#/$defs/signed" },
+          "backtest": { "description": "no_trade (el backtest no operó esa vela) o rejected:<motivo del riesgo>.", "type": "string" }
+        }
+      }
+    },
+    "paper_rejections": {
+      "description": "Órdenes de paper rechazadas sin operación del backtest en esa vela, por motivo. No mueven el P/L.",
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 1 }
+    }
+  },
+  "$defs": {
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" },
+    "decimal": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "signed": { "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" },
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trades", "net_pnl"],
+      "properties": {
+        "trades": { "type": "integer", "minimum": 0 },
+        "net_pnl": { "$ref": "#/$defs/signed" }
+      }
+    },
+    "leg": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entry_time", "entry_price", "exit_time", "exit_price", "size", "commission", "swap", "net_pnl"],
+      "properties": {
+        "entry_time": { "$ref": "#/$defs/utc" },
+        "entry_price": { "$ref": "#/$defs/decimal" },
+        "exit_time": { "description": "Última salida (fin de su vela).", "$ref": "#/$defs/utc" },
+        "exit_price": { "description": "Precio de salida promedio, ponderado por la fracción cerrada.", "$ref": "#/$defs/decimal" },
+        "size": { "$ref": "#/$defs/decimal" },
+        "commission": { "$ref": "#/$defs/signed" },
+        "swap": { "description": "Financiación nocturna (positivo es un costo).", "$ref": "#/$defs/signed" },
+        "net_pnl": { "$ref": "#/$defs/signed" }
+      }
+    }
+  }
+}
