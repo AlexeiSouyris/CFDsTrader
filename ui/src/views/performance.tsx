@@ -1,0 +1,226 @@
+/**
+ * Pestaña Performance (#286): resumen general de la simulación. Las corridas de backtest con la
+ * forma de `backtest_run.v1`, el fondo y las estadísticas de la última corrida.
+ *
+ * **No calcula nada** (CLAUDE.md §1): las métricas llegan del motor y se muestran tal cual; las
+ * fracciones se pasan a % corriendo la coma en el texto (`percent`).
+ *
+ * TODO(#286): hoy todo sale de `mocks/` (`BACKTEST_RUNS`, `FUND`): el gateway todavía no expone
+ * `backtest_runs` ni el fondo. No se inventan contratos: los tipos son los de `contracts/`.
+ */
+import type { ReactNode } from 'react'
+
+import { AnimatedNumber } from '@/components/ui/animated-number'
+import { Term } from '@/components/ui/term'
+import { dateTimeUtc, decimal, percent } from '@/lib/format'
+import { cn } from '@/lib/utils'
+import { BACKTEST_RUNS, FUND, type BacktestRun } from '@/mocks'
+
+const DAY_YEAR = new Intl.DateTimeFormat('es-ES', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+})
+/** "01 ene 2024": el período de una corrida puede cruzar años. */
+const dayYear = (iso: string) => DAY_YEAR.format(new Date(iso))
+
+/** Una fracción del motor ("-0.0125") como % con signo ("−1,25 %"), sin pasar por float. */
+function signedPct(fraction: string, digits = 2) {
+  const neg = fraction.startsWith('-')
+  const p = percent(fraction.replace('-', ''), digits)
+  const zero = /^[0,]+$/.test(p)
+  return `${zero ? '' : neg ? '−' : '+'}${p} %`
+}
+const pctOrDash = (f: string | null, digits = 1) => (f === null ? '—' : `${percent(f, digits)} %`)
+const numOrDash = (f: string | null) => (f === null ? '—' : decimal(f))
+const tone = (f: string) =>
+  /^-?0(\.0*)?$/.test(f) ? undefined : f.startsWith('-') ? 'text-down' : 'text-up'
+
+function Card({
+  title,
+  aside,
+  children,
+  className,
+}: {
+  title?: ReactNode
+  aside?: ReactNode
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <section
+      className={cn(
+        'glass relative min-w-0 rounded-[20px] p-4 has-[[role=dialog]]:z-30',
+        className,
+      )}
+    >
+      {title && (
+        <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-[14px] font-bold">{title}</h2>
+          {aside && <span className="text-[11px] text-muted-foreground">{aside}</span>}
+        </header>
+      )}
+      {children}
+    </section>
+  )
+}
+
+function Kpi({ label, value, detail }: { label: ReactNode; value: ReactNode; detail: string }) {
+  return (
+    <Card className="flex min-h-28 flex-col justify-between">
+      <span className="text-[11px] font-bold text-muted-foreground">{label}</span>
+      <strong className="text-[clamp(22px,2.4vw,30px)] leading-none font-extrabold tracking-[-0.04em]">
+        {value}
+      </strong>
+      <span className="text-[10.5px] text-muted-foreground">{detail}</span>
+    </Card>
+  )
+}
+
+function RunsTable({ runs }: { runs: BacktestRun[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table aria-label="Corridas de backtest" className="w-full min-w-[860px] text-[12.5px]">
+        <thead>
+          <tr className="border-b border-border text-left text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
+            <th className="py-2 font-bold">Corrida</th>
+            <th className="py-2 font-bold">Instrumentos</th>
+            <th className="py-2 font-bold">TF</th>
+            <th className="py-2 font-bold">Período</th>
+            <th className="py-2 text-right font-bold">Operaciones</th>
+            <th className="py-2 text-right font-bold">Retorno</th>
+            <th className="py-2 text-right font-bold">DD máx.</th>
+            <th className="py-2 text-right font-bold">Sharpe</th>
+            <th className="py-2 text-right font-bold">Acierto</th>
+            <th className="py-2 text-right font-bold">Kill switch</th>
+          </tr>
+        </thead>
+        <tbody>
+          {runs.map((r) => (
+            <tr key={r.run_id} className="border-b border-border last:border-b-0">
+              <td className="py-2.5">
+                <span className="block font-semibold">{r.run_id}</span>
+                <span className="text-[10.5px] text-muted-foreground">
+                  {dateTimeUtc(r.finished_at)} ·{' '}
+                  {r.costs.spread_source === 'config' ? 'spread de config' : 'spread medido'}
+                </span>
+              </td>
+              <td className="py-2.5">{r.instruments.join(', ')}</td>
+              <td className="py-2.5">{r.timeframe}</td>
+              <td className="py-2.5 whitespace-nowrap">
+                {dayYear(r.from)} – {dayYear(r.to)}
+              </td>
+              <td className="py-2.5 text-right tabular-nums">{r.metrics.trades}</td>
+              <td className={cn('py-2.5 text-right tabular-nums', tone(r.metrics.total_return))}>
+                {signedPct(r.metrics.total_return)}
+              </td>
+              <td className="py-2.5 text-right tabular-nums">
+                {pctOrDash(r.metrics.max_drawdown, 2)}
+              </td>
+              <td className="py-2.5 text-right tabular-nums">{numOrDash(r.metrics.sharpe)}</td>
+              <td className="py-2.5 text-right tabular-nums">{pctOrDash(r.metrics.win_rate)}</td>
+              <td className="py-2.5 text-right">
+                {r.metrics.kill_switch_at ? dayYear(r.metrics.kill_switch_at) : 'no'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export function PerformanceView({ onOpen }: { onOpen: (view: string) => void }) {
+  const last = BACKTEST_RUNS[0]
+  const m = last?.metrics
+  return (
+    <div className="grid gap-3">
+      <p className="max-w-3xl text-[13px] text-muted-foreground">
+        Cómo le fue a la simulación, con costos incluidos (spread, slippage y financiación). Son
+        resultados del pasado con <strong className="text-foreground">datos de ejemplo</strong>: no
+        anticipan lo que va a pasar.
+      </p>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Kpi
+          label={<Term id="nav">Valor de la unidad</Term>}
+          value={<AnimatedNumber value={FUND.nav} format={decimal} />}
+          detail={`cierre del ${dateTimeUtc(FUND.navAt)}`}
+        />
+        <Kpi
+          label="Valor del fondo"
+          value={
+            <>
+              <AnimatedNumber value={FUND.total} format={decimal} /> €
+            </>
+          }
+          detail={`${FUND.members.length} miembros, simulación`}
+        />
+        {m && (
+          <>
+            <Kpi
+              label="Retorno de la última corrida"
+              value={<span className={tone(m.total_return)}>{signedPct(m.total_return)}</span>}
+              detail={`${m.trades} operaciones, con costos`}
+            />
+            <Kpi
+              label={<Term id="drawdown">Drawdown máximo</Term>}
+              value={pctOrDash(m.max_drawdown, 2)}
+              detail="de la última corrida"
+            />
+          </>
+        )}
+      </div>
+
+      <Card title="Corridas de backtest" aside={`${BACKTEST_RUNS.length} corridas (ejemplo)`}>
+        {BACKTEST_RUNS.length ? (
+          <RunsTable runs={BACKTEST_RUNS} />
+        ) : (
+          <p className="text-[12.5px]">Todavía no hay corridas guardadas.</p>
+        )}
+      </Card>
+
+      <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">
+        {m && (
+          <Card title="Estadísticas de la última corrida" aside={last.run_id}>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+              {(
+                [
+                  ['Operaciones', String(m.trades)],
+                  ['Acierto', pctOrDash(m.win_rate)],
+                  ['Profit factor', numOrDash(m.profit_factor)],
+                  ['Sharpe', numOrDash(m.sharpe)],
+                  ['Sortino', numOrDash(m.sortino)],
+                  ['Exposición', pctOrDash(m.exposure)],
+                ] as const
+              ).map(([label, value]) => (
+                <div key={label}>
+                  <dt className="text-[10.5px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
+                    {label}
+                  </dt>
+                  <dd className="mt-1 text-[18px] font-extrabold tracking-[-0.02em] tabular-nums">
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </Card>
+        )}
+        <Card title="Fondo" aside="simulación">
+          <p className="text-[12.5px] text-muted-foreground">
+            {decimal(FUND.units)} unidades a {decimal(FUND.nav)} € cada una, repartidas entre{' '}
+            {FUND.members.length} miembros.
+          </p>
+          <button
+            type="button"
+            onClick={() => onOpen('fondo')}
+            className="mt-3 text-[12px] font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Ver el fondo y cada miembro
+          </button>
+        </Card>
+      </div>
+    </div>
+  )
+}

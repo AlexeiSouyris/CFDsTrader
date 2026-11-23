@@ -8,6 +8,7 @@
  */
 import { useMemo, useState } from 'react'
 
+import { AnimatedNumber } from '@/components/ui/animated-number'
 import { Segmented } from '@/components/ui/segmented'
 import { dateTimeUtc, dateUtc, decimal } from '@/lib/format'
 import { fvgKey, levelKey, levelName, levelShort, STATE_LABEL } from '@/lib/liquidity-labels'
@@ -157,7 +158,7 @@ export function LiquidityChart({
           </p>
           {last && (
             <p className="mt-1 text-[26px] leading-none font-bold tracking-[-0.03em]">
-              {decimal(last.close)}
+              <AnimatedNumber value={last.close} format={decimal} />
             </p>
           )}
           {lastClose && (
@@ -182,7 +183,7 @@ export function LiquidityChart({
         </div>
       </div>
 
-      <div ref={boxRef} className="relative w-full">
+      <div ref={boxRef} className="chart-enter relative w-full">
         <svg
           width={width}
           height={height}

@@ -27,6 +27,7 @@ type Popover = 'notices' | 'glass' | null
 export function GlassShell({
   brand = 'CFDsTrader',
   views,
+  tabs = [],
   active,
   onSelect,
   theme,
@@ -40,6 +41,8 @@ export function GlassShell({
 }: {
   brand?: string
   views: ShellView[]
+  /** pestañas principales (#286): van arriba de cada vista, con su hash */
+  tabs?: ShellView[]
   active: string
   onSelect: (id: string) => void
   theme: 'dark' | 'light'
@@ -208,6 +211,7 @@ export function GlassShell({
               </h1>
               <p className="mt-2 text-[13px] text-muted-foreground">{current.description}</p>
             </div>
+            {tabs.length > 0 && <Tabs tabs={tabs} active={active} onSelect={onSelect} />}
           </header>
           {children}
           <p
@@ -233,6 +237,62 @@ export function GlassShell({
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Las pestañas principales. Son enlaces con su hash (entran en el historial); la marca de la
+ * pestaña activa se desliza con `transform` (barata, sin animar el layout).
+ */
+function Tabs({
+  tabs,
+  active,
+  onSelect,
+}: {
+  tabs: ShellView[]
+  active: string
+  onSelect: (id: string) => void
+}) {
+  const at = tabs.findIndex((t) => t.id === active)
+  return (
+    <nav
+      aria-label="Secciones"
+      className="relative grid rounded-full border border-border p-1"
+      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+    >
+      {at >= 0 && (
+        <span
+          aria-hidden
+          className="tab-thumb absolute inset-y-1 left-1 rounded-full bg-primary"
+          style={{
+            width: `calc((100% - 8px) / ${tabs.length})`,
+            transform: `translateX(${at * 100}%)`,
+          }}
+        />
+      )}
+      {tabs.map(({ id, label, icon: Icon }) => {
+        const on = id === active
+        return (
+          <a
+            key={id}
+            href={`#${id}`}
+            aria-current={on ? 'page' : undefined}
+            onClick={(e) => {
+              if (e.metaKey || e.ctrlKey || e.shiftKey) return
+              e.preventDefault()
+              onSelect(id)
+            }}
+            className={cn(
+              'relative z-10 flex min-h-9 items-center justify-center gap-1.5 rounded-full px-3 text-[12px] font-bold sm:px-4',
+              on ? 'text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <Icon className="size-[15px]" aria-hidden="true" />
+            {label}
+          </a>
+        )
+      })}
+    </nav>
   )
 }
 

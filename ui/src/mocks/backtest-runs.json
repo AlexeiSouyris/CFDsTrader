@@ -1,0 +1,158 @@
+{
+  "note": "DATOS DE EJEMPLO (#286): corridas inventadas con la forma de backtest_run.v1. No son resultados reales del motor.",
+  "runs": [
+    {
+      "run_id": "ejemplo-2026-11-22-us100-de40",
+      "instruments": ["US100", "DE40"],
+      "timeframe": "15m",
+      "from": "2026-05-01T00:00:00Z",
+      "to": "2026-11-01T00:00:00Z",
+      "config_sha256": "0000000000000000000000000000000000000000000000000000000000000001",
+      "initial_equity": "10000.00",
+      "costs": {
+        "slippage_spread_fraction": "0.5",
+        "slippage_ticks": "1",
+        "spread_source": "measured",
+        "instruments": [
+          {
+            "instrument_id": "US100",
+            "spread": "1.8",
+            "tick": "0.1",
+            "commission": { "kind": "none" },
+            "funding_admin_fee_pct": "2.5",
+            "funding_day_count": "360"
+          },
+          {
+            "instrument_id": "DE40",
+            "spread": "1.2",
+            "tick": "0.1",
+            "commission": { "kind": "none" },
+            "funding_admin_fee_pct": "2.5",
+            "funding_day_count": "360"
+          }
+        ]
+      },
+      "news": {
+        "interpreter_name": "ejemplo",
+        "interpreter_version": "0.1.0",
+        "interpreter_model": null,
+        "published_from": "2026-05-01T00:00:00Z",
+        "interpretations": 0
+      },
+      "metrics": {
+        "trades": 84,
+        "final_equity": "10412.30",
+        "total_return": "0.0412",
+        "max_drawdown": "0.0310",
+        "sharpe": "0.84",
+        "sortino": "1.12",
+        "win_rate": "0.4524",
+        "profit_factor": "1.18",
+        "exposure": "0.2210"
+      },
+      "started_at": "2026-11-22T08:00:00Z",
+      "finished_at": "2026-11-22T08:03:12Z"
+    },
+    {
+      "run_id": "ejemplo-2026-11-21-indices-1h",
+      "instruments": ["US100", "US500", "US30", "DE40"],
+      "timeframe": "1h",
+      "from": "2024-01-01T00:00:00Z",
+      "to": "2026-01-01T00:00:00Z",
+      "config_sha256": "0000000000000000000000000000000000000000000000000000000000000002",
+      "initial_equity": "10000.00",
+      "costs": {
+        "slippage_spread_fraction": "0.5",
+        "slippage_ticks": "1",
+        "spread_source": "config",
+        "instruments": [
+          {
+            "instrument_id": "US100",
+            "spread": "1.8",
+            "tick": "0.1",
+            "commission": { "kind": "none" },
+            "funding_admin_fee_pct": "2.5",
+            "funding_day_count": "360"
+          },
+          {
+            "instrument_id": "US500",
+            "spread": "0.6",
+            "tick": "0.1",
+            "commission": { "kind": "none" },
+            "funding_admin_fee_pct": "2.5",
+            "funding_day_count": "360"
+          },
+          {
+            "instrument_id": "US30",
+            "spread": "2.4",
+            "tick": "0.1",
+            "commission": { "kind": "none" },
+            "funding_admin_fee_pct": "2.5",
+            "funding_day_count": "360"
+          },
+          {
+            "instrument_id": "DE40",
+            "spread": "1.2",
+            "tick": "0.1",
+            "commission": { "kind": "none" },
+            "funding_admin_fee_pct": "2.5",
+            "funding_day_count": "360"
+          }
+        ]
+      },
+      "news": null,
+      "metrics": {
+        "trades": 212,
+        "final_equity": "9875.40",
+        "total_return": "-0.0125",
+        "max_drawdown": "0.0820",
+        "sharpe": "-0.12",
+        "sortino": "-0.15",
+        "win_rate": "0.4010",
+        "profit_factor": "0.96",
+        "exposure": "0.3140",
+        "kill_switch_at": "2025-08-12T14:00:00Z"
+      },
+      "started_at": "2026-11-21T19:00:00Z",
+      "finished_at": "2026-11-21T19:11:40Z"
+    },
+    {
+      "run_id": "ejemplo-2026-11-20-sin-operaciones",
+      "instruments": ["US30"],
+      "timeframe": "15m",
+      "from": "2026-10-01T00:00:00Z",
+      "to": "2026-10-08T00:00:00Z",
+      "config_sha256": "0000000000000000000000000000000000000000000000000000000000000003",
+      "initial_equity": "10000.00",
+      "costs": {
+        "slippage_spread_fraction": "0.5",
+        "slippage_ticks": "1",
+        "spread_source": "measured",
+        "instruments": [
+          {
+            "instrument_id": "US30",
+            "spread": "2.4",
+            "tick": "0.1",
+            "commission": { "kind": "none" },
+            "funding_admin_fee_pct": "2.5",
+            "funding_day_count": "360"
+          }
+        ]
+      },
+      "news": null,
+      "metrics": {
+        "trades": 0,
+        "final_equity": "10000.00",
+        "total_return": "0",
+        "max_drawdown": "0",
+        "sharpe": null,
+        "sortino": null,
+        "win_rate": null,
+        "profit_factor": null,
+        "exposure": null
+      },
+      "started_at": "2026-11-20T10:00:00Z",
+      "finished_at": "2026-11-20T10:00:41Z"
+    }
+  ]
+}

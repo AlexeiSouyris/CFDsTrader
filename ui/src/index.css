@@ -115,6 +115,99 @@ body {
   }
 }
 
+/*
+ * Movimiento (#286). Solo `transform` y `opacity` (no se anima el layout), con una sola curva y
+ * duraciones cortas. Todo se apaga con `prefers-reduced-motion` (abajo).
+ */
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  summary {
+    transition:
+      color 160ms var(--ease-out),
+      background-color 160ms var(--ease-out),
+      border-color 160ms var(--ease-out),
+      box-shadow 160ms var(--ease-out),
+      outline-offset 160ms var(--ease-out),
+      transform 160ms var(--ease-out);
+  }
+  button:not(:disabled):active {
+    transform: scale(0.97);
+  }
+  :focus-visible {
+    outline-offset: 3px;
+  }
+}
+
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+}
+@keyframes view-in-next {
+  from {
+    opacity: 0;
+    transform: translate3d(48px, 0, 0);
+  }
+}
+@keyframes view-in-prev {
+  from {
+    opacity: 0;
+    transform: translate3d(-48px, 0, 0);
+  }
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* entrada de una vista o pestaña: desde el costado hacia donde se fue (data-dir) */
+.view-enter {
+  animation: view-in 360ms var(--ease-out) backwards;
+}
+.view-enter[data-dir='1'] {
+  animation-name: view-in-next;
+}
+.view-enter[data-dir='-1'] {
+  animation-name: view-in-prev;
+}
+/* paneles y tarjetas de la vista: aparecen escalonados */
+.view-enter .glass {
+  animation: rise-in 420ms var(--ease-out) backwards;
+}
+.view-enter .grid > .glass:nth-child(2) {
+  animation-delay: 40ms;
+}
+.view-enter .grid > .glass:nth-child(3) {
+  animation-delay: 80ms;
+}
+.view-enter .grid > .glass:nth-child(n + 4) {
+  animation-delay: 120ms;
+}
+/* el gráfico al cambiar de instrumento o timeframe (se vuelve a montar) */
+.chart-enter {
+  animation: fade-in 320ms var(--ease-out) backwards;
+}
+/* la marca de la pestaña activa */
+.tab-thumb {
+  transition: transform 320ms var(--ease-out);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

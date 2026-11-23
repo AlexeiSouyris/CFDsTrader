@@ -6,6 +6,7 @@ import {
   CandlestickChart,
   Droplets,
   FolderOpen,
+  Gauge,
   LayoutDashboard,
   ListChecks,
   Trophy,
@@ -16,11 +17,19 @@ import type { ShellView } from '@/components/ui/glass-shell'
 
 export const VIEWS: ShellView[] = [
   {
+    id: 'performance',
+    label: 'Performance',
+    short: 'Performance',
+    icon: Gauge,
+    description:
+      'Resumen de la simulación: corridas de backtest, el fondo y sus estadísticas. Resultados del pasado, no promesas.',
+  },
+  {
     id: 'panel',
     label: 'Panel',
     short: 'Panel',
     icon: LayoutDashboard,
-    description: 'Cómo va el fondo, los índices y lo último de la simulación.',
+    description: 'Cómo va el fondo, los índices, lo último de la simulación y la liquidez.',
   },
   {
     id: 'terminal',
@@ -87,3 +96,12 @@ export const VIEWS: ShellView[] = [
     description: 'Cada término técnico con su explicación y un ejemplo.',
   },
 ]
+
+/** La vista de inicio (sin hash). */
+export const HOME_VIEW = 'panel'
+
+/**
+ * Las tres pestañas principales (#286), en orden: el gesto del trackpad y los atajos de teclado
+ * pasan de una a la siguiente. Cada una tiene su hash y entra en el historial del navegador.
+ */
+export const MAIN_TABS = ['performance', 'panel', 'terminal'] as const
