@@ -1079,3 +1079,57 @@ fn reaction_and_gap_session_times_are_optional_in_the_contract() {
     g["fill"]["at"] = json!("2026-11-18 05:00:00");
     assert_both_reject::<cfds_core::OpeningGap>("opening_gap.v1.schema.json", g);
 }
+
+fn sample_futures_bar() -> cfds_core::FuturesBar {
+    cfds_core::FuturesBar {
+        source: "databento".into(),
+        dataset: "XEUR.EOBI".into(),
+        symbol: "FDAX.v.0".into(),
+        instrument_id: "DE40".parse().unwrap(),
+        contract_id: 42,
+        start: "2026-11-18T14:31:00Z".parse().unwrap(),
+        open: dec!(24000.5),
+        high: dec!(24010),
+        low: dec!(23990.0),
+        close: dec!(24005.5),
+        volume: 17,
+    }
+}
+
+#[test]
+fn futures_bar_roundtrips_through_the_contract() {
+    assert_roundtrip("futures_bar.v1.schema.json", &sample_futures_bar());
+    let json = serde_json::to_value(sample_futures_bar()).unwrap();
+    assert_eq!(json["start"], json!("2026-11-18T14:31:00Z"));
+    assert_eq!(json["low"], json!("23990.0"));
+}
+
+#[test]
+fn contract_and_rust_reject_the_same_bad_futures_bars() {
+    let schema = "futures_bar.v1.schema.json";
+    let doc = || serde_json::to_value(sample_futures_bar()).unwrap();
+    let mut cases: Vec<Value> = Vec::new();
+    for (key, value) in [
+        ("start", json!("2026-11-18T14:31:30Z")),
+        ("start", json!("2026-11-18T15:31:00+01:00")),
+        ("symbol", json!("FDAXZ6")),
+        ("symbol", json!("FDAX.x.0")),
+        ("dataset", json!("xeur.eobi")),
+        ("contract_id", json!(0)),
+        ("volume", json!(-1)),
+        ("close", json!(24005.5)),
+        ("source", json!("Databento")),
+        ("instrument_id", json!("de40")),
+        ("extra", json!(1)),
+    ] {
+        let mut d = doc();
+        d[key] = value;
+        cases.push(d);
+    }
+    let mut d = doc();
+    d.as_object_mut().unwrap().remove("volume");
+    cases.push(d);
+    for d in cases {
+        assert_both_reject::<cfds_core::FuturesBar>(schema, d);
+    }
+}
