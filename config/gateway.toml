@@ -1,4 +1,4 @@
-# Gateway: API de solo lectura del motor para la UI (#231). Nada de esto envía órdenes.
+# Gateway: API del motor para la UI (#231, #278): lectura, más las rutas del broker simulado (solo paper).
 
 [server]
 # Dirección donde escucha. Por defecto solo la máquina local; la UI llega con el proxy de Vite.
@@ -25,3 +25,18 @@ fvg_days = 30
 # Unas 250 sesiones.
 candles_days = 365
 fvg_days = 365
+
+# Broker simulado (fase 7, #278): rutas /api/v1/paper/* y /api/v1/backtest_runs. Solo paper.
+[paper]
+# Variable de entorno con el token local que exigen los POST (cabecera x-cfds-token). Sin la
+# variable, la escritura queda apagada. Es la defensa anti-CSRF: otra web abierta en el navegador
+# no conoce el token ni puede mandar la cabecera sin un preflight de CORS, que no se contesta.
+token_env = "CFDS_GATEWAY_TOKEN"
+# Tamaño máximo del body de un POST (un order.v1 ocupa unos 300 bytes).
+max_body_bytes = 16384
+# Una orden con created_at más viejo que esto (o en el futuro) se rechaza.
+max_order_age_secs = 60
+# Velas de 15m que el broker carga hacia atrás al arrancar (ATR y salidas).
+candles_days = 10
+# Corridas de backtest que devuelve /api/v1/backtest_runs (las más nuevas).
+runs_limit = 50

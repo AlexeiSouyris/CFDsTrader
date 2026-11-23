@@ -217,6 +217,26 @@ impl PgJournal {
         tx.commit().await?;
         Ok(run)
     }
+
+    /// Las últimas `limit` corridas guardadas (las más nuevas primero, por `finished_at`), cada
+    /// una armada y validada como `backtest_run.v1`.
+    pub async fn runs(&self, limit: u32) -> Result<Vec<BacktestRun>, JournalError> {
+        let mut tx = self.pool.begin().await?;
+        let ids: Vec<String> = sqlx::query_scalar(
+            "SELECT run_id FROM backtest_runs ORDER BY finished_at DESC, run_id LIMIT $1",
+        )
+        .bind(i64::from(limit))
+        .fetch_all(&mut *tx)
+        .await?;
+        let mut out = Vec::with_capacity(ids.len());
+        for id in ids {
+            if let Some(run) = select_run(&mut tx, &id).await? {
+                out.push(run);
+            }
+        }
+        tx.commit().await?;
+        Ok(out)
+    }
 }
 
 impl PgJournal {

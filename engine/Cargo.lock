@@ -270,11 +270,16 @@ dependencies = [
 name = "cfds-gateway"
 version = "0.1.0"
 dependencies = [
+ "cfds-backtest",
+ "cfds-broker",
  "cfds-core",
+ "cfds-journal",
  "cfds-liquidity",
  "cfds-market-data",
+ "cfds-risk",
  "cfds-storage",
  "chrono",
+ "chrono-tz",
  "http-body-util",
  "hyper",
  "hyper-util",
@@ -282,6 +287,7 @@ dependencies = [
  "rust_decimal",
  "serde",
  "serde_json",
+ "sqlx",
  "tokio",
  "toml",
 ]
