@@ -119,6 +119,9 @@ pub struct PaperBroker {
     cfg: BrokerConfig,
     markets: BTreeMap<InstrumentId, MarketSetup>,
     reports: BTreeMap<ClientId, OrderReport>,
+    /// Las órdenes procesadas, en el orden en que llegaron, con su informe: lo que se guarda
+    /// para reconstruir el broker al arrancar (ver `crate::reconcile`).
+    journal: Vec<(Order, OrderReport)>,
     trades: Vec<OpenTrade>,
     kill_switch: Option<(String, DateTime<Utc>)>,
     peak_equity: Decimal,
@@ -181,6 +184,7 @@ impl PaperBroker {
             cfg,
             markets,
             reports: BTreeMap::new(),
+            journal: Vec::new(),
             trades: Vec::new(),
             kill_switch: None,
             peak_equity: peak,
@@ -210,6 +214,11 @@ impl PaperBroker {
 
     pub fn kill_switch_active(&self) -> bool {
         self.kill_switch.is_some()
+    }
+
+    /// Las órdenes procesadas, en orden de llegada, con su informe.
+    pub fn journal(&self) -> &[(Order, OrderReport)] {
+        &self.journal
     }
 
     /// Informe ya guardado de una orden, si existe.
@@ -481,6 +490,7 @@ impl crate::Broker for PaperBroker {
             },
         };
         self.reports.insert(order.order_id.clone(), report.clone());
+        self.journal.push((order.clone(), report.clone()));
         report
     }
 
@@ -520,6 +530,10 @@ impl crate::Broker for PaperBroker {
             });
         }
         out
+    }
+
+    fn activate_kill_switch(&mut self, reason: &str, at: DateTime<Utc>) {
+        PaperBroker::activate_kill_switch(self, reason, at);
     }
 
     fn account(&mut self, now: DateTime<Utc>) -> PaperAccount {
