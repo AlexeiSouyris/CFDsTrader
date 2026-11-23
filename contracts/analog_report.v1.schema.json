@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/analog_report.v1.schema.json",
+  "title": "Analog report v1",
+  "description": "Análogos históricos de la última ventana de un índice (spec §13, #148, #294): los vecinos más parecidos por forma de las velas diarias y la distribución de lo que pasó después de ellos. Solo informativo: es una distribución de resultados pasados, nunca un pronóstico ni una recomendación, y no suma al puntaje. Lo calcula y lo escribe solo Python (cfds_intel.analogs); Rust y la UI lo leen. Los retornos son fracciones (0.012 = +1,2 %).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instrument_id", "source", "window_end_day", "as_of", "computed_at", "window", "min_neighbors", "context", "neighbors", "groups"],
+  "properties": {
+    "instrument_id": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" },
+    "source": { "description": "De qué diarias salen: las de IG o las de los futuros (ids con sufijo, por ejemplo US500.FUT). Nunca se mezclan.", "enum": ["ig", "futures"] },
+    "window_end_day": { "description": "Día de la última vela de la ventana consultada.", "$ref": "#/$defs/day" },
+    "as_of": { "description": "Cierre de esa vela, en UTC: el informe no usa nada posterior.", "$ref": "#/$defs/utc" },
+    "computed_at": { "description": "Cuándo se calculó, en UTC.", "$ref": "#/$defs/utc" },
+    "window": { "description": "Velas diarias de cada ventana (config/analogs.toml [shape] window).", "type": "integer", "minimum": 1 },
+    "min_neighbors": { "description": "Con menos vecinos, el grupo es 'datos insuficientes' (config/analogs.toml).", "type": "integer", "minimum": 1 },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vol", "rates"],
+      "properties": {
+        "vol": { "description": "Tercio de la volatilidad realizada (daily_vol_tercile.v1), o null sin dato.", "oneOf": [{ "enum": ["low", "mid", "high"] }, { "type": "null" }] },
+        "rates": { "description": "Tendencia del tipo de referencia, o null sin dato.", "oneOf": [{ "enum": ["sube", "baja", "estable"] }, { "type": "null" }] }
+      }
+    },
+    "neighbors": {
+      "description": "Los vecinos de todo el universo, del más cercano al más lejano.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["instrument_id", "end_day", "distance"],
+        "properties": {
+          "instrument_id": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" },
+          "end_day": { "$ref": "#/$defs/day" },
+          "distance": { "description": "Distancia DTW entre formas (sin unidad; menor es más parecido).", "$ref": "#/$defs/decimal" }
+        }
+      }
+    },
+    "groups": {
+      "description": "all: todos los vecinos. same_context: los vecinos con el mismo contexto (vacío si al consultado le falta contexto).",
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["group", "count", "insufficient", "horizons", "hits", "without_atr"],
+        "properties": {
+          "group": { "enum": ["all", "same_context"] },
+          "count": { "type": "integer", "minimum": 0 },
+          "insufficient": { "description": "true si count < min_neighbors: 'datos insuficientes'.", "type": "boolean" },
+          "horizons": {
+            "description": "Una por horizonte de config/analogs.toml [outcome] horizons (vacía sin vecinos).",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["horizon", "percentiles", "positive_pct"],
+              "properties": {
+                "horizon": { "description": "Sesiones después del cierre de la ventana.", "type": "integer", "minimum": 1 },
+                "percentiles": {
+                  "description": "Percentiles (rango más cercano) del retorno a ese horizonte, de menor a mayor p.",
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["p", "return"],
+                    "properties": {
+                      "p": { "type": "integer", "minimum": 1, "maximum": 99 },
+                      "return": { "$ref": "#/$defs/signed_decimal" }
+                    }
+                  }
+                },
+                "positive_pct": { "description": "% de vecinos con retorno positivo, de 0 a 100.", "$ref": "#/$defs/decimal" }
+              }
+            }
+          },
+          "hits": {
+            "description": "Cuántos vecinos tocaron primero +r_up R o −r_down R (o ninguno) dentro de r_horizon sesiones.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["up", "down", "none"],
+            "properties": {
+              "up": { "type": "integer", "minimum": 0 },
+              "down": { "type": "integer", "minimum": 0 },
+              "none": { "type": "integer", "minimum": 0 }
+            }
+          },
+          "without_atr": { "description": "Vecinos sin ATR para medir en R.", "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" },
+    "day": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "decimal": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "signed_decimal": { "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" }
+  }
+}

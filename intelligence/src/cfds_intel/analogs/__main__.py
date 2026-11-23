@@ -1,8 +1,11 @@
 """Análogos v1 de la última ventana de cada índice con datos (#148). Solo informativo.
 
 ```text
-DATABASE_URL=... uv run python -m cfds_intel.analogs [--fuente ig|futuros] [INSTRUMENTO]
+DATABASE_URL=... uv run python -m cfds_intel.analogs [--fuente ig|futuros] [--guardar] [INSTRUMENTO]
 ```
+Con `--guardar` (#294) también guarda cada informe como `analog_report.v1` en `analog_reports`
+(solo agregar; un informe igual al último del mismo día no se repite). Así el gateway y la UI
+lo leen sin recalcular nada.
 Con `--fuente futuros` (#282) usa las diarias de los futuros (ids derivados, por ejemplo
 `US500.FUT`); por omisión, las de IG. Las dos fuentes nunca se mezclan en la búsqueda.
 Lee las diarias y los indicadores de Rust (`daily_indicators` y `daily_vol_terciles`); antes hay
@@ -12,11 +15,13 @@ que correr
 
 import os
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import psycopg
 
-from cfds_intel.analogs.config import load_config
+from cfds_intel.analogs.config import AnalogsConfig, load_config
+from cfds_intel.analogs.contract import to_contract
 from cfds_intel.analogs.data import (
     benchmarks,
     daily_params,
@@ -25,7 +30,8 @@ from cfds_intel.analogs.data import (
     load_rates,
     select_source,
 )
-from cfds_intel.analogs.search import AnalogReport, Summary, analyze
+from cfds_intel.analogs.search import AnalogReport, Bar, Rate, Summary, analyze
+from cfds_intel.analogs.store import insert_report
 
 CONFIG = Path(__file__).resolve().parents[4] / "config"
 VOL_NAMES = {"low": "baja", "mid": "media", "high": "alta"}
@@ -60,10 +66,14 @@ def render(r: AnalogReport) -> str:
 
 def main(argv: list[str]) -> int:
     args = argv[1:]
+    save = "--guardar" in args
+    args = [a for a in args if a != "--guardar"]
     futures = False
     if args[:1] == ["--fuente"]:
         if len(args) < 2 or args[1] not in ("ig", "futuros", "futures"):
-            print("uso: python -m cfds_intel.analogs [--fuente ig|futuros] [INSTRUMENTO]")
+            print(
+                "uso: python -m cfds_intel.analogs [--fuente ig|futuros] [--guardar] [INSTRUMENTO]"
+            )
             return 2
         futures = args[1] != "ig"
         args = args[2:]
@@ -74,7 +84,19 @@ def main(argv: list[str]) -> int:
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
         series = load_bars(conn, atr_period, vol_window, years)
         rates = load_rates(conn, benchmarks((CONFIG / "instruments.toml").read_text()))
-    series, rates = select_source(series, rates, suffix)
+        series, rates = select_source(series, rates, suffix)
+        return _report(conn, series, rates, args, suffix, cfg, save)
+
+
+def _report(
+    conn: psycopg.Connection,
+    series: dict[str, list[Bar]],
+    rates: dict[str, list[Rate]],
+    args: list[str],
+    suffix: str | None,
+    cfg: AnalogsConfig,
+    save: bool,
+) -> int:
     wanted = [a + suffix if suffix and not a.endswith(suffix) else a for a in args]
     wanted = wanted or sorted(series)
     for inst in wanted:
@@ -82,7 +104,11 @@ def main(argv: list[str]) -> int:
         if not bars:
             print(f"{inst}: sin diarias con indicadores (correr daily_indicators)")
             continue
-        print(render(analyze(series, rates, inst, len(bars) - 1, cfg)))
+        report = analyze(series, rates, inst, len(bars) - 1, cfg)
+        print(render(report))
+        if save:
+            doc = to_contract(report, series, "futures" if suffix else "ig", cfg, datetime.now(UTC))
+            print("  guardado" if insert_report(conn, doc) else "  ya estaba guardado")
     return 0
 
 
