@@ -796,10 +796,12 @@ fn sample_fvg_event(open: bool) -> cfds_core::FvgEvent {
             FvgReaction {
                 bars: NonZeroU32::new(4).unwrap(),
                 return_atr: Some(dec!(-0.75)),
+                at: Some("2026-11-19T17:15:00Z".parse().unwrap()),
             },
             FvgReaction {
                 bars: NonZeroU32::new(8).unwrap(),
                 return_atr: None,
+                at: None,
             },
         ],
         status: if open {
@@ -855,6 +857,7 @@ fn sample_opening_gap(filled: bool) -> cfds_core::OpeningGap {
     let fill = filled.then(|| GapSession {
         day: "2026-11-17".parse().unwrap(),
         sessions: 1,
+        at: Some("2026-11-18T05:00:00Z".parse().unwrap()),
     });
     cfds_core::OpeningGap {
         instrument_id: "US500".parse().unwrap(),
@@ -1060,4 +1063,19 @@ fn contract_and_rust_reject_the_same_bad_imbalances() {
     for d in cases {
         assert_both_reject::<cfds_core::Imbalance>(schema, d);
     }
+}
+
+#[test]
+fn reaction_and_gap_session_times_are_optional_in_the_contract() {
+    let mut d = serde_json::to_value(sample_fvg_event(true)).unwrap();
+    d["reactions"][0].as_object_mut().unwrap().remove("at");
+    assert!(validator("fvg_event.v1.schema.json").is_valid(&d));
+    let e: cfds_core::FvgEvent = serde_json::from_value(d).unwrap();
+    assert_eq!(e.reactions[0].at, None);
+    let mut g = serde_json::to_value(sample_opening_gap(true)).unwrap();
+    g["fill"].as_object_mut().unwrap().remove("at");
+    assert!(validator("opening_gap.v1.schema.json").is_valid(&g));
+    assert!(serde_json::from_value::<cfds_core::OpeningGap>(g.clone()).is_ok());
+    g["fill"]["at"] = json!("2026-11-18 05:00:00");
+    assert_both_reject::<cfds_core::OpeningGap>("opening_gap.v1.schema.json", g);
 }

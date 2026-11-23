@@ -84,6 +84,7 @@ Antes de cargar, `--dry-run` muestra qué falta y cuántos puntos estima, sin co
 | Diarias, el resto | `... ig_backfill_daily -- DE40 2022-11-22 <mañana>` | ~1.060 |
 | Indicadores de las diarias (ATR diario y volatilidad realizada, #148; caída desde el máximo, #213), **después de cada carga de diarias** | `cd engine && cargo run -p cfds-ingest --example daily_indicators` | 0 (no usa IG) |
 | Mapa de liquidez (spec §5.4.1, #231, solo informativo), **después de cada carga de velas de 15m**. Es idempotente y solo agrega los niveles y estados nuevos | `cd engine && cargo run -p cfds-ingest --example liquidity_levels` | 0 (no usa IG) |
+| Estadísticas de liquidez (spec §5.4.1, #231, solo informativas): eventos de FVG de 15m, 1h y 1d, gaps de apertura, desequilibrio y agregados, **después de cada carga de velas de 15m o diarias**. Es idempotente: solo agrega los eventos nuevos, y los agregados solo si cambiaron | `cd engine && cargo run -p cfds-ingest --example liquidity_stats` | 0 (no usa IG) |
 | Índice de sentimiento v1 (spec §9.1, #213), **después de los indicadores de las diarias o de cargar el COT** | `cd intelligence && uv run python -m cfds_intel.sentiment.compute_index` | 0 (no usa IG ni la red) |
 | Análogos v1 de la última ventana de cada índice (#148, solo informativo) | `cd intelligence && uv run python -m cfds_intel.analogs [INSTRUMENTO]` | 0 (no usa IG) |
 | Ídem para US100, US500 y US30 | Cambiar el instrumento | ~1.330 cada uno |

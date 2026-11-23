@@ -141,11 +141,13 @@ fn reaction_is_signed_in_favour_of_the_direction() {
         vec![
             FvgReaction {
                 bars: nz(4),
-                return_atr: Some(dec!(3) / e.atr)
+                return_atr: Some(dec!(3) / e.atr),
+                at: Some(v[22].end()),
             },
             FvgReaction {
                 bars: nz(8),
-                return_atr: Some(dec!(3) / e.atr)
+                return_atr: Some(dec!(3) / e.atr),
+                at: Some(v[26].end()),
             },
         ]
     );
@@ -296,7 +298,10 @@ fn weekend_gap_is_measured_against_friday_and_filled_later() {
         (d[15].day, Direction::Bullish, dec!(100), dec!(103))
     );
     assert_eq!(g.size_atr, dec!(3) / g.atr);
-    assert_eq!(g.fill.map(|f| (f.day, f.sessions)), Some((d[16].day, 1)));
+    assert_eq!(
+        g.fill.map(|f| (f.day, f.sessions, f.at)),
+        Some((d[16].day, 1, Some(d[16].end)))
+    );
     assert!(!g.same_session);
     assert_eq!(g.status, ZoneStatus::Filled);
     // Al cierre del lunes el gap está abierto (sin look-ahead).
@@ -367,6 +372,7 @@ fn event(i: i64, touched: bool, size_atr: Decimal) -> FvgEvent {
         reactions: vec![FvgReaction {
             bars: nz(4),
             return_atr: touched.then_some(dec!(0.5)),
+            at: None,
         }],
         status: ZoneStatus::Expired,
         as_of: at + TimeDelta::days(30),

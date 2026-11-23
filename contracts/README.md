@@ -143,7 +143,8 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Los calcula **solo Rust** (`cfds_liquidity::stats`, `config/liquidity.toml` `[fvg_stats]`, `[gaps]` y `[stats]`) con velas cerradas. La UI y Python los leen y no los recalculan.
 - Sin repintado: un evento ya registrado (toque, mitad, llenado, vencimiento o una reacción no nula) no cambia con velas nuevas. Un caso abierto cuenta para "tocado", pero no para "llenado" ni "vencido".
 - Los gaps son un contrato aparte de los FVG porque se miden en sesiones y se llenan al **tocar** el cierre anterior, no al cerrar más allá del borde.
-- **Todavía no se guardan ni se publican:** la tabla de PostgreSQL y el comando van en otro PR de #231.
+- **Guardado** (`infra/migrations/0021_liquidity_stats.sql`, todas de solo agregar con trigger): `fvg_zones` + `fvg_zone_events` (cada toque, mitad, llenado, vencimiento y reacción, una vez y con su hora), `opening_gaps` + `opening_gap_events` y `liquidity_stats` (una fila por grupo y corrida, `computed_at`, con el documento entero en `document` JSONB; una corrida igual a la última no se guarda otra vez). Lo escribe el motor con `cargo run -p cfds-ingest --example liquidity_stats` y se lee tal como se conocía en `as_of` (`cfds_storage::PgStore`). Otro valor para algo ya guardado es repintado: error y no se guarda nada del lote.
+- Campo opcional `at` (agregado para el guardado, compatible): la hora desde la que se conoce cada reacción (`fvg_event.v1`) y cada llenado o vencimiento de un gap (`opening_gap.v1`). El motor siempre lo llena.
 
 ### Desequilibrio aproximado desde el precio (#231, spec §5.4.1)
 
@@ -154,7 +155,7 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - **No es flujo de órdenes** (IG no da volumen ni libro de órdenes): el rótulo viaja en el contrato para que la UI lo muestre siempre.
 - Contrato **aparte** de `liquidity_stats.v1`: es una serie, un valor por vela cerrada para el gráfico, y no un agregado de casos.
 - Lo calcula **solo Rust** (`cfds_liquidity::imbalance`, `[imbalance]` de `config/liquidity.toml`). Un valor emitido no cambia. Solo informativo.
-- **Todavía no se guarda ni se publica** (otro PR de #231).
+- Se guarda en `imbalances` (migración 0021, solo agregar, clave instrumento + timeframe + vela + ventana) con el mismo comando `liquidity_stats`. Todavía no se publica en Redis.
 
 ### Fondo del grupo (#179)
 
