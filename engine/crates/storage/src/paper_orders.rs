@@ -35,6 +35,13 @@ impl PgStore {
         let order_doc = serde_json::to_value(order)?;
         let report_doc = serde_json::to_value(report)?;
         let mut tx = self.pool().begin().await?;
+        // El gateway abre la sesión en solo lectura (`default_transaction_read_only`). Esta
+        // transacción, y solo esta, se declara de escritura: es la única escritura del gateway y
+        // toca solo las tablas del registro del broker simulado. Con una sesión normal no cambia
+        // nada.
+        sqlx::query("SET TRANSACTION READ WRITE")
+            .execute(&mut *tx)
+            .await?;
         let existing: Option<(Value, Option<Value>)> = sqlx::query_as(
             "SELECT o.document, r.document FROM paper_orders o
              LEFT JOIN paper_order_reports r ON r.order_id = o.order_id

@@ -6,6 +6,8 @@ use cfds_core::InstrumentId;
 use cfds_market_data::{Catalog, PendingField, Sourced};
 use cfds_risk::{InstrumentLimits, RiskConfig};
 use cfds_strategy::Configs;
+use chrono::NaiveTime;
+use chrono_tz::Tz;
 use rust_decimal::Decimal;
 
 use crate::{BacktestConfig, FundingRates, InstrumentCosts, Setup};
@@ -58,20 +60,28 @@ fn pending<T>(item: &str, field: &'static str, v: &Sourced<T>) -> Option<Pending
     }
 }
 
-/// [`Setup`] de `instrument` con los valores del catálogo. El tipo de referencia de la
-/// financiación queda **constante** (`[funding_benchmarks]`); para usar la serie diaria
-/// guardada (#79), reemplazar `funding_rates` por [`FundingRates::Daily`].
-pub fn setup_from_catalog(
+/// Lo que el catálogo dice de un instrumento para operarlo: límites, costos, tipo de cambio y
+/// financiación. Lo usan el backtest ([`setup_from_catalog`]) y el broker simulado
+/// (`cfds-broker`): una sola fuente de estos datos.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MarketTerms {
+    pub limits: InstrumentLimits,
+    pub costs: InstrumentCosts,
+    /// Moneda del instrumento por unidad de la moneda de la cuenta.
+    pub account_to_instrument: Decimal,
+    /// Constante (`[funding_benchmarks]`); para la serie diaria guardada (#79), reemplazarla por
+    /// [`FundingRates::Daily`].
+    pub funding_rates: FundingRates,
+    pub funding_cutoff: NaiveTime,
+    pub funding_tz: Tz,
+}
+
+/// [`MarketTerms`] de `instrument` con los valores del catálogo. Si falta cualquier dato del
+/// broker, devuelve todos los pendientes.
+pub fn market_terms_from_catalog(
     catalog: &Catalog,
     instrument: &InstrumentId,
-    strategy: Configs,
-    risk: RiskConfig,
-    backtest: BacktestConfig,
-    initial_equity: Decimal,
-) -> Result<Setup, SetupError> {
-    if initial_equity <= Decimal::ZERO {
-        return Err(SetupError::InvalidEquity(initial_equity));
-    }
+) -> Result<MarketTerms, SetupError> {
     let spec = catalog
         .instruments
         .get(instrument)
@@ -107,15 +117,9 @@ pub fn setup_from_catalog(
                     instrument: spec.instrument.currency.to_string(),
                 });
             }
-            Ok(Setup {
-                instrument: instrument.clone(),
-                strategy,
-                risk,
+            Ok(MarketTerms {
                 limits,
                 costs,
-                day_tz: backtest.day_tz,
-                backtest,
-                initial_equity,
                 account_to_instrument: Decimal::ONE,
                 funding_rates: FundingRates::Constant(benchmark_pct),
                 funding_cutoff: cutoff,
@@ -124,4 +128,35 @@ pub fn setup_from_catalog(
         }
         _ => Err(SetupError::Pending(missing)),
     }
+}
+
+/// [`Setup`] de `instrument` con los valores del catálogo. El tipo de referencia de la
+/// financiación queda **constante** (`[funding_benchmarks]`); para usar la serie diaria
+/// guardada (#79), reemplazar `funding_rates` por [`FundingRates::Daily`].
+pub fn setup_from_catalog(
+    catalog: &Catalog,
+    instrument: &InstrumentId,
+    strategy: Configs,
+    risk: RiskConfig,
+    backtest: BacktestConfig,
+    initial_equity: Decimal,
+) -> Result<Setup, SetupError> {
+    if initial_equity <= Decimal::ZERO {
+        return Err(SetupError::InvalidEquity(initial_equity));
+    }
+    let m = market_terms_from_catalog(catalog, instrument)?;
+    Ok(Setup {
+        instrument: instrument.clone(),
+        strategy,
+        risk,
+        limits: m.limits,
+        costs: m.costs,
+        day_tz: backtest.day_tz,
+        backtest,
+        initial_equity,
+        account_to_instrument: m.account_to_instrument,
+        funding_rates: m.funding_rates,
+        funding_cutoff: m.funding_cutoff,
+        funding_tz: m.funding_tz,
+    })
 }

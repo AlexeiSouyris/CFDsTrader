@@ -244,6 +244,11 @@ impl PaperBroker {
         }
     }
 
+    /// Los mercados con sus velas (para reconstruir aparte, por ejemplo al reconciliar).
+    pub fn markets(&self) -> &BTreeMap<InstrumentId, MarketSetup> {
+        &self.markets
+    }
+
     pub fn config(&self) -> &BrokerConfig {
         &self.cfg
     }

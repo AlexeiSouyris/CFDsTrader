@@ -30,4 +30,4 @@ pub use runner::{
     BuyAndHold, CloseReason, ExitRecord, RejectedSignal, Report, RunError, Setup, TradeRecord,
     buy_and_hold, choose, execute, pick, run, run_checked, run_with_news,
 };
-pub use setup::{SetupError, setup_from_catalog};
+pub use setup::{MarketTerms, SetupError, market_terms_from_catalog, setup_from_catalog};

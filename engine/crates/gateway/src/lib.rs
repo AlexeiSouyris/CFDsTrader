@@ -11,6 +11,8 @@
 //!
 //! No calcula nada nuevo, no envía órdenes ni escribe en la base.
 
+pub mod paper;
+
 use std::future::Future;
 use std::net::SocketAddr;
 use std::num::NonZeroU32;
@@ -77,6 +79,9 @@ struct RawConfig {
     server: RawServer,
     view: RawView,
     windows: RawWindows,
+    /// `[paper]`: lo lee [`paper::PaperConfig`].
+    #[allow(dead_code)]
+    paper: toml::Table,
 }
 
 #[derive(Deserialize)]
@@ -575,7 +580,10 @@ mod tests {
         let bad = CONFIG.replace("default_timeframe = \"1d\"", "default_timeframe = \"4h\"");
         assert_ne!(bad, CONFIG);
         assert!(GatewayConfig::from_toml(&bad).is_err());
-        let extra = format!("{CONFIG}\nnope = 1\n");
+        let extra = format!("nope = 1\n{CONFIG}");
+        // Una clave de más dentro de [paper] la rechaza PaperConfig.
+        let in_paper = format!("{CONFIG}\nnope = 1\n");
+        assert!(crate::paper::PaperConfig::from_toml(&in_paper).is_err());
         assert!(GatewayConfig::from_toml(&extra).is_err());
     }
 
