@@ -12,3 +12,23 @@ atr_period = 14
 [structure]
 # Un CHoCH "reciente" es uno de las últimas `choch_recent_bars` velas (incluida la actual).
 choch_recent_bars = 12
+
+# --- Mapa de liquidez (spec §5.4.1, #231). Solo informativo: no suma al puntaje. ---
+
+[equal]
+# Máximos/mínimos iguales (EQH/EQL): al menos `min_touches` pivotes de 15m (los de
+# config/patterns.toml) de las últimas `lookback_bars` velas, cuya diferencia máxima es
+# ≤ `tolerance_atr` × ATR de 15m (`order_blocks.atr_period`) en la vela que confirma el último.
+min_touches = 2
+lookback_bars = 200
+tolerance_atr = "0.10"
+
+[levels]
+# Un nivel deja de estar activo cuando se barre o se rompe, o después de estas velas de 15m.
+max_age_bars = 500
+
+[sessions_utc]
+# Ventanas en UTC (HH:MM; inicio incluido, fin excluido) del máximo y el mínimo de cada sesión.
+asia = { start = "00:00", end = "07:00" }
+london = { start = "07:00", end = "13:30" }
+ny = { start = "13:30", end = "20:00" }

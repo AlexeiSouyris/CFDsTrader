@@ -654,3 +654,96 @@ fn contract_and_rust_reject_the_same_bad_daily_vol_terciles() {
         assert_both_reject::<cfds_core::DailyVolTercile>(schema, d);
     }
 }
+
+fn sample_liquidity_level(
+    kind: cfds_core::LiquidityLevelKind,
+    session: Option<cfds_core::LiquiditySession>,
+    state: cfds_core::LiquidityLevelState,
+) -> cfds_core::LiquidityLevel {
+    use cfds_core::LiquidityLevelState::Intact;
+    cfds_core::LiquidityLevel {
+        instrument_id: "US100".parse().unwrap(),
+        kind,
+        session,
+        price: dec!(26760.80),
+        exists_from: "2026-11-19T21:00:00Z".parse().unwrap(),
+        state,
+        state_changed_at: (state != Intact).then(|| "2026-11-20T14:45:00Z".parse().unwrap()),
+    }
+}
+
+#[test]
+fn liquidity_level_roundtrips_through_the_contract() {
+    use cfds_core::{LiquidityLevelKind as K, LiquidityLevelState as S, LiquiditySession as N};
+    let schema = "liquidity_level.v1.schema.json";
+    for kind in [K::Eqh, K::Eql, K::Pdh, K::Pdl, K::Pwh, K::Pwl] {
+        for state in [S::Intact, S::Swept, S::Broken] {
+            assert_roundtrip(schema, &sample_liquidity_level(kind, None, state));
+        }
+    }
+    for kind in [K::SessionHigh, K::SessionLow] {
+        for session in [N::Asia, N::London, N::Ny] {
+            assert_roundtrip(
+                schema,
+                &sample_liquidity_level(kind, Some(session), S::Swept),
+            );
+        }
+    }
+    let json = serde_json::to_value(sample_liquidity_level(
+        K::SessionHigh,
+        Some(N::Ny),
+        S::Intact,
+    ))
+    .unwrap();
+    assert_eq!(json["price"], json!("26760.80"));
+    assert_eq!(json["kind"], json!("session_high"));
+    assert_eq!(json["session"], json!("ny"));
+    assert_eq!(json["state_changed_at"], Value::Null);
+}
+
+#[test]
+fn contract_and_rust_reject_the_same_bad_liquidity_levels() {
+    use cfds_core::{LiquidityLevelKind as K, LiquidityLevelState as S};
+    let schema = "liquidity_level.v1.schema.json";
+    let doc = || serde_json::to_value(sample_liquidity_level(K::Pdh, None, S::Broken)).unwrap();
+    let mut cases: Vec<Value> = Vec::new();
+    for (key, value) in [
+        ("kind", json!("equal_highs")),
+        ("kind", json!("EQH")),
+        ("session", json!("asia")), // pdh no lleva sesión
+        ("price", json!(26760.8)),
+        ("price", json!("-1")),
+        ("exists_from", json!("2026-11-19T22:00:00+01:00")),
+        ("state", json!("expired")),
+        ("state_changed_at", Value::Null), // roto sin la vela que lo rompió
+        ("instrument_id", json!("us100")),
+        ("extra", json!(1)),
+    ] {
+        let mut d = doc();
+        d[key] = value;
+        cases.push(d);
+    }
+    let mut d = doc();
+    d["kind"] = json!("session_low"); // sin el nombre de la sesión
+    cases.push(d);
+    let mut d = doc();
+    d["state"] = json!("intact"); // intacto con fecha de cambio
+    cases.push(d);
+    for key in ["session", "state_changed_at"] {
+        let mut d = doc();
+        d.as_object_mut().unwrap().remove(key);
+        cases.push(d); // tiene que venir, aunque sea null
+    }
+    for d in cases {
+        assert_both_reject::<cfds_core::LiquidityLevel>(schema, d);
+    }
+}
+
+#[test]
+fn rust_also_rejects_a_state_change_before_the_level_exists() {
+    use cfds_core::{LiquidityLevelKind as K, LiquidityLevelState as S};
+    let mut d = serde_json::to_value(sample_liquidity_level(K::Eql, None, S::Swept)).unwrap();
+    d["state_changed_at"] = d["exists_from"].clone();
+    assert!(validator("liquidity_level.v1.schema.json").is_valid(&d));
+    assert!(serde_json::from_value::<cfds_core::LiquidityLevel>(d).is_err());
+}

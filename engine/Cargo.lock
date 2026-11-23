@@ -320,6 +320,7 @@ version = "0.1.0"
 dependencies = [
  "cfds-core",
  "cfds-indicators",
+ "cfds-market-data",
  "cfds-patterns",
  "chrono",
  "rust_decimal",

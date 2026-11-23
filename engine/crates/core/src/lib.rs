@@ -11,6 +11,7 @@ pub mod daily_vol_tercile;
 pub mod decimal_str;
 pub mod economic_event;
 pub mod instrument;
+pub mod liquidity_level;
 pub mod money;
 pub mod news;
 pub mod rate;
@@ -24,6 +25,9 @@ pub use daily_indicator::DailyIndicator;
 pub use daily_vol_tercile::{DailyVolTercile, VolTercile};
 pub use economic_event::{EconomicEvent, Impact};
 pub use instrument::{AssetClass, Instrument, InstrumentId};
+pub use liquidity_level::{
+    LiquidityLevel, LiquidityLevelKind, LiquidityLevelState, LiquiditySession,
+};
 pub use money::{Currency, Money, MoneyError};
 pub use news::{Interpreter, NewsImpact, NewsInterpretation};
 pub use rate::ReferenceRate;
