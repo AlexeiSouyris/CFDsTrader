@@ -48,12 +48,16 @@ impl From<RunError> for EvalError {
 pub struct EvaluationConfig {
     /// Velas anteriores a cada tramo que solo calientan los indicadores.
     pub warmup: TimeDelta,
+    /// Parámetros de la sensibilidad (`crate::sensitivity`), cada uno con sus valores.
+    pub sensitivity: Vec<crate::SensitivityParam>,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Raw {
     walk_forward: RawWf,
+    #[serde(default)]
+    sensitivity: Vec<crate::SensitivityParam>,
 }
 
 #[derive(Deserialize)]
@@ -70,8 +74,18 @@ impl EvaluationConfig {
                 "walk_forward.warmup_days tiene que ir de 1 a 365".into(),
             ));
         }
+        for p in &raw.sensitivity {
+            if p.values.len() < 2 {
+                return Err(EvalError::Config(format!(
+                    "sensibilidad de {} {}: hacen falta al menos dos valores",
+                    p.file.name(),
+                    p.key
+                )));
+            }
+        }
         Ok(Self {
             warmup: TimeDelta::days(i64::from(raw.walk_forward.warmup_days)),
+            sensitivity: raw.sensitivity,
         })
     }
 }
@@ -269,7 +283,7 @@ pub struct Aggregate {
     pub with_buy_and_hold: usize,
 }
 
-fn mean(xs: &[Decimal]) -> Option<Decimal> {
+pub(crate) fn mean(xs: &[Decimal]) -> Option<Decimal> {
     (!xs.is_empty()).then(|| xs.iter().sum::<Decimal>() / Decimal::from(xs.len()))
 }
 

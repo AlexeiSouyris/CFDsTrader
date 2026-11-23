@@ -11,6 +11,7 @@ pub mod portfolio;
 pub mod rates;
 pub mod rollover;
 pub mod runner;
+pub mod sensitivity;
 pub mod setup;
 
 pub use config::{BacktestConfig, CostConfig, ExitConfig, MetricsConfig};
@@ -34,5 +35,9 @@ pub use rollover::mark_rollovers;
 pub use runner::{
     BuyAndHold, CloseReason, ExitRecord, RejectedSignal, Report, RunError, Setup, TradeRecord,
     buy_and_hold, choose, execute, pick, run, run_checked, run_with_news,
+};
+pub use sensitivity::{
+    ConfigTexts, ParamFile, SensitivityParam, SensitivityPoint, Stability, override_toml,
+    sensitivity, setup_with, stability, value_text,
 };
 pub use setup::{MarketTerms, SetupError, market_terms_from_catalog, setup_from_catalog};
