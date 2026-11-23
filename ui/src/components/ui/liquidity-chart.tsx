@@ -13,7 +13,13 @@ import { dateTimeUtc, dateUtc, decimal } from '@/lib/format'
 import { fvgKey, levelKey, levelName, levelShort, STATE_LABEL } from '@/lib/liquidity-labels'
 import { useElementWidth } from '@/lib/use-element-width'
 import { cn } from '@/lib/utils'
-import type { FvgEvent, Imbalance, LevelState, LiquidityBar, LiquidityLevel } from '@/mocks'
+import type {
+  FvgEvent,
+  Imbalance,
+  LevelState,
+  LiquidityBar,
+  LiquidityLevel,
+} from '@/lib/liquidity-contracts'
 
 const RANGES = [
   { label: '1 día', bars: 96 },
@@ -148,7 +154,7 @@ export function LiquidityChart({
           height={height}
           viewBox={`0 0 ${width} ${height}`}
           role="img"
-          aria-label={`${instrument}, ${count} velas de 15 minutos con ${shownLevels.length} niveles de liquidez y ${shownFvgs.length} FVG.`}
+          aria-label={`${instrument}, ${count} ${count === 1 ? 'vela' : 'velas'} de 15 minutos con ${shownLevels.length} niveles de liquidez y ${shownFvgs.length} FVG.`}
           className="block w-full select-none"
         >
           {ticks.map((t) => (

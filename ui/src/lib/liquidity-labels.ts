@@ -1,5 +1,10 @@
 /** Nombres en español de los niveles y estados de liquidez (#231, spec §5.4.1). Solo texto. */
-import type { LevelKind, LevelState, LiquidityLevel, TradingSession } from '@/mocks'
+import type {
+  LevelKind,
+  LevelState,
+  LiquidityLevel,
+  TradingSession,
+} from '@/lib/liquidity-contracts'
 
 export const LEVEL_LABEL: Record<LevelKind, string> = {
   eqh: 'Máximos iguales (EQH)',

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import App from '@/App'
 import { LiquidityChart } from '@/components/ui/liquidity-chart'
@@ -7,20 +7,62 @@ import { ImbalanceGauge, LevelsTable, Rate } from '@/components/ui/liquidity-pan
 import { decimal, percent, signed } from '@/lib/format'
 import { levelName, STATE_LABEL } from '@/lib/liquidity-labels'
 import { LIQUIDITY_US100 as DATA, type LiquiditySnapshot } from '@/mocks'
-import { LiquidityView } from '@/views/liquidity'
+import { LiquidityContent, LiquidityView } from '@/views/liquidity'
 
 describe('vista de liquidez en vivo (#231)', () => {
-  it('se abre desde la navegación', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  const answer = (body: unknown, status = 200) =>
+    vi.fn(async () => new Response(JSON.stringify(body), { status }))
+
+  it('se abre desde la navegación y pide los datos al gateway', async () => {
+    const fetch = answer(DATA)
+    vi.stubGlobal('fetch', fetch)
     render(<App initialStage="app" />)
     const nav = screen.getByRole('navigation', { name: 'Vistas' })
     fireEvent.click(within(nav).getByText('Liquidez'))
     expect(screen.getByRole('heading', { level: 1, name: 'Liquidez' })).toBeInTheDocument()
     expect(location.hash).toBe('#liquidez')
-    expect(screen.getByRole('img', { name: /US100, \d+ velas de 15 minutos/ })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('img', { name: /US100, \d+ velas de 15 minutos/ }),
+    ).toBeInTheDocument()
+    expect(fetch).toHaveBeenCalledWith('/api/v1/liquidity?instrument=US100', expect.anything())
+  })
+
+  it('con la base vacía muestra "sin datos todavía"', async () => {
+    const empty = {
+      instrument_id: 'US100',
+      generated_at: '2026-11-23T10:00:00Z',
+      as_of: null,
+      candles: [],
+      levels: [],
+      fvgs: [],
+      imbalance: [],
+      stats: [],
+    }
+    vi.stubGlobal('fetch', answer(empty))
+    render(<LiquidityView />)
+    expect(await screen.findByRole('heading', { name: 'Sin datos todavía' })).toBeInTheDocument()
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  })
+
+  it('con una sola vela muestra el gráfico y avisa lo que falta', () => {
+    const one = { ...DATA, candles: DATA.candles.slice(-1), fvgs: [], imbalance: [], stats: [] }
+    render(<LiquidityContent data={one} />)
+    expect(screen.getByRole('img', { name: /US100, 1 vela de 15 minutos/ })).toBeInTheDocument()
+    expect(screen.getByText('Todavía no hay estadísticas guardadas.')).toBeInTheDocument()
+    expect(screen.getByText(/calentamiento/)).toBeInTheDocument()
+  })
+
+  it('si el gateway no responde lo dice, sin inventar datos', async () => {
+    vi.stubGlobal('fetch', answer('error interno', 500))
+    render(<LiquidityView />)
+    expect(await screen.findByRole('alert')).toHaveTextContent('500')
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
   })
 
   it('muestra cada nivel con el estado y el precio que manda el motor', () => {
-    render(<LiquidityView />)
+    render(<LiquidityContent data={DATA} />)
     const table = screen.getByRole('table', { name: 'Niveles de liquidez y su estado' })
     const rows = within(table).getAllByRole('row').slice(1)
     expect(rows).toHaveLength(DATA.levels.length)
@@ -37,7 +79,7 @@ describe('vista de liquidez en vivo (#231)', () => {
   })
 
   it('separa los FVG abiertos de los llenos, tal como vienen', () => {
-    render(<LiquidityView />)
+    render(<LiquidityContent data={DATA} />)
     const open = DATA.fvgs.filter((f) => f.status === 'open').length
     const filled = DATA.fvgs.filter((f) => f.status !== 'open').length
     expect(open).toBeGreaterThan(0)
@@ -85,7 +127,7 @@ describe('vista de liquidez en vivo (#231)', () => {
   })
 
   it('el panel de estadísticas usa los números del motor, con y sin casos suficientes', () => {
-    render(<LiquidityView />)
+    render(<LiquidityContent data={DATA} />)
     const ok = DATA.stats.flatMap((s) => s.rates).find((r) => !r.insufficient && r.rate)!
     expect(screen.getAllByText(`${percent(ok.rate!)} %`).length).toBeGreaterThan(0)
     expect(screen.getAllByText('Datos insuficientes').length).toBeGreaterThan(0)
@@ -107,7 +149,7 @@ describe('vista de liquidez en vivo (#231)', () => {
   it('el ejemplo trae un nivel vencido y la tabla lo muestra atenuado', () => {
     const expired = DATA.levels.filter((l) => l.expired_at)
     expect(expired).toHaveLength(1)
-    render(<LiquidityView />)
+    render(<LiquidityContent data={DATA} />)
     const table = screen.getByRole('table', { name: 'Niveles de liquidez y su estado' })
     const rows = within(table)
       .getAllByRole('row')
@@ -160,7 +202,7 @@ describe('vista de liquidez en vivo (#231)', () => {
   })
 
   it('ningún texto de la vista promete ganancias', () => {
-    const { container } = render(<LiquidityView />)
+    const { container } = render(<LiquidityContent data={DATA} />)
     expect(container.textContent).not.toMatch(/ganancia (segura|garantizada)|sin riesgo|asegurad/i)
   })
 })

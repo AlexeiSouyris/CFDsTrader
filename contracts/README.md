@@ -168,6 +168,16 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Lo calcula **solo Rust** (`cfds_liquidity::imbalance`, `[imbalance]` de `config/liquidity.toml`). Un valor emitido no cambia. Solo informativo.
 - Se guarda en `imbalances` (migración 0021, solo agregar, clave instrumento + timeframe + vela + ventana) con el mismo comando `liquidity_stats`. Todavía no se publica en Redis.
 
+### Vista de liquidez del gateway (#231)
+
+| Contrato | Contenido |
+|---|---|
+| `liquidity_view.v1` | Respuesta de `GET /api/v1/liquidity?instrument=<id>` del gateway: `instrument_id`, `generated_at`, `as_of` (cierre de la última vela de 15m cerrada guardada, o `null` si no hay velas) y las listas `candles` (`candle.v1`), `levels` (`liquidity_level.v1`), `fvgs` (`fvg_event.v1`), `imbalance` (`imbalance.v1`) y `stats` (`liquidity_stats.v1`), cada elemento con su contrato sin cambios (`$ref`). |
+
+- Es un **sobre**: no agrega cálculos. El gateway (`engine/crates/gateway`) lo arma con las lecturas de `cfds_storage::PgStore`, todas tal como se conocían en `as_of`, y la ventana de `config/gateway.toml`.
+- Sin velas guardadas, `as_of` es `null` y las listas van vacías: la UI muestra "sin datos todavía".
+- Los errores HTTP (400, 404, 405, 500) van como texto plano, sin datos.
+
 ### Fondo del grupo (#179)
 
 | Contrato | Tabla | Contenido |

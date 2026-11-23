@@ -1,6 +1,6 @@
 # Interfaz de CFDsTrader: prototipo integrado
 
-**Maqueta con datos de ejemplo** (Issues #30, #164 y #171). No se conecta al motor ni a IG, y **no calcula nada**: la UI solo muestra lo que envía el motor (CLAUDE.md §1). La app real es la fase 10.
+**Maqueta con datos de ejemplo** (Issues #30, #164 y #171), salvo la vista de liquidez, que lee al motor (#231). No se conecta a IG, y **no calcula nada**: la UI solo muestra lo que envía el motor (CLAUDE.md §1). La app real es la fase 10.
 
 ## Qué hay
 
@@ -28,7 +28,7 @@ Los términos subrayados con puntos (`<Term id="...">`) muestran su definición 
 
 - `src/components/ui/`: los componentes. Cada uno dice en su encabezado de qué original de 21st.dev o AnimateIcons se inspira y qué se cambió.
 - `src/views/`: las vistas, que solo ubican componentes y les pasan datos.
-- `src/mocks/`: los datos de ejemplo, con la forma de los contratos (precios como texto decimal, horas en UTC). Los de liquidez (`liquidity.ts`) siguen exactamente `candle.v1`, `liquidity_level.v1`, `fvg_event.v1`, `liquidity_stats.v1` e `imbalance.v1`, y un test de `engine/crates/core/tests/ui_mocks.rs` valida el JSON contra esos schemas. El RSI y el MACD de `us100-1h.json` vienen **precalculados** en el archivo: la UI no los calcula.
+- `src/mocks/`: los datos de ejemplo, con la forma de los contratos (precios como texto decimal, horas en UTC). Los de liquidez (`liquidity.ts`) los usan solo los tests: la vista lee al gateway. Siguen exactamente `candle.v1`, `liquidity_level.v1`, `fvg_event.v1`, `liquidity_stats.v1` e `imbalance.v1`, y un test de `engine/crates/core/tests/ui_mocks.rs` valida el JSON contra esos schemas. El RSI y el MACD de `us100-1h.json` vienen **precalculados** en el archivo: la UI no los calcula.
 - `src/lib/`: formato en español (`format.ts`), el reparto del mapa de mercado (`squarify.ts`, geometría de dibujo) y un hook de ancho.
 
 ## Repetidos que se unificaron
@@ -50,6 +50,17 @@ Los términos subrayados con puntos (`<Term id="...">`) muestran su definición 
 - Íconos animados: AnimateIcons, de Avijit Dey, MIT. Íconos: `lucide-react`, ISC.
 - Fuente Manrope (`@fontsource-variable/manrope`), SIL OFL 1.1. Se sirve local, sin CDN.
 - `motion`, MIT.
+
+## Liquidez en vivo (#231)
+
+La vista `#liquidez` pide `GET /api/v1/liquidity?instrument=US100` al gateway del motor (`contracts/liquidity_view.v1`) y la vuelve a pedir cada minuto. En desarrollo, Vite manda `/api` a la dirección de `config/gateway.toml`:
+
+```bash
+cd engine && DATABASE_URL=... cargo run -p cfds-gateway   # solo lectura
+cd ui && npm run dev
+```
+
+Sin velas guardadas muestra "Sin datos todavía"; si el gateway no responde, lo dice y reintenta.
 
 ## Comandos
 
