@@ -1,7 +1,7 @@
 //! Filtro de noticias de alto impacto (spec §7.2, #91) con casos construidos a mano.
 
 use cfds_core::{Candle, EconomicEvent, Impact, Timeframe};
-use cfds_market_data::{NewsFilterConfig, news_flags};
+use cfds_market_data::{NewsFilter, NewsFilterConfig, calendar_coverage, news_flags};
 use chrono::{DateTime, TimeDelta, Utc};
 use rust_decimal::dec;
 
@@ -57,6 +57,7 @@ fn the_repository_config_is_the_spec() {
     assert_eq!(c.blocking, vec![Impact::High]);
     assert_eq!(c.countries[&"DE40".parse().unwrap()], vec!["DE", "EU"]);
     assert_eq!(c.countries[&"US100".parse().unwrap()], vec!["US"]);
+    assert_eq!(c.calendar_stale_after, TimeDelta::days(8));
 }
 
 #[test]
@@ -160,9 +161,83 @@ fn invalid_configuration_is_rejected() {
         (r#"DE40 = ["DE", "EU"]"#, r#"DE40 = ["DEU"]"#),
         (r#"DE40 = ["DE", "EU"]"#, "DE40 = []"),
         (r#"DE40 = ["DE", "EU"]"#, r#"de40 = ["DE"]"#),
+        (
+            "calendar_stale_after_days = 8",
+            "calendar_stale_after_days = 0",
+        ),
     ] {
         let text = REAL.replace(from, to);
         assert_ne!(text, REAL, "{from}");
         assert!(NewsFilterConfig::from_toml(&text).is_err(), "{to}");
     }
+}
+
+/// Velas de DE40 de 15m seguidas desde `from`.
+fn series(from: &str, n: usize) -> Vec<Candle> {
+    (0..n)
+        .map(|i| Candle {
+            start: at(from) + TimeDelta::minutes(15 * i as i64),
+            ..de40()
+        })
+        .collect()
+}
+
+#[test]
+fn coverage_starts_at_the_first_reading_and_ends_after_a_long_silence() {
+    let stale = cfg().calendar_stale_after;
+    // Cierres a las 13:15, 13:30, 13:45 y 14:00.
+    let c = series("2026-12-10T13:00:00Z", 4);
+    // Sin lecturas: nada tiene calendario.
+    assert_eq!(calendar_coverage(&c, &[], stale), vec![false; 4]);
+    // La ingesta empezó a las 13:30: antes no hay calendario (no hay histórico).
+    let first = [at("2026-12-10T13:30:00Z")];
+    assert_eq!(
+        calendar_coverage(&c, &first, stale),
+        vec![false, true, true, true]
+    );
+    // Una lectura posterior al cierre no cuenta para esa vela (sin look-ahead).
+    let later = [at("2026-12-10T13:50:00Z")];
+    assert_eq!(
+        calendar_coverage(&c, &later, stale),
+        vec![false, false, false, true]
+    );
+    // Si la última lectura es de hace más de `calendar_stale_after`, la ingesta estuvo parada.
+    let old = [at("2026-12-10T13:15:00Z") - stale - TimeDelta::minutes(1)];
+    assert_eq!(
+        calendar_coverage(&c, &old, stale),
+        vec![false, false, false, false]
+    );
+    // El borde cuenta: justo `calendar_stale_after` antes del cierre todavía hay calendario.
+    let last = &c[3..];
+    let edge = [at("2026-12-10T14:00:00Z") - stale];
+    assert_eq!(calendar_coverage(last, &edge, stale), vec![true]);
+    let past = [edge[0] - TimeDelta::seconds(1)];
+    assert_eq!(calendar_coverage(last, &past, stale), vec![false]);
+}
+
+#[test]
+fn the_filter_reports_blocked_candles_and_uncovered_spans() {
+    let c = series("2026-12-10T12:00:00Z", 8); // cierres de 12:15 a 14:00
+    let ev = [event(
+        Some("EU"),
+        None,
+        Impact::High,
+        "2026-12-10T13:45:00Z",
+    )];
+    let sightings = [at("2026-12-01T08:00:00Z"), at("2026-12-10T12:40:00Z")];
+    let mut cfg = cfg();
+    cfg.calendar_stale_after = TimeDelta::days(3);
+    let f = NewsFilter::new(&c, &ev, &sightings, &cfg);
+    // El evento de las 13:45 bloquea las entradas de 13:30, 13:45 y 14:00.
+    assert_eq!(
+        f.allowed,
+        vec![true, true, true, true, true, false, false, false]
+    );
+    assert_eq!(f.blocked(), 3);
+    // Del 1 al 10 hubo más de 3 días sin lecturas: hasta la lectura de las 12:40, sin calendario.
+    assert_eq!(f.uncovered(), 2);
+    assert_eq!(
+        f.uncovered_spans(&c),
+        vec![(at("2026-12-10T12:00:00Z"), at("2026-12-10T12:30:00Z"))]
+    );
 }
