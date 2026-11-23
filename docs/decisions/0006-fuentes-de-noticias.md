@@ -4,6 +4,7 @@
 - **Fecha:** 2026-11-21
 - **Aprobada por:** las dos personas, el 21-11-2026 (informado por el dueño)
 - **Issue:** #106 (relacionado: #99, #91, spec §9, ADR 0004)
+- **Reemplazada en parte por:** [ADR 0010](0010-calendario-forex-factory.md) (23-11-2026): el calendario económico de Forex Factory se usa por su feed JSON oficial. El resto sigue vigente.
 
 ## Contexto
 
@@ -61,6 +62,8 @@ Todo lo que sigue se leyó en los sitios oficiales el 21-11-2026, con citas text
 
 Forex Factory, Investing.com, Bloomberg, WSJ, FT, El Mundo, TradingView y Yahoo Finance: la spec §9 ya advierte que varios tienen muro de pago o prohíben el acceso automático.
 
+> **Reemplazado en parte por el [ADR 0010](0010-calendario-forex-factory.md):** el **calendario** de Forex Factory se usa solo por su feed JSON oficial, sin scraping. Lo demás de esta sección sigue igual.
+
 **Propuesta: fuera de v1.** No se evalúan ni se hace scraping. Se reconsideran solo con una vía legal (una licencia), votada por el grupo.
 
 ## Decisión (propuesta)
@@ -76,7 +79,7 @@ Forex Factory, Investing.com, Bloomberg, WSJ, FT, El Mundo, TradingView y Yahoo 
 
 ## Alternativas consideradas
 
-- **Calendarios de terceros** (Forex Factory e Investing.com): son cómodos, pero tienen términos restrictivos o prohíben el acceso automático. Descartados.
+- **Calendarios de terceros** (Forex Factory e Investing.com): son cómodos, pero tienen términos restrictivos o prohíben el acceso automático. Descartados. *(Forex Factory: reemplazado por el ADR 0010, solo por su feed JSON oficial.)*
 - **Una API paga de noticias o de calendario:** va contra el enfoque FI de v1. Se reconsidera solo si las fuentes oficiales no alcanzan en la fase 5.
 - **Un LLM pago para interpretar:** mismo motivo. Primero se prueba un modelo abierto local.
 
