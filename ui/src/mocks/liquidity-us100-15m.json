@@ -1,0 +1,7519 @@
+{
+  "note": "DATOS DE EJEMPLO generados para el prototipo (#231). No son precios reales. Cada elemento sigue su contrato (candle.v1, liquidity_level.v1, fvg_event.v1, liquidity_stats.v1 e imbalance.v1), precalculado fuera de la UI como lo enviaría el motor.",
+  "instrument_id": "US100",
+  "generated_at": "2026-11-21T00:00:00Z",
+  "as_of": "2026-11-21T00:00:00Z",
+  "candles": [
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T00:00:00Z",
+      "open": "20000.0",
+      "high": "20003.7",
+      "low": "19991.4",
+      "close": "19996.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T00:15:00Z",
+      "open": "19996.9",
+      "high": "19997.4",
+      "low": "19993.1",
+      "close": "19996.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T00:30:00Z",
+      "open": "19996.5",
+      "high": "20004.3",
+      "low": "19993.6",
+      "close": "19997.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T00:45:00Z",
+      "open": "19997.9",
+      "high": "20004.7",
+      "low": "19996.0",
+      "close": "19997.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T01:00:00Z",
+      "open": "19997.2",
+      "high": "19999.2",
+      "low": "19990.0",
+      "close": "19993.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T01:15:00Z",
+      "open": "19993.3",
+      "high": "19997.8",
+      "low": "19992.5",
+      "close": "19992.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T01:30:00Z",
+      "open": "19992.7",
+      "high": "20002.2",
+      "low": "19990.5",
+      "close": "19995.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T01:45:00Z",
+      "open": "19995.6",
+      "high": "20003.2",
+      "low": "19989.0",
+      "close": "19998.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T02:00:00Z",
+      "open": "19998.6",
+      "high": "20000.5",
+      "low": "19996.7",
+      "close": "20000.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T02:15:00Z",
+      "open": "20000.3",
+      "high": "20004.3",
+      "low": "19991.0",
+      "close": "19994.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T02:30:00Z",
+      "open": "19994.5",
+      "high": "19998.9",
+      "low": "19990.4",
+      "close": "19994.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T02:45:00Z",
+      "open": "19994.3",
+      "high": "19999.7",
+      "low": "19987.2",
+      "close": "19990.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T03:00:00Z",
+      "open": "19990.1",
+      "high": "19993.5",
+      "low": "19985.1",
+      "close": "19991.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T03:15:00Z",
+      "open": "19991.4",
+      "high": "19997.1",
+      "low": "19980.3",
+      "close": "19984.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T03:30:00Z",
+      "open": "19984.2",
+      "high": "19987.1",
+      "low": "19972.1",
+      "close": "19977.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T03:45:00Z",
+      "open": "19977.5",
+      "high": "19980.0",
+      "low": "19970.0",
+      "close": "19970.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T04:00:00Z",
+      "open": "19970.4",
+      "high": "19973.9",
+      "low": "19965.0",
+      "close": "19972.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T04:15:00Z",
+      "open": "19972.7",
+      "high": "19979.6",
+      "low": "19963.7",
+      "close": "19970.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T04:30:00Z",
+      "open": "19970.0",
+      "high": "19971.9",
+      "low": "19964.1",
+      "close": "19971.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T04:45:00Z",
+      "open": "19971.4",
+      "high": "19972.9",
+      "low": "19969.3",
+      "close": "19972.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T05:00:00Z",
+      "open": "19972.2",
+      "high": "19974.9",
+      "low": "19961.2",
+      "close": "19964.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T05:15:00Z",
+      "open": "19964.6",
+      "high": "19971.0",
+      "low": "19957.3",
+      "close": "19962.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T05:30:00Z",
+      "open": "19962.2",
+      "high": "19966.3",
+      "low": "19961.1",
+      "close": "19965.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T05:45:00Z",
+      "open": "19965.3",
+      "high": "19969.0",
+      "low": "19961.8",
+      "close": "19968.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T06:00:00Z",
+      "open": "19968.7",
+      "high": "19969.5",
+      "low": "19962.3",
+      "close": "19967.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T06:15:00Z",
+      "open": "19967.8",
+      "high": "19972.3",
+      "low": "19959.5",
+      "close": "19964.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T06:30:00Z",
+      "open": "19964.5",
+      "high": "19968.2",
+      "low": "19963.4",
+      "close": "19965.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T06:45:00Z",
+      "open": "19965.1",
+      "high": "19968.5",
+      "low": "19957.9",
+      "close": "19964.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T07:00:00Z",
+      "open": "19964.4",
+      "high": "19965.5",
+      "low": "19960.4",
+      "close": "19961.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T07:15:00Z",
+      "open": "19961.2",
+      "high": "19962.4",
+      "low": "19951.7",
+      "close": "19954.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T07:30:00Z",
+      "open": "19954.9",
+      "high": "19961.8",
+      "low": "19950.0",
+      "close": "19957.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T07:45:00Z",
+      "open": "19957.2",
+      "high": "19958.1",
+      "low": "19954.5",
+      "close": "19955.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T08:00:00Z",
+      "open": "19955.1",
+      "high": "19962.0",
+      "low": "19950.6",
+      "close": "19950.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T08:15:00Z",
+      "open": "19950.6",
+      "high": "19952.0",
+      "low": "19940.4",
+      "close": "19943.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T08:30:00Z",
+      "open": "19943.0",
+      "high": "19949.8",
+      "low": "19935.9",
+      "close": "19938.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T08:45:00Z",
+      "open": "19938.7",
+      "high": "19942.9",
+      "low": "19936.4",
+      "close": "19939.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T09:00:00Z",
+      "open": "19939.5",
+      "high": "19944.1",
+      "low": "19934.9",
+      "close": "19936.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T09:15:00Z",
+      "open": "19936.2",
+      "high": "19943.0",
+      "low": "19930.1",
+      "close": "19935.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T09:30:00Z",
+      "open": "19935.1",
+      "high": "19936.6",
+      "low": "19925.1",
+      "close": "19927.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T09:45:00Z",
+      "open": "19927.5",
+      "high": "19930.8",
+      "low": "19914.7",
+      "close": "19921.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T10:00:00Z",
+      "open": "19921.7",
+      "high": "19955.2",
+      "low": "19920.6",
+      "close": "19954.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T10:15:00Z",
+      "open": "19954.6",
+      "high": "19960.4",
+      "low": "19938.1",
+      "close": "19944.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T10:30:00Z",
+      "open": "19944.7",
+      "high": "19948.9",
+      "low": "19941.9",
+      "close": "19948.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T10:45:00Z",
+      "open": "19948.9",
+      "high": "19949.0",
+      "low": "19945.7",
+      "close": "19948.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T11:00:00Z",
+      "open": "19948.1",
+      "high": "19949.7",
+      "low": "19947.3",
+      "close": "19948.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T11:15:00Z",
+      "open": "19948.3",
+      "high": "19950.4",
+      "low": "19946.2",
+      "close": "19946.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T11:30:00Z",
+      "open": "19946.2",
+      "high": "19947.2",
+      "low": "19940.4",
+      "close": "19946.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T11:45:00Z",
+      "open": "19946.8",
+      "high": "19952.6",
+      "low": "19940.6",
+      "close": "19943.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T12:00:00Z",
+      "open": "19943.5",
+      "high": "19951.7",
+      "low": "19941.9",
+      "close": "19945.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T12:15:00Z",
+      "open": "19945.0",
+      "high": "19950.2",
+      "low": "19937.5",
+      "close": "19938.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T12:30:00Z",
+      "open": "19938.6",
+      "high": "19942.5",
+      "low": "19934.4",
+      "close": "19936.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T12:45:00Z",
+      "open": "19936.1",
+      "high": "19940.8",
+      "low": "19929.6",
+      "close": "19934.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T13:00:00Z",
+      "open": "19934.9",
+      "high": "19935.6",
+      "low": "19929.4",
+      "close": "19933.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T13:15:00Z",
+      "open": "19933.4",
+      "high": "19934.7",
+      "low": "19926.6",
+      "close": "19928.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T13:30:00Z",
+      "open": "19928.0",
+      "high": "19935.6",
+      "low": "19922.2",
+      "close": "19930.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T13:45:00Z",
+      "open": "19930.5",
+      "high": "19942.1",
+      "low": "19929.1",
+      "close": "19935.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T14:00:00Z",
+      "open": "19935.6",
+      "high": "19937.0",
+      "low": "19926.3",
+      "close": "19931.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T14:15:00Z",
+      "open": "19931.9",
+      "high": "19938.0",
+      "low": "19929.6",
+      "close": "19936.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T14:30:00Z",
+      "open": "19936.0",
+      "high": "19938.8",
+      "low": "19930.4",
+      "close": "19934.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T14:45:00Z",
+      "open": "19934.1",
+      "high": "19936.7",
+      "low": "19928.4",
+      "close": "19936.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T15:00:00Z",
+      "open": "19936.3",
+      "high": "19940.8",
+      "low": "19929.5",
+      "close": "19933.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T15:15:00Z",
+      "open": "19933.9",
+      "high": "19939.8",
+      "low": "19925.7",
+      "close": "19931.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T15:30:00Z",
+      "open": "19931.8",
+      "high": "19942.4",
+      "low": "19930.4",
+      "close": "19936.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T15:45:00Z",
+      "open": "19936.4",
+      "high": "19936.8",
+      "low": "19926.8",
+      "close": "19932.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T16:00:00Z",
+      "open": "19932.5",
+      "high": "19937.9",
+      "low": "19921.6",
+      "close": "19924.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T16:15:00Z",
+      "open": "19924.6",
+      "high": "19930.3",
+      "low": "19921.4",
+      "close": "19930.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T16:30:00Z",
+      "open": "19930.1",
+      "high": "19934.5",
+      "low": "19924.6",
+      "close": "19924.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T16:45:00Z",
+      "open": "19924.9",
+      "high": "19931.7",
+      "low": "19920.9",
+      "close": "19922.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T17:00:00Z",
+      "open": "19922.8",
+      "high": "19923.1",
+      "low": "19915.5",
+      "close": "19919.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T17:15:00Z",
+      "open": "19919.7",
+      "high": "19924.7",
+      "low": "19916.2",
+      "close": "19921.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T17:30:00Z",
+      "open": "19921.8",
+      "high": "19926.7",
+      "low": "19919.4",
+      "close": "19924.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T17:45:00Z",
+      "open": "19924.9",
+      "high": "19930.4",
+      "low": "19918.7",
+      "close": "19929.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T18:00:00Z",
+      "open": "19929.1",
+      "high": "19934.3",
+      "low": "19921.5",
+      "close": "19928.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T18:15:00Z",
+      "open": "19928.2",
+      "high": "19933.1",
+      "low": "19919.8",
+      "close": "19925.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T18:30:00Z",
+      "open": "19925.3",
+      "high": "19932.2",
+      "low": "19918.5",
+      "close": "19927.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T18:45:00Z",
+      "open": "19927.3",
+      "high": "19928.4",
+      "low": "19920.3",
+      "close": "19922.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T19:00:00Z",
+      "open": "19922.5",
+      "high": "19926.8",
+      "low": "19915.1",
+      "close": "19916.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T19:15:00Z",
+      "open": "19916.2",
+      "high": "19922.6",
+      "low": "19904.9",
+      "close": "19909.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T19:30:00Z",
+      "open": "19909.7",
+      "high": "19909.9",
+      "low": "19898.8",
+      "close": "19905.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T19:45:00Z",
+      "open": "19905.0",
+      "high": "19910.3",
+      "low": "19904.0",
+      "close": "19905.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T20:00:00Z",
+      "open": "19905.0",
+      "high": "19909.4",
+      "low": "19899.0",
+      "close": "19905.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T20:15:00Z",
+      "open": "19905.7",
+      "high": "19911.7",
+      "low": "19896.5",
+      "close": "19898.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T20:30:00Z",
+      "open": "19898.1",
+      "high": "19899.0",
+      "low": "19889.4",
+      "close": "19892.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T20:45:00Z",
+      "open": "19892.5",
+      "high": "19901.0",
+      "low": "19892.5",
+      "close": "19895.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T21:00:00Z",
+      "open": "19895.5",
+      "high": "19900.2",
+      "low": "19890.5",
+      "close": "19893.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T21:15:00Z",
+      "open": "19893.9",
+      "high": "19897.2",
+      "low": "19889.6",
+      "close": "19892.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T21:30:00Z",
+      "open": "19892.0",
+      "high": "19894.8",
+      "low": "19883.8",
+      "close": "19886.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T21:45:00Z",
+      "open": "19886.0",
+      "high": "19892.7",
+      "low": "19879.1",
+      "close": "19888.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T22:00:00Z",
+      "open": "19888.3",
+      "high": "19896.4",
+      "low": "19882.3",
+      "close": "19890.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T22:15:00Z",
+      "open": "19890.2",
+      "high": "19896.1",
+      "low": "19884.2",
+      "close": "19891.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T22:30:00Z",
+      "open": "19891.5",
+      "high": "19893.1",
+      "low": "19881.9",
+      "close": "19887.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T22:45:00Z",
+      "open": "19887.0",
+      "high": "19893.6",
+      "low": "19882.5",
+      "close": "19893.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T23:00:00Z",
+      "open": "19893.4",
+      "high": "19894.7",
+      "low": "19886.4",
+      "close": "19888.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T23:15:00Z",
+      "open": "19888.0",
+      "high": "19892.3",
+      "low": "19881.2",
+      "close": "19881.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T23:30:00Z",
+      "open": "19881.5",
+      "high": "19887.9",
+      "low": "19874.9",
+      "close": "19876.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-18T23:45:00Z",
+      "open": "19876.9",
+      "high": "19888.6",
+      "low": "19876.9",
+      "close": "19884.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T00:00:00Z",
+      "open": "19884.1",
+      "high": "19889.7",
+      "low": "19876.8",
+      "close": "19883.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T00:15:00Z",
+      "open": "19883.2",
+      "high": "19887.4",
+      "low": "19879.5",
+      "close": "19885.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T00:30:00Z",
+      "open": "19885.9",
+      "high": "19888.9",
+      "low": "19876.2",
+      "close": "19881.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T00:45:00Z",
+      "open": "19881.4",
+      "high": "19886.7",
+      "low": "19876.1",
+      "close": "19877.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T01:00:00Z",
+      "open": "19877.8",
+      "high": "19877.9",
+      "low": "19875.5",
+      "close": "19877.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T01:15:00Z",
+      "open": "19877.7",
+      "high": "19877.8",
+      "low": "19837.7",
+      "close": "19838.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T01:30:00Z",
+      "open": "19838.7",
+      "high": "19845.6",
+      "low": "19832.8",
+      "close": "19842.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T01:45:00Z",
+      "open": "19842.3",
+      "high": "19855.8",
+      "low": "19838.0",
+      "close": "19849.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T02:00:00Z",
+      "open": "19849.2",
+      "high": "19857.8",
+      "low": "19848.6",
+      "close": "19856.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T02:15:00Z",
+      "open": "19856.1",
+      "high": "19860.3",
+      "low": "19851.8",
+      "close": "19852.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T02:30:00Z",
+      "open": "19852.2",
+      "high": "19857.3",
+      "low": "19846.6",
+      "close": "19855.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T02:45:00Z",
+      "open": "19855.3",
+      "high": "19861.4",
+      "low": "19850.7",
+      "close": "19857.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T03:00:00Z",
+      "open": "19857.5",
+      "high": "19861.3",
+      "low": "19854.5",
+      "close": "19855.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T03:15:00Z",
+      "open": "19855.5",
+      "high": "19857.7",
+      "low": "19848.9",
+      "close": "19851.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T03:30:00Z",
+      "open": "19851.7",
+      "high": "19860.3",
+      "low": "19848.4",
+      "close": "19859.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T03:45:00Z",
+      "open": "19859.3",
+      "high": "19864.6",
+      "low": "19853.5",
+      "close": "19856.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T04:00:00Z",
+      "open": "19856.5",
+      "high": "19857.7",
+      "low": "19853.3",
+      "close": "19853.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T04:15:00Z",
+      "open": "19853.3",
+      "high": "19858.5",
+      "low": "19847.2",
+      "close": "19856.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T04:30:00Z",
+      "open": "19856.3",
+      "high": "19866.1",
+      "low": "19855.5",
+      "close": "19860.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T04:45:00Z",
+      "open": "19860.3",
+      "high": "19862.0",
+      "low": "19854.1",
+      "close": "19861.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T05:00:00Z",
+      "open": "19861.7",
+      "high": "19868.6",
+      "low": "19850.9",
+      "close": "19857.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T05:15:00Z",
+      "open": "19857.6",
+      "high": "19868.5",
+      "low": "19853.7",
+      "close": "19861.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T05:30:00Z",
+      "open": "19861.6",
+      "high": "19864.8",
+      "low": "19860.3",
+      "close": "19862.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T05:45:00Z",
+      "open": "19862.5",
+      "high": "19867.9",
+      "low": "19859.3",
+      "close": "19861.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T06:00:00Z",
+      "open": "19861.8",
+      "high": "19867.5",
+      "low": "19853.4",
+      "close": "19859.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T06:15:00Z",
+      "open": "19859.8",
+      "high": "19870.5",
+      "low": "19854.8",
+      "close": "19864.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T06:30:00Z",
+      "open": "19864.0",
+      "high": "19867.7",
+      "low": "19857.6",
+      "close": "19858.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T06:45:00Z",
+      "open": "19858.5",
+      "high": "19864.8",
+      "low": "19852.4",
+      "close": "19862.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T07:00:00Z",
+      "open": "19862.2",
+      "high": "19870.4",
+      "low": "19861.0",
+      "close": "19868.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T07:15:00Z",
+      "open": "19868.2",
+      "high": "19874.7",
+      "low": "19859.3",
+      "close": "19861.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T07:30:00Z",
+      "open": "19861.1",
+      "high": "19862.9",
+      "low": "19853.2",
+      "close": "19859.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T07:45:00Z",
+      "open": "19859.2",
+      "high": "19861.4",
+      "low": "19857.8",
+      "close": "19858.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T08:00:00Z",
+      "open": "19858.2",
+      "high": "19860.0",
+      "low": "19852.3",
+      "close": "19859.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T08:15:00Z",
+      "open": "19859.3",
+      "high": "19868.9",
+      "low": "19856.9",
+      "close": "19863.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T08:30:00Z",
+      "open": "19863.1",
+      "high": "19867.7",
+      "low": "19861.9",
+      "close": "19866.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T08:45:00Z",
+      "open": "19866.9",
+      "high": "19867.2",
+      "low": "19861.9",
+      "close": "19862.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T09:00:00Z",
+      "open": "19862.9",
+      "high": "19869.5",
+      "low": "19857.1",
+      "close": "19863.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T09:15:00Z",
+      "open": "19863.7",
+      "high": "19867.9",
+      "low": "19856.3",
+      "close": "19863.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T09:30:00Z",
+      "open": "19863.0",
+      "high": "19866.4",
+      "low": "19861.7",
+      "close": "19866.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T09:45:00Z",
+      "open": "19866.2",
+      "high": "19873.3",
+      "low": "19863.9",
+      "close": "19866.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T10:00:00Z",
+      "open": "19866.8",
+      "high": "19870.5",
+      "low": "19856.5",
+      "close": "19857.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T10:15:00Z",
+      "open": "19857.8",
+      "high": "19864.4",
+      "low": "19849.5",
+      "close": "19851.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T10:30:00Z",
+      "open": "19851.9",
+      "high": "19858.5",
+      "low": "19841.0",
+      "close": "19843.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T10:45:00Z",
+      "open": "19843.9",
+      "high": "19844.1",
+      "low": "19829.8",
+      "close": "19834.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T11:00:00Z",
+      "open": "19834.3",
+      "high": "19836.6",
+      "low": "19830.8",
+      "close": "19833.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T11:15:00Z",
+      "open": "19833.0",
+      "high": "19837.7",
+      "low": "19826.6",
+      "close": "19828.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T11:30:00Z",
+      "open": "19828.2",
+      "high": "19831.8",
+      "low": "19825.7",
+      "close": "19828.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T11:45:00Z",
+      "open": "19828.2",
+      "high": "19832.1",
+      "low": "19827.4",
+      "close": "19829.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T12:00:00Z",
+      "open": "19829.0",
+      "high": "19833.6",
+      "low": "19825.7",
+      "close": "19825.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T12:15:00Z",
+      "open": "19825.9",
+      "high": "19836.4",
+      "low": "19825.5",
+      "close": "19831.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T12:30:00Z",
+      "open": "19831.7",
+      "high": "19836.5",
+      "low": "19828.2",
+      "close": "19831.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T12:45:00Z",
+      "open": "19831.1",
+      "high": "19834.0",
+      "low": "19819.8",
+      "close": "19823.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T13:00:00Z",
+      "open": "19823.6",
+      "high": "19835.6",
+      "low": "19822.7",
+      "close": "19829.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T13:15:00Z",
+      "open": "19829.2",
+      "high": "19832.3",
+      "low": "19816.7",
+      "close": "19822.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T13:30:00Z",
+      "open": "19822.8",
+      "high": "19864.4",
+      "low": "19822.5",
+      "close": "19864.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T13:45:00Z",
+      "open": "19864.1",
+      "high": "19868.7",
+      "low": "19855.6",
+      "close": "19856.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T14:00:00Z",
+      "open": "19856.9",
+      "high": "19865.2",
+      "low": "19853.2",
+      "close": "19861.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T14:15:00Z",
+      "open": "19861.3",
+      "high": "19866.9",
+      "low": "19856.9",
+      "close": "19861.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T14:30:00Z",
+      "open": "19861.7",
+      "high": "19867.5",
+      "low": "19855.1",
+      "close": "19857.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T14:45:00Z",
+      "open": "19857.5",
+      "high": "19863.0",
+      "low": "19855.6",
+      "close": "19860.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T15:00:00Z",
+      "open": "19860.8",
+      "high": "19865.8",
+      "low": "19858.5",
+      "close": "19860.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T15:15:00Z",
+      "open": "19860.4",
+      "high": "19863.1",
+      "low": "19857.2",
+      "close": "19858.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T15:30:00Z",
+      "open": "19858.8",
+      "high": "19862.6",
+      "low": "19856.8",
+      "close": "19857.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T15:45:00Z",
+      "open": "19857.7",
+      "high": "19869.5",
+      "low": "19853.6",
+      "close": "19865.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T16:00:00Z",
+      "open": "19865.4",
+      "high": "19871.3",
+      "low": "19860.3",
+      "close": "19871.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T16:15:00Z",
+      "open": "19871.2",
+      "high": "19872.4",
+      "low": "19864.0",
+      "close": "19869.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T16:30:00Z",
+      "open": "19869.3",
+      "high": "19878.6",
+      "low": "19863.1",
+      "close": "19875.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T16:45:00Z",
+      "open": "19875.0",
+      "high": "19889.0",
+      "low": "19869.9",
+      "close": "19882.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T17:00:00Z",
+      "open": "19882.2",
+      "high": "19886.6",
+      "low": "19878.1",
+      "close": "19878.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T17:15:00Z",
+      "open": "19878.3",
+      "high": "19881.8",
+      "low": "19871.6",
+      "close": "19876.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T17:30:00Z",
+      "open": "19876.2",
+      "high": "19880.7",
+      "low": "19869.2",
+      "close": "19871.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T17:45:00Z",
+      "open": "19871.6",
+      "high": "19880.2",
+      "low": "19864.9",
+      "close": "19874.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T18:00:00Z",
+      "open": "19874.5",
+      "high": "19879.8",
+      "low": "19873.1",
+      "close": "19875.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T18:15:00Z",
+      "open": "19875.5",
+      "high": "19879.4",
+      "low": "19868.9",
+      "close": "19874.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T18:30:00Z",
+      "open": "19874.6",
+      "high": "19880.7",
+      "low": "19874.1",
+      "close": "19880.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T18:45:00Z",
+      "open": "19880.4",
+      "high": "19887.8",
+      "low": "19876.3",
+      "close": "19885.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T19:00:00Z",
+      "open": "19885.5",
+      "high": "19886.6",
+      "low": "19879.4",
+      "close": "19886.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T19:15:00Z",
+      "open": "19886.2",
+      "high": "19896.9",
+      "low": "19885.5",
+      "close": "19890.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T19:30:00Z",
+      "open": "19890.9",
+      "high": "19901.6",
+      "low": "19885.9",
+      "close": "19899.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T19:45:00Z",
+      "open": "19899.2",
+      "high": "19904.9",
+      "low": "19893.5",
+      "close": "19902.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T20:00:00Z",
+      "open": "19902.5",
+      "high": "19910.4",
+      "low": "19898.6",
+      "close": "19910.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T20:15:00Z",
+      "open": "19910.3",
+      "high": "19916.4",
+      "low": "19909.1",
+      "close": "19911.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T20:30:00Z",
+      "open": "19911.6",
+      "high": "19913.5",
+      "low": "19905.8",
+      "close": "19906.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T20:45:00Z",
+      "open": "19906.7",
+      "high": "19910.2",
+      "low": "19902.4",
+      "close": "19905.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T21:00:00Z",
+      "open": "19905.4",
+      "high": "19910.8",
+      "low": "19899.9",
+      "close": "19902.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T21:15:00Z",
+      "open": "19902.2",
+      "high": "19909.2",
+      "low": "19896.1",
+      "close": "19903.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T21:30:00Z",
+      "open": "19903.9",
+      "high": "19908.7",
+      "low": "19897.7",
+      "close": "19907.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T21:45:00Z",
+      "open": "19907.0",
+      "high": "19913.5",
+      "low": "19900.7",
+      "close": "19911.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T22:00:00Z",
+      "open": "19911.8",
+      "high": "19918.4",
+      "low": "19909.9",
+      "close": "19911.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T22:15:00Z",
+      "open": "19911.5",
+      "high": "19920.2",
+      "low": "19910.0",
+      "close": "19915.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T22:30:00Z",
+      "open": "19915.7",
+      "high": "19924.8",
+      "low": "19910.4",
+      "close": "19919.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T22:45:00Z",
+      "open": "19919.6",
+      "high": "19928.7",
+      "low": "19917.5",
+      "close": "19924.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T23:00:00Z",
+      "open": "19924.6",
+      "high": "19930.9",
+      "low": "19917.1",
+      "close": "19917.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T23:15:00Z",
+      "open": "19917.6",
+      "high": "19918.2",
+      "low": "19915.9",
+      "close": "19917.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T23:30:00Z",
+      "open": "19917.5",
+      "high": "19923.2",
+      "low": "19910.5",
+      "close": "19919.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-19T23:45:00Z",
+      "open": "19919.2",
+      "high": "19924.6",
+      "low": "19915.5",
+      "close": "19922.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T00:00:00Z",
+      "open": "19922.9",
+      "high": "19924.1",
+      "low": "19921.1",
+      "close": "19922.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T00:15:00Z",
+      "open": "19922.3",
+      "high": "19927.5",
+      "low": "19919.0",
+      "close": "19924.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T00:30:00Z",
+      "open": "19924.7",
+      "high": "19927.6",
+      "low": "19912.9",
+      "close": "19919.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T00:45:00Z",
+      "open": "19919.3",
+      "high": "19925.2",
+      "low": "19919.2",
+      "close": "19921.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T01:00:00Z",
+      "open": "19921.6",
+      "high": "19923.5",
+      "low": "19884.6",
+      "close": "19885.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T01:15:00Z",
+      "open": "19885.4",
+      "high": "19888.1",
+      "low": "19880.2",
+      "close": "19887.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T01:30:00Z",
+      "open": "19887.3",
+      "high": "19897.3",
+      "low": "19886.5",
+      "close": "19891.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T01:45:00Z",
+      "open": "19891.4",
+      "high": "19895.9",
+      "low": "19881.3",
+      "close": "19887.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T02:00:00Z",
+      "open": "19887.1",
+      "high": "19890.5",
+      "low": "19875.4",
+      "close": "19880.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T02:15:00Z",
+      "open": "19880.9",
+      "high": "19887.7",
+      "low": "19874.0",
+      "close": "19883.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T02:30:00Z",
+      "open": "19883.6",
+      "high": "19897.1",
+      "low": "19877.1",
+      "close": "19890.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T02:45:00Z",
+      "open": "19890.2",
+      "high": "19894.0",
+      "low": "19887.1",
+      "close": "19888.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T03:00:00Z",
+      "open": "19888.3",
+      "high": "19893.7",
+      "low": "19874.4",
+      "close": "19880.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T03:15:00Z",
+      "open": "19880.7",
+      "high": "19883.3",
+      "low": "19878.9",
+      "close": "19880.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T03:30:00Z",
+      "open": "19880.1",
+      "high": "19884.5",
+      "low": "19871.9",
+      "close": "19875.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T03:45:00Z",
+      "open": "19875.9",
+      "high": "19880.2",
+      "low": "19869.3",
+      "close": "19870.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T04:00:00Z",
+      "open": "19870.8",
+      "high": "19871.7",
+      "low": "19858.6",
+      "close": "19864.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T04:15:00Z",
+      "open": "19864.1",
+      "high": "19873.6",
+      "low": "19859.2",
+      "close": "19868.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T04:30:00Z",
+      "open": "19868.2",
+      "high": "19870.8",
+      "low": "19861.1",
+      "close": "19865.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T04:45:00Z",
+      "open": "19865.5",
+      "high": "19869.6",
+      "low": "19858.6",
+      "close": "19866.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T05:00:00Z",
+      "open": "19866.0",
+      "high": "19870.7",
+      "low": "19857.8",
+      "close": "19862.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T05:15:00Z",
+      "open": "19862.2",
+      "high": "19873.7",
+      "low": "19856.3",
+      "close": "19867.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T05:30:00Z",
+      "open": "19867.3",
+      "high": "19872.3",
+      "low": "19864.1",
+      "close": "19872.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T05:45:00Z",
+      "open": "19872.2",
+      "high": "19875.7",
+      "low": "19867.8",
+      "close": "19869.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T06:00:00Z",
+      "open": "19869.8",
+      "high": "19878.5",
+      "low": "19869.1",
+      "close": "19872.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T06:15:00Z",
+      "open": "19872.3",
+      "high": "19874.2",
+      "low": "19867.3",
+      "close": "19868.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T06:30:00Z",
+      "open": "19868.5",
+      "high": "19869.9",
+      "low": "19863.8",
+      "close": "19869.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T06:45:00Z",
+      "open": "19869.2",
+      "high": "19869.9",
+      "low": "19863.0",
+      "close": "19868.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T07:00:00Z",
+      "open": "19868.1",
+      "high": "19876.5",
+      "low": "19864.4",
+      "close": "19875.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T07:15:00Z",
+      "open": "19875.0",
+      "high": "19885.9",
+      "low": "19871.1",
+      "close": "19880.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T07:30:00Z",
+      "open": "19880.8",
+      "high": "19885.9",
+      "low": "19878.5",
+      "close": "19880.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T07:45:00Z",
+      "open": "19880.0",
+      "high": "19886.5",
+      "low": "19874.6",
+      "close": "19882.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T08:00:00Z",
+      "open": "19882.3",
+      "high": "19887.6",
+      "low": "19879.4",
+      "close": "19885.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T08:15:00Z",
+      "open": "19885.9",
+      "high": "19888.6",
+      "low": "19873.9",
+      "close": "19880.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T08:30:00Z",
+      "open": "19880.0",
+      "high": "19884.2",
+      "low": "19875.5",
+      "close": "19881.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T08:45:00Z",
+      "open": "19881.6",
+      "high": "19897.3",
+      "low": "19878.6",
+      "close": "19890.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T09:00:00Z",
+      "open": "19890.4",
+      "high": "19891.8",
+      "low": "19885.2",
+      "close": "19891.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T09:15:00Z",
+      "open": "19891.3",
+      "high": "19900.9",
+      "low": "19888.0",
+      "close": "19897.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T09:30:00Z",
+      "open": "19897.5",
+      "high": "19930.1",
+      "low": "19897.1",
+      "close": "19929.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T09:45:00Z",
+      "open": "19929.3",
+      "high": "19939.5",
+      "low": "19927.7",
+      "close": "19934.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T10:00:00Z",
+      "open": "19934.2",
+      "high": "19938.7",
+      "low": "19925.2",
+      "close": "19929.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T10:15:00Z",
+      "open": "19929.5",
+      "high": "19932.9",
+      "low": "19926.6",
+      "close": "19931.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T10:30:00Z",
+      "open": "19931.9",
+      "high": "19943.9",
+      "low": "19925.6",
+      "close": "19937.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T10:45:00Z",
+      "open": "19937.1",
+      "high": "19945.6",
+      "low": "19936.6",
+      "close": "19940.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T11:00:00Z",
+      "open": "19940.2",
+      "high": "19953.4",
+      "low": "19933.6",
+      "close": "19948.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T11:15:00Z",
+      "open": "19948.0",
+      "high": "19948.8",
+      "low": "19940.2",
+      "close": "19945.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T11:30:00Z",
+      "open": "19945.7",
+      "high": "19950.8",
+      "low": "19938.9",
+      "close": "19947.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T11:45:00Z",
+      "open": "19947.9",
+      "high": "19954.6",
+      "low": "19942.7",
+      "close": "19946.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T12:00:00Z",
+      "open": "19946.6",
+      "high": "19957.4",
+      "low": "19942.8",
+      "close": "19954.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T12:15:00Z",
+      "open": "19954.2",
+      "high": "19963.3",
+      "low": "19951.7",
+      "close": "19961.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T12:30:00Z",
+      "open": "19961.4",
+      "high": "19962.3",
+      "low": "19959.4",
+      "close": "19962.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T12:45:00Z",
+      "open": "19962.1",
+      "high": "19972.6",
+      "low": "19958.2",
+      "close": "19969.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T13:00:00Z",
+      "open": "19969.3",
+      "high": "19974.1",
+      "low": "19965.4",
+      "close": "19972.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T13:15:00Z",
+      "open": "19972.1",
+      "high": "19982.3",
+      "low": "19968.2",
+      "close": "19976.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T13:30:00Z",
+      "open": "19976.1",
+      "high": "19987.2",
+      "low": "19973.3",
+      "close": "19983.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T13:45:00Z",
+      "open": "19983.3",
+      "high": "19991.0",
+      "low": "19982.9",
+      "close": "19988.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T14:00:00Z",
+      "open": "19988.0",
+      "high": "19998.7",
+      "low": "19981.9",
+      "close": "19994.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T14:15:00Z",
+      "open": "19994.1",
+      "high": "20000.0",
+      "low": "19990.8",
+      "close": "19995.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T14:30:00Z",
+      "open": "19995.9",
+      "high": "20002.1",
+      "low": "19994.5",
+      "close": "20000.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T14:45:00Z",
+      "open": "20000.4",
+      "high": "20006.7",
+      "low": "19994.0",
+      "close": "20000.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T15:00:00Z",
+      "open": "20000.6",
+      "high": "20003.5",
+      "low": "19999.1",
+      "close": "20000.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T15:15:00Z",
+      "open": "20000.7",
+      "high": "20002.6",
+      "low": "19997.7",
+      "close": "19998.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T15:30:00Z",
+      "open": "19998.3",
+      "high": "20005.6",
+      "low": "19991.5",
+      "close": "20005.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T15:45:00Z",
+      "open": "20005.4",
+      "high": "20005.8",
+      "low": "19998.7",
+      "close": "19999.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T16:00:00Z",
+      "open": "19999.9",
+      "high": "20004.1",
+      "low": "19996.5",
+      "close": "20001.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T16:15:00Z",
+      "open": "20001.1",
+      "high": "20005.2",
+      "low": "19997.3",
+      "close": "19997.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T16:30:00Z",
+      "open": "19997.7",
+      "high": "20000.6",
+      "low": "19996.3",
+      "close": "20000.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T16:45:00Z",
+      "open": "20000.0",
+      "high": "20005.5",
+      "low": "19997.2",
+      "close": "20003.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T17:00:00Z",
+      "open": "20003.1",
+      "high": "20005.0",
+      "low": "19996.4",
+      "close": "20003.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T17:15:00Z",
+      "open": "20003.8",
+      "high": "20009.7",
+      "low": "19999.2",
+      "close": "20007.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T17:30:00Z",
+      "open": "20007.7",
+      "high": "20011.6",
+      "low": "19998.2",
+      "close": "20003.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T17:45:00Z",
+      "open": "20003.4",
+      "high": "20008.4",
+      "low": "19996.7",
+      "close": "20005.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T18:00:00Z",
+      "open": "20005.6",
+      "high": "20016.1",
+      "low": "19999.8",
+      "close": "20010.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T18:15:00Z",
+      "open": "20010.5",
+      "high": "20011.3",
+      "low": "20001.7",
+      "close": "20002.2",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T18:30:00Z",
+      "open": "20002.2",
+      "high": "20003.1",
+      "low": "19997.7",
+      "close": "20002.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T18:45:00Z",
+      "open": "20002.6",
+      "high": "20007.8",
+      "low": "19997.3",
+      "close": "20001.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T19:00:00Z",
+      "open": "20001.8",
+      "high": "20002.9",
+      "low": "19989.0",
+      "close": "19993.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T19:15:00Z",
+      "open": "19993.8",
+      "high": "20002.8",
+      "low": "19989.3",
+      "close": "19996.9",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T19:30:00Z",
+      "open": "19996.9",
+      "high": "20002.2",
+      "low": "19985.8",
+      "close": "19991.3",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T19:45:00Z",
+      "open": "19991.3",
+      "high": "19994.7",
+      "low": "19988.3",
+      "close": "19992.5",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T20:00:00Z",
+      "open": "19992.5",
+      "high": "19999.9",
+      "low": "19990.6",
+      "close": "19994.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T20:15:00Z",
+      "open": "19994.4",
+      "high": "19995.0",
+      "low": "19988.8",
+      "close": "19993.1",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T20:30:00Z",
+      "open": "19993.1",
+      "high": "19995.3",
+      "low": "19987.0",
+      "close": "19993.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T20:45:00Z",
+      "open": "19993.6",
+      "high": "20000.0",
+      "low": "19990.4",
+      "close": "19990.7",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T21:00:00Z",
+      "open": "19990.7",
+      "high": "19991.5",
+      "low": "19953.8",
+      "close": "19955.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T21:15:00Z",
+      "open": "19955.6",
+      "high": "19960.8",
+      "low": "19950.3",
+      "close": "19957.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T21:30:00Z",
+      "open": "19957.4",
+      "high": "19959.2",
+      "low": "19951.6",
+      "close": "19954.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T21:45:00Z",
+      "open": "19954.4",
+      "high": "19960.0",
+      "low": "19944.5",
+      "close": "19948.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T22:00:00Z",
+      "open": "19948.8",
+      "high": "19949.5",
+      "low": "19945.6",
+      "close": "19947.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T22:15:00Z",
+      "open": "19947.6",
+      "high": "19953.3",
+      "low": "19943.8",
+      "close": "19946.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T22:30:00Z",
+      "open": "19946.6",
+      "high": "19950.8",
+      "low": "19938.7",
+      "close": "19944.8",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T22:45:00Z",
+      "open": "19944.8",
+      "high": "19951.0",
+      "low": "19944.4",
+      "close": "19946.4",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T23:00:00Z",
+      "open": "19946.4",
+      "high": "19950.2",
+      "low": "19940.9",
+      "close": "19943.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T23:15:00Z",
+      "open": "19943.0",
+      "high": "19949.2",
+      "low": "19935.0",
+      "close": "19935.6",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T23:30:00Z",
+      "open": "19935.6",
+      "high": "19941.3",
+      "low": "19934.6",
+      "close": "19938.0",
+      "volume": null
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "start": "2026-11-20T23:45:00Z",
+      "open": "19938.0",
+      "high": "19941.8",
+      "low": "19937.5",
+      "close": "19940.4",
+      "volume": null
+    }
+  ],
+  "levels": [
+    {
+      "instrument_id": "US100",
+      "kind": "session_high",
+      "session": "asia",
+      "price": "20004.7",
+      "exists_from": "2026-11-18T07:00:00Z",
+      "state": "swept",
+      "state_changed_at": "2026-11-20T15:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "session_low",
+      "session": "asia",
+      "price": "19957.3",
+      "exists_from": "2026-11-18T07:00:00Z",
+      "state": "broken",
+      "state_changed_at": "2026-11-18T07:30:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "session_high",
+      "session": "london",
+      "price": "19965.5",
+      "exists_from": "2026-11-18T13:30:00Z",
+      "state": "broken",
+      "state_changed_at": "2026-11-20T13:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "session_low",
+      "session": "london",
+      "price": "19914.7",
+      "exists_from": "2026-11-18T13:30:00Z",
+      "state": "broken",
+      "state_changed_at": "2026-11-18T19:30:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "session_high",
+      "session": "ny",
+      "price": "19942.4",
+      "exists_from": "2026-11-18T20:00:00Z",
+      "state": "swept",
+      "state_changed_at": "2026-11-20T10:45:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "session_low",
+      "session": "ny",
+      "price": "19898.8",
+      "exists_from": "2026-11-18T20:00:00Z",
+      "state": "broken",
+      "state_changed_at": "2026-11-18T20:30:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "session_high",
+      "session": "asia",
+      "price": "19889.7",
+      "exists_from": "2026-11-19T07:00:00Z",
+      "state": "broken",
+      "state_changed_at": "2026-11-19T19:30:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "session_low",
+      "session": "asia",
+      "price": "19832.8",
+      "exists_from": "2026-11-19T07:00:00Z",
+      "state": "swept",
+      "state_changed_at": "2026-11-19T11:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "session_high",
+      "session": "london",
+      "price": "19874.7",
+      "exists_from": "2026-11-19T13:30:00Z",
+      "state": "broken",
+      "state_changed_at": "2026-11-19T16:45:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "session_low",
+      "session": "london",
+      "price": "19816.7",
+      "exists_from": "2026-11-19T13:30:00Z",
+      "state": "intact",
+      "state_changed_at": null
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "session_high",
+      "session": "ny",
+      "price": "19904.9",
+      "exists_from": "2026-11-19T20:00:00Z",
+      "state": "broken",
+      "state_changed_at": "2026-11-19T20:15:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "session_low",
+      "session": "ny",
+      "price": "19822.5",
+      "exists_from": "2026-11-19T20:00:00Z",
+      "state": "intact",
+      "state_changed_at": null
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "pdh",
+      "session": null,
+      "price": "20004.7",
+      "exists_from": "2026-11-18T20:00:00Z",
+      "state": "swept",
+      "state_changed_at": "2026-11-20T15:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "pdl",
+      "session": null,
+      "price": "19874.9",
+      "exists_from": "2026-11-18T20:00:00Z",
+      "state": "broken",
+      "state_changed_at": "2026-11-19T01:30:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "session_high",
+      "session": "asia",
+      "price": "19927.6",
+      "exists_from": "2026-11-20T07:00:00Z",
+      "state": "broken",
+      "state_changed_at": "2026-11-20T09:45:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "session_low",
+      "session": "asia",
+      "price": "19856.3",
+      "exists_from": "2026-11-20T07:00:00Z",
+      "state": "intact",
+      "state_changed_at": null
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "session_high",
+      "session": "london",
+      "price": "19982.3",
+      "exists_from": "2026-11-20T13:30:00Z",
+      "state": "broken",
+      "state_changed_at": "2026-11-20T13:45:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "session_low",
+      "session": "london",
+      "price": "19864.4",
+      "exists_from": "2026-11-20T13:30:00Z",
+      "state": "intact",
+      "state_changed_at": null
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "session_high",
+      "session": "ny",
+      "price": "20016.1",
+      "exists_from": "2026-11-20T20:00:00Z",
+      "state": "intact",
+      "state_changed_at": null
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "session_low",
+      "session": "ny",
+      "price": "19973.3",
+      "exists_from": "2026-11-20T20:00:00Z",
+      "state": "broken",
+      "state_changed_at": "2026-11-20T21:15:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "pdh",
+      "session": null,
+      "price": "19930.9",
+      "exists_from": "2026-11-19T20:00:00Z",
+      "state": "broken",
+      "state_changed_at": "2026-11-20T10:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "pdl",
+      "session": null,
+      "price": "19816.7",
+      "exists_from": "2026-11-19T20:00:00Z",
+      "state": "intact",
+      "state_changed_at": null
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "pwh",
+      "session": null,
+      "price": "20058.4",
+      "exists_from": "2026-11-14T21:00:00Z",
+      "state": "intact",
+      "state_changed_at": null
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "pwl",
+      "session": null,
+      "price": "19778.9",
+      "exists_from": "2026-11-14T21:00:00Z",
+      "state": "intact",
+      "state_changed_at": null
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "eql",
+      "session": null,
+      "price": "19826.4",
+      "exists_from": "2026-11-13T16:15:00Z",
+      "state": "intact",
+      "state_changed_at": null,
+      "expired_at": "2026-11-19T09:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "eqh",
+      "session": null,
+      "price": "19868.7",
+      "exists_from": "2026-11-19T14:45:00Z",
+      "state": "swept",
+      "state_changed_at": "2026-11-19T16:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "kind": "eql",
+      "session": null,
+      "price": "19873.9",
+      "exists_from": "2026-11-20T09:15:00Z",
+      "state": "intact",
+      "state_changed_at": null
+    }
+  ],
+  "fvgs": [
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "direction": "bullish",
+      "created_at": "2026-11-20T07:30:00Z",
+      "bottom": "19869.9",
+      "top": "19871.1",
+      "atr": "11.11",
+      "size_atr": "0.11",
+      "touch": null,
+      "mid": null,
+      "fill": null,
+      "expiry": null,
+      "reactions": [
+        {
+          "bars": 4,
+          "return_atr": null
+        },
+        {
+          "bars": 8,
+          "return_atr": null
+        }
+      ],
+      "status": "open",
+      "as_of": "2026-11-21T00:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "direction": "bullish",
+      "created_at": "2026-11-20T07:45:00Z",
+      "bottom": "19876.5",
+      "top": "19878.5",
+      "atr": "10.85",
+      "size_atr": "0.18",
+      "touch": {
+        "at": "2026-11-20T08:00:00Z",
+        "bars": 1
+      },
+      "mid": {
+        "at": "2026-11-20T08:00:00Z",
+        "bars": 1
+      },
+      "fill": null,
+      "expiry": null,
+      "reactions": [
+        {
+          "bars": 4,
+          "return_atr": "0.74"
+        },
+        {
+          "bars": 8,
+          "return_atr": "4.75"
+        }
+      ],
+      "status": "open",
+      "as_of": "2026-11-21T00:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "direction": "bullish",
+      "created_at": "2026-11-20T09:15:00Z",
+      "bottom": "19884.2",
+      "top": "19885.2",
+      "atr": "11.06",
+      "size_atr": "0.09",
+      "touch": null,
+      "mid": null,
+      "fill": null,
+      "expiry": null,
+      "reactions": [
+        {
+          "bars": 4,
+          "return_atr": null
+        },
+        {
+          "bars": 8,
+          "return_atr": null
+        }
+      ],
+      "status": "open",
+      "as_of": "2026-11-21T00:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "direction": "bullish",
+      "created_at": "2026-11-20T09:45:00Z",
+      "bottom": "19891.8",
+      "top": "19897.1",
+      "atr": "12.75",
+      "size_atr": "0.42",
+      "touch": null,
+      "mid": null,
+      "fill": null,
+      "expiry": null,
+      "reactions": [
+        {
+          "bars": 4,
+          "return_atr": null
+        },
+        {
+          "bars": 8,
+          "return_atr": null
+        }
+      ],
+      "status": "open",
+      "as_of": "2026-11-21T00:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "direction": "bullish",
+      "created_at": "2026-11-20T10:00:00Z",
+      "bottom": "19900.9",
+      "top": "19927.7",
+      "atr": "12.68",
+      "size_atr": "2.11",
+      "touch": {
+        "at": "2026-11-20T10:15:00Z",
+        "bars": 1
+      },
+      "mid": null,
+      "fill": null,
+      "expiry": null,
+      "reactions": [
+        {
+          "bars": 4,
+          "return_atr": "1.45"
+        },
+        {
+          "bars": 8,
+          "return_atr": "1.94"
+        }
+      ],
+      "status": "open",
+      "as_of": "2026-11-21T00:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "direction": "bullish",
+      "created_at": "2026-11-20T11:00:00Z",
+      "bottom": "19932.9",
+      "top": "19936.6",
+      "atr": "12.45",
+      "size_atr": "0.30",
+      "touch": {
+        "at": "2026-11-20T11:15:00Z",
+        "bars": 1
+      },
+      "mid": {
+        "at": "2026-11-20T11:15:00Z",
+        "bars": 1
+      },
+      "fill": null,
+      "expiry": null,
+      "reactions": [
+        {
+          "bars": 4,
+          "return_atr": "0.48"
+        },
+        {
+          "bars": 8,
+          "return_atr": "1.86"
+        }
+      ],
+      "status": "open",
+      "as_of": "2026-11-21T00:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "direction": "bullish",
+      "created_at": "2026-11-20T12:45:00Z",
+      "bottom": "19957.4",
+      "top": "19959.4",
+      "atr": "11.93",
+      "size_atr": "0.17",
+      "touch": {
+        "at": "2026-11-20T13:00:00Z",
+        "bars": 1
+      },
+      "mid": {
+        "at": "2026-11-20T13:00:00Z",
+        "bars": 1
+      },
+      "fill": {
+        "at": "2026-11-20T21:15:00Z",
+        "bars": 34
+      },
+      "expiry": null,
+      "reactions": [
+        {
+          "bars": 4,
+          "return_atr": "1.54"
+        },
+        {
+          "bars": 8,
+          "return_atr": "2.59"
+        }
+      ],
+      "status": "filled",
+      "as_of": "2026-11-21T00:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "direction": "bullish",
+      "created_at": "2026-11-20T13:15:00Z",
+      "bottom": "19962.3",
+      "top": "19965.4",
+      "atr": "11.86",
+      "size_atr": "0.26",
+      "touch": {
+        "at": "2026-11-20T21:15:00Z",
+        "bars": 32
+      },
+      "mid": {
+        "at": "2026-11-20T21:15:00Z",
+        "bars": 32
+      },
+      "fill": {
+        "at": "2026-11-20T21:15:00Z",
+        "bars": 32
+      },
+      "expiry": null,
+      "reactions": [
+        {
+          "bars": 4,
+          "return_atr": "-0.66"
+        },
+        {
+          "bars": 8,
+          "return_atr": "-1.04"
+        }
+      ],
+      "status": "filled",
+      "as_of": "2026-11-21T00:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "direction": "bearish",
+      "created_at": "2026-11-20T21:30:00Z",
+      "bottom": "19960.8",
+      "top": "19990.4",
+      "atr": "11.98",
+      "size_atr": "2.47",
+      "touch": null,
+      "mid": null,
+      "fill": null,
+      "expiry": null,
+      "reactions": [
+        {
+          "bars": 4,
+          "return_atr": null
+        },
+        {
+          "bars": 8,
+          "return_atr": null
+        }
+      ],
+      "status": "open",
+      "as_of": "2026-11-21T00:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "direction": "bearish",
+      "created_at": "2026-11-20T22:15:00Z",
+      "bottom": "19949.5",
+      "top": "19951.6",
+      "atr": "11.37",
+      "size_atr": "0.18",
+      "touch": {
+        "at": "2026-11-20T22:30:00Z",
+        "bars": 1
+      },
+      "mid": {
+        "at": "2026-11-20T22:30:00Z",
+        "bars": 1
+      },
+      "fill": null,
+      "expiry": null,
+      "reactions": [
+        {
+          "bars": 4,
+          "return_atr": "0.98"
+        },
+        {
+          "bars": 8,
+          "return_atr": null
+        }
+      ],
+      "status": "open",
+      "as_of": "2026-11-21T00:00:00Z"
+    }
+  ],
+  "imbalance": [
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T05:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "200.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T05:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "202.3",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T05:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "211.7",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T05:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "206.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T06:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "204.7",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T06:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "202.7",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T06:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "210.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T06:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "203.3",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T07:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "199.7",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T07:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "201.0",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T07:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "198.4",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T07:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "201.7",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T08:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "192.8",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T08:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "195.8",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T08:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "190.6",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T08:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "189.5",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T09:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "186.0",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T09:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "186.3",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T09:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "183.3",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T09:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "187.0",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T10:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "199.5",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T10:15:00Z",
+      "window_bars": 20,
+      "displacement": "bullish",
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "220.4",
+      "index": "0.1493",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T10:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "229.0",
+      "index": "0.1437",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T10:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "230.8",
+      "index": "0.1425",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T11:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "226.9",
+      "index": "0.1450",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T11:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "222.1",
+      "index": "0.1481",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T11:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "213.5",
+      "index": "0.1541",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T11:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "215.5",
+      "index": "0.1527",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T12:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "216.9",
+      "index": "0.1517",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T12:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "221.6",
+      "index": "0.1485",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T12:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "223.6",
+      "index": "0.1471",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T12:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "219.9",
+      "index": "0.1496",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T13:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "227.5",
+      "index": "0.1446",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T13:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "222.3",
+      "index": "0.1480",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T13:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "218.8",
+      "index": "0.1504",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T13:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "218.3",
+      "index": "0.1507",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T14:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "224.8",
+      "index": "0.1464",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T14:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "226.3",
+      "index": "0.1454",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T14:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "221.8",
+      "index": "0.1483",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T14:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "218.7",
+      "index": "0.1504",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T15:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "32.9",
+      "bearish_body_sum": "0.0",
+      "range_sum": "210.9",
+      "index": "0.1560",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T15:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "187.6",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T15:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "179.4",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T15:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "184.4",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T16:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "191.1",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T16:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "205.0",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T16:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "209.7",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T16:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "212.8",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T17:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "211.6",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T17:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "209.4",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T17:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "205.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T17:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "204.4",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T18:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "204.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T18:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "211.5",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T18:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "216.7",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T18:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "217.0",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T19:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "212.1",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T19:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "213.1",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T19:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "222.4",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T19:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "225.1",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T20:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "223.1",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T20:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "222.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T20:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "223.3",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T20:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "220.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T21:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "219.4",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T21:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "212.8",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T21:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "211.5",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T21:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "212.6",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T22:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "215.4",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T22:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "221.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T22:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "225.3",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T22:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "229.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T23:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "228.6",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T23:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "224.1",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T23:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "221.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-18T23:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "221.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T00:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "224.8",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T00:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "226.0",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T00:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "216.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T00:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "217.8",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T01:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "222.1",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T01:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "214.1",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T01:30:00Z",
+      "window_bars": 20,
+      "displacement": "bearish",
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "239.0",
+      "index": "-0.1632",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T01:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "242.2",
+      "index": "-0.1610",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T02:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "251.5",
+      "index": "-0.1551",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T02:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "251.0",
+      "index": "-0.1554",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T02:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "251.9",
+      "index": "-0.1548",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T02:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "251.6",
+      "index": "-0.1550",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T03:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "248.7",
+      "index": "-0.1568",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T03:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "241.4",
+      "index": "-0.1616",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T03:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "238.3",
+      "index": "-0.1637",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T03:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "239.0",
+      "index": "-0.1632",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T04:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "239.0",
+      "index": "-0.1632",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T04:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "235.1",
+      "index": "-0.1659",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T04:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "235.3",
+      "index": "-0.1657",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T04:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "232.9",
+      "index": "-0.1675",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T05:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "229.1",
+      "index": "-0.1702",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T05:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "233.9",
+      "index": "-0.1667",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T05:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "240.8",
+      "index": "-0.1620",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T05:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "232.6",
+      "index": "-0.1677",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T06:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "230.6",
+      "index": "-0.1691",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T06:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "39.0",
+      "range_sum": "242.3",
+      "index": "-0.1610",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T06:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "217.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T06:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "215.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T07:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "209.8",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T07:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "210.0",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T07:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "216.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T07:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "215.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T08:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "208.8",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T08:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "209.7",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T08:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "212.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T08:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "206.8",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T09:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "201.0",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T09:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "209.0",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T09:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "209.3",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T09:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "203.4",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T10:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "204.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T10:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "201.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T10:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "201.3",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T10:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "214.3",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T11:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "220.0",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T11:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "211.7",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T11:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "207.1",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T11:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "203.1",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T12:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "195.4",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T12:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "193.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T12:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "189.4",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T12:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "188.0",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T13:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "198.6",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T13:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "203.8",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T13:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "207.4",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T13:45:00Z",
+      "window_bars": 20,
+      "displacement": "bullish",
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "243.5",
+      "index": "0.1696",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T14:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "251.3",
+      "index": "0.1643",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T14:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "250.9",
+      "index": "0.1646",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T14:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "249.3",
+      "index": "0.1657",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T14:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "257.0",
+      "index": "0.1607",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T15:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "255.0",
+      "index": "0.1620",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T15:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "248.3",
+      "index": "0.1663",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T15:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "239.3",
+      "index": "0.1726",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T15:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "227.6",
+      "index": "0.1815",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T16:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "229.2",
+      "index": "0.1802",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T16:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "234.4",
+      "index": "0.1762",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T16:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "231.7",
+      "index": "0.1782",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T16:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "241.1",
+      "index": "0.1713",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T17:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "255.5",
+      "index": "0.1616",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T17:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "256.1",
+      "index": "0.1613",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T17:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "255.4",
+      "index": "0.1617",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T17:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "258.6",
+      "index": "0.1597",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T18:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "259.7",
+      "index": "0.1590",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T18:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "253.5",
+      "index": "0.1629",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T18:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "41.3",
+      "bearish_body_sum": "0.0",
+      "range_sum": "248.4",
+      "index": "0.1663",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T18:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "213.1",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T19:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "211.5",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T19:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "206.7",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T19:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "208.1",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T19:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "211.4",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T20:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "215.4",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T20:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "219.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T20:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "221.3",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T20:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "223.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T21:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "215.1",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T21:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "215.0",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T21:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "219.7",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T21:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "215.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T22:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "208.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T22:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "208.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T22:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "208.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T22:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "211.8",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T23:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "207.7",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T23:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "214.8",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T23:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "206.6",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-19T23:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "212.7",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T00:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "210.3",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T00:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "206.1",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T00:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "203.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T00:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "202.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T01:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "196.8",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T01:15:00Z",
+      "window_bars": 20,
+      "displacement": "bearish",
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "223.9",
+      "index": "-0.1617",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T01:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "224.5",
+      "index": "-0.1612",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T01:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "227.6",
+      "index": "-0.1591",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T02:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "234.4",
+      "index": "-0.1544",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T02:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "238.6",
+      "index": "-0.1517",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T02:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "239.2",
+      "index": "-0.1513",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T02:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "248.2",
+      "index": "-0.1459",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T03:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "242.3",
+      "index": "-0.1494",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T03:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "253.1",
+      "index": "-0.1430",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T03:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "247.3",
+      "index": "-0.1464",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T03:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "245.5",
+      "index": "-0.1475",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T04:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "245.2",
+      "index": "-0.1476",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T04:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "244.5",
+      "index": "-0.1481",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T04:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "256.6",
+      "index": "-0.1411",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T04:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "253.6",
+      "index": "-0.1427",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T05:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "255.5",
+      "index": "-0.1417",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T05:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "265.4",
+      "index": "-0.1364",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T05:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "274.3",
+      "index": "-0.1320",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T05:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "267.8",
+      "index": "-0.1352",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T06:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "36.2",
+      "range_sum": "269.7",
+      "index": "-0.1342",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T06:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "240.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T06:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "239.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T06:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "234.5",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T07:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "226.8",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T07:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "223.8",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T07:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "224.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T07:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "212.3",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T08:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "217.3",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T08:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "206.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T08:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "216.5",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T08:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "212.6",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T09:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "220.4",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T09:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "213.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T09:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "212.4",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T09:45:00Z",
+      "window_bars": 20,
+      "displacement": "bullish",
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "235.7",
+      "index": "0.1349",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T10:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "236.5",
+      "index": "0.1345",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T10:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "237.1",
+      "index": "0.1341",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T10:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "226.0",
+      "index": "0.1407",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T10:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "236.1",
+      "index": "0.1347",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T11:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "237.2",
+      "index": "0.1341",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T11:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "247.6",
+      "index": "0.1284",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T11:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "249.3",
+      "index": "0.1276",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T11:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "255.1",
+      "index": "0.1247",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T12:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "260.1",
+      "index": "0.1223",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T12:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "262.6",
+      "index": "0.1211",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T12:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "259.4",
+      "index": "0.1226",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T12:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "254.9",
+      "index": "0.1248",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T13:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "257.4",
+      "index": "0.1235",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T13:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "257.9",
+      "index": "0.1233",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T13:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "257.3",
+      "index": "0.1236",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T13:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "262.5",
+      "index": "0.1211",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T14:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "251.9",
+      "index": "0.1262",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T14:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "262.1",
+      "index": "0.1213",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T14:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "31.8",
+      "bearish_body_sum": "0.0",
+      "range_sum": "258.4",
+      "index": "0.1231",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T14:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "233.0",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T15:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "233.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T15:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "224.8",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T15:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "223.4",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T15:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "219.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T16:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "217.3",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T16:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "205.1",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T16:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "204.4",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T16:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "196.8",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T17:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "193.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T17:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "187.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T17:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "186.1",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T17:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "196.6",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T18:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "193.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T18:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "201.5",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T18:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "197.0",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T18:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "188.5",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T19:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "190.9",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T19:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "188.0",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T19:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "192.3",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T19:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "201.1",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T20:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "194.8",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T20:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "199.7",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T20:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "201.0",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T20:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "195.2",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T21:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "0.0",
+      "range_sum": "197.7",
+      "index": "0.0000",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T21:15:00Z",
+      "window_bars": 20,
+      "displacement": "bearish",
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "35.1",
+      "range_sum": "227.8",
+      "index": "-0.1541",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T21:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "35.1",
+      "range_sum": "230.4",
+      "index": "-0.1523",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T21:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "35.1",
+      "range_sum": "233.7",
+      "index": "-0.1502",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T22:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "35.1",
+      "range_sum": "240.9",
+      "index": "-0.1457",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T22:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "35.1",
+      "range_sum": "236.2",
+      "index": "-0.1486",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T22:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "35.1",
+      "range_sum": "235.2",
+      "index": "-0.1492",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T22:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "35.1",
+      "range_sum": "233.9",
+      "index": "-0.1501",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T23:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "35.1",
+      "range_sum": "228.8",
+      "index": "-0.1534",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T23:15:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "35.1",
+      "range_sum": "221.8",
+      "index": "-0.1583",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T23:30:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "35.1",
+      "range_sum": "226.4",
+      "index": "-0.1550",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-20T23:45:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "35.1",
+      "range_sum": "227.7",
+      "index": "-0.1542",
+      "label": "aproximación desde el precio"
+    },
+    {
+      "instrument_id": "US100",
+      "timeframe": "15m",
+      "at": "2026-11-21T00:00:00Z",
+      "window_bars": 20,
+      "displacement": null,
+      "bullish_body_sum": "0.0",
+      "bearish_body_sum": "35.1",
+      "range_sum": "221.5",
+      "index": "-0.1585",
+      "label": "aproximación desde el precio"
+    }
+  ],
+  "stats": [
+    {
+      "instrument_id": "US100",
+      "subject": "fvg",
+      "timeframe": "15m",
+      "direction": "bullish",
+      "size_tercile": "low",
+      "size_cuts_atr": {
+        "low_max": "0.35",
+        "mid_max": "0.90"
+      },
+      "min_cases": 30,
+      "n": 84,
+      "rates": [
+        {
+          "metric": "touch",
+          "successes": 71,
+          "n": 84,
+          "insufficient": false,
+          "rate": "0.8452",
+          "ci_low": "0.7530",
+          "ci_high": "0.9073"
+        },
+        {
+          "metric": "mid",
+          "successes": 58,
+          "n": 84,
+          "insufficient": false,
+          "rate": "0.6905",
+          "ci_low": "0.5851",
+          "ci_high": "0.7792"
+        },
+        {
+          "metric": "fill",
+          "successes": 41,
+          "n": 70,
+          "insufficient": false,
+          "rate": "0.5857",
+          "ci_low": "0.4688",
+          "ci_high": "0.6937"
+        }
+      ],
+      "distributions": [
+        {
+          "metric": "bars_to_touch",
+          "horizon_bars": null,
+          "n": 71,
+          "insufficient": false,
+          "median": "3",
+          "p25": "1",
+          "p75": "6",
+          "iqr": "5.00"
+        },
+        {
+          "metric": "bars_to_mid",
+          "horizon_bars": null,
+          "n": 58,
+          "insufficient": false,
+          "median": "6",
+          "p25": "2",
+          "p75": "12",
+          "iqr": "10.00"
+        },
+        {
+          "metric": "bars_to_fill",
+          "horizon_bars": null,
+          "n": 41,
+          "insufficient": false,
+          "median": "14",
+          "p25": "7",
+          "p75": "28",
+          "iqr": "21.00"
+        },
+        {
+          "metric": "reaction",
+          "horizon_bars": 4,
+          "n": 71,
+          "insufficient": false,
+          "median": "0.18",
+          "p25": "-0.22",
+          "p75": "0.61",
+          "iqr": "0.83"
+        },
+        {
+          "metric": "reaction",
+          "horizon_bars": 8,
+          "n": 71,
+          "insufficient": false,
+          "median": "0.18",
+          "p25": "-0.22",
+          "p75": "0.61",
+          "iqr": "0.83"
+        }
+      ],
+      "as_of": "2026-11-21T00:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "subject": "fvg",
+      "timeframe": "15m",
+      "direction": "bullish",
+      "size_tercile": "mid",
+      "size_cuts_atr": {
+        "low_max": "0.35",
+        "mid_max": "0.90"
+      },
+      "min_cases": 30,
+      "n": 62,
+      "rates": [
+        {
+          "metric": "touch",
+          "successes": 49,
+          "n": 62,
+          "insufficient": false,
+          "rate": "0.7903",
+          "ci_low": "0.6736",
+          "ci_high": "0.8732"
+        },
+        {
+          "metric": "mid",
+          "successes": 37,
+          "n": 62,
+          "insufficient": false,
+          "rate": "0.5968",
+          "ci_low": "0.4725",
+          "ci_high": "0.7098"
+        },
+        {
+          "metric": "fill",
+          "successes": 22,
+          "n": 51,
+          "insufficient": false,
+          "rate": "0.4314",
+          "ci_low": "0.3050",
+          "ci_high": "0.5673"
+        }
+      ],
+      "distributions": [
+        {
+          "metric": "bars_to_touch",
+          "horizon_bars": null,
+          "n": 49,
+          "insufficient": false,
+          "median": "5",
+          "p25": "1",
+          "p75": "10",
+          "iqr": "9.00"
+        },
+        {
+          "metric": "bars_to_mid",
+          "horizon_bars": null,
+          "n": 37,
+          "insufficient": false,
+          "median": "9",
+          "p25": "2",
+          "p75": "18",
+          "iqr": "16.00"
+        },
+        {
+          "metric": "bars_to_fill",
+          "horizon_bars": null,
+          "n": 22,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        },
+        {
+          "metric": "reaction",
+          "horizon_bars": 4,
+          "n": 49,
+          "insufficient": false,
+          "median": "0.31",
+          "p25": "-0.12",
+          "p75": "0.84",
+          "iqr": "0.96"
+        },
+        {
+          "metric": "reaction",
+          "horizon_bars": 8,
+          "n": 49,
+          "insufficient": false,
+          "median": "0.31",
+          "p25": "-0.12",
+          "p75": "0.84",
+          "iqr": "0.96"
+        }
+      ],
+      "as_of": "2026-11-21T00:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "subject": "fvg",
+      "timeframe": "15m",
+      "direction": "bullish",
+      "size_tercile": "high",
+      "size_cuts_atr": {
+        "low_max": "0.35",
+        "mid_max": "0.90"
+      },
+      "min_cases": 30,
+      "n": 33,
+      "rates": [
+        {
+          "metric": "touch",
+          "successes": 22,
+          "n": 33,
+          "insufficient": false,
+          "rate": "0.6667",
+          "ci_low": "0.4961",
+          "ci_high": "0.8025"
+        },
+        {
+          "metric": "mid",
+          "successes": 15,
+          "n": 33,
+          "insufficient": false,
+          "rate": "0.4545",
+          "ci_low": "0.2984",
+          "ci_high": "0.6201"
+        },
+        {
+          "metric": "fill",
+          "successes": 8,
+          "n": 24,
+          "insufficient": true,
+          "rate": null,
+          "ci_low": null,
+          "ci_high": null
+        }
+      ],
+      "distributions": [
+        {
+          "metric": "bars_to_touch",
+          "horizon_bars": null,
+          "n": 22,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        },
+        {
+          "metric": "bars_to_mid",
+          "horizon_bars": null,
+          "n": 15,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        },
+        {
+          "metric": "bars_to_fill",
+          "horizon_bars": null,
+          "n": 8,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        },
+        {
+          "metric": "reaction",
+          "horizon_bars": 4,
+          "n": 22,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        },
+        {
+          "metric": "reaction",
+          "horizon_bars": 8,
+          "n": 22,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        }
+      ],
+      "as_of": "2026-11-21T00:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "subject": "fvg",
+      "timeframe": "15m",
+      "direction": "bearish",
+      "size_tercile": "low",
+      "size_cuts_atr": {
+        "low_max": "0.35",
+        "mid_max": "0.90"
+      },
+      "min_cases": 30,
+      "n": 79,
+      "rates": [
+        {
+          "metric": "touch",
+          "successes": 64,
+          "n": 79,
+          "insufficient": false,
+          "rate": "0.8101",
+          "ci_low": "0.7101",
+          "ci_high": "0.8814"
+        },
+        {
+          "metric": "mid",
+          "successes": 52,
+          "n": 79,
+          "insufficient": false,
+          "rate": "0.6582",
+          "ci_low": "0.5485",
+          "ci_high": "0.7533"
+        },
+        {
+          "metric": "fill",
+          "successes": 39,
+          "n": 66,
+          "insufficient": false,
+          "rate": "0.5909",
+          "ci_low": "0.4705",
+          "ci_high": "0.7013"
+        }
+      ],
+      "distributions": [
+        {
+          "metric": "bars_to_touch",
+          "horizon_bars": null,
+          "n": 64,
+          "insufficient": false,
+          "median": "3",
+          "p25": "1",
+          "p75": "6",
+          "iqr": "5.00"
+        },
+        {
+          "metric": "bars_to_mid",
+          "horizon_bars": null,
+          "n": 52,
+          "insufficient": false,
+          "median": "7",
+          "p25": "2",
+          "p75": "14",
+          "iqr": "12.00"
+        },
+        {
+          "metric": "bars_to_fill",
+          "horizon_bars": null,
+          "n": 39,
+          "insufficient": false,
+          "median": "15",
+          "p25": "8",
+          "p75": "30",
+          "iqr": "22.00"
+        },
+        {
+          "metric": "reaction",
+          "horizon_bars": 4,
+          "n": 64,
+          "insufficient": false,
+          "median": "0.15",
+          "p25": "-0.27",
+          "p75": "0.55",
+          "iqr": "0.82"
+        },
+        {
+          "metric": "reaction",
+          "horizon_bars": 8,
+          "n": 64,
+          "insufficient": false,
+          "median": "0.15",
+          "p25": "-0.27",
+          "p75": "0.55",
+          "iqr": "0.82"
+        }
+      ],
+      "as_of": "2026-11-21T00:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "subject": "fvg",
+      "timeframe": "15m",
+      "direction": "bearish",
+      "size_tercile": "mid",
+      "size_cuts_atr": {
+        "low_max": "0.35",
+        "mid_max": "0.90"
+      },
+      "min_cases": 30,
+      "n": 57,
+      "rates": [
+        {
+          "metric": "touch",
+          "successes": 43,
+          "n": 57,
+          "insufficient": false,
+          "rate": "0.7544",
+          "ci_low": "0.6290",
+          "ci_high": "0.8477"
+        },
+        {
+          "metric": "mid",
+          "successes": 31,
+          "n": 57,
+          "insufficient": false,
+          "rate": "0.5439",
+          "ci_low": "0.4159",
+          "ci_high": "0.6663"
+        },
+        {
+          "metric": "fill",
+          "successes": 19,
+          "n": 47,
+          "insufficient": false,
+          "rate": "0.4043",
+          "ci_low": "0.2764",
+          "ci_high": "0.5466"
+        }
+      ],
+      "distributions": [
+        {
+          "metric": "bars_to_touch",
+          "horizon_bars": null,
+          "n": 43,
+          "insufficient": false,
+          "median": "6",
+          "p25": "1",
+          "p75": "12",
+          "iqr": "11.00"
+        },
+        {
+          "metric": "bars_to_mid",
+          "horizon_bars": null,
+          "n": 31,
+          "insufficient": false,
+          "median": "10",
+          "p25": "2",
+          "p75": "20",
+          "iqr": "18.00"
+        },
+        {
+          "metric": "bars_to_fill",
+          "horizon_bars": null,
+          "n": 19,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        },
+        {
+          "metric": "reaction",
+          "horizon_bars": 4,
+          "n": 43,
+          "insufficient": false,
+          "median": "0.27",
+          "p25": "-0.18",
+          "p75": "0.79",
+          "iqr": "0.97"
+        },
+        {
+          "metric": "reaction",
+          "horizon_bars": 8,
+          "n": 43,
+          "insufficient": false,
+          "median": "0.27",
+          "p25": "-0.18",
+          "p75": "0.79",
+          "iqr": "0.97"
+        }
+      ],
+      "as_of": "2026-11-21T00:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "subject": "fvg",
+      "timeframe": "15m",
+      "direction": "bearish",
+      "size_tercile": "high",
+      "size_cuts_atr": {
+        "low_max": "0.35",
+        "mid_max": "0.90"
+      },
+      "min_cases": 30,
+      "n": 21,
+      "rates": [
+        {
+          "metric": "touch",
+          "successes": 13,
+          "n": 21,
+          "insufficient": true,
+          "rate": null,
+          "ci_low": null,
+          "ci_high": null
+        },
+        {
+          "metric": "mid",
+          "successes": 9,
+          "n": 21,
+          "insufficient": true,
+          "rate": null,
+          "ci_low": null,
+          "ci_high": null
+        },
+        {
+          "metric": "fill",
+          "successes": 5,
+          "n": 16,
+          "insufficient": true,
+          "rate": null,
+          "ci_low": null,
+          "ci_high": null
+        }
+      ],
+      "distributions": [
+        {
+          "metric": "bars_to_touch",
+          "horizon_bars": null,
+          "n": 13,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        },
+        {
+          "metric": "bars_to_mid",
+          "horizon_bars": null,
+          "n": 9,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        },
+        {
+          "metric": "bars_to_fill",
+          "horizon_bars": null,
+          "n": 5,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        },
+        {
+          "metric": "reaction",
+          "horizon_bars": 4,
+          "n": 13,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        },
+        {
+          "metric": "reaction",
+          "horizon_bars": 8,
+          "n": 13,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        }
+      ],
+      "as_of": "2026-11-21T00:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "subject": "fvg",
+      "timeframe": "1h",
+      "direction": "bullish",
+      "size_tercile": "all",
+      "size_cuts_atr": {
+        "low_max": "0.35",
+        "mid_max": "0.90"
+      },
+      "min_cases": 30,
+      "n": 26,
+      "rates": [
+        {
+          "metric": "touch",
+          "successes": 17,
+          "n": 26,
+          "insufficient": true,
+          "rate": null,
+          "ci_low": null,
+          "ci_high": null
+        },
+        {
+          "metric": "mid",
+          "successes": 12,
+          "n": 26,
+          "insufficient": true,
+          "rate": null,
+          "ci_low": null,
+          "ci_high": null
+        },
+        {
+          "metric": "fill",
+          "successes": 7,
+          "n": 20,
+          "insufficient": true,
+          "rate": null,
+          "ci_low": null,
+          "ci_high": null
+        }
+      ],
+      "distributions": [
+        {
+          "metric": "bars_to_touch",
+          "horizon_bars": null,
+          "n": 17,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        },
+        {
+          "metric": "bars_to_mid",
+          "horizon_bars": null,
+          "n": 12,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        },
+        {
+          "metric": "bars_to_fill",
+          "horizon_bars": null,
+          "n": 7,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        },
+        {
+          "metric": "reaction",
+          "horizon_bars": 4,
+          "n": 17,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        },
+        {
+          "metric": "reaction",
+          "horizon_bars": 8,
+          "n": 17,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        }
+      ],
+      "as_of": "2026-11-21T00:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "subject": "fvg",
+      "timeframe": "1h",
+      "direction": "bearish",
+      "size_tercile": "all",
+      "size_cuts_atr": {
+        "low_max": "0.35",
+        "mid_max": "0.90"
+      },
+      "min_cases": 30,
+      "n": 18,
+      "rates": [
+        {
+          "metric": "touch",
+          "successes": 11,
+          "n": 18,
+          "insufficient": true,
+          "rate": null,
+          "ci_low": null,
+          "ci_high": null
+        },
+        {
+          "metric": "mid",
+          "successes": 8,
+          "n": 18,
+          "insufficient": true,
+          "rate": null,
+          "ci_low": null,
+          "ci_high": null
+        },
+        {
+          "metric": "fill",
+          "successes": 4,
+          "n": 14,
+          "insufficient": true,
+          "rate": null,
+          "ci_low": null,
+          "ci_high": null
+        }
+      ],
+      "distributions": [
+        {
+          "metric": "bars_to_touch",
+          "horizon_bars": null,
+          "n": 11,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        },
+        {
+          "metric": "bars_to_mid",
+          "horizon_bars": null,
+          "n": 8,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        },
+        {
+          "metric": "bars_to_fill",
+          "horizon_bars": null,
+          "n": 4,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        },
+        {
+          "metric": "reaction",
+          "horizon_bars": 4,
+          "n": 11,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        },
+        {
+          "metric": "reaction",
+          "horizon_bars": 8,
+          "n": 11,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        }
+      ],
+      "as_of": "2026-11-21T00:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "subject": "opening_gap",
+      "timeframe": "1d",
+      "direction": "bullish",
+      "size_tercile": "all",
+      "size_cuts_atr": {
+        "low_max": "0.40",
+        "mid_max": "0.75"
+      },
+      "min_cases": 30,
+      "n": 41,
+      "rates": [
+        {
+          "metric": "same_session_fill",
+          "successes": 23,
+          "n": 41,
+          "insufficient": false,
+          "rate": "0.5610",
+          "ci_low": "0.4104",
+          "ci_high": "0.7011"
+        },
+        {
+          "metric": "fill",
+          "successes": 34,
+          "n": 38,
+          "insufficient": false,
+          "rate": "0.8947",
+          "ci_low": "0.7587",
+          "ci_high": "0.9583"
+        }
+      ],
+      "distributions": [
+        {
+          "metric": "sessions_to_fill",
+          "horizon_bars": null,
+          "n": 34,
+          "insufficient": false,
+          "median": "1",
+          "p25": "0",
+          "p75": "3",
+          "iqr": "3.00"
+        }
+      ],
+      "as_of": "2026-11-20T23:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
+      "subject": "opening_gap",
+      "timeframe": "1d",
+      "direction": "bearish",
+      "size_tercile": "all",
+      "size_cuts_atr": {
+        "low_max": "0.40",
+        "mid_max": "0.75"
+      },
+      "min_cases": 30,
+      "n": 24,
+      "rates": [
+        {
+          "metric": "same_session_fill",
+          "successes": 15,
+          "n": 24,
+          "insufficient": true,
+          "rate": null,
+          "ci_low": null,
+          "ci_high": null
+        },
+        {
+          "metric": "fill",
+          "successes": 19,
+          "n": 22,
+          "insufficient": true,
+          "rate": null,
+          "ci_low": null,
+          "ci_high": null
+        }
+      ],
+      "distributions": [
+        {
+          "metric": "sessions_to_fill",
+          "horizon_bars": null,
+          "n": 19,
+          "insufficient": true,
+          "median": null,
+          "p25": null,
+          "p75": null,
+          "iqr": null
+        }
+      ],
+      "as_of": "2026-11-20T23:00:00Z"
+    }
+  ]
+}

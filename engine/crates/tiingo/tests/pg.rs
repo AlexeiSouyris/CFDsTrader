@@ -257,12 +257,35 @@ async fn only_verdicts_are_stored_and_the_tables_are_append_only() {
             (day(7), "none".into(), "no_data".into())
         ]
     );
-    for sql in [
-        "DELETE FROM tiingo_verifications WHERE id = (SELECT max(id) FROM tiingo_verifications)",
-        "DELETE FROM tiingo_usage_log WHERE id = (SELECT max(id) FROM tiingo_usage_log)",
-        "UPDATE tiingo_usage_log SET bytes = 0 WHERE id = (SELECT max(id) FROM tiingo_usage_log)",
+    // Los triggers se prueban sobre filas propias: la tabla puede estar vacía o tener filas de
+    // otros tests que corren en paralelo (#229).
+    let (verification,): (i64,) =
+        sqlx::query_as("SELECT min(id) FROM tiingo_verifications WHERE verified_at = $1")
+            .bind(at)
+            .fetch_one(store.pool())
+            .await
+            .unwrap();
+    let (usage,): (i64,) = sqlx::query_as(
+        "INSERT INTO tiingo_usage_log (requested_at, endpoint, symbol, http_status, bytes)
+         VALUES ($1, 'eod', 'SPY', 200, 1) RETURNING id",
+    )
+    .bind(at)
+    .fetch_one(store.pool())
+    .await
+    .unwrap();
+    for (sql, id) in [
+        (
+            "DELETE FROM tiingo_verifications WHERE id = $1",
+            verification,
+        ),
+        ("DELETE FROM tiingo_usage_log WHERE id = $1", usage),
+        ("UPDATE tiingo_usage_log SET bytes = 0 WHERE id = $1", usage),
     ] {
-        let e = sqlx::query(sql).execute(store.pool()).await.unwrap_err();
+        let e = sqlx::query(sql)
+            .bind(id)
+            .execute(store.pool())
+            .await
+            .unwrap_err();
         assert!(e.to_string().contains("solo agregar"), "{e}");
     }
     // Un veredicto sin dato con método, o al revés, no entra.

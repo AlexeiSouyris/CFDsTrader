@@ -3,6 +3,7 @@ import {
   BarChart3,
   BookOpen,
   ClipboardCheck,
+  Droplets,
   FolderOpen,
   LayoutDashboard,
   ListChecks,
@@ -33,6 +34,14 @@ export const VIEWS: ShellView[] = [
     short: 'Gráficos',
     icon: BarChart3,
     description: 'Precio con volumen, RSI y MACD, y la profundidad del mercado.',
+  },
+  {
+    id: 'liquidez',
+    label: 'Liquidez',
+    short: 'Liquidez',
+    icon: Droplets,
+    description:
+      'Niveles de liquidez, FVG, sus estadísticas y el desequilibrio, como los manda el motor.',
   },
   {
     id: 'noticias',

@@ -83,10 +83,14 @@ Antes de cargar, `--dry-run` muestra qué falta y cuántos puntos estima, sin co
 | Diarias de 5 años, **un año de prueba** | `cd engine && cargo run -p cfds-ig --example ig_backfill_daily -- DE40 2021-11-22 2022-11-22` | ~270 |
 | Diarias, el resto | `... ig_backfill_daily -- DE40 2022-11-22 <mañana>` | ~1.060 |
 | Indicadores de las diarias (ATR diario y volatilidad realizada, #148; caída desde el máximo, #213), **después de cada carga de diarias** | `cd engine && cargo run -p cfds-ingest --example daily_indicators` | 0 (no usa IG) |
+| Mapa de liquidez (spec §5.4.1, #231, solo informativo), **después de cada carga de velas de 15m**. Es idempotente y solo agrega los niveles y estados nuevos | `cd engine && cargo run -p cfds-ingest --example liquidity_levels` | 0 (no usa IG) |
+| Estadísticas de liquidez (spec §5.4.1, #231, solo informativas): eventos de FVG de 15m, 1h y 1d, gaps de apertura, desequilibrio y agregados, **después de cada carga de velas de 15m o diarias**. Es idempotente: solo agrega los eventos nuevos, y los agregados solo si cambiaron | `cd engine && cargo run -p cfds-ingest --example liquidity_stats` | 0 (no usa IG) |
 | Índice de sentimiento v1 (spec §9.1, #213), **después de los indicadores de las diarias o de cargar el COT** | `cd intelligence && uv run python -m cfds_intel.sentiment.compute_index` | 0 (no usa IG ni la red) |
 | Análogos v1 de la última ventana de cada índice (#148, solo informativo) | `cd intelligence && uv run python -m cfds_intel.analogs [INSTRUMENTO]` | 0 (no usa IG) |
 | Ídem para US100, US500 y US30 | Cambiar el instrumento | ~1.330 cada uno |
 | Verificación de las velas de US500, US100 y US30 contra SPY, QQQ y DIA de Tiingo (ADR 0009, #206). Guarda solo el veredicto de cada día; `--dry-run` no guarda nada; `--calibrate` muestra cuántos días coinciden con cada tolerancia candidata. Necesita `TIINGO_API_KEY` y `CFDS_DATA_MACHINE=1` | `cd engine && cargo run -q -p cfds-tiingo --example tiingo_verify -- 2026-10-01 2026-10-31` | 0 de IG; 1 pedido de Tiingo por ETF (topes en `config/tiingo.toml`) |
+| Histórico de 1 minuto de futuros desde Databento (ADR 0011, **en propuesta**; #247). Primero `--estimate` (gratis: costo por símbolo y total; frena si pasa `max_usd` de `config/databento.toml`) y `--sample` (un día por símbolo, validado). Después `--run`, que solo corre con `CFDS_DATA_MACHINE=1` y sigue desde lo ya bajado. `--only FDAX.c.0` limita a un símbolo, y `--check-month AAAA-MM` baja un mes (con el mismo tope de gasto) y cuenta los registros fuera de libro sin guardar nada. Necesita `DATABENTO_API_KEY` | `cd intelligence && uv run python -m cfds_intel.databento --estimate` | 0 de IG; crédito de Databento (USD 125 gratis) |
+| Verificación del histórico de Databento contra las diarias de IG (#248), **después de `--run`**: días comparados, correlación de retornos y base (cierre IG − cierre futuro) en total y por contrato | `cd engine && cargo run -p cfds-ingest --example databento_verify -- DE40` | 0 (no usa IG ni Databento) |
 | Velas de 15m recientes (con su spread) | `cd engine && cargo run -p cfds-ig --example ig_backfill -- DE40 15m <desde> <hasta>` | ~1 por vela |
 
 Notas:
@@ -105,6 +109,7 @@ Solo graban mientras la computadora está **prendida y despierta**. En macOS: Co
 | Sentimiento de clientes de IG | 15 min | `cargo run -p cfds-ig --example ig_sentiment -- --once` (en `engine/`) |
 | COT | 1 vez por semana (por ejemplo, el sábado) | `uv run python -m cfds_intel.sentiment 2026-01-01` (en `intelligence/`) |
 | Índice de sentimiento (#213). **Lo agrega el dueño cuando decida** | 1 vez por día hábil, después de los indicadores de las diarias, y después del COT del sábado | `uv run python -m cfds_intel.sentiment.compute_index` (en `intelligence/`) |
+| Calendario económico de Forex Factory por su feed JSON oficial (ADR 0010, #239). **Lo agrega el dueño cuando decida** | Cada 4 horas, a un minuto raro (el archivo cambia una vez por hora y pedirlo más seguido da 429) | `uv run python -m cfds_intel.calendar` (en `intelligence/`) |
 | €STR del BCE | 1 vez por día hábil, después de las 09:00 CET | `uv run python -m cfds_intel.rates 2026-01-01` (en `intelligence/`) |
 | Velas de 15m y 1h en vivo (#124) | 15 min, un minuto después de cada cierre (`:01`, `:16`, `:31`, `:46`) | `cargo run -q -p cfds-ig --example ig_live -- --once` (en `engine/`). Gasta unos 690 puntos por semana con 4 índices, de los 3.400 de `budget.live` |
 | Interpretación de las noticias nuevas con Ollama (#186, #191). **La agrega el dueño cuando decida** | 15 min, 3 minutos después de la ingesta de noticias (`:03`, `:18`, `:33`, `:48`) | `infra/scripts/interpret_news.sh --limit 20` (desde la raíz del repo) |
@@ -117,6 +122,8 @@ PYTHONPATH=RUTA/intelligence/src
 */15 * * * * cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.news >> ../logs/news.log 2>&1
 */15 * * * * cd "RUTA/engine" && set -a && . ../.env && set +a && $HOME/.cargo/bin/cargo run -q -p cfds-ig --example ig_sentiment -- --once >> ../logs/ig_sentiment.log 2>&1
 7 10 * * 6   cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.sentiment 2026-01-01 >> ../logs/cot.log 2>&1
+# Calendario de Forex Factory (ADR 0010): cada 4 horas, nunca más de una vez por hora.
+17 */4 * * * cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.calendar >> ../logs/calendar.log 2>&1
 23 10 * * 1-5 cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.rates 2026-01-01 >> ../logs/rates.log 2>&1
 1,16,31,46 * * * * cd "RUTA/engine" && set -a && . ../.env && set +a && /usr/bin/lockf -t 0 ../logs/ig_live.lock $HOME/.cargo/bin/cargo run -q -p cfds-ig --example ig_live -- --once >> ../logs/ig_live.log 2>&1
 3,18,33,48 * * * * "RUTA/infra/scripts/interpret_news.sh" --limit 20 >> "RUTA/logs/interpret_news.log" 2>&1
@@ -166,6 +173,14 @@ cd engine && set -a && . ../.env && set +a && cargo run -q -p cfds-storage --exa
 ```
 
 Muestra cada interpretación nueva: hora, fuente, intérprete, resumen y sentimiento y relevancia por instrumento. Usa su propio grupo de lectura y no le quita nada al motor. Una segunda corrida muestra solo lo nuevo. Sin `--once`, se queda esperando las próximas.
+
+**Vista de liquidez en vivo (#231).** Con PostgreSQL levantado:
+
+```bash
+infra/scripts/ui_liquidez.sh
+```
+
+Carga el `.env` sin mostrarlo, compila y arranca el gateway (`cfds-gateway`, solo lectura: la sesión de PostgreSQL no puede escribir) en la dirección de `config/gateway.toml`, y abre la UI directo en `#liquidez`. Arriba se elige el instrumento (los del catálogo) y el timeframe (15m, 1h o 1d); abre en lo que diga `[view]` de `config/gateway.toml`. Sin velas guardadas de ese timeframe muestra "Sin datos todavía". `Ctrl+C` corta todo. Para ver solo la respuesta: `curl 'http://127.0.0.1:8787/api/v1/liquidity?instrument=DE40&timeframe=1d'`.
 
 ## 9. Si algo falla
 

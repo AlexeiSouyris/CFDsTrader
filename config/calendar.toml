@@ -1,0 +1,27 @@
+# Calendario económico de Forex Factory por su feed JSON oficial (ADR 0010, #239). Solo el
+# feed de exportación: nada de scraping de la página ni de evadir la detección de bots.
+# El archivo se actualiza una vez por hora: no pedirlo más seguido (cron cada pocas horas).
+
+[client]
+# Identificación honesta como cliente automático (sin datos personales), como config/news.toml.
+user_agent = "cfds-intel/0.1 (automated economic calendar reader)"
+timeout_secs = 30
+
+[source]
+# Valor de `source` en contracts/economic_event.v1.
+name = "forex_factory"
+url = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+
+# El campo `country` del feed es la MONEDA. País o zona (ISO 3166-1 alfa-2; "EU" = zona euro)
+# que se guarda en `country`. Un evento de una moneda que no está acá no se guarda (se informa):
+# no se adivina el país.
+[currencies]
+USD = "US"
+EUR = "EU"
+GBP = "GB"
+JPY = "JP"
+CAD = "CA"
+AUD = "AU"
+NZD = "NZ"
+CHF = "CH"
+CNY = "CN"

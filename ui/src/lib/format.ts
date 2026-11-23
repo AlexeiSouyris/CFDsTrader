@@ -31,3 +31,14 @@ export function signed(text: string, digits?: number): string {
 }
 
 export const isNegative = (text: string) => text.trim().startsWith('-')
+
+/**
+ * Una fracción de 0 a 1 (texto) como porcentaje: "0.6250" → "62,5". Corre la coma dos lugares en
+ * el texto, sin pasar por float; no es un cálculo de trading.
+ */
+export function percent(fraction: string, digits = 1): string {
+  const [int, frac = ''] = fraction.split('.')
+  const f = frac.padEnd(2 + digits, '0')
+  const whole = String(Number(int + f.slice(0, 2)))
+  return decimal(digits ? `${whole}.${f.slice(2, 2 + digits)}` : whole)
+}

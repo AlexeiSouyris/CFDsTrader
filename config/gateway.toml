@@ -1,0 +1,27 @@
+# Gateway: API de solo lectura del motor para la UI (#231). Nada de esto envía órdenes.
+
+[server]
+# Dirección donde escucha. Por defecto solo la máquina local; la UI llega con el proxy de Vite.
+bind = "127.0.0.1:8787"
+
+[view]
+# Lo que la vista de liquidez abre primero. DE40 en 1d es lo que hoy tiene datos reales (#231).
+default_instrument = "DE40"
+default_timeframe = "1d"
+# Niveles con exists_from en estos días hacia atrás desde as_of (alcanza para PDH/PDL y PWH/PWL).
+levels_days = 14
+
+# Ventana de cada timeframe, en días hacia atrás desde as_of (el cierre de la última vela):
+# velas (y desequilibrio) que se mandan, y FVG creados en ese lapso.
+[windows.15m]
+candles_days = 3
+fvg_days = 7
+
+[windows.1h]
+candles_days = 15
+fvg_days = 30
+
+[windows.1d]
+# Unas 250 sesiones.
+candles_days = 365
+fvg_days = 365

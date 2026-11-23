@@ -10,6 +10,7 @@ cfds-core = { version = "0.1.0", path = "../core" }
 chrono = { version = "0.4.45", default-features = false, features = ["std"] }
 redis = { version = "1.8.2", default-features = false, features = ["tokio-comp", "aio"] }
 rust_decimal = "1.43.0"
+serde = "1.0.229"
 serde_json = "1.0.154"
 sqlx = { version = "0.9.1", default-features = false, features = ["runtime-tokio", "postgres", "macros", "migrate", "chrono", "rust_decimal"] }
 thiserror = "2.0.21"
