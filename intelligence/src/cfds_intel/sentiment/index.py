@@ -162,7 +162,7 @@ def load_config(text: str) -> IndexConfig:
             extra = set(c) - {"weight", "inverted", "expiry_days", "pending", "only"}
             if extra:
                 raise SentimentConfigError(f"components.{name}: claves desconocidas {extra}")
-        if set(raw) - {"index", "components"} or set(idx) - {
+        if set(raw) - {"index", "components", "states"} or set(idx) - {
             "instruments",
             "warmup_years",
             "min_components",

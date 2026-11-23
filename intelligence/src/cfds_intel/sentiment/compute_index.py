@@ -19,6 +19,7 @@ import psycopg
 
 from cfds_intel.sentiment.index import index_series, load_config
 from cfds_intel.sentiment.index_store import insert_index, load_points
+from cfds_intel.sentiment.states import index_states, load_states_config
 
 CONFIG = Path(__file__).resolve().parents[4] / "config"
 
@@ -37,7 +38,9 @@ def daily_windows(indicators_toml: str) -> tuple[int, int, int]:
 
 
 def main() -> int:
-    cfg = load_config((CONFIG / "sentiment.toml").read_text())
+    text = (CONFIG / "sentiment.toml").read_text()
+    cfg = load_config(text)
+    states_cfg = load_states_config(text)
     vol_window, atr_period, dd_window = daily_windows((CONFIG / "indicators.toml").read_text())
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
         for instrument in cfg.instruments:
@@ -51,7 +54,11 @@ def main() -> int:
             )
             if emitted:
                 last = emitted[-1]
-                print(f"  último: {last.value:.4f} ({last.published_at:%Y-%m-%d %H:%M} UTC)")
+                states = ", ".join(index_states(last, states_cfg)) or "ninguno"
+                print(
+                    f"  último: {last.value:.4f} ({last.published_at:%Y-%m-%d %H:%M} UTC); "
+                    f"estados: {states}"
+                )
             if skipped and (not emitted or skipped[-1].at > emitted[-1].published_at):
                 last_skip = skipped[-1]
                 print(f"  sin índice desde {last_skip.at:%Y-%m-%d %H:%M} UTC: {last_skip.reason()}")
