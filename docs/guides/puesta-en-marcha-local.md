@@ -107,6 +107,7 @@ Solo graban mientras la computadora está **prendida y despierta**. En macOS: Co
 | Sentimiento de clientes de IG | 15 min | `cargo run -p cfds-ig --example ig_sentiment -- --once` (en `engine/`) |
 | COT | 1 vez por semana (por ejemplo, el sábado) | `uv run python -m cfds_intel.sentiment 2026-01-01` (en `intelligence/`) |
 | Índice de sentimiento (#213). **Lo agrega el dueño cuando decida** | 1 vez por día hábil, después de los indicadores de las diarias, y después del COT del sábado | `uv run python -m cfds_intel.sentiment.compute_index` (en `intelligence/`) |
+| Calendario económico de Forex Factory por su feed JSON oficial (ADR 0010, #239). **Lo agrega el dueño cuando decida** | Cada 4 horas, a un minuto raro (el archivo cambia una vez por hora y pedirlo más seguido da 429) | `uv run python -m cfds_intel.calendar` (en `intelligence/`) |
 | €STR del BCE | 1 vez por día hábil, después de las 09:00 CET | `uv run python -m cfds_intel.rates 2026-01-01` (en `intelligence/`) |
 | Velas de 15m y 1h en vivo (#124) | 15 min, un minuto después de cada cierre (`:01`, `:16`, `:31`, `:46`) | `cargo run -q -p cfds-ig --example ig_live -- --once` (en `engine/`). Gasta unos 690 puntos por semana con 4 índices, de los 3.400 de `budget.live` |
 | Interpretación de las noticias nuevas con Ollama (#186, #191). **La agrega el dueño cuando decida** | 15 min, 3 minutos después de la ingesta de noticias (`:03`, `:18`, `:33`, `:48`) | `infra/scripts/interpret_news.sh --limit 20` (desde la raíz del repo) |
@@ -119,6 +120,8 @@ PYTHONPATH=RUTA/intelligence/src
 */15 * * * * cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.news >> ../logs/news.log 2>&1
 */15 * * * * cd "RUTA/engine" && set -a && . ../.env && set +a && $HOME/.cargo/bin/cargo run -q -p cfds-ig --example ig_sentiment -- --once >> ../logs/ig_sentiment.log 2>&1
 7 10 * * 6   cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.sentiment 2026-01-01 >> ../logs/cot.log 2>&1
+# Calendario de Forex Factory (ADR 0010): cada 4 horas, nunca más de una vez por hora.
+17 */4 * * * cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.calendar >> ../logs/calendar.log 2>&1
 23 10 * * 1-5 cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.rates 2026-01-01 >> ../logs/rates.log 2>&1
 1,16,31,46 * * * * cd "RUTA/engine" && set -a && . ../.env && set +a && /usr/bin/lockf -t 0 ../logs/ig_live.lock $HOME/.cargo/bin/cargo run -q -p cfds-ig --example ig_live -- --once >> ../logs/ig_live.log 2>&1
 3,18,33,48 * * * * "RUTA/infra/scripts/interpret_news.sh" --limit 20 >> "RUTA/logs/interpret_news.log" 2>&1
