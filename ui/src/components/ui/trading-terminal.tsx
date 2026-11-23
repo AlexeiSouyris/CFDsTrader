@@ -166,6 +166,9 @@ const SIDE = { long: 'Comprar', short: 'Vender' } as const
 /** Lo que se escribe con coma se manda con punto: el decimal viaja como texto (contratos). */
 const asDecimal = (s: string) => s.trim().replace(',', '.')
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
+/** Pantalla táctil (celular, tablet): ahí enviar pide una confirmación más (#307). */
+const coarsePointer = () =>
+  typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches === true
 
 /**
  * Ticket de orden en **simulación** (`order.v1`, modo paper). El stop es obligatorio y el tamaño
@@ -175,6 +178,9 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
  *
  * Validar y enviar usan el mismo `order_id`: el broker es idempotente, así que un doble clic o un
  * reintento nunca abren dos posiciones. Cambiar el ticket arma una orden nueva.
+ *
+ * En una pantalla táctil (#307), enviar pide un paso de confirmación: un toque sin querer no
+ * manda la orden. Siempre es simulación (paper).
  */
 export function OrderTicket({
   instruments,
@@ -206,10 +212,12 @@ export function OrderTicket({
   const [busy, setBusy] = useState<'preview' | 'submit' | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const [order, setOrder] = useState<Order | null>(null)
+  const [confirming, setConfirming] = useState(false)
 
   const change = (patch: Partial<TicketDraft>) => {
     setDraft((d) => ({ ...d, ...patch }))
     setOrder(null)
+    setConfirming(false)
     setVerdict(undefined)
     setReport(null)
     setMissing(null)
@@ -242,6 +250,7 @@ export function OrderTicket({
   }
 
   const send = async () => {
+    setConfirming(false)
     if (busy || !order) return
     if (!submit) return setReport('mock')
     setBusy('submit')
@@ -264,6 +273,15 @@ export function OrderTicket({
 
   return (
     <form onSubmit={validate} aria-label="Ticket de orden" className="grid gap-4">
+      <p
+        data-paper-banner
+        className="flex items-center gap-2 rounded-xl border border-[var(--chart-signal)]/50 bg-[var(--chart-signal)]/10 px-3 py-2 text-[11.5px] font-bold text-[var(--chart-signal)]"
+      >
+        <span className="tracking-[0.12em]">SIMULACIÓN</span>
+        <span className="font-semibold text-muted-foreground">
+          paper: no se envía ninguna orden real
+        </span>
+      </p>
       <div className="grid grid-cols-2 gap-2" role="group" aria-label="Dirección">
         {(['long', 'short'] as const).map((s) => (
           <button
@@ -379,11 +397,42 @@ export function OrderTicket({
       {verdict?.accepted &&
         (report ? (
           <Report report={report} />
+        ) : confirming ? (
+          <div
+            role="group"
+            aria-label="Confirmar el envío"
+            className="grid gap-2 rounded-2xl border border-[var(--chart-signal)]/50 p-3 text-[12.5px]"
+          >
+            <p>
+              <strong>¿Enviar esta orden al broker simulado?</strong> {SIDE[draft.side]}{' '}
+              {draft.instrument_id} con stop {draft.stop}. Es SIMULACIÓN: no se envía nada real.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                className="rounded-full border border-border px-3 py-2 font-bold"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(locked) || busy !== null}
+                onClick={send}
+                className={cn(
+                  'rounded-full px-3 py-2 font-extrabold text-white disabled:opacity-40',
+                  draft.side === 'long' ? 'bg-up' : 'bg-down',
+                )}
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
         ) : (
           <button
             type="button"
             disabled={Boolean(locked) || busy !== null}
-            onClick={send}
+            onClick={() => (coarsePointer() ? setConfirming(true) : void send())}
             className={cn(
               'rounded-full px-4 py-2.5 text-[14px] font-extrabold disabled:opacity-40',
               draft.side === 'long' ? 'bg-up text-white' : 'bg-down text-white',

@@ -42,6 +42,7 @@ export function Term({
     <span ref={ref} className="relative inline-block">
       <button
         type="button"
+        data-inline-hit
         aria-expanded={open}
         aria-controls={popId}
         onClick={() => setOpen((o) => !o)}

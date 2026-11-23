@@ -74,7 +74,7 @@ export function GlassShell({
 
   return (
     <div
-      className="relative mx-auto flex min-h-svh w-full max-w-[1400px] flex-col px-3 pt-3 pb-24 sm:px-6 sm:pt-6 md:pb-6"
+      className="relative mx-auto flex min-h-svh w-full max-w-[1400px] flex-col px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 md:pb-6"
       style={
         {
           '--glass-blur': `${glass.blur}px`,
@@ -403,7 +403,7 @@ function Dock({
         'glass z-20 flex gap-1 rounded-full p-1.5',
         side
           ? 'sticky top-6 hidden h-fit flex-col self-start md:flex'
-          : 'fixed inset-x-3 bottom-3 justify-between overflow-x-auto [scrollbar-width:none] md:hidden',
+          : 'fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] justify-between overflow-x-auto [scrollbar-width:none] md:hidden',
       )}
     >
       {views.map(({ id, label, short, icon: Icon }) => {
