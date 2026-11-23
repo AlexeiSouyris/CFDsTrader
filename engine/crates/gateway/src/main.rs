@@ -4,15 +4,14 @@
 //! DATABASE_URL=... cargo run -p cfds-gateway
 //! ```
 //! Escucha en `[server] bind` de `config/gateway.toml` (por defecto solo 127.0.0.1). No corre
-//! migraciones ni escribe nada: lee lo que guardaron `ig_live`, `liquidity_levels` y las
+//! migraciones ni escribe nada (la sesión de PostgreSQL es de solo lectura): lee lo que guardaron `ig_live`, `liquidity_levels` y las
 //! estadísticas. La UI llega con el proxy de Vite (`/api` → este servidor).
 
-use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::sync::Arc;
 
-use cfds_core::InstrumentId;
-use cfds_gateway::{GatewayConfig, PgSource, respond};
+use cfds_core::Instrument;
+use cfds_gateway::{GatewayConfig, PgSource, read_only_url, respond};
 use cfds_liquidity::StatsConfig;
 use cfds_market_data::Catalog;
 use cfds_storage::PgStore;
@@ -30,7 +29,7 @@ const LIQUIDITY: &str = include_str!("../../../../config/liquidity.toml");
 
 struct State {
     source: PgSource,
-    catalog: BTreeSet<InstrumentId>,
+    catalog: Vec<Instrument>,
 }
 
 async fn handle(
@@ -40,6 +39,7 @@ async fn handle(
     let uri = req.uri();
     let reply = respond(
         &state.source,
+        &state.source.config,
         &state.catalog,
         req.method().as_str(),
         uri.path(),
@@ -67,14 +67,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cfg = GatewayConfig::from_toml(GATEWAY)?;
     let catalog = Catalog::from_toml(CATALOG)?;
     let stats = StatsConfig::from_toml(LIQUIDITY)?;
-    let store = PgStore::connect(&std::env::var("DATABASE_URL")?).await?;
+    // La sesión de PostgreSQL se abre en solo lectura: aunque hubiera un error, no puede escribir.
+    let store = PgStore::connect(&read_only_url(&std::env::var("DATABASE_URL")?)).await?;
     let state = Arc::new(State {
         source: PgSource {
             store,
-            window: cfg.window,
+            config: cfg.clone(),
             reaction_bars: stats.reaction_bars,
         },
-        catalog: catalog.instruments.keys().cloned().collect(),
+        catalog: catalog
+            .instruments
+            .values()
+            .map(|s| s.instrument.clone())
+            .collect(),
     });
     let listener = TcpListener::bind(cfg.bind).await?;
     println!("gateway escuchando en http://{} (solo lectura)", cfg.bind);

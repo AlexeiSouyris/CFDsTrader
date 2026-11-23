@@ -172,6 +172,14 @@ cd engine && set -a && . ../.env && set +a && cargo run -q -p cfds-storage --exa
 
 Muestra cada interpretación nueva: hora, fuente, intérprete, resumen y sentimiento y relevancia por instrumento. Usa su propio grupo de lectura y no le quita nada al motor. Una segunda corrida muestra solo lo nuevo. Sin `--once`, se queda esperando las próximas.
 
+**Vista de liquidez en vivo (#231).** Con PostgreSQL levantado:
+
+```bash
+infra/scripts/ui_liquidez.sh
+```
+
+Carga el `.env` sin mostrarlo, compila y arranca el gateway (`cfds-gateway`, solo lectura: la sesión de PostgreSQL no puede escribir) en la dirección de `config/gateway.toml`, y abre la UI directo en `#liquidez`. Arriba se elige el instrumento (los del catálogo) y el timeframe (15m, 1h o 1d); abre en lo que diga `[view]` de `config/gateway.toml`. Sin velas guardadas de ese timeframe muestra "Sin datos todavía". `Ctrl+C` corta todo. Para ver solo la respuesta: `curl 'http://127.0.0.1:8787/api/v1/liquidity?instrument=DE40&timeframe=1d'`.
+
 ## 9. Si algo falla
 
 - **"Rate limited" o "cupo semanal":** esperar a que se renueve el cupo de IG. No reintentar en bucle.

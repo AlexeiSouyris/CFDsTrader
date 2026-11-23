@@ -25,7 +25,14 @@ const viewFromHash = () => {
 
 type Stage = 'loading' | 'signin' | 'app'
 
-export default function App({ initialStage = 'loading' as Stage }: { initialStage?: Stage }) {
+/**
+ * El ingreso es una maqueta (no se conecta a nada). `infra/scripts/ui_liquidez.sh` lo saltea con
+ * `VITE_SKIP_SIGNIN=1` para abrir directo en la vista pedida (#231). Solo en desarrollo.
+ */
+const FIRST_STAGE: Stage =
+  import.meta.env.DEV && import.meta.env.VITE_SKIP_SIGNIN === '1' ? 'app' : 'loading'
+
+export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Stage }) {
   const [stage, setStage] = useState<Stage>(initialStage)
   const [view, setView] = useState(viewFromHash)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')

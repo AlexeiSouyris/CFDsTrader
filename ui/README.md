@@ -53,14 +53,13 @@ Los términos subrayados con puntos (`<Term id="...">`) muestran su definición 
 
 ## Liquidez en vivo (#231)
 
-La vista `#liquidez` pide `GET /api/v1/liquidity?instrument=US100` al gateway del motor (`contracts/liquidity_view.v1`) y la vuelve a pedir cada minuto. En desarrollo, Vite manda `/api` a la dirección de `config/gateway.toml`:
+La vista `#liquidez` pide al gateway del motor los instrumentos y timeframes (`GET /api/v1/instruments`, `contracts/gateway_instruments.v1`) y la vista elegida (`GET /api/v1/liquidity?instrument=<id>&timeframe=<tf>`, `contracts/liquidity_view.v1`), que vuelve a pedir cada minuto. En desarrollo, Vite manda `/api` a la dirección de `config/gateway.toml`. Para levantar todo (gateway de solo lectura + UI, abriendo directo en `#liquidez`):
 
 ```bash
-cd engine && DATABASE_URL=... cargo run -p cfds-gateway   # solo lectura
-cd ui && npm run dev
+infra/scripts/ui_liquidez.sh
 ```
 
-Sin velas guardadas muestra "Sin datos todavía"; si el gateway no responde, lo dice y reintenta.
+Sin velas guardadas muestra "Sin datos todavía"; si el gateway no responde, lo dice y reintenta. `VITE_SKIP_SIGNIN=1` (lo pone el script) saltea la pantalla de ingreso de la maqueta, solo en desarrollo.
 
 ## Comandos
 
