@@ -271,6 +271,7 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 
 - **Causas:** precio de ejecución, tamaño, comisión, swap, cierre de fin de semana (el broker simulado no lo hace, #278), rechazo del riesgo, y lo que falta o sobra en paper sin un rechazo que lo explique. **La suma de las causas es exactamente la diferencia**: montos redondeados a 8 decimales, en la moneda del instrumento.
 - Es el criterio de aprobación de la fase 8 ("la diferencia está explicada"). Lo calcula solo Rust (`cfds_runner::compare`).
+- **Guardado** (`infra/migrations/0032_paper_comparisons.sql`, solo agregar con trigger): `paper_comparisons`, con el documento entero y las columnas de búsqueda (instrumento y período). Lo escribe solo Rust (`PgJournal::record_paper_comparison`); la misma comparación otra vez no guarda nada y con otro contenido es un error. Se corre con el ejemplo `paper_vs_backtest` de `cfds-gateway` (`--guardar`).
 
 ### Fondo del grupo (#179)
 

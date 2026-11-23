@@ -4,6 +4,7 @@
 //! una entrada con el mismo id y **otro** contenido, es un error (`Conflict`): el diario nunca
 //! se reescribe en silencio.
 
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sqlx::postgres::{PgPool, PgRow};
 use sqlx::{Postgres, Row, Transaction};
@@ -27,6 +28,8 @@ pub enum JournalError {
     InvalidCurve(#[from] CurveInvalid),
     #[error("reporte de walk-forward inválido: report_id o config_sha256 con otro formato")]
     InvalidReport,
+    #[error("comparación paper vs backtest inválida: falta o no sirve {0}")]
+    InvalidComparison(&'static str),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -601,6 +604,91 @@ impl PgJournal {
         .await?;
         Ok(text.map(|t| serde_json::from_str(&t)).transpose()?)
     }
+}
+
+/// Las columnas de búsqueda de un `paper_comparison.v1`, sacadas del documento.
+type ComparisonHeader = (String, String, DateTime<Utc>, DateTime<Utc>, DateTime<Utc>);
+
+fn comparison_header(doc: &serde_json::Value) -> Result<ComparisonHeader, JournalError> {
+    let text = |k: &'static str| {
+        doc.get(k)
+            .and_then(serde_json::Value::as_str)
+            .ok_or(JournalError::InvalidComparison(k))
+    };
+    let time = |k: &'static str| {
+        text(k)?
+            .parse::<DateTime<Utc>>()
+            .map_err(|_| JournalError::InvalidComparison(k))
+    };
+    Ok((
+        text("comparison_id")?.to_owned(),
+        text("instrument_id")?.to_owned(),
+        time("from")?,
+        time("to")?,
+        time("created_at")?,
+    ))
+}
+
+impl PgJournal {
+    /// Guarda una comparación paper vs backtest (`paper_comparison.v1`, fase 8, #315). La misma
+    /// comparación otra vez no guarda nada; con otro contenido es un error (solo agregar).
+    pub async fn record_paper_comparison(
+        &self,
+        doc: &serde_json::Value,
+    ) -> Result<Recorded, JournalError> {
+        let (id, instrument, from, to, created_at) = comparison_header(doc)?;
+        let mut tx = self.pool.begin().await?;
+        let done = sqlx::query(
+            "INSERT INTO paper_comparisons (comparison_id, instrument_id, period_from, period_to,
+               created_at, comparison)
+             VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+             ON CONFLICT (comparison_id) DO NOTHING",
+        )
+        .bind(&id)
+        .bind(&instrument)
+        .bind(from)
+        .bind(to)
+        .bind(created_at)
+        .bind(serde_json::to_string(doc)?)
+        .execute(&mut *tx)
+        .await?;
+        let inserted = done.rows_affected() == 1;
+        if !inserted {
+            let stored = select_paper_comparison(&mut tx, &id).await?;
+            if stored.as_ref() != Some(doc) {
+                return Err(JournalError::Conflict { id });
+            }
+        }
+        tx.commit().await?;
+        Ok(if inserted {
+            Recorded::Inserted
+        } else {
+            Recorded::Unchanged
+        })
+    }
+
+    pub async fn paper_comparison(
+        &self,
+        comparison_id: &str,
+    ) -> Result<Option<serde_json::Value>, JournalError> {
+        let mut tx = self.pool.begin().await?;
+        let r = select_paper_comparison(&mut tx, comparison_id).await?;
+        tx.commit().await?;
+        Ok(r)
+    }
+}
+
+async fn select_paper_comparison(
+    tx: &mut Transaction<'_, Postgres>,
+    comparison_id: &str,
+) -> Result<Option<serde_json::Value>, JournalError> {
+    let text: Option<String> = sqlx::query_scalar(
+        "SELECT comparison::text FROM paper_comparisons WHERE comparison_id = $1",
+    )
+    .bind(comparison_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(text.map(|t| serde_json::from_str(&t)).transpose()?)
 }
 
 async fn select_walk_forward(
