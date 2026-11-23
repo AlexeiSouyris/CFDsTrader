@@ -86,10 +86,17 @@ impl PgStore {
 
     /// Aplica las migraciones de `infra/migrations/` que falten. Se puede correr varias veces.
     pub async fn migrate(&self) -> Result<(), StorageError> {
-        sqlx::migrate!("../../../infra/migrations")
-            .run(&self.pool)
-            .await?;
+        migrator().run(&self.pool).await?;
         Ok(())
+    }
+
+    /// La última migración aplicada en la base (`None` si no hay ninguna).
+    pub async fn migration_version(&self) -> Result<Option<i64>, StorageError> {
+        let v: Option<i64> =
+            sqlx::query_scalar("SELECT max(version) FROM _sqlx_migrations WHERE success")
+                .fetch_one(&self.pool)
+                .await?;
+        Ok(v)
     }
 
     /// Crea el instrumento o actualiza sus datos descriptivos.
@@ -912,4 +919,11 @@ fn row_to_news_interpretation(
 
 fn to_u64(v: i64) -> Result<u64, StorageError> {
     u64::try_from(v).map_err(|_| StorageError::CorruptRow(format!("{v} negativo en el cupo de IG")))
+}
+
+/// Las migraciones de `infra/migrations/`, metidas en el binario al compilar. `build.rs` hace que
+/// cargo recompile este crate cuando cambia esa carpeta (#348): si no, un binario viejo no aplica
+/// las migraciones nuevas.
+pub fn migrator() -> sqlx::migrate::Migrator {
+    sqlx::migrate!("../../../infra/migrations")
 }

@@ -27,6 +27,12 @@ Se hace en el Mac mini, con la Terminal de macOS, desde la carpeta del proyecto.
 
 **Para apagar:** en la ventana de la Terminal donde corre el script, apretá `Ctrl+C`. Se apagan el gateway y la pantalla. La base de datos sigue prendida; no hace falta apagarla.
 
+**Después de bajar código nuevo**, antes de prender, actualizá la base una vez:
+```text
+cd engine && cargo run -q -p cfds-storage --example migrate
+```
+El gateway **no** actualiza la base: su conexión es de solo lectura, a propósito. Este comando agrega las tablas nuevas que falten, sin tocar los datos, y muestra en qué versión quedó la base. Se puede correr las veces que quieras.
+
 ---
 
 ## 2. Las pestañas
@@ -150,6 +156,10 @@ Después de cambiar el `.env`, apagá con `Ctrl+C` y volvé a correr `infra/scri
 **Una orden da "403"** ("escritura apagada: falta el token local del gateway" o "falta la cabecera x-cfds-token")
 - Falta `CFDS_GATEWAY_TOKEN` en el `.env`, o el script se prendió antes de agregarlo.
 - Agregalo, apagá con `Ctrl+C` y volvé a correr el script. Mirar todo lo demás funciona igual sin el token.
+
+**Error "relation … does not exist"** (por ejemplo, `learning_reports`)
+- La base no tiene una tabla nueva: falta aplicar las migraciones del código nuevo.
+- Apagá con `Ctrl+C`, corré `cd engine && cargo run -q -p cfds-storage --example migrate` y volvé a prender con el script.
 
 **La base de datos está caída**
 - Abrí Docker Desktop y fijate que esté corriendo.
