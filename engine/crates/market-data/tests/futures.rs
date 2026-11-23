@@ -2,7 +2,7 @@
 //! diarias contra IG, con series sintéticas construidas a mano.
 
 use cfds_core::{DailyCandle, FuturesBar, InstrumentId, Timeframe};
-use cfds_market_data::{aggregate_bars, compare_daily};
+use cfds_market_data::{compare_daily, futures_candles};
 use chrono::{DateTime, NaiveDate, TimeDelta, Utc};
 use rust_decimal::{Decimal, dec};
 
@@ -44,37 +44,122 @@ fn minutes(from: &str, n: i64, contract: u64, base: Decimal) -> Vec<FuturesBar> 
 }
 
 #[test]
-fn fifteen_minute_candles_come_only_from_closed_buckets_of_one_contract() {
+fn fifteen_minute_candles_come_only_from_closed_windows_of_one_contract() {
     let mut bars = minutes("2026-11-18T09:00:00Z", 15, 1, dec!(100)); // 09:00 completa
     bars.extend(minutes("2026-11-18T09:15:00Z", 10, 1, dec!(200))); // 09:15 con 10 barras
     bars.extend(minutes("2026-11-18T09:25:00Z", 5, 2, dec!(300))); // vencimiento en el medio
     bars.extend(minutes("2026-11-18T09:30:00Z", 3, 2, dec!(400))); // 09:30 todavía abierta
-    let a = aggregate_bars(&bars, &de40(), Timeframe::M15, at("2026-11-18T09:40:00Z"));
-    assert_eq!(a.mixed_contracts, 1);
-    assert_eq!(a.candles.len(), 1);
-    let c = &a.candles[0];
+    let f = futures_candles(&bars, &de40(), at("2026-11-18T09:40:00Z")).unwrap();
+    assert_eq!(f.m15.len(), 1);
+    let c = &f.m15[0];
     assert_eq!(
-        (c.start, c.open, c.high, c.low, c.close, c.volume),
+        (
+            c.candle.start,
+            c.candle.open,
+            c.candle.high,
+            c.candle.low,
+            c.candle.close
+        ),
         (
             at("2026-11-18T09:00:00Z"),
             dec!(99),
             dec!(116),
             dec!(97),
-            dec!(114),
-            Some(dec!(150))
+            dec!(114)
         )
     );
-    // En 1h, la vela de las 09:00 tiene dos contratos: no se arma.
-    let h = aggregate_bars(&bars, &de40(), Timeframe::H1, at("2026-11-18T10:00:00Z"));
-    assert_eq!((h.candles.len(), h.mixed_contracts), (0, 1));
-    // Sin repintado: agregar barras no cambia las velas ya cerradas.
-    let fewer = aggregate_bars(
-        &bars[..20],
-        &de40(),
-        Timeframe::M15,
-        at("2026-11-18T09:40:00Z"),
+    assert_eq!((c.candle.volume, c.contract_id), (Some(dec!(150)), 1));
+    assert_eq!(c.candle.timeframe, Timeframe::M15);
+    // El vencimiento dentro de 09:15 descarta esa vela y la hora de las 09:00, y se avisa.
+    assert_eq!(
+        f.mixed,
+        vec![
+            (Timeframe::M15, at("2026-11-18T09:15:00Z")),
+            (Timeframe::H1, at("2026-11-18T09:00:00Z"))
+        ]
     );
-    assert_eq!(fewer.candles[0], a.candles[0]);
+    assert!(f.h1.is_empty());
+}
+
+#[test]
+fn no_repaint_adding_bars_never_changes_closed_candles() {
+    let mut bars = Vec::new();
+    for h in 0..6 {
+        bars.extend(minutes(
+            &format!("2026-11-18T{:02}:00:00Z", 8 + h),
+            60,
+            7,
+            Decimal::from(100 * (h + 1)),
+        ));
+    }
+    let end = at("2026-11-18T14:00:00Z");
+    let full = futures_candles(&bars, &de40(), end).unwrap();
+    assert_eq!((full.m15.len(), full.h1.len()), (24, 6));
+    for n in [1, 14, 15, 16, 59, 60, 61, 200, 359] {
+        // Con datos hasta la barra n (exclusive), lo bajado llega hasta su inicio.
+        let until = bars[n].start;
+        let part = futures_candles(&bars[..n], &de40(), until).unwrap();
+        assert_eq!(part.m15[..], full.m15[..part.m15.len()], "con {n} barras");
+        assert_eq!(part.h1[..], full.h1[..part.h1.len()], "con {n} barras");
+        // Ninguna vela termina después de lo bajado.
+        assert!(part.m15.iter().all(|c| c.candle.end() <= until));
+        assert!(part.h1.iter().all(|c| c.candle.end() <= until));
+    }
+}
+
+#[test]
+fn gaps_are_not_filled_and_an_hour_needs_its_four_quarters() {
+    let mut bars = minutes("2026-11-18T09:00:00Z", 15, 7, dec!(100));
+    // 09:15: solo dos minutos con operaciones; 09:30: ninguno; 09:45: completa.
+    bars.push(bar(at("2026-11-18T09:17:00Z"), 7, dec!(120)));
+    bars.push(bar(at("2026-11-18T09:28:00Z"), 7, dec!(121)));
+    bars.extend(minutes("2026-11-18T09:45:00Z", 15, 7, dec!(130)));
+    let f = futures_candles(&bars, &de40(), at("2026-11-18T10:00:00Z")).unwrap();
+    let starts: Vec<_> = f.m15.iter().map(|c| c.candle.start).collect();
+    assert_eq!(
+        starts,
+        vec![
+            at("2026-11-18T09:00:00Z"),
+            at("2026-11-18T09:15:00Z"),
+            at("2026-11-18T09:45:00Z")
+        ]
+    );
+    // La de 09:15 sale de sus dos barras: no se inventan los minutos sin operaciones.
+    assert_eq!(
+        (f.m15[1].candle.open, f.m15[1].candle.close),
+        (dec!(119), dec!(121))
+    );
+    // Sin la vela de 09:30, la hora de las 09:00 no se arma (spec §3, #150). No es un vencimiento.
+    assert!(f.h1.is_empty());
+    assert!(f.mixed.is_empty());
+}
+
+#[test]
+fn windows_are_aligned_in_utc_like_ig() {
+    // Barras desde las 13:07: la primera vela es la de 13:00, con lo que haya.
+    let bars = minutes("2026-11-18T13:07:00Z", 113, 7, dec!(100)); // hasta 14:59
+    let f = futures_candles(&bars, &de40(), at("2026-11-18T15:00:00Z")).unwrap();
+    assert!(f.m15.iter().all(|c| c.candle.start.timestamp() % 900 == 0));
+    assert_eq!(f.m15[0].candle.start, at("2026-11-18T13:00:00Z"));
+    // 13:00 tiene sus cuatro de 15m (13:00 con barras desde 13:07); 14:00 también.
+    let hours: Vec<_> = f.h1.iter().map(|c| c.candle.start).collect();
+    assert_eq!(
+        hours,
+        vec![at("2026-11-18T13:00:00Z"), at("2026-11-18T14:00:00Z")]
+    );
+    assert_eq!(f.h1[0].candle.timeframe, Timeframe::H1);
+    assert_eq!(f.h1[0].candle.open, dec!(99));
+}
+
+#[test]
+fn a_rollover_between_quarters_drops_the_hour_but_keeps_the_quarters() {
+    let mut bars = minutes("2026-11-18T09:00:00Z", 30, 7, dec!(100));
+    bars.extend(minutes("2026-11-18T09:30:00Z", 30, 8, dec!(250)));
+    let f = futures_candles(&bars, &de40(), at("2026-11-18T10:00:00Z")).unwrap();
+    let contracts: Vec<_> = f.m15.iter().map(|c| c.contract_id).collect();
+    assert_eq!(contracts, vec![7, 7, 8, 8]);
+    assert!(f.h1.is_empty());
+    assert_eq!(f.mixed, vec![(Timeframe::H1, at("2026-11-18T09:00:00Z"))]);
 }
 
 fn ig_day(day: &str, close: Decimal) -> DailyCandle {

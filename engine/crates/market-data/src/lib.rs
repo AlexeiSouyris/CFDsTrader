@@ -26,7 +26,7 @@ pub use calendar::{CalendarError, ExchangeCalendar, Session};
 pub use config::{ConfigError, ValidationConfig};
 pub use daily::{DailyIssue, DailyIssueKind, daily_bounds, local_day_bounds, validate_daily};
 pub use futures::{
-    Aggregated, ContractBasis, DailyComparison, DayPair, aggregate_bars, compare_daily,
+    ContractBasis, DailyComparison, DayPair, FuturesCandles, compare_daily, futures_candles,
 };
 pub use instruments::{BrokerTerms, Catalog, CatalogError, InstrumentSpec, PendingField, Sourced};
 pub use news_filter::{NewsFilter, NewsFilterConfig, calendar_coverage, news_flags};

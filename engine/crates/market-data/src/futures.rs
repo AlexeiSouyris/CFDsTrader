@@ -2,9 +2,10 @@
 //! diarias contra las del CFD de IG. Funciones puras.
 //!
 //! ```text
-//! agrupación (15m, 1h): barras con inicio en [k·paso, (k+1)·paso); la vela existe solo si
-//!   cerró (fin ≤ now) y si todas sus barras son del mismo contrato (un vencimiento en el medio
-//!   no se mezcla: esa vela no se arma y se cuenta)
+//! 15m: barras con inicio en [k·15 min, (k+1)·15 min) UTC; la vela existe solo si la ventana
+//!   cerró (fin ≤ until) y si todas sus barras son del mismo contrato (un vencimiento en el
+//!   medio no se mezcla: esa vela no se arma y se avisa). Sin barras, no hay vela.
+//! 1h: las cuatro velas de 15m de la hora (spec §3, #150), del mismo contrato
 //! diaria del futuro para un día de IG: barras con inicio en [inicio, fin) de la diaria de IG;
 //!   cierre = el de la última barra
 //! base del día = cierre IG − cierre futuro
@@ -15,15 +16,19 @@
 
 use std::collections::BTreeMap;
 
-use cfds_core::{Candle, DailyCandle, FuturesBar, InstrumentId, Timeframe};
+use cfds_core::{Candle, DailyCandle, FuturesBar, FuturesCandle, InstrumentId, Timeframe};
+
+use crate::{AggregateError, aggregate_h1};
 use chrono::{DateTime, NaiveDate, TimeDelta, Utc};
 use rust_decimal::{Decimal, MathematicalOps};
 
-/// Velas armadas y cuántas no se armaron por mezclar contratos.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Aggregated {
-    pub candles: Vec<Candle>,
-    pub mixed_contracts: usize,
+/// Velas de 15m y 1h armadas desde barras de 1 minuto, y las ventanas descartadas.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct FuturesCandles {
+    pub m15: Vec<FuturesCandle>,
+    pub h1: Vec<FuturesCandle>,
+    /// Ventanas cerradas que no se armaron porque mezclaban dos contratos (vencimiento).
+    pub mixed: Vec<(Timeframe, DateTime<Utc>)>,
 }
 
 fn bucket(t: DateTime<Utc>, step: TimeDelta) -> DateTime<Utc> {
@@ -31,44 +36,72 @@ fn bucket(t: DateTime<Utc>, step: TimeDelta) -> DateTime<Utc> {
     t - TimeDelta::seconds(t.timestamp().rem_euclid(s))
 }
 
-/// Agrupa barras de 1 minuto (de un instrumento, en orden) en velas de `timeframe` ya cerradas
-/// en `now`. `instrument` es el CFD al que corresponde el futuro.
-pub fn aggregate_bars(
+/// Arma velas de 15m y 1h desde barras de 1 minuto de un futuro (en orden estricto), solo de
+/// ventanas que cerraron hasta `until` (el fin de lo bajado, nunca después de ahora).
+///
+/// - 15m: ventanas UTC `[k·15 min, (k+1)·15 min)`, alineadas igual que las de IG. Una vela por
+///   ventana con al menos una barra: un minuto sin operaciones no trae barra y no se rellena.
+/// - 1h: la regla de la spec §3 (#150), con [`aggregate_h1`]: solo horas con sus **cuatro**
+///   velas de 15m.
+/// - Ninguna vela mezcla contratos: si en la ventana cambia el contrato, no se arma y queda en
+///   `mixed` (una hora con una vela de 15m descartada por eso también).
+///
+/// `instrument` es el CFD al que corresponde el futuro.
+pub fn futures_candles(
     bars: &[FuturesBar],
     instrument: &InstrumentId,
-    timeframe: Timeframe,
-    now: DateTime<Utc>,
-) -> Aggregated {
-    let step = timeframe.duration();
-    let mut out = Aggregated {
-        candles: Vec::new(),
-        mixed_contracts: 0,
-    };
+    until: DateTime<Utc>,
+) -> Result<FuturesCandles, AggregateError> {
+    let step = Timeframe::M15.duration();
+    let mut out = FuturesCandles::default();
     let mut i = 0;
     while i < bars.len() {
         let start = bucket(bars[i].start, step);
         let j = i + bars[i..].partition_point(|b| bucket(b.start, step) == start);
         let group = &bars[i..j];
         i = j;
-        if start + step > now {
-            continue; // todavía no cerró
+        if start + step > until {
+            continue; // todavía no cerró, o falta bajar el resto de la ventana
         }
         if group.iter().any(|b| b.contract_id != group[0].contract_id) {
-            out.mixed_contracts += 1;
+            out.mixed.push((Timeframe::M15, start));
             continue;
         }
-        out.candles.push(Candle {
-            instrument_id: instrument.clone(),
-            timeframe,
-            start,
-            open: group[0].open,
-            high: group.iter().map(|b| b.high).max().unwrap_or(group[0].high),
-            low: group.iter().map(|b| b.low).min().unwrap_or(group[0].low),
-            close: group[group.len() - 1].close,
-            volume: Some(group.iter().map(|b| Decimal::from(b.volume)).sum()),
+        out.m15.push(FuturesCandle {
+            candle: Candle {
+                instrument_id: instrument.clone(),
+                timeframe: Timeframe::M15,
+                start,
+                open: group[0].open,
+                high: group.iter().map(|b| b.high).max().unwrap_or(group[0].high),
+                low: group.iter().map(|b| b.low).min().unwrap_or(group[0].low),
+                close: group[group.len() - 1].close,
+                volume: Some(group.iter().map(|b| Decimal::from(b.volume)).sum()),
+            },
+            contract_id: group[0].contract_id,
         });
     }
-    out
+    let hour = TimeDelta::hours(1);
+    let mut mixed_hours: Vec<DateTime<Utc>> =
+        out.mixed.iter().map(|(_, t)| bucket(*t, hour)).collect();
+    let m15: Vec<Candle> = out.m15.iter().map(|c| c.candle.clone()).collect();
+    for h in aggregate_h1(&m15)? {
+        let from = out.m15.partition_point(|c| c.candle.start < h.start);
+        let parts = &out.m15[from..from + 4];
+        if parts.iter().any(|c| c.contract_id != parts[0].contract_id) {
+            mixed_hours.push(h.start);
+            continue;
+        }
+        out.h1.push(FuturesCandle {
+            candle: h,
+            contract_id: parts[0].contract_id,
+        });
+    }
+    mixed_hours.sort();
+    mixed_hours.dedup();
+    out.mixed
+        .extend(mixed_hours.into_iter().map(|t| (Timeframe::H1, t)));
+    Ok(out)
 }
 
 /// Un día de IG con su cierre del futuro.
