@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/treasury_yield.v1.schema.json",
+  "title": "Treasury yield v1",
+  "description": "Un rendimiento diario de la curva par del Tesoro de EE. UU. ('Daily Treasury Par Yield Curve Rates', home.treasury.gov) para un plazo, tal como lo publicó el Tesoro (ADR 0012). Solo se agrega, nunca se modifica: una corrección del Tesoro es otro registro con otra published_at. Lo escribe Python (intelligence/, cfds_intel.treasury); es contexto macro (pilares 3, 6 y 8), no entra al puntaje.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tenor", "ref_date", "published_at", "yield_pct"],
+  "properties": {
+    "tenor": {
+      "description": "Plazo: 1M, 1_5M (1,5 meses, desde 2025), 2M, 3M, 4M (desde 2022), 6M, 1Y, 2Y, 3Y, 5Y, 7Y, 10Y, 20Y o 30Y. Son las columnas del CSV del Tesoro ('1 Mo', '1.5 Month', ..., '30 Yr').",
+      "enum": ["1M", "1_5M", "2M", "3M", "4M", "6M", "1Y", "2Y", "3Y", "5Y", "7Y", "10Y", "20Y", "30Y"]
+    },
+    "ref_date": {
+      "description": "Día hábil del Tesoro al que corresponde el valor, AAAA-MM-DD (precios tomados por la Fed de Nueva York cerca de las 15:30 ET de ese día).",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "published_at": {
+      "description": "Desde cuándo el valor estuvo disponible para el sistema, en UTC (ADR 0012): el día hábil siguiente de la serie a las 09:30 ET, o la hora en que se leyó si es el último valor publicado. Siempre posterior a las 15:30 ET de ref_date. Nada lo puede usar antes (CLAUDE.md §5b).",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "yield_pct": {
+      "description": "Rendimiento anual en % (curva par, base bono), como string decimal exacto, nunca número JSON.",
+      "type": "string",
+      "pattern": "^-?\\d+(\\.\\d+)?$"
+    }
+  }
+}

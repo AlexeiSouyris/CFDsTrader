@@ -112,6 +112,7 @@ Solo graban mientras la computadora está **prendida y despierta**. En macOS: Co
 | Índice de sentimiento (#213). **Lo agrega el dueño cuando decida** | 1 vez por día hábil, después de los indicadores de las diarias, y después del COT del sábado | `uv run python -m cfds_intel.sentiment.compute_index` (en `intelligence/`) |
 | Calendario económico de Forex Factory por su feed JSON oficial (ADR 0010, #239). **Lo agrega el dueño cuando decida** | Cada 4 horas, a un minuto raro (el archivo cambia una vez por hora y pedirlo más seguido da 429) | `uv run python -m cfds_intel.calendar` (en `intelligence/`) |
 | €STR del BCE | 1 vez por día hábil, después de las 09:00 CET | `uv run python -m cfds_intel.rates 2026-01-01` (en `intelligence/`) |
+| Curva del Tesoro de EE. UU. (ADR 0012, #260). **La agrega el dueño cuando decida** | 1 vez por día hábil, después de las 18:00 ET (el Tesoro publica "usually … by 6:00 PM ET") | `uv run python -m cfds_intel.treasury 2026` (en `intelligence/`). La primera vez, sin año: carga desde 2019 |
 | Velas de 15m y 1h en vivo (#124) | 15 min, un minuto después de cada cierre (`:01`, `:16`, `:31`, `:46`) | `cargo run -q -p cfds-ig --example ig_live -- --once` (en `engine/`). Gasta unos 690 puntos por semana con 4 índices, de los 3.400 de `budget.live` |
 | Interpretación de las noticias nuevas con Ollama (#186, #191). **La agrega el dueño cuando decida** | 15 min, 3 minutos después de la ingesta de noticias (`:03`, `:18`, `:33`, `:48`) | `infra/scripts/interpret_news.sh --limit 20` (desde la raíz del repo) |
 
@@ -126,6 +127,8 @@ PYTHONPATH=RUTA/intelligence/src
 # Calendario de Forex Factory (ADR 0010): cada 4 horas, nunca más de una vez por hora.
 17 */4 * * * cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.calendar >> ../logs/calendar.log 2>&1
 23 10 * * 1-5 cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.rates 2026-01-01 >> ../logs/rates.log 2>&1
+# Curva del Tesoro (ADR 0012): martes a sábado a las 01:37 de Madrid, después de las 18:00 ET del día hábil anterior. El año de hace 7 días cubre el cambio de año.
+37 1 * * 2-6 cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.treasury $(date -v-7d +\%Y) >> ../logs/treasury.log 2>&1
 1,16,31,46 * * * * cd "RUTA/engine" && set -a && . ../.env && set +a && /usr/bin/lockf -t 0 ../logs/ig_live.lock $HOME/.cargo/bin/cargo run -q -p cfds-ig --example ig_live -- --once >> ../logs/ig_live.log 2>&1
 3,18,33,48 * * * * "RUTA/infra/scripts/interpret_news.sh" --limit 20 >> "RUTA/logs/interpret_news.log" 2>&1
 ```
