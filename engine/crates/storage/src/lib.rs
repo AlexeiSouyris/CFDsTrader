@@ -23,6 +23,7 @@ mod liquidity_levels;
 mod liquidity_stats;
 mod market_context;
 mod news_stream;
+mod ops_events;
 mod paper_orders;
 mod pg;
 mod stream;
@@ -33,6 +34,7 @@ pub use liquidity_stats::{StatsReport, StatsRunReport};
 pub use news_stream::{
     Delivery, NEWS_INTERPRETATIONS_STREAM, NewsBatch, NewsInterpretationConsumer, Rejected, StartAt,
 };
+pub use ops_events::OpsEventRecord;
 pub use pg::{AllowanceRecord, InsertReport, PgStore};
 pub use stream::{CandlePublisher, Published, stream_id, stream_key};
 

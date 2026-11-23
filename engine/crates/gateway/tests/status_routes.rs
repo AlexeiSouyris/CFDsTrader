@@ -118,6 +118,7 @@ async fn call(paper: Option<&Fake>, feed: &Feed, path: &str, method: &str) -> (u
     let scrub = |t: &str| log.scrub(t);
     let deps = StatusDeps {
         feed,
+        events: None,
         daily_loss_limit_pct: dec!(3),
         scrub: &scrub,
     };
@@ -286,7 +287,10 @@ async fn events_are_the_redacted_broker_and_alert_lines_newest_first() {
 
 #[tokio::test]
 async fn the_feed_keeps_only_the_last_n() {
-    let f = Feed::new(StatusConfig { feed_size: 2 });
+    let f = Feed::new(StatusConfig {
+        feed_size: 2,
+        ..StatusConfig::from_toml(GATEWAY).unwrap()
+    });
     let (log, _) = logger(&f);
     for i in 0..5 {
         log.log(Level::Warn, "broker", "risk_decision", json!({ "n": i }));

@@ -189,8 +189,7 @@ const LEVEL: Record<OpsEvent['level'], string> = {
 
 /** Los últimos eventos del broker y alertas, el más nuevo primero. */
 export function OpsEventFeed({ events }: { events: OpsEvent[] }) {
-  if (events.length === 0)
-    return <p className="text-[12.5px]">Todavía no hay eventos desde que arrancó el gateway.</p>
+  if (events.length === 0) return <p className="text-[12.5px]">Todavía no hay eventos guardados.</p>
   return (
     <ol className="grid gap-2" aria-label="Eventos y alertas">
       <AnimatePresence initial={false}>

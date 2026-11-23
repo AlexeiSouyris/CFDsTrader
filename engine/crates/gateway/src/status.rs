@@ -3,19 +3,21 @@
 //! | Ruta | Contrato |
 //! |---|---|
 //! | `GET /api/v1/ops/status` | `ops_status.v1`: compuerta, kill switch, pérdida diaria y apalancamiento, última reconciliación |
-//! | `GET /api/v1/ops/events` | `ops_event.v1[]`: los últimos `[ops] feed_size` eventos, el más nuevo primero |
+//! | `GET /api/v1/ops/events` | `ops_event.v1[]`: los últimos `[ops] feed_size` eventos, el más nuevo primero (de la base; si no responde, de memoria) |
 //!
 //! - Los números de riesgo son los de `paper_account.v1` (los calcula el broker con el riesgo);
 //!   el límite de pérdida diaria es el de `config/risk.toml`. Acá no se calcula nada.
 //! - Los eventos son las líneas del `Logger` de `cfds-obs` **ya redactadas** (sin secretos): el
 //!   [`FeedWriter`] se pone detrás del `Logger`, escribe cada línea en la salida de siempre y
-//!   guarda en memoria las del broker, las alertas y todo lo `warn` o `error`. Nada se persiste.
+//!   guarda en memoria las del broker, las alertas y todo lo `warn` o `error`. Además las pasa,
+//!   sin esperar nunca, a la tarea que las guarda en `ops_events` (#337, ver [`crate::ops_store`]).
 //! - No hay rutas de escritura: el kill switch no se reinicia desde acá.
 
 use std::collections::VecDeque;
 use std::future::Future;
 use std::io::Write;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Duration;
 
 use cfds_broker::Reconciliation;
 use cfds_core::candle::utc_z;
@@ -27,6 +29,7 @@ use serde_json::{Map, Value};
 
 use crate::Reply;
 use crate::ops::GateState;
+use crate::ops_store::{EventStore, Persistence, from_record};
 use crate::paper::{PaperService, PgPaper};
 
 const STATUS: &str = "/api/v1/ops/status";
@@ -37,6 +40,12 @@ const EVENTS: &str = "/api/v1/ops/events";
 pub struct StatusConfig {
     /// Cuántos eventos guarda en memoria (y devuelve) `GET /api/v1/ops/events`.
     pub feed_size: usize,
+    /// Días de eventos que conserva la base (los borra el job de retención).
+    pub retention_days: u32,
+    /// Eventos que esperan para guardarse en la base (cola y pendientes con la base caída).
+    pub persist_queue: usize,
+    /// Cada cuánto se reintenta guardar si la base no responde.
+    pub retry: Duration,
 }
 
 impl StatusConfig {
@@ -49,13 +58,28 @@ impl StatusConfig {
         #[serde(deny_unknown_fields)]
         struct RawOps {
             feed_size: usize,
+            retention_days: u32,
+            persist_queue: usize,
+            retry_secs: u64,
         }
         let r = toml::from_str::<Raw>(text).map_err(|e| e.to_string())?.ops;
         if !(1..=1000).contains(&r.feed_size) {
             return Err("ops.feed_size tiene que estar entre 1 y 1000".into());
         }
+        if !(1..=3650).contains(&r.retention_days) {
+            return Err("ops.retention_days tiene que estar entre 1 y 3650".into());
+        }
+        if !(1..=100_000).contains(&r.persist_queue) {
+            return Err("ops.persist_queue tiene que estar entre 1 y 100000".into());
+        }
+        if !(1..=3600).contains(&r.retry_secs) {
+            return Err("ops.retry_secs tiene que estar entre 1 y 3600".into());
+        }
         Ok(Self {
             feed_size: r.feed_size,
+            retention_days: r.retention_days,
+            persist_queue: r.persist_queue,
+            retry: Duration::from_secs(r.retry_secs),
         })
     }
 }
@@ -75,6 +99,8 @@ pub struct OpsEvent {
 pub struct Feed {
     cap: usize,
     items: Mutex<VecDeque<OpsEvent>>,
+    /// La cola hacia la base, si se guardan (#337).
+    sink: OnceLock<Arc<Persistence>>,
 }
 
 fn utc_text(s: &str) -> bool {
@@ -86,7 +112,18 @@ impl Feed {
         Arc::new(Self {
             cap: cfg.feed_size,
             items: Mutex::new(VecDeque::with_capacity(cfg.feed_size)),
+            sink: OnceLock::new(),
         })
+    }
+
+    /// Desde ahora, cada evento guardado en memoria también se ofrece a la base (sin esperar).
+    pub fn attach(&self, sink: Arc<Persistence>) {
+        let _ = self.sink.set(sink);
+    }
+
+    /// Cuántos eventos guarda en memoria y devuelve la ruta.
+    pub fn cap(&self) -> usize {
+        self.cap
     }
 
     /// Una línea del `Logger` (ya redactada). Guarda las del broker, las alertas y lo `warn` o
@@ -115,19 +152,23 @@ impl Feed {
         if !wanted {
             return;
         }
+        let e = OpsEvent {
+            ts,
+            level,
+            target,
+            event,
+            fields: doc,
+        };
+        if let Some(sink) = self.sink.get() {
+            sink.offer(e.clone());
+        }
         let Ok(mut items) = self.items.lock() else {
             return;
         };
         if items.len() == self.cap {
             items.pop_front();
         }
-        items.push_back(OpsEvent {
-            ts,
-            level,
-            target,
-            event,
-            fields: doc,
-        });
+        items.push_back(e);
     }
 
     /// Los eventos guardados, el más nuevo primero.
@@ -294,6 +335,8 @@ fn json<T: Serialize>(v: &T) -> Reply {
 /// Lo que necesita la ruta además del broker.
 pub struct StatusDeps<'a> {
     pub feed: &'a Feed,
+    /// Los eventos guardados (#337). Sin base, o si falla, se leen los de memoria.
+    pub events: Option<&'a dyn EventStore>,
     /// `[limits] max_daily_loss_pct` de `config/risk.toml`.
     pub daily_loss_limit_pct: Decimal,
     /// Tapa secretos en un texto (el motivo del kill switch). En producción, `Logger::scrub`.
@@ -350,6 +393,21 @@ pub async fn status<S: OpsSource>(
     }
 }
 
+/// Los últimos eventos, el más nuevo primero: de la base y, si no hay o no responde, de memoria.
+pub async fn events(deps: &StatusDeps<'_>) -> Vec<OpsEvent> {
+    let limit = u32::try_from(deps.feed.cap()).unwrap_or(u32::MAX);
+    match deps.events {
+        Some(store) => match store.latest(limit).await {
+            Ok(rows) => rows.into_iter().map(from_record).collect(),
+            Err(e) => {
+                eprintln!("gateway: eventos de la base: {}", (deps.scrub)(&e));
+                deps.feed.latest()
+            }
+        },
+        None => deps.feed.latest(),
+    }
+}
+
 /// Atiende las rutas del estado. Solo `GET`.
 pub async fn respond_status<S: OpsSource>(
     paper: Option<&S>,
@@ -365,7 +423,7 @@ pub async fn respond_status<S: OpsSource>(
         return text(405, "solo GET: el estado es de solo lectura");
     }
     if path == EVENTS {
-        return json(&deps.feed.latest());
+        return json(&events(deps).await);
     }
     json(&status(paper, deps, now).await)
 }

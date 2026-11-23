@@ -169,6 +169,9 @@ describe('estado de la operación (#314)', () => {
     expect(items[3]).toHaveAttribute('data-level', 'error')
     expect(items[3]).toHaveTextContent('timeout')
     expect(list).not.toHaveTextContent('***')
+    // Se guardan en la base (#337): ya no se pierden al reiniciar.
+    expect(screen.getByText(/se conservan al reiniciar el gateway/)).toBeInTheDocument()
+    expect(screen.queryByText(/empiezan de cero/)).toBeNull()
   })
 
   it('sin eventos o sin gateway lo dice', async () => {
