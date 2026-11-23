@@ -6,7 +6,7 @@ use std::path::PathBuf;
 mod run_sample;
 
 use cfds_backtest::{Commission, CostConfig, InstrumentCosts};
-use cfds_journal::{BacktestRun, RunCosts};
+use cfds_journal::{BacktestRun, RunCosts, SpreadSource};
 use run_sample::{at, sample};
 use rust_decimal::dec;
 use serde_json::{Value, json};
@@ -45,6 +45,20 @@ fn a_run_validates_against_its_contract_and_reads_back_identical() {
         json["news"]["published_from"],
         json!("2025-12-03T00:00:00Z")
     );
+
+    // Sin `spread_source` (corridas anteriores) no se escribe; con él, valida y vuelve igual.
+    assert!(json["costs"].get("spread_source").is_none());
+    for (source, text) in [
+        (SpreadSource::Measured, "measured"),
+        (SpreadSource::Config, "config"),
+    ] {
+        let mut r = run.clone();
+        r.costs = r.costs.clone().with_spread_source(source);
+        let j = serde_json::to_value(&r).unwrap();
+        assert_eq!(j["costs"]["spread_source"], json!(text));
+        assert!(validator().is_valid(&j), "{j}");
+        assert_eq!(serde_json::from_value::<BacktestRun>(j).unwrap(), r);
+    }
 
     let mut no_news = run.clone();
     no_news.news = None;
@@ -113,6 +127,7 @@ fn the_contract_and_rust_reject_the_same_bad_runs() {
         with("/costs/instruments/0/commission", json!({"kind": "flat"})),
         with("/news/interpretations", json!(-1)),
         with("/extra", json!(1)),
+        with("/costs/spread_source", json!("estimated")),
     ];
     let v = validator();
     for doc in bad {

@@ -12,7 +12,7 @@ pub mod run;
 
 pub use run::{
     BacktestRun, RunCommission, RunCosts, RunInstrumentCosts, RunInvalid, RunMetrics, RunNews,
-    RunTimeframe, config_sha256,
+    RunTimeframe, SpreadSource, config_sha256,
 };
 
 use cfds_backtest::{CloseReason, ExitReason, TradeRecord};

@@ -29,6 +29,18 @@
 //! calendario (ahí no descuenta nada). `--sin-noticias` no lo apaga: solo apaga el ajuste del
 //! puntaje.
 //!
+//! Con `--fuente futuros` (#267) corre sobre las velas de 15m y 1h armadas desde los futuros de
+//! Databento (`futures_candles`, ADR 0011), sin mezclarlas con las de IG:
+//! - todo lo que guarda (`backtest_runs`, `proposals`, `outcomes` y `ml_features`) queda bajo el
+//!   instrumento derivado de `config/candle_sources.toml` (por ejemplo `US500.FUT`);
+//! - no hay spread medido del CFD para esas fechas: los costos usan el spread típico de config
+//!   (nunca cero), el filtro de spread §7.3 no se aplica y la corrida lo dice
+//!   (`costs.spread_source = "config"`);
+//! - en cada vencimiento se cierra lo abierto al cierre de la última vela del contrato viejo y el
+//!   calentamiento empieza de nuevo (`cfds_backtest::mark_rollovers`);
+//! - la financiación, las noticias, el calendario y los tercios de la volatilidad son los mismos
+//!   que con IG (del instrumento del CFD).
+//!
 //! Con `--sin-noticias` no carga ninguna interpretación y la corrida queda con `news: null` en
 //! `backtest_runs`: es la variante "capa apagada" del reporte de la fase 4b (#221), para medir
 //! el ajuste de noticias contra no usarlo con todo lo demás igual.
@@ -39,18 +51,19 @@ mod news_filter;
 use std::path::PathBuf;
 
 use cfds_backtest::{
-    BacktestConfig, DailyRates, FundingRates, buy_and_hold, run_with_news, setup_from_catalog,
+    BacktestConfig, DailyRates, FundingRates, buy_and_hold, mark_rollovers, run_with_news,
+    setup_from_catalog,
 };
 use cfds_core::Timeframe;
 use cfds_indicators::TrendConfig;
 use cfds_liquidity::LiquidityConfig;
 use cfds_market_data::{
-    Catalog, ExchangeCalendar, NewsFilterConfig, SpreadFilterConfig, TradingWindowConfig,
-    ValidationConfig, check_series, spread_flags, trading_window,
+    CandleSource, CandleSources, Catalog, ExchangeCalendar, NewsFilterConfig, SpreadFilterConfig,
+    TradingWindowConfig, ValidationConfig, check_series, spread_flags, trading_window,
 };
 use cfds_patterns::PatternsConfig;
 use cfds_risk::RiskConfig;
-use cfds_storage::PgStore;
+use cfds_storage::{CandleFeed, PgStore};
 use cfds_strategy::{BacktestInterpreter, Configs, InterpreterCutoff, StrategyConfig};
 use rust_decimal::Decimal;
 
@@ -61,8 +74,9 @@ macro_rules! cfg {
 }
 
 /// Archivos de `config/` que lee la corrida, para el hash de `backtest_run.v1` (#200).
-const CONFIG_FILES: [(&str, &str); 15] = [
+const CONFIG_FILES: [(&str, &str); 16] = [
     ("backtest.toml", cfg!("backtest.toml")),
+    ("candle_sources.toml", cfg!("candle_sources.toml")),
     ("data_split.toml", cfg!("data_split.toml")),
     ("data_validation.toml", cfg!("data_validation.toml")),
     ("indicators.toml", cfg!("indicators.toml")),
@@ -84,6 +98,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let started_at = chrono::Utc::now();
     let all: Vec<String> = std::env::args().skip(1).collect();
     let without_news = all.iter().any(|a| a == "--sin-noticias");
+    // `--fuente ig|futuros` (#267): por omisión, las velas del CFD de IG.
+    let (source, all) = match all.iter().position(|a| a == "--fuente") {
+        None => (CandleSource::Ig, all),
+        Some(i) => {
+            let s = all
+                .get(i + 1)
+                .and_then(|s| CandleSource::parse(s))
+                .ok_or("--fuente ig|futuros")?;
+            let rest = [&all[..i], all.get(i + 2..).unwrap_or(&[])].concat();
+            (s, rest)
+        }
+    };
     let args: Vec<&str> = all
         .iter()
         .map(String::as_str)
@@ -95,12 +121,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ => {
             return Err(
                 "uso: <INSTRUMENTO> <desde UTC> <hasta UTC> <capital> <tamaño B&H> [<run_id>] \
-                 [--sin-noticias]"
+                 [--sin-noticias] [--fuente ig|futuros]"
                     .into(),
             );
         }
     };
-    let id = instrument.parse()?;
+    let id: cfds_core::InstrumentId = instrument.parse()?;
+    // Las velas y lo que lee la estrategia (noticias, calendario, sesión) son del CFD `id`; lo que
+    // se guarda queda bajo `out` (con futuros, el instrumento derivado: nunca se mezcla).
+    let sources = CandleSources::from_toml(cfg!("candle_sources.toml"))?;
+    let out = sources.instrument_for(source, &id)?;
+    let feed = match source {
+        CandleSource::Ig => CandleFeed::Ig,
+        CandleSource::Futures => CandleFeed::Futures(&sources.futures_source),
+    };
+    println!("velas: {} ({out})", sources.label(source));
     let (from, to) = (from.parse()?, to.parse()?);
     let (equity, size): (Decimal, Decimal) = (equity.parse()?, size.parse()?);
 
@@ -134,14 +169,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("financiación: {series} diario (al inicio, {pct} % del {day})");
     }
     setup.funding_rates = FundingRates::Daily(daily);
-    let raw_m15 = store.candles(&id, Timeframe::M15, from, to).await?;
-    let raw_h1 = store.candles(&id, Timeframe::H1, from, to).await?;
+    let raw_m15 = store
+        .candles_from(feed, &id, &id, Timeframe::M15, from, to)
+        .await?;
+    let raw_h1 = store
+        .candles_from(feed, &id, &id, Timeframe::H1, from, to)
+        .await?;
     let config_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../config");
     let calendar = ExchangeCalendar::load(&config_dir, catalog.exchange_map())?;
     // Spec §7.8 y §12: se descartan las velas sospechosas y, después de cada error de datos,
     // no se abre hasta volver a tener el calentamiento completo.
     let validation = ValidationConfig::from_toml(cfg!("data_validation.toml"))?;
-    let (m15, h1, data_errors) = {
+    let (m15, h1, mut data_errors) = {
         let a = check_series(&raw_m15, &calendar, &validation);
         let b = check_series(&raw_h1, &calendar, &validation);
         for i in a.issues.iter().chain(&b.issues) {
@@ -153,20 +192,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let session = calendar.session_for(&id).ok_or("instrumento sin bolsa")?;
     let window = TradingWindowConfig::from_toml(cfg!("trading_window.toml"))?;
-    let (entries, force_close) =
+    let (mut entries, mut force_close) =
         trading_window::flags(session, &m15, &window).ok_or("fechas fuera del calendario")?;
+    // Vencimientos de los futuros (#267): se cierra antes y el calentamiento empieza de nuevo.
+    if let CandleFeed::Futures(src) = feed {
+        let rolls = store
+            .futures_contract_changes(src, &id, Timeframe::M15, from, to)
+            .await?;
+        let closed = mark_rollovers(
+            &m15,
+            &rolls,
+            &mut entries,
+            &mut force_close,
+            &mut data_errors,
+        );
+        println!(
+            "vencimientos: {} cambios de contrato; se cierra lo abierto en {} velas",
+            rolls.len(),
+            closed.len()
+        );
+    }
     // Filtro de spread (spec §7.3): necesita el spread de cierre guardado (#95), también de los
-    // días anteriores al período. Sin ese dato no se abre.
-    let spread_cfg = SpreadFilterConfig::from_toml(cfg!("spread_filter.toml"))?;
-    let spreads = store
-        .spreads(&id, Timeframe::M15, from - spread_cfg.lookback, to)
-        .await?;
-    let spread_ok = spread_flags(&m15, &spreads, session.tz, &spread_cfg);
-    eprintln!(
-        "filtro de spread: {} de {} velas no dejan abrir",
-        spread_ok.iter().filter(|ok| !**ok).count(),
-        spread_ok.len()
-    );
+    // días anteriores al período. Sin ese dato no se abre. Con futuros no hay spread medido del
+    // CFD para esas fechas: no se aplica, y los costos usan el spread típico de config (#267).
+    let spread_ok = match source {
+        CandleSource::Ig => {
+            let spread_cfg = SpreadFilterConfig::from_toml(cfg!("spread_filter.toml"))?;
+            let spreads = store
+                .spreads(&id, Timeframe::M15, from - spread_cfg.lookback, to)
+                .await?;
+            let ok = spread_flags(&m15, &spreads, session.tz, &spread_cfg);
+            eprintln!(
+                "filtro de spread: {} de {} velas no dejan abrir",
+                ok.iter().filter(|ok| !**ok).count(),
+                ok.len()
+            );
+            ok
+        }
+        CandleSource::Futures => {
+            eprintln!(
+                "⚠️  filtro de spread (§7.3): NO se aplica, no hay spread medido del CFD para las \
+                 velas de futuros. Los costos usan el spread de config ({} puntos), no medido.",
+                setup.costs.spread
+            );
+            vec![true; m15.len()]
+        }
+    };
     let entries: Vec<bool> = entries
         .iter()
         .zip(&spread_ok)
@@ -267,8 +338,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if let Some(run_id) = run_id {
-        journal_and_probability(&store, run_id, &id, &report.trades, &m15).await?;
-        record_ml_features(&store, run_id, &id, &report.trades, &m15, session, from, to).await?;
+        if source == CandleSource::Futures {
+            // Las tablas del diario referencian `instruments`: se registra el derivado.
+            let spec = catalog
+                .instruments
+                .get(&id)
+                .ok_or("instrumento sin catálogo")?;
+            store
+                .upsert_instrument(&sources.derived_instrument(source, &spec.instrument)?)
+                .await?;
+        }
+        journal_and_probability(&store, run_id, &out, &report.trades, &m15).await?;
+        record_ml_features(
+            &store,
+            run_id,
+            (&out, &id),
+            &report.trades,
+            &m15,
+            session,
+            from,
+            to,
+        )
+        .await?;
         let news_used = if without_news {
             None
         } else {
@@ -280,9 +371,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 interpretations: u64::try_from(news.len())?,
             })
         };
+        let spread_source = match source {
+            CandleSource::Ig => cfds_journal::SpreadSource::Measured,
+            CandleSource::Futures => cfds_journal::SpreadSource::Config,
+        };
         let run = run_record(
             run_id,
-            &id,
+            (&out, spread_source),
             (from, to),
             &setup,
             &report,
@@ -313,7 +408,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[allow(clippy::too_many_arguments)]
 fn run_record(
     run_id: &str,
-    id: &cfds_core::InstrumentId,
+    (id, spread_source): (&cfds_core::InstrumentId, cfds_journal::SpreadSource),
     (from, to): (chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>),
     setup: &cfds_backtest::Setup,
     report: &cfds_backtest::Report,
@@ -357,7 +452,8 @@ fn run_record(
         to,
         config_sha256: cfds_journal::config_sha256(&CONFIG_FILES),
         initial_equity: setup.initial_equity,
-        costs: cfds_journal::RunCosts::new(&setup.backtest.costs, &[(id.clone(), setup.costs)]),
+        costs: cfds_journal::RunCosts::new(&setup.backtest.costs, &[(id.clone(), setup.costs)])
+            .with_spread_source(spread_source),
         news,
         metrics: cfds_journal::RunMetrics::new(report.final_equity, &metrics),
         started_at,
@@ -430,12 +526,14 @@ async fn journal_and_probability(
 }
 
 /// Guarda las variables de ML de cada operación (`ml_features.v1`, #158). Los tercios de la
-/// volatilidad son los guardados (`daily_vol_terciles`, del ejemplo `daily_indicators`).
+/// volatilidad son los guardados (`daily_vol_terciles`, del ejemplo `daily_indicators`), siempre
+/// del CFD (`cfd`); las propuestas son las del instrumento con el que se guardó la corrida (`id`,
+/// el derivado con futuros, #267).
 #[allow(clippy::too_many_arguments)]
 async fn record_ml_features(
     store: &PgStore,
     run_id: &str,
-    id: &cfds_core::InstrumentId,
+    (id, cfd): (&cfds_core::InstrumentId, &cfds_core::InstrumentId),
     trades: &[cfds_backtest::TradeRecord],
     m15: &[cfds_core::Candle],
     session: &cfds_market_data::Session,
@@ -449,7 +547,7 @@ async fn record_ml_features(
     // El tercio vigente en `from` puede ser de unos días antes (fines de semana, feriados).
     let daily = store
         .daily_vol_terciles(
-            id,
+            cfd,
             u32::try_from(daily_cfg.realized_vol_window)?,
             daily_cfg.vol_tercile_years,
             from.date_naive() - chrono::Days::new(30),
@@ -458,7 +556,7 @@ async fn record_ml_features(
         .await?;
     if daily.is_empty() {
         eprintln!(
-            "⚠️  sin tercios de volatilidad de {id}: ninguna propuesta tiene variables de ML \
+            "⚠️  sin tercios de volatilidad de {cfd}: ninguna propuesta tiene variables de ML \
              (cargarlos con el ejemplo `daily_indicators` de cfds-ingest)"
         );
     }

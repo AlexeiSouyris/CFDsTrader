@@ -165,3 +165,50 @@ async fn the_loaded_range_comes_from_the_loads_of_the_instrument() {
         Some((at("2026-11-01T00:00:00Z"), at("2026-12-10T00:00:00Z")))
     );
 }
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn contract_changes_are_the_first_candle_of_each_new_contract() {
+    let s = store().await;
+    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
+    let id: InstrumentId = format!("ITCC{nanos}").parse().unwrap();
+    let batch: Vec<_> = [
+        ("2026-12-17T20:00:00Z", 7),
+        ("2026-12-17T20:15:00Z", 7),
+        ("2026-12-18T14:30:00Z", 8),
+        ("2026-12-18T14:45:00Z", 8),
+        ("2027-03-19T14:30:00Z", 9),
+    ]
+    .into_iter()
+    .map(|(t, c)| fc(&id, Timeframe::M15, t, dec!(6000), c))
+    .collect();
+    s.insert_futures_candles("databento", "GLBX.MDP3", "ES.c.0", &batch)
+        .await
+        .unwrap();
+    let all = s
+        .futures_contract_changes(
+            "databento",
+            &id,
+            Timeframe::M15,
+            at("2026-12-01T00:00:00Z"),
+            at("2027-04-01T00:00:00Z"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        all,
+        vec![at("2026-12-18T14:30:00Z"), at("2027-03-19T14:30:00Z")]
+    );
+    // Si el período empieza con el contrato nuevo, ese inicio no es un cambio.
+    let later = s
+        .futures_contract_changes(
+            "databento",
+            &id,
+            Timeframe::M15,
+            at("2026-12-18T14:30:00Z"),
+            at("2027-04-01T00:00:00Z"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(later, vec![at("2027-03-19T14:30:00Z")]);
+}

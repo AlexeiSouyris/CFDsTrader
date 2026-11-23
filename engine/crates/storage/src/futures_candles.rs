@@ -128,6 +128,37 @@ impl PgStore {
             .collect())
     }
 
+    /// Inicios de la primera vela de cada contrato nuevo (vencimientos, #267) entre las velas de
+    /// `source` de `instrument` con inicio en `[from, to)`, en orden. La primera vela del período
+    /// no cuenta como cambio.
+    pub async fn futures_contract_changes(
+        &self,
+        source: &str,
+        instrument: &InstrumentId,
+        timeframe: Timeframe,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<DateTime<Utc>>, StorageError> {
+        Ok(sqlx::query_scalar(
+            "SELECT start_at FROM (
+                 SELECT start_at, contract_id,
+                        lag(contract_id) OVER (ORDER BY start_at) AS previous
+                 FROM futures_candles
+                 WHERE source = $1 AND instrument_id = $2 AND timeframe = $3
+                   AND start_at >= $4 AND start_at < $5
+             ) c
+             WHERE previous IS NOT NULL AND contract_id <> previous
+             ORDER BY start_at",
+        )
+        .bind(source)
+        .bind(instrument.as_str())
+        .bind(timeframe.as_str())
+        .bind(from)
+        .bind(to)
+        .fetch_all(self.pool())
+        .await?)
+    }
+
     /// Desde y hasta cuándo (`[desde, hasta)`) están bajadas las barras de 1 minuto del futuro
     /// de `instrument` (`futures_bar_loads`). `None` si no se bajó nada.
     pub async fn futures_loaded_range(

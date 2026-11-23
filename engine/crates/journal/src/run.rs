@@ -61,6 +61,22 @@ pub struct RunCosts {
     #[serde(with = "decimal_str")]
     pub slippage_ticks: Decimal,
     pub instruments: Vec<RunInstrumentCosts>,
+    /// De dónde sale el spread (#267). Opcional en el contrato: ausente en las corridas
+    /// anteriores, que eran todas con las velas de IG.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spread_source: Option<SpreadSource>,
+}
+
+/// De dónde sale el spread de la corrida (#267).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpreadSource {
+    /// Velas de IG: el filtro de spread §7.3 usa el spread medido de cada vela; los costos, el
+    /// spread típico de config.
+    Measured,
+    /// Velas de futuros: no hay spread medido del CFD para esas fechas. Los costos usan el
+    /// spread típico de config (nunca cero) y el filtro §7.3 no se aplica.
+    Config,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -167,7 +183,14 @@ impl RunCosts {
                     funding_day_count: c.funding_day_count,
                 })
                 .collect(),
+            spread_source: None,
         }
+    }
+
+    /// La misma, diciendo de dónde sale el spread (#267).
+    pub fn with_spread_source(mut self, source: SpreadSource) -> Self {
+        self.spread_source = Some(source);
+        self
     }
 }
 
