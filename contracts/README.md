@@ -70,6 +70,13 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - `published_at >= observed_for`: nada puede usar el dato antes de que estuviera disponible (CLAUDE.md §5b).
 - Hoy la escribe Rust (`cfds-ig`, `source = 'ig_client'`, `series = 'long_pct'`). Python la **lee** para interpretarla en la fase 4b.
 
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `sentiment.v1` | (en la parte 3 de #213) | Índice de sentimiento v1 de un instrumento (spec §9.1): `instrument_id`, `as_of`, `published_at` (la del dato más reciente que usa), `value` ∈ [−1, 1], `warmup_complete`, `min_components` y cada componente con su estado (`valid`, `warming_up`, `expired`, `missing` o `pending_data`), su último dato crudo, su percentil y su componente. |
+
+- Lo calcula **Python** (`cfds_intel.sentiment.index`, `config/sentiment.toml`) con los valores crudos del COT (`sentiment_observations`) y las medidas de precio de Rust (`daily_indicators` y `daily_drawdowns`). Nadie lo recalcula.
+- Solo se emite con al menos `min_components` componentes válidos. Un valor emitido no cambia nunca.
+
 ### Tipos de referencia (#79)
 
 | Contrato | Tabla | Contenido |
