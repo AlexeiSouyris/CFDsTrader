@@ -6,6 +6,8 @@ name: cfdstrader
 services:
   postgres:
     image: postgres:16.6-alpine
+    # Vuelve a levantarse sola cuando arranca Docker, salvo que se la haya parado a mano.
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?definir en .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?definir en .env}
@@ -22,6 +24,7 @@ services:
 
   redis:
     image: redis:7.4-alpine
+    restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "127.0.0.1:6379:6379"

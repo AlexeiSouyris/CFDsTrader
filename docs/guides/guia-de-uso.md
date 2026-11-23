@@ -17,7 +17,7 @@ Se hace en el Mac mini, con la Terminal de macOS, desde la carpeta del proyecto.
    ```text
    docker compose -f infra/docker-compose.yml --env-file .env up -d
    ```
-   Para ver que estén bien, `docker compose -f infra/docker-compose.yml ps`: los dos tienen que decir `healthy`.
+   Para ver que estén bien, `docker compose -f infra/docker-compose.yml ps`: los dos tienen que decir `healthy`. Desde entonces la base vuelve a levantarse sola cada vez que arranca Docker Desktop (salvo que la hayas parado a mano con `docker compose … stop`). Si el contenedor se había creado antes de este cambio, correr este comando una vez lo actualiza.
 3. **Prendé el motor y la pantalla**:
    ```text
    infra/scripts/ui_liquidez.sh
