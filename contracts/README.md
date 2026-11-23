@@ -294,6 +294,7 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 
 - **El sistema nunca se cambia solo:** cada propuesta nace `pendiente_de_voto` (spec §1.2: cambios de reglas o parámetros, 4 de 6 en 48 h). El informe solo lee el diario; nada aplica un cambio.
 - La probabilidad mostrada se recalcula con la tabla de entrenamiento (`cfds_journal::probability`), porque `proposal.v1` no la guarda. Umbrales en `config/learning.toml` y `config/probability.toml`.
+- **UI (#331):** el gateway sirve la última `paper_comparison.v1` de cada instrumento (`GET /api/v1/paper_comparisons`), una por id (`/api/v1/paper_comparisons/{id}`) y el último `learning_report.v1` (`GET /api/v1/learning_report`, `null` mientras no haya ninguno guardado). Performance los muestra tal cual. Votar no se hace desde la UI (cuentas y 2FA, decisión aparte).
 
 ### Fondo del grupo (#179)
 

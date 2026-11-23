@@ -702,3 +702,20 @@ async fn select_walk_forward(
             .await?;
     Ok(text.map(|t| serde_json::from_str(&t)).transpose()?)
 }
+
+impl PgJournal {
+    /// La última comparación paper vs backtest de cada instrumento (#331): la de período más
+    /// reciente y, a igual período, la creada más tarde. Ordenadas por instrumento. Solo lectura.
+    pub async fn latest_paper_comparisons(&self) -> Result<Vec<serde_json::Value>, JournalError> {
+        let texts: Vec<String> = sqlx::query_scalar(
+            "SELECT DISTINCT ON (instrument_id) comparison::text FROM paper_comparisons
+             ORDER BY instrument_id, period_to DESC, created_at DESC, comparison_id DESC",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        texts
+            .iter()
+            .map(|t| serde_json::from_str(t).map_err(JournalError::from))
+            .collect()
+    }
+}
