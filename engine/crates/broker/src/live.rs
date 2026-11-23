@@ -64,4 +64,7 @@ impl Broker for LiveBroker {
     fn account(&mut self, _now: DateTime<Utc>) -> PaperAccount {
         match self.never {}
     }
+    fn activate_kill_switch(&mut self, _reason: &str, _at: DateTime<Utc>) {
+        match self.never {}
+    }
 }
