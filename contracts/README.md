@@ -99,6 +99,17 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - `published_at`: en el histórico, el día hábil siguiente de la serie a las 09:30 ET (el Tesoro publica "usually … by 6:00 PM ET" y puede atrasarse); el último valor, la hora de lectura. Un `CHECK` impide que sea anterior a las 15:30 ET de `ref_date`, cuando se toman los precios.
 - La escribe Python (`cfds_intel.treasury`). Es contexto: no suma al puntaje.
 
+### VIX diario (ADR 0012 §2, #260)
+
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `vix_daily.v1` | `vix_daily` | Un día del VIX de Cboe: `ref_date`, `published_at`, `open`, `high`, `low` y `close` (strings decimales). |
+
+- Contrato propio: el VIX es el nivel de un índice con apertura, máximo, mínimo y cierre, no un rendimiento por plazo (no encaja en `treasury_yield.v1`).
+- Se usa **por decisión del dueño**, contra los términos de Cboe (ADR 0012 §2). Los datos viven solo en la base del Mac: nunca en el repo, ni en tests ni en ejemplos.
+- Tabla de **solo agregar** (trigger), con un `CHECK` de coherencia entre apertura, máximo, mínimo y cierre, y otro que impide `published_at` antes del cierre (16:15 ET de `ref_date`).
+- `published_at`: igual que el Tesoro. En el histórico, el día hábil siguiente a las 09:30 ET; el último valor, la hora de lectura.
+
 ### Noticias (#109, #111, #122)
 
 | Contrato | Dónde | Contenido |
