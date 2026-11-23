@@ -87,11 +87,12 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - **Lo lee el motor** con `cfds_storage::NewsInterpretationConsumer` (#197): consumer group de Redis (`XREADGROUP` + `XACK`), así una entrada entregada y no confirmada se vuelve a entregar después de un reinicio. Deduplica por `interpretation_id` con el set `<stream>.seen.<grupo>`, que se actualiza junto con el `XACK` en una transacción. Una entrada que no cumple el contrato se informa, se confirma y no vuelve. Todavía no está conectado a la estrategia en vivo.
 - La lee Rust con `cfds_core::NewsInterpretation`, que acepta lo mismo que el contrato y además exige `interpreted_at >= published_at`. El ajuste del puntaje (`cfds_strategy::news_adjustment`, #130) usa solo las interpretaciones con `interpreted_at` ≤ el cierre de la vela.
 
-### Indicadores diarios (#148)
+### Indicadores diarios (#148, #213)
 
 | Contrato | Tabla | Contenido |
 |---|---|---|
 | `daily_indicator.v1` | `daily_indicators` | Indicadores de una vela diaria cerrada: `instrument_id`, `day`, `published_at` (fin de la vela), `atr_period` y `atr`, `realized_vol_window` y `realized_vol` (los dos valores son `null` durante el calentamiento). |
+| `daily_drawdown.v1` | `daily_drawdowns` | Caída desde el máximo de una vela diaria cerrada (#213, spec §9.1): `instrument_id`, `day`, `published_at` (fin de la vela), `drawdown_window` y `drawdown` (fracción ≤ 0, `null` durante el calentamiento). La usa el índice de sentimiento. |
 
 - Los calcula y escribe **Rust** (`cfds-indicators` + `cargo run -p cfds-ingest --example daily_indicators`). Python los **lee** para los análogos (spec §13) y no los recalcula (CLAUDE.md §1).
 - Solo días con sesión de la bolsa del instrumento.

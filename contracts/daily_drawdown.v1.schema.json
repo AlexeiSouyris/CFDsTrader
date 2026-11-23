@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/daily_drawdown.v1.schema.json",
+  "title": "Daily drawdown v1",
+  "description": "Caída desde el máximo de una vela diaria cerrada de un instrumento (#213, spec §9.1): (cierre − máximo de las últimas `drawdown_window` velas diarias con sesión, la actual incluida) / ese máximo. La calcula y escribe Rust (indicators + ingest); Python la lee para el índice de sentimiento y no la recalcula (CLAUDE.md §1). Un valor ya guardado nunca cambia (sin repintado).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instrument_id", "day", "published_at", "drawdown_window", "drawdown"],
+  "properties": {
+    "instrument_id": {
+      "description": "Instrumento (ver instrument.v1).",
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$"
+    },
+    "day": {
+      "description": "Día de la vela diaria (ver daily_candle.v1), AAAA-MM-DD. Solo días con sesión de la bolsa del instrumento.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "published_at": {
+      "description": "Desde cuándo existe el valor: el fin de la vela diaria, en UTC. Nada lo usa antes (CLAUDE.md §5b).",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "drawdown_window": { "description": "Velas diarias del máximo (config/indicators.toml [daily] drawdown_window).", "type": "integer", "minimum": 1 },
+    "drawdown": {
+      "description": "Caída en fracción (−0.1 = 10 % por debajo del máximo; 0 = en el máximo). Nunca positiva; null durante el calentamiento (menos de `drawdown_window` velas).",
+      "oneOf": [
+        { "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" },
+        { "type": "null" }
+      ]
+    }
+  }
+}

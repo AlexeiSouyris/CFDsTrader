@@ -1,5 +1,5 @@
-//! Calcula y guarda los indicadores de las velas diarias (#148, spec §13) de todos los
-//! instrumentos del catálogo que tengan diarias guardadas. No usa IG ni gasta cupo.
+//! Calcula y guarda los indicadores de las velas diarias (#148, spec §13) y la caída desde el
+//! máximo (#213, spec §9.1) de todos los instrumentos del catálogo que tengan diarias guardadas. No usa IG ni gasta cupo.
 //!
 //! ```text
 //! DATABASE_URL=... cargo run -p cfds-ingest --example daily_indicators
@@ -10,7 +10,7 @@
 use std::path::PathBuf;
 
 use cfds_indicators::DailyConfig;
-use cfds_ingest::daily_indicators;
+use cfds_ingest::{daily_drawdowns, daily_indicators};
 use cfds_market_data::{Catalog, ExchangeCalendar};
 use cfds_storage::PgStore;
 use chrono::{NaiveDate, Utc};
@@ -56,6 +56,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ready,
             r.inserted,
             r.unchanged
+        );
+        let dd = daily_drawdowns(&days, session, &cfg)
+            .map_err(|d| format!("{id}: el calendario de sesiones no cubre el {d}"))?;
+        let ready = dd.iter().filter(|r| r.drawdown.is_some()).count();
+        let r = store.insert_daily_drawdowns(&dd).await?;
+        println!(
+            "{id}: caída desde el máximo de {} velas: {ready} días con valor → {} nuevos, {} ya estaban",
+            cfg.drawdown_window, r.inserted, r.unchanged
         );
     }
     Ok(())

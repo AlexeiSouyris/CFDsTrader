@@ -554,3 +554,51 @@ fn contract_and_rust_reject_the_same_bad_daily_indicators() {
         assert_both_reject::<cfds_core::DailyIndicator>(schema, d);
     }
 }
+
+fn sample_drawdown(warm: bool) -> cfds_core::DailyDrawdown {
+    cfds_core::DailyDrawdown {
+        instrument_id: "US500".parse().unwrap(),
+        day: "2022-03-08".parse().unwrap(),
+        published_at: "2022-03-08T23:00:00Z".parse().unwrap(),
+        drawdown_window: 252,
+        drawdown: warm.then_some(dec!(-0.1234)),
+    }
+}
+
+#[test]
+fn daily_drawdown_roundtrips_through_the_contract() {
+    let schema = "daily_drawdown.v1.schema.json";
+    assert_roundtrip(schema, &sample_drawdown(true));
+    assert_roundtrip(schema, &sample_drawdown(false));
+    let mut at_high = sample_drawdown(true);
+    at_high.drawdown = Some(dec!(0));
+    assert_roundtrip(schema, &at_high);
+}
+
+#[test]
+fn contract_and_rust_reject_the_same_bad_daily_drawdowns() {
+    let schema = "daily_drawdown.v1.schema.json";
+    let doc = || serde_json::to_value(sample_drawdown(true)).unwrap();
+    let mut cases: Vec<Value> = Vec::new();
+    for (key, value) in [
+        ("drawdown", json!(-0.1)),
+        ("drawdown", json!("-0,1")),
+        ("drawdown", json!("--1")),
+        ("drawdown_window", json!(-1)),
+        ("drawdown_window", json!("252")),
+        ("day", json!("08-03-2022")),
+        ("published_at", json!("2022-03-09T00:00:00+01:00")),
+        ("instrument_id", json!("us500")),
+        ("extra", json!(1)),
+    ] {
+        let mut d = doc();
+        d[key] = value;
+        cases.push(d);
+    }
+    let mut d = doc();
+    d.as_object_mut().unwrap().remove("drawdown");
+    cases.push(d); // tiene que venir, aunque sea null
+    for d in cases {
+        assert_both_reject::<cfds_core::DailyDrawdown>(schema, d);
+    }
+}

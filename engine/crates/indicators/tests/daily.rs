@@ -65,7 +65,14 @@ fn daily_atr_is_the_same_formula_as_intraday() {
 #[test]
 fn both_sections_of_the_real_config_load() {
     let daily = DailyConfig::from_toml(CONFIG).unwrap();
-    assert_eq!((daily.atr_period, daily.realized_vol_window), (14, 20));
+    assert_eq!(
+        (
+            daily.atr_period,
+            daily.realized_vol_window,
+            daily.drawdown_window
+        ),
+        (14, 20, 252)
+    );
     assert!(TrendConfig::from_toml(CONFIG).is_ok());
 }
 
@@ -75,4 +82,6 @@ fn a_bad_daily_config_is_rejected() {
     assert!(DailyConfig::from_toml(&bad).is_err());
     let typo = CONFIG.replace("atr_period = 14", "atr_periodo = 14");
     assert!(DailyConfig::from_toml(&typo).is_err());
+    let zero = CONFIG.replace("drawdown_window = 252", "drawdown_window = 0");
+    assert!(DailyConfig::from_toml(&zero).is_err());
 }
