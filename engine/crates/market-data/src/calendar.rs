@@ -33,7 +33,7 @@ pub enum CalendarError {
 }
 
 /// Sesión de contado de una bolsa, con sus feriados.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Session {
     pub exchange: String,
     pub tz: Tz,

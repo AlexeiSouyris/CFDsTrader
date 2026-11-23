@@ -223,6 +223,7 @@ dependencies = [
  "cfds-backtest",
  "cfds-core",
  "cfds-indicators",
+ "cfds-market-data",
  "cfds-risk",
  "cfds-storage",
  "cfds-strategy",

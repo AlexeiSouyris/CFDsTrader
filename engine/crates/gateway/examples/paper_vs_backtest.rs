@@ -74,7 +74,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         backtest_cfg.costs,
         backtest_cfg.exits,
         backtest_cfg.day_tz,
-    )?;
+    )?
+    // El mismo cierre de fin de semana que el backtest (#334).
+    .with_calendar(&deps.calendar, catalog.instruments.keys())?;
     let validation = ValidationConfig::from_toml(cfg!("data_validation.toml"))?;
 
     let store = PgStore::connect(&std::env::var("DATABASE_URL")?).await?;

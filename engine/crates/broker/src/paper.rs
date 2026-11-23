@@ -8,7 +8,8 @@
 //!   → cfds_risk::check (stop, distancia en ATR, riesgo, apalancamiento, margen, pérdida diaria,
 //!     drawdown, kill switch, posiciones, mínimo del broker): **el único que da el tamaño**
 //!   → fill a la apertura con medio spread + slippage, y comisión (cfds-backtest)
-//! cada posición se valúa con cfds_backtest::simulate (stop, TP1, trailing, tiempo, gaps)
+//! cada posición se valúa con cfds_backtest::simulate (stop, TP1, trailing, tiempo, gaps y el
+//! cierre de fin de semana de la spec §8, con las mismas marcas que el backtest: #334)
 //! y paga la financiación nocturna (swap) de cada corte en que siguió abierta, con la tasa de
 //! referencia vigente en ese corte (cfds_backtest::funding_cutoffs y funding_over, #79)
 //! ```
@@ -30,6 +31,7 @@ use cfds_core::{
     OrderReport, OrderSide, OrderStatus, PaperAccount, PaperMode, Position, TicketVerdict,
 };
 use cfds_indicators::wilder_atr;
+use cfds_market_data::{ExchangeCalendar, Session, trading_window};
 use cfds_risk::{Account, InstrumentLimits, Rejection, Request, RiskConfig, Sizing, check};
 use cfds_strategy::Side;
 use chrono::{DateTime, NaiveTime, Utc};
@@ -49,6 +51,10 @@ pub struct BrokerConfig {
     pub day_tz: Tz,
     /// Cada cuánto se reconcilia el broker con el registro guardado (`[reconcile]`).
     pub reconcile_every: chrono::TimeDelta,
+    /// Sesión de cada instrumento (`config/sessions.toml` y feriados), para el cierre de fin de
+    /// semana de la spec §8 (#334). Un instrumento sin sesión acá no se cierra el viernes: en
+    /// producción se cargan todos con [`BrokerConfig::with_calendar`].
+    pub sessions: BTreeMap<InstrumentId, Session>,
 }
 
 impl BrokerConfig {
@@ -97,8 +103,41 @@ impl BrokerConfig {
             exits,
             day_tz,
             reconcile_every: chrono::TimeDelta::minutes(i64::from(raw.reconcile.every_minutes)),
+            sessions: BTreeMap::new(),
         })
     }
+
+    /// La misma config con la sesión de cada instrumento de `instruments` según `calendar`, para
+    /// el cierre de fin de semana (#334). Un instrumento sin bolsa en el calendario es un error.
+    pub fn with_calendar<'a>(
+        mut self,
+        calendar: &ExchangeCalendar,
+        instruments: impl IntoIterator<Item = &'a InstrumentId>,
+    ) -> Result<Self, String> {
+        for id in instruments {
+            let session = calendar
+                .session_for(id)
+                .ok_or_else(|| format!("{id}: sin bolsa en el calendario de sesiones"))?;
+            self.sessions.insert(id.clone(), session.clone());
+        }
+        Ok(self)
+    }
+}
+
+/// Marcas de cierre de fin de semana de `candles` (spec §8), las mismas que usa el backtest
+/// (`trading_window::is_week_close_candle`). Sin sesión, o fuera de la cobertura del calendario,
+/// no hay cierre forzado. Antes de `from` no hace falta calcularlas.
+fn week_close_flags(session: Option<&Session>, candles: &[Candle], from: usize) -> Vec<bool> {
+    let Some(session) = session else {
+        return Vec::new();
+    };
+    candles
+        .iter()
+        .enumerate()
+        .map(|(i, c)| {
+            i >= from && trading_window::is_week_close_candle(session, c).unwrap_or(false)
+        })
+        .collect()
 }
 
 /// Lo que el broker necesita de un instrumento: límites y costos del catálogo, tipo de cambio y
@@ -460,7 +499,10 @@ impl PaperBroker {
             entry: t.entry_fill,
             stop: t.stop,
         };
-        match simulate(&trade, closed, &atr, &[], &self.cfg.exits) {
+        // Cierre de fin de semana (spec §8, #334): las mismas marcas que el backtest.
+        let force_close =
+            week_close_flags(self.cfg.sessions.get(&t.instrument), closed, t.entry_index);
+        match simulate(&trade, closed, &atr, &force_close, &self.cfg.exits) {
             Some(out) => (out.fills, out.open_fraction),
             None => (
                 vec![Fill {
