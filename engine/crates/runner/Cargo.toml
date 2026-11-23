@@ -10,6 +10,7 @@ cfds-backtest = { version = "0.1.0", path = "../backtest" }
 cfds-broker = { version = "0.1.0", path = "../broker" }
 cfds-core = { version = "0.1.0", path = "../core" }
 cfds-indicators = { version = "0.1.0", path = "../indicators" }
+cfds-journal = { version = "0.1.0", path = "../journal" }
 cfds-liquidity = { version = "0.1.0", path = "../liquidity" }
 cfds-market-data = { version = "0.1.0", path = "../market-data" }
 cfds-obs = { version = "0.1.0", path = "../obs" }

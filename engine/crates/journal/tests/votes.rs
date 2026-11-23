@@ -163,6 +163,7 @@ fn pair(source: Source, tag: &str, i: u32, start: DateTime<Utc>, hit: bool) -> (
             points: 2,
         }],
         triggers: vec![Signal::CandlePattern],
+        shown: None,
     };
     let reason = if hit { Reason::Tp1 } else { Reason::Stop };
     let o = Outcome {

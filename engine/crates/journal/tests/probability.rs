@@ -54,6 +54,7 @@ fn pair(
             points: 2,
         }],
         triggers: triggers.to_vec(),
+        shown: None,
     };
     let o = Outcome {
         proposal_id: id,

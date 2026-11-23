@@ -217,6 +217,10 @@ fn synthetic(
                     price: e.price,
                     fraction: e.fraction,
                     end_of_data: e.reason == CloseReason::EndOfData,
+                    reason: match e.reason {
+                        CloseReason::Exit(r) => Some(r),
+                        CloseReason::EndOfData => None,
+                    },
                 })
                 .collect(),
             commission: t.commission,

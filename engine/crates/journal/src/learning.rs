@@ -18,7 +18,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 use crate::probability::{ProbabilityConfig, ProbabilityTable, Shown, wilson};
-use crate::{Outcome, Proposal, Signal, Source};
+use crate::{Outcome, Proposal, ShownProbability, Signal, Source};
 
 /// Todas las señales del desglose (spec §6), en el orden del informe.
 pub const SIGNALS: [Signal; 9] = [
@@ -273,7 +273,19 @@ pub fn report(i: &Inputs<'_>) -> LearningReport {
     let mut taken = vec![0usize; n_buckets];
     let mut without_probability = 0;
     for (p, o) in &sorted {
-        let Shown::Estimate { probability, .. } = i.table.shown(p) else {
+        // La probabilidad tal como se mostró, si la propuesta la guardó (#333); si no, la de
+        // la tabla de entrenamiento.
+        let shown = p
+            .shown
+            .map(|s| match s {
+                ShownProbability::Estimate { probability, .. } => Some(probability),
+                ShownProbability::Insufficient { .. } => None,
+            })
+            .unwrap_or_else(|| match i.table.shown(p) {
+                Shown::Estimate { probability, .. } => Some(probability),
+                Shown::Insufficient { .. } => None,
+            });
+        let Some(probability) = shown else {
             without_probability += 1;
             continue;
         };

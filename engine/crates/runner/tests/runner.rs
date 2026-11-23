@@ -440,3 +440,107 @@ fn swap_is_settled_once_a_day_after_the_funding_cutoff() {
     assert_eq!(settled(&at_cutoff), 1);
     assert_eq!(settled(&after), 0, "una vez por día");
 }
+
+// ---------- El diario de paper (#333) ----------
+
+fn contract(name: &str) -> jsonschema::Validator {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../contracts")
+        .join(name);
+    let schema: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    jsonschema::validator_for(&schema).unwrap()
+}
+
+fn assert_valid(name: &str, doc: &impl serde::Serialize) {
+    let doc = serde_json::to_value(doc).unwrap();
+    let errors: Vec<String> = contract(name)
+        .iter_errors(&doc)
+        .map(|e| e.to_string())
+        .collect();
+    assert!(errors.is_empty(), "{name}: {errors:?}");
+}
+
+#[test]
+fn each_executed_proposal_goes_to_the_journal_with_the_shown_probability() {
+    use cfds_journal::ShownProbability;
+    use cfds_runner::journal::paper_proposal;
+    let m15 = random_walk(1500, 11);
+    let l = first_proposal(&m15);
+    let now = m15[l].end();
+    let mut b = PaperBroker::new(broker_cfg(), markets(&m15[..=l]));
+    let s = step_at(&mut runner(), &mut b, &m15, l, now);
+    let (order, signal) = (s.order.unwrap(), s.signal.unwrap());
+    let verdict = b.preview(&order, order.created_at);
+    let report = b.submit(&order);
+    assert_eq!(report.status, OrderStatus::Filled);
+    let shown = ShownProbability::Estimate {
+        probability: dec!(0.55),
+        low: dec!(0.4),
+        high: dec!(0.69),
+        hits: 22,
+        cases: 40,
+    };
+    let tp1_r = broker_cfg().exits.tp1_r;
+    let p = paper_proposal(
+        "run",
+        &order,
+        &signal,
+        tp1_r,
+        report.size.unwrap(),
+        verdict.leverage.unwrap(),
+        Some(shown),
+    );
+    assert_valid("proposal.v1.schema.json", &p);
+    // Idempotente: el id de la propuesta es el que lleva la orden, y sale igual tras reiniciar.
+    assert_eq!(Some(p.id.clone()), order.proposal_id.map(|i| i.to_string()));
+    let again = step_at(&mut runner(), &mut b, &m15, l, now).order.unwrap();
+    assert_eq!(again.proposal_id, Some(p.id.parse().unwrap()));
+    assert_eq!(p.source, cfds_journal::Source::Paper);
+    assert_eq!(p.signal_at, m15[l - 1].end());
+    assert_eq!(p.size, report.size.unwrap());
+    assert_eq!(p.shown, Some(shown));
+    // "Datos insuficientes" también se guarda tal como se mostró.
+    let mut insufficient = p.clone();
+    insufficient.shown = Some(ShownProbability::Insufficient {
+        cases: 12,
+        needed: 30,
+    });
+    assert_valid("proposal.v1.schema.json", &insufficient);
+}
+
+#[test]
+fn the_outcome_exists_only_after_the_exit_candle_closed() {
+    use cfds_runner::journal::paper_outcome;
+    let m15 = random_walk(1500, 11);
+    let l = first_proposal(&m15);
+    let now = m15[l].end();
+    let mut b = PaperBroker::new(broker_cfg(), markets(&m15));
+    let s = step_at(&mut runner(), &mut b, &m15, l, now);
+    let order = s.order.unwrap();
+    b.submit(&order);
+    let pid = order.proposal_id.unwrap().to_string();
+    // Recién abierta: no hay resultado.
+    let open = b.trade_outcomes(now);
+    assert!(paper_outcome(&pid, &open[0]).is_none());
+    // La primera vela en cuyo cierre la operación ya terminó.
+    let (k, outcome) = (l..m15.len())
+        .find_map(|k| paper_outcome(&pid, &b.trade_outcomes(m15[k].end())[0]).map(|o| (k, o)))
+        .expect("la operación termina");
+    assert_valid("outcome.v1.schema.json", &outcome);
+    // La última salida es justo esa vela, ya cerrada; un instante antes no había resultado.
+    assert_eq!(outcome.exits.last().unwrap().at, m15[k].end());
+    let before = m15[k].end() - TimeDelta::seconds(1);
+    assert!(paper_outcome(&pid, &b.trade_outcomes(before)[0]).is_none());
+    assert_eq!(outcome.proposal_id, pid);
+    assert_eq!(
+        outcome.hit_tp1,
+        outcome
+            .exits
+            .iter()
+            .any(|e| e.reason == cfds_journal::Reason::Tp1)
+    );
+    // Y no cambia después: las velas nuevas no repintan un resultado ya escrito.
+    let later = paper_outcome(&pid, &b.trade_outcomes(m15.last().unwrap().end())[0]).unwrap();
+    assert_eq!(later, outcome);
+}

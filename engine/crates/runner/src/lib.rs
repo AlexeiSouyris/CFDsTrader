@@ -15,6 +15,7 @@
 //! un reinicio no la duplique: el broker restaurado devuelve el informe guardado.
 
 pub mod compare;
+pub mod journal;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -139,6 +140,8 @@ pub enum Notice {
 pub struct Step {
     /// La orden a enviar (con `submit_and_record`), si hubo propuesta.
     pub order: Option<Order>,
+    /// La señal de la estrategia que dio la orden (para el diario, #333).
+    pub signal: Option<cfds_strategy::Signal>,
     pub notices: Vec<Notice>,
 }
 
@@ -371,6 +374,7 @@ impl Runner {
             out.notices.push(skip("id de orden inválido"));
             return out;
         };
+        let id_for_proposal = id.clone();
         let order = Order {
             order_id,
             mode: PaperMode::Paper,
@@ -378,7 +382,15 @@ impl Runner {
             side: order_side(signal.side),
             stop: signal.stop,
             tp1: None,
-            proposal_id: None,
+            // La propuesta del diario (#333): mismo id para la misma decisión.
+            proposal_id: cfds_journal::proposal_id(
+                &self.cfg.order_prefix,
+                &id_for_proposal,
+                decision_at,
+                signal.side,
+            )
+            .parse()
+            .ok(),
             created_at: decision_at,
         };
         out.notices.push(Notice::Proposed {
@@ -386,6 +398,7 @@ impl Runner {
             score: signal.score.total,
         });
         out.order = Some(order);
+        out.signal = Some(signal);
         out
     }
 }

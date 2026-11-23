@@ -125,6 +125,52 @@ pub struct Proposal {
     pub score: i32,
     pub breakdown: Vec<BreakdownItem>,
     pub triggers: Vec<Signal>,
+    /// La probabilidad mostrada (§13) tal como se mostró al proponer (opcional, #333). Las
+    /// propuestas del backtest no la traen: se recalcula con la tabla de entrenamiento.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shown: Option<ShownProbability>,
+}
+
+/// La probabilidad mostrada (spec §13) de una propuesta, como se mostró.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ShownProbability {
+    /// Frecuencia de TP1 antes que el stop en su grupo, con su intervalo, de 0 a 1.
+    Estimate {
+        #[serde(with = "decimal_str")]
+        probability: Decimal,
+        #[serde(with = "decimal_str")]
+        low: Decimal,
+        #[serde(with = "decimal_str")]
+        high: Decimal,
+        hits: u32,
+        cases: u32,
+    },
+    /// "Datos insuficientes": menos de `needed` casos en el grupo.
+    Insufficient { cases: u32, needed: u32 },
+}
+
+impl From<probability::Shown> for ShownProbability {
+    fn from(s: probability::Shown) -> Self {
+        match s {
+            probability::Shown::Estimate {
+                probability,
+                low,
+                high,
+                hits,
+                cases,
+            } => Self::Estimate {
+                probability,
+                low,
+                high,
+                hits,
+                cases,
+            },
+            probability::Shown::Insufficient { cases, needed } => {
+                Self::Insufficient { cases, needed }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -244,6 +290,7 @@ pub fn from_backtest(
             })
             .collect(),
         triggers: r.triggers.iter().map(|&k| trigger_signal(k)).collect(),
+        shown: None,
     };
     let exits: Vec<Exit> = r
         .exits
