@@ -756,6 +756,23 @@ impl PgStore {
         rows.iter().map(row_to_daily).collect()
     }
 
+    /// Fin de la última vela diaria guardada de un instrumento que ya terminó en `at`
+    /// (`end <= at`). `None` si no hay ninguna.
+    pub async fn last_daily_end(
+        &self,
+        instrument: &InstrumentId,
+        at: DateTime<Utc>,
+    ) -> Result<Option<DateTime<Utc>>, StorageError> {
+        let end: Option<DateTime<Utc>> = sqlx::query_scalar(
+            "SELECT max(end_at) FROM daily_candles WHERE instrument_id = $1 AND end_at <= $2",
+        )
+        .bind(instrument.as_str())
+        .bind(at)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(end)
+    }
+
     /// Inicio de la última vela guardada de un instrumento y timeframe que empieza en
     /// `before` o antes. `None` si no hay ninguna.
     pub async fn last_candle_start(

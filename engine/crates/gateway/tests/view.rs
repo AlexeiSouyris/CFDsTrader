@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use cfds_core::{
     AssetClass, Candle, Currency, DailyCandle, Instrument, InstrumentId, LiquidityLevel,
     LiquidityLevelKind as K, LiquidityLevelState as S,
-    StatsTimeframe::{D1, M15},
+    StatsTimeframe::{D1, H1, M15},
     Timeframe,
 };
 use cfds_gateway::{GatewayConfig, LiquiditySource, PgSource};
@@ -171,6 +171,57 @@ fn daily(id: &InstrumentId, day: &str) -> DailyCandle {
         close: dec!(101.0),
         volume: None,
     }
+}
+
+/// Como los datos reales (#231): diarias que terminan hace años y nada de 15m. `as_of` sale de la
+/// última diaria y la ventana se mide desde ahí, no desde ahora.
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn old_daily_data_without_intraday_is_shown_in_1d() {
+    let src = source().await;
+    let id = fresh_instrument(&src.store).await;
+    // Noviembre de 2024, días hábiles (sin cambio de horario en esas fechas).
+    let days = [
+        "2024-11-18",
+        "2024-11-19",
+        "2024-11-20",
+        "2024-11-21",
+        "2024-11-22",
+    ];
+    let rows: Vec<DailyCandle> = days.iter().map(|d| daily(&id, d)).collect();
+    src.store.insert_daily(&rows).await.unwrap();
+    // Agregados de 1d calculados hoy (computed_at muy posterior a los datos), como en la base real.
+    let mock: Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../ui/src/mocks/liquidity-us100-15m.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let mut doc = mock["stats"][0].clone();
+    doc["instrument_id"] = Value::String(id.as_str().into());
+    doc["timeframe"] = Value::String("1d".into());
+    doc["as_of"] = Value::String("2024-11-22T23:00:00Z".into());
+    let stats: cfds_core::LiquidityStats = serde_json::from_value(doc).unwrap();
+    src.store
+        .insert_liquidity_stats(at("2026-11-23T09:00:00Z"), &[stats])
+        .await
+        .unwrap();
+
+    let now = at("2026-11-23T10:00:00Z");
+    let view = src.view(&id, D1, now).await.unwrap();
+    assert_eq!(view.as_of.as_deref(), Some("2024-11-22T23:00:00Z"));
+    assert_eq!(view.candles.len(), days.len());
+    assert_eq!(
+        view.stats.len(),
+        1,
+        "los agregados de una corrida de hoy se ven"
+    );
+    assert_valid(&serde_json::to_value(&view).unwrap());
+    // 15m y 1h siguen vacíos: no hay velas intradía.
+    assert_eq!(src.view(&id, M15, now).await.unwrap().as_of, None);
+    assert_eq!(src.view(&id, H1, now).await.unwrap().as_of, None);
 }
 
 #[tokio::test]
