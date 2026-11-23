@@ -13,7 +13,7 @@ use std::sync::Arc;
 use cfds_core::Instrument;
 use cfds_gateway::{GatewayConfig, PgSource, read_only_url, respond};
 use cfds_liquidity::StatsConfig;
-use cfds_market_data::Catalog;
+use cfds_market_data::{CandleSources, Catalog};
 use cfds_storage::PgStore;
 use http_body_util::Full;
 use hyper::body::{Bytes, Incoming};
@@ -26,6 +26,7 @@ use tokio::net::TcpListener;
 const GATEWAY: &str = include_str!("../../../../config/gateway.toml");
 const CATALOG: &str = include_str!("../../../../config/instruments.toml");
 const LIQUIDITY: &str = include_str!("../../../../config/liquidity.toml");
+const SOURCES: &str = include_str!("../../../../config/candle_sources.toml");
 
 struct State {
     source: PgSource,
@@ -40,6 +41,7 @@ async fn handle(
     let reply = respond(
         &state.source,
         &state.source.config,
+        &state.source.sources,
         &state.catalog,
         req.method().as_str(),
         uri.path(),
@@ -74,6 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             store,
             config: cfg.clone(),
             reaction_bars: stats.reaction_bars,
+            sources: CandleSources::from_toml(SOURCES)?,
         },
         catalog: catalog
             .instruments

@@ -24,6 +24,7 @@ mod news_stream;
 mod pg;
 mod stream;
 
+pub use futures_candles::CandleFeed;
 pub use liquidity_levels::LevelsReport;
 pub use liquidity_stats::{StatsReport, StatsRunReport};
 pub use news_stream::{

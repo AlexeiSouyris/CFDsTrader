@@ -11,6 +11,7 @@ use cfds_core::{
     Timeframe,
 };
 use cfds_gateway::{GatewayConfig, LiquiditySource, PgSource};
+use cfds_market_data::{CandleSource, CandleSources};
 use cfds_storage::PgStore;
 use chrono::{DateTime, TimeDelta, Utc};
 use rust_decimal::dec;
@@ -54,6 +55,10 @@ fn assert_valid(doc: &Value) {
     assert_valid_against("liquidity_view.v1.schema.json", doc);
 }
 
+fn sources() -> CandleSources {
+    CandleSources::from_toml(include_str!("../../../../config/candle_sources.toml")).unwrap()
+}
+
 async fn source() -> PgSource {
     let url = std::env::var("DATABASE_URL").expect("falta DATABASE_URL (necesita PostgreSQL)");
     let store = PgStore::connect(&url).await.unwrap();
@@ -62,6 +67,8 @@ async fn source() -> PgSource {
         store,
         config: GatewayConfig::from_toml(CONFIG).unwrap(),
         reaction_bars: vec![NonZeroU32::new(4).unwrap(), NonZeroU32::new(8).unwrap()],
+        sources: CandleSources::from_toml(include_str!("../../../../config/candle_sources.toml"))
+            .unwrap(),
     }
 }
 
@@ -103,7 +110,7 @@ async fn empty_instrument_is_sin_datos() {
     let src = source().await;
     let id = fresh_instrument(&src.store).await;
     let view = src
-        .view(&id, M15, at("2026-11-23T10:00:00Z"))
+        .view(&id, CandleSource::Ig, M15, at("2026-11-23T10:00:00Z"))
         .await
         .unwrap();
     assert_eq!(view.as_of, None);
@@ -136,7 +143,7 @@ async fn reads_closed_candles_and_levels_as_known_at_as_of() {
     // 14:50: la vela de 14:45 (la que barre, cierra a las 15:00) todavía no cerró: as_of = 14:45
     // y el barrido no se ve.
     let view = src
-        .view(&id, M15, at("2026-11-20T14:50:00Z"))
+        .view(&id, CandleSource::Ig, M15, at("2026-11-20T14:50:00Z"))
         .await
         .unwrap();
     assert_eq!(view.as_of.as_deref(), Some("2026-11-20T14:45:00Z"));
@@ -147,7 +154,7 @@ async fn reads_closed_candles_and_levels_as_known_at_as_of() {
 
     // Con todas las velas cerradas, el nivel llega barrido.
     let view = src
-        .view(&id, M15, at("2026-11-21T00:00:00Z"))
+        .view(&id, CandleSource::Ig, M15, at("2026-11-21T00:00:00Z"))
         .await
         .unwrap();
     assert_eq!(view.as_of.as_deref(), Some("2026-11-20T15:00:00Z"));
@@ -210,7 +217,7 @@ async fn old_daily_data_without_intraday_is_shown_in_1d() {
         .unwrap();
 
     let now = at("2026-11-23T10:00:00Z");
-    let view = src.view(&id, D1, now).await.unwrap();
+    let view = src.view(&id, CandleSource::Ig, D1, now).await.unwrap();
     assert_eq!(view.as_of.as_deref(), Some("2024-11-22T23:00:00Z"));
     assert_eq!(view.candles.len(), days.len());
     assert_eq!(
@@ -220,8 +227,20 @@ async fn old_daily_data_without_intraday_is_shown_in_1d() {
     );
     assert_valid(&serde_json::to_value(&view).unwrap());
     // 15m y 1h siguen vacíos: no hay velas intradía.
-    assert_eq!(src.view(&id, M15, now).await.unwrap().as_of, None);
-    assert_eq!(src.view(&id, H1, now).await.unwrap().as_of, None);
+    assert_eq!(
+        src.view(&id, CandleSource::Ig, M15, now)
+            .await
+            .unwrap()
+            .as_of,
+        None
+    );
+    assert_eq!(
+        src.view(&id, CandleSource::Ig, H1, now)
+            .await
+            .unwrap()
+            .as_of,
+        None
+    );
 }
 
 #[tokio::test]
@@ -233,7 +252,10 @@ async fn daily_view_uses_closed_daily_candles() {
     let rows: Vec<DailyCandle> = days.iter().map(|d| daily(&id, d)).collect();
     src.store.insert_daily(&rows).await.unwrap();
     // El 20 todavía no terminó a las 12:00 UTC: as_of es el fin del 19.
-    let view = src.view(&id, D1, at("2026-11-20T12:00:00Z")).await.unwrap();
+    let view = src
+        .view(&id, CandleSource::Ig, D1, at("2026-11-20T12:00:00Z"))
+        .await
+        .unwrap();
     assert_eq!(view.as_of.as_deref(), Some("2026-11-19T23:00:00Z"));
     assert_eq!(view.candles.len(), 2);
     let doc = serde_json::to_value(&view).unwrap();
@@ -242,7 +264,7 @@ async fn daily_view_uses_closed_daily_candles() {
     assert_valid(&doc);
     // Sin velas de 15m, la vista de 15m está vacía aunque haya diarias.
     let m15 = src
-        .view(&id, M15, at("2026-11-21T12:00:00Z"))
+        .view(&id, CandleSource::Ig, M15, at("2026-11-21T12:00:00Z"))
         .await
         .unwrap();
     assert_eq!(m15.as_of, None);
@@ -282,8 +304,27 @@ fn ui_mock_is_a_valid_liquidity_view() {
 #[test]
 fn empty_view_follows_the_contract() {
     let id: InstrumentId = "US100".parse().unwrap();
-    let view = cfds_gateway::LiquidityView::empty(id, M15, at("2026-11-23T10:00:00Z"));
-    assert_valid(&serde_json::to_value(&view).unwrap());
+    for source in [CandleSource::Ig, CandleSource::Futures] {
+        let s = cfds_gateway::ViewSource::new(source, &sources());
+        let view =
+            cfds_gateway::LiquidityView::empty(id.clone(), s, M15, at("2026-11-23T10:00:00Z"));
+        assert_valid(&serde_json::to_value(&view).unwrap());
+    }
+    let s = cfds_gateway::ViewSource::new(CandleSource::Ig, &sources());
+    let view = cfds_gateway::LiquidityView::empty(id, s, M15, at("2026-11-23T10:00:00Z"));
+    // Un documento sin `source` (la primera versión) sigue valiendo.
+    let mut old = serde_json::to_value(&view).unwrap();
+    old.as_object_mut().unwrap().remove("source");
+    assert_valid(&old);
+    let mut bad = serde_json::to_value(&view).unwrap();
+    bad["source"]["id"] = Value::String("cfd".into());
+    let text = std::fs::read_to_string(contracts().join("liquidity_view.v1.schema.json")).unwrap();
+    let schema: Value = serde_json::from_str(&text).unwrap();
+    let v = jsonschema::options()
+        .with_retriever(Local)
+        .build(&schema)
+        .unwrap();
+    assert!(!v.is_valid(&bad));
     // y el schema rechaza un campo inventado
     let mut doc = serde_json::to_value(&view).unwrap();
     doc["extra"] = Value::Bool(true);
@@ -314,6 +355,7 @@ async fn instruments_reply_follows_the_contract() {
         async fn view(
             &self,
             _: &InstrumentId,
+            _: CandleSource,
             _: cfds_core::StatsTimeframe,
             _: DateTime<Utc>,
         ) -> Result<cfds_gateway::LiquidityView, cfds_storage::StorageError> {
@@ -323,6 +365,7 @@ async fn instruments_reply_follows_the_contract() {
     let r = cfds_gateway::respond(
         &NoDb,
         &cfg,
+        &sources(),
         &instruments,
         "GET",
         "/api/v1/instruments",
@@ -335,4 +378,61 @@ async fn instruments_reply_follows_the_contract() {
         "gateway_instruments.v1.schema.json",
         &serde_json::from_str(&r.body).unwrap(),
     );
+}
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn the_futures_source_reads_futures_candles_and_the_derived_instrument() {
+    use cfds_core::FuturesCandle;
+    let src = source().await;
+    let id = fresh_instrument(&src.store).await;
+    let derived = src
+        .sources
+        .instrument_for(CandleSource::Futures, &id)
+        .unwrap();
+    // Velas del CFD (IG) y del futuro, con precios distintos, en las mismas horas.
+    let t0 = at("2026-11-20T14:00:00Z");
+    let ig: Vec<Candle> = (0..4)
+        .map(|k| candle(&id, t0 + TimeDelta::minutes(15 * k)))
+        .collect();
+    src.store.insert_candles(&ig).await.unwrap();
+    let fut: Vec<FuturesCandle> = ig
+        .iter()
+        .map(|c| FuturesCandle {
+            candle: Candle {
+                open: c.open + dec!(50),
+                high: c.high + dec!(50),
+                low: c.low + dec!(50),
+                close: c.close + dec!(50),
+                volume: Some(dec!(10)),
+                ..c.clone()
+            },
+            contract_id: 7,
+        })
+        .collect();
+    src.store
+        .insert_futures_candles("databento", "GLBX.MDP3", "ES.c.0", &fut[..3])
+        .await
+        .unwrap();
+    let now = at("2026-11-21T00:00:00Z");
+    let ig_view = src.view(&id, CandleSource::Ig, M15, now).await.unwrap();
+    let fut_view = src
+        .view(&id, CandleSource::Futures, M15, now)
+        .await
+        .unwrap();
+    assert_eq!(ig_view.source.id, "ig");
+    assert_eq!(fut_view.source.id, "futures");
+    assert_eq!(fut_view.instrument_id, id);
+    // Cada fuente con sus velas: el futuro tiene tres, 50 puntos arriba, y su propio as_of.
+    assert_eq!(ig_view.candles.len(), 4);
+    assert_eq!(fut_view.candles.len(), 3);
+    assert_eq!(fut_view.as_of.as_deref(), Some("2026-11-20T14:45:00Z"));
+    let v = serde_json::to_value(&fut_view).unwrap();
+    assert_eq!(v["candles"][0]["close"], "150.5");
+    assert_eq!(v["candles"][0]["instrument_id"], derived.as_str());
+    assert_valid(&v);
+    // Los futuros no tienen diarias: en 1d, "sin datos".
+    let d1 = src.view(&id, CandleSource::Futures, D1, now).await.unwrap();
+    assert_eq!(d1.as_of, None);
+    assert_valid(&serde_json::to_value(&d1).unwrap());
 }

@@ -148,4 +148,60 @@ impl PgStore {
         .await?;
         Ok(row.0.zip(row.1))
     }
+
+    /// Velas de 15m o 1h de la fuente `feed` para el CFD `base`, con inicio en `[from, to)`, en
+    /// orden, con `out` como instrumento (el id derivado de la fuente, para que lo que se calcule
+    /// con ellas se guarde aparte). Con [`CandleFeed::Ig`] son las de `candles`.
+    pub async fn candles_from(
+        &self,
+        feed: CandleFeed<'_>,
+        base: &InstrumentId,
+        out: &InstrumentId,
+        timeframe: Timeframe,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<Candle>, StorageError> {
+        let mut candles = match feed {
+            CandleFeed::Ig => self.candles(base, timeframe, from, to).await?,
+            CandleFeed::Futures(source) => {
+                self.futures_candles(source, base, timeframe, from, to)
+                    .await?
+            }
+        };
+        for c in &mut candles {
+            c.instrument_id = out.clone();
+        }
+        Ok(candles)
+    }
+
+    /// Inicio de la última vela de la fuente `feed` que empezó hasta `before`.
+    pub async fn last_candle_start_from(
+        &self,
+        feed: CandleFeed<'_>,
+        base: &InstrumentId,
+        timeframe: Timeframe,
+        before: DateTime<Utc>,
+    ) -> Result<Option<DateTime<Utc>>, StorageError> {
+        match feed {
+            CandleFeed::Ig => self.last_candle_start(base, timeframe, before).await,
+            CandleFeed::Futures(source) => Ok(sqlx::query_scalar(
+                "SELECT max(start_at) FROM futures_candles
+                 WHERE source = $1 AND instrument_id = $2 AND timeframe = $3 AND start_at <= $4",
+            )
+            .bind(source)
+            .bind(base.as_str())
+            .bind(timeframe.as_str())
+            .bind(before)
+            .fetch_one(self.pool())
+            .await?),
+        }
+    }
+}
+
+/// De qué tabla salen las velas (#259): las del CFD de IG o las armadas desde los futuros de
+/// una fuente (por ejemplo `databento`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CandleFeed<'a> {
+    Ig,
+    Futures(&'a str),
 }

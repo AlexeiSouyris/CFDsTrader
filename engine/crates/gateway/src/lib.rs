@@ -1,8 +1,11 @@
 //! Gateway: API **de solo lectura** del motor para la UI (#231). Dos rutas:
 //!
-//! - `GET /api/v1/liquidity?instrument=<id>[&timeframe=15m|1h|1d]` → `contracts/liquidity_view.v1`:
-//!   lo que ya está guardado en PostgreSQL (velas, niveles, FVG, desequilibrio y agregados) de
-//!   ese timeframe, tal como se conocía al cierre de su última vela. Sin `timeframe`, 15m.
+//! - `GET /api/v1/liquidity?instrument=<id>[&timeframe=15m|1h|1d][&source=ig|futures]` →
+//!   `contracts/liquidity_view.v1`: lo que ya está guardado en PostgreSQL (velas, niveles, FVG,
+//!   desequilibrio y agregados) de ese timeframe, tal como se conocía al cierre de su última vela.
+//!   Sin `timeframe`, 15m. Sin `source`, las velas del CFD de IG; con `futures`, lo calculado
+//!   con las velas de los futuros (#259, guardado bajo el instrumento derivado de
+//!   `config/candle_sources.toml`). La respuesta dice de qué fuente es.
 //! - `GET /api/v1/instruments` → `contracts/gateway_instruments.v1`: los instrumentos del
 //!   catálogo, los timeframes y los valores por defecto de la vista.
 //!
@@ -16,7 +19,8 @@ use cfds_core::{
     Candle, DailyCandle, FvgEvent, Imbalance, Instrument, InstrumentId, LiquidityLevel,
     LiquidityStats, StatsTimeframe, Timeframe,
 };
-use cfds_storage::{PgStore, StorageError};
+use cfds_market_data::{CandleSource, CandleSources};
+use cfds_storage::{CandleFeed, PgStore, StorageError};
 use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -160,10 +164,27 @@ impl Bars {
     }
 }
 
+/// De qué velas sale la vista (#259): `id` (`ig` o `futures`) y su etiqueta para la UI.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ViewSource {
+    pub id: &'static str,
+    pub label: String,
+}
+
+impl ViewSource {
+    pub fn new(source: CandleSource, sources: &CandleSources) -> Self {
+        Self {
+            id: source.as_str(),
+            label: sources.label(source).to_owned(),
+        }
+    }
+}
+
 /// `contracts/liquidity_view.v1`: mensajes de otros contratos, sin cambios.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct LiquidityView {
     pub instrument_id: InstrumentId,
+    pub source: ViewSource,
     #[serde(serialize_with = "ser_timeframe")]
     pub timeframe: StatsTimeframe,
     pub generated_at: String,
@@ -185,9 +206,15 @@ fn utc(t: DateTime<Utc>) -> String {
 
 impl LiquidityView {
     /// La vista de un instrumento sin velas guardadas en ese timeframe: "sin datos todavía".
-    pub fn empty(instrument: InstrumentId, timeframe: StatsTimeframe, now: DateTime<Utc>) -> Self {
+    pub fn empty(
+        instrument: InstrumentId,
+        source: ViewSource,
+        timeframe: StatsTimeframe,
+        now: DateTime<Utc>,
+    ) -> Self {
         Self {
             instrument_id: instrument,
+            source,
             timeframe,
             generated_at: utc(now),
             as_of: None,
@@ -210,6 +237,8 @@ pub struct InstrumentsReply {
     pub default_timeframe: &'static str,
     pub timeframes: Vec<&'static str>,
     pub instruments: Vec<Instrument>,
+    /// Fuentes de velas de la vista (#259), la primera es la que se usa sin `source`.
+    pub sources: Vec<ViewSource>,
 }
 
 /// De dónde sale la vista. En producción, PostgreSQL ([`PgSource`]); en los tests, uno falso.
@@ -217,6 +246,7 @@ pub trait LiquiditySource: Sync {
     fn view(
         &self,
         instrument: &InstrumentId,
+        source: CandleSource,
         timeframe: StatsTimeframe,
         now: DateTime<Utc>,
     ) -> impl Future<Output = Result<LiquidityView, StorageError>> + Send;
@@ -229,6 +259,8 @@ pub struct PgSource {
     pub config: GatewayConfig,
     /// `[fvg_stats] reaction_bars` de `config/liquidity.toml`.
     pub reaction_bars: Vec<NonZeroU32>,
+    /// `config/candle_sources.toml`.
+    pub sources: CandleSources,
 }
 
 impl PgSource {
@@ -236,9 +268,15 @@ impl PgSource {
     async fn bars(
         &self,
         id: &InstrumentId,
+        out: &InstrumentId,
+        source: CandleSource,
         tf: StatsTimeframe,
         now: DateTime<Utc>,
     ) -> Result<Option<(Bars, DateTime<Utc>, DateTime<Utc>)>, StorageError> {
+        let feed = match source {
+            CandleSource::Ig => CandleFeed::Ig,
+            CandleSource::Futures => CandleFeed::Futures(&self.sources.futures_source),
+        };
         let w = self.config.window(tf);
         let intraday = match tf {
             StatsTimeframe::M15 => Some(Timeframe::M15),
@@ -249,15 +287,22 @@ impl PgSource {
             // Solo velas cerradas: la última que empezó a más tardar `now − duración`.
             let Some(last) = self
                 .store
-                .last_candle_start(id, t, now - t.duration())
+                .last_candle_start_from(feed, id, t, now - t.duration())
                 .await?
             else {
                 return Ok(None);
             };
             let as_of = last + t.duration();
-            let candles = self.store.candles(id, t, as_of - w.candles, as_of).await?;
+            let candles = self
+                .store
+                .candles_from(feed, id, out, t, as_of - w.candles, as_of)
+                .await?;
             let first = candles.first().map_or(as_of, |c| c.start);
             return Ok(Some((Bars::Intraday(candles), as_of, first)));
+        }
+        // Los futuros no tienen diarias (#259): en 1d esa fuente queda "sin datos".
+        if source == CandleSource::Futures {
+            return Ok(None);
         }
         // 1d: `as_of` es el fin de la última diaria **terminada** de `daily_candles`, aunque sea
         // vieja, y la ventana se mide desde ahí (no desde ahora).
@@ -282,12 +327,20 @@ impl PgSource {
 impl LiquiditySource for PgSource {
     async fn view(
         &self,
-        id: &InstrumentId,
+        base: &InstrumentId,
+        source: CandleSource,
         tf: StatsTimeframe,
         now: DateTime<Utc>,
     ) -> Result<LiquidityView, StorageError> {
-        let Some((candles, as_of, first)) = self.bars(id, tf, now).await? else {
-            return Ok(LiquidityView::empty(id.clone(), tf, now));
+        let view_source = ViewSource::new(source, &self.sources);
+        // Lo calculado con los futuros se guardó bajo el instrumento derivado (#259).
+        let out = self
+            .sources
+            .instrument_for(source, base)
+            .map_err(StorageError::CorruptRow)?;
+        let id = &out;
+        let Some((candles, as_of, first)) = self.bars(base, id, source, tf, now).await? else {
+            return Ok(LiquidityView::empty(base.clone(), view_source, tf, now));
         };
         let w = self.config.window(tf);
         let s = &self.store;
@@ -309,7 +362,8 @@ impl LiquiditySource for PgSource {
             .filter(|g| g.timeframe == tf && g.as_of <= as_of)
             .collect();
         Ok(LiquidityView {
-            instrument_id: id.clone(),
+            instrument_id: base.clone(),
+            source: view_source,
             timeframe: tf,
             generated_at: utc(now),
             as_of: Some(utc(as_of)),
@@ -367,9 +421,11 @@ fn param<'q>(query: Option<&'q str>, name: &str) -> Option<&'q str> {
 
 /// Atiende un pedido (ver el encabezado del módulo). Todo lo demás es 4xx. Los errores de la
 /// base no se muestran al cliente.
+#[allow(clippy::too_many_arguments)]
 pub async fn respond<S: LiquiditySource>(
     source: &S,
     config: &GatewayConfig,
+    sources: &CandleSources,
     catalog: &[Instrument],
     method: &str,
     path: &str,
@@ -389,6 +445,10 @@ pub async fn respond<S: LiquiditySource>(
             default_timeframe: timeframe_name(config.default_timeframe),
             timeframes: TIMEFRAMES.into_iter().map(timeframe_name).collect(),
             instruments: catalog.to_vec(),
+            sources: CandleSource::ALL
+                .into_iter()
+                .map(|s| ViewSource::new(s, sources))
+                .collect(),
         };
         return json(&reply, "los instrumentos");
     }
@@ -402,10 +462,17 @@ pub async fn respond<S: LiquiditySource>(
             None => return text(400, "timeframe: 15m, 1h o 1d"),
         },
     };
+    let candle_source = match param(query, "source") {
+        None => CandleSource::Ig,
+        Some(s) => match CandleSource::parse(s) {
+            Some(c) => c,
+            None => return text(400, "source: ig o futures"),
+        },
+    };
     if !catalog.iter().any(|i| i.id == id) {
         return text(404, "instrumento fuera del catálogo");
     }
-    match source.view(&id, tf, now).await {
+    match source.view(&id, candle_source, tf, now).await {
         Ok(view) => json(&view, &format!("la vista de {id}")),
         Err(e) => {
             eprintln!(
@@ -430,10 +497,12 @@ mod tests {
         async fn view(
             &self,
             id: &InstrumentId,
+            source: CandleSource,
             tf: StatsTimeframe,
             now: DateTime<Utc>,
         ) -> Result<LiquidityView, StorageError> {
-            Ok(LiquidityView::empty(id.clone(), tf, now))
+            let s = ViewSource::new(source, &sources());
+            Ok(LiquidityView::empty(id.clone(), s, tf, now))
         }
     }
 
@@ -443,6 +512,10 @@ mod tests {
 
     fn config() -> GatewayConfig {
         GatewayConfig::from_toml(CONFIG).unwrap()
+    }
+
+    fn sources() -> CandleSources {
+        CandleSources::from_toml(include_str!("../../../../config/candle_sources.toml")).unwrap()
     }
 
     fn catalog() -> Vec<Instrument> {
@@ -456,7 +529,17 @@ mod tests {
     }
 
     async fn get(path: &str, q: Option<&str>) -> Reply {
-        respond(&Fake, &config(), &catalog(), "GET", path, q, now()).await
+        respond(
+            &Fake,
+            &config(),
+            &sources(),
+            &catalog(),
+            "GET",
+            path,
+            q,
+            now(),
+        )
+        .await
     }
 
     #[test]
@@ -521,6 +604,38 @@ mod tests {
         assert_eq!(v["default_timeframe"], "1d");
         assert_eq!(v["timeframes"], serde_json::json!(["15m", "1h", "1d"]));
         assert_eq!(v["instruments"][0]["id"], "US100");
+        assert_eq!(
+            v["sources"],
+            serde_json::json!([
+                {"id": "ig", "label": "IG CFD"},
+                {"id": "futures", "label": "futuros CME/Eurex (base distinta al CFD)"}
+            ])
+        );
+    }
+
+    #[tokio::test]
+    async fn the_view_says_which_candles_it_comes_from() {
+        let path = "/api/v1/liquidity";
+        for (q, id, label) in [
+            ("instrument=US100", "ig", "IG CFD"),
+            ("instrument=US100&source=ig", "ig", "IG CFD"),
+            (
+                "instrument=US100&source=futures",
+                "futures",
+                "futuros CME/Eurex (base distinta al CFD)",
+            ),
+        ] {
+            let r = get(path, Some(q)).await;
+            assert_eq!(r.status, 200, "{q}");
+            let v: serde_json::Value = serde_json::from_str(&r.body).unwrap();
+            assert_eq!(v["source"]["id"], id, "{q}");
+            assert_eq!(v["source"]["label"], label, "{q}");
+            assert_eq!(v["instrument_id"], "US100", "{q}");
+        }
+        assert_eq!(
+            get(path, Some("instrument=US100&source=cfd")).await.status,
+            400
+        );
     }
 
     #[tokio::test]
@@ -529,7 +644,7 @@ mod tests {
         let cat = catalog();
         let q = Some("instrument=US100");
         let path = "/api/v1/liquidity";
-        let post = respond(&Fake, &c, &cat, "POST", path, q, now()).await;
+        let post = respond(&Fake, &c, &sources(), &cat, "POST", path, q, now()).await;
         assert_eq!(post.status, 405);
         assert_eq!(get("/otra", q).await.status, 404);
         assert_eq!(get(path, None).await.status, 400);

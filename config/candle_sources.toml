@@ -1,0 +1,20 @@
+# Fuentes de velas para la liquidez (#259). Se valida al arrancar
+# (`cfds_market_data::CandleSources`).
+#
+# - "ig": las velas del CFD de IG (`candles`). Es la fuente por omisión.
+# - "futures": las velas de 15m y 1h armadas desde las barras de 1 minuto de los futuros de
+#   Databento (`futures_candles`, ADR 0011). Tienen la forma del precio del futuro, con su base
+#   distinta a la del CFD, y no tienen diarias.
+#
+# Lo que la liquidez calcula con los futuros se guarda bajo un instrumento derivado
+# (`<instrumento><id_suffix>`, por ejemplo US500.FUT). Así nunca se mezcla en las tablas de
+# niveles, FVG y desequilibrio con lo calculado sobre el CFD, y los cálculos son los mismos.
+
+[ig]
+label = "IG CFD"
+
+[futures]
+# Valor de `source` en futures_candles.
+source = "databento"
+label = "futuros CME/Eurex (base distinta al CFD)"
+id_suffix = ".FUT"
