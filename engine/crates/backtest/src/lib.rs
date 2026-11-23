@@ -8,6 +8,7 @@ pub mod export;
 pub mod metrics;
 pub mod portfolio;
 pub mod rates;
+pub mod rollover;
 pub mod runner;
 pub mod setup;
 
@@ -23,6 +24,7 @@ pub use portfolio::{
     Market, PortfolioError, PortfolioRejected, PortfolioReport, PortfolioTrade, run_portfolio,
 };
 pub use rates::{DailyRates, FundingRates};
+pub use rollover::mark_rollovers;
 pub use runner::{
     BuyAndHold, CloseReason, ExitRecord, RejectedSignal, Report, RunError, Setup, TradeRecord,
     buy_and_hold, choose, execute, pick, run, run_checked, run_with_news,

@@ -3,7 +3,7 @@
 
 use cfds_backtest::{
     BacktestConfig, CloseReason, Commission, ExitReason, FundingRates, InstrumentCosts, Setup,
-    buy_and_hold, execute, pick, run, run_checked, run_with_news,
+    buy_and_hold, execute, mark_rollovers, pick, run, run_checked, run_with_news,
 };
 use cfds_core::{Candle, Timeframe};
 use cfds_indicators::TrendConfig;
@@ -386,6 +386,54 @@ fn after_a_data_error_nothing_opens_until_the_warmup_is_complete() {
     );
     // Sin errores, `run_checked` es `run`.
     assert_eq!(run_checked(&m15, &h1, &[], &[], &[], &s).unwrap(), clean);
+}
+
+#[test]
+fn a_trade_open_at_a_rollover_closes_before_it_and_nothing_opens_until_the_warmup() {
+    // #267: con la fuente de futuros, el contrato cambia en una vela; la operación abierta se
+    // cierra al cierre de la última vela del contrato viejo y el calentamiento vuelve a empezar.
+    let m15 = random_walk(3000, 11);
+    let h1 = resample_h1(&m15);
+    let s = setup();
+    let clean = run(&m15, &h1, &[], &[], &s).unwrap();
+    let open = clean
+        .trades
+        .iter()
+        .find(|t| t.exits.last().unwrap().index >= t.entry_index + 2)
+        .expect("una operación que dura más de dos velas");
+    let roll_index = open.entry_index + 2;
+    let roll = m15[roll_index].start;
+    let (mut entries, mut force_close) = (vec![true; m15.len()], vec![false; m15.len()]);
+    let mut errors = Vec::new();
+    let closed = mark_rollovers(&m15, &[roll], &mut entries, &mut force_close, &mut errors);
+    assert_eq!(closed, vec![roll_index - 1]);
+    assert_eq!(errors, vec![roll]);
+    assert!(force_close[roll_index - 1] && !entries[roll_index - 1]);
+    // Un vencimiento fuera de la serie no marca nada.
+    let (mut e2, mut f2, mut d2) = (vec![true; m15.len()], vec![false; m15.len()], Vec::new());
+    let outside = m15[0].start - TimeDelta::days(1);
+    assert!(mark_rollovers(&m15, &[outside], &mut e2, &mut f2, &mut d2).is_empty());
+    assert!(d2.is_empty() && f2.iter().all(|f| !f));
+
+    let r = run_checked(&m15, &h1, &entries, &force_close, &errors, &s).unwrap();
+    let cut = r
+        .trades
+        .iter()
+        .find(|t| t.entry_index == open.entry_index)
+        .expect("la misma operación");
+    let last = cut.exits.last().unwrap();
+    assert_eq!(last.index, roll_index - 1);
+    assert_eq!(last.reason, CloseReason::Exit(ExitReason::Forced));
+    for t in &r.trades {
+        // Ninguna operación cruza el vencimiento ni se decide en la última vela del contrato.
+        let end = t.exits.last().unwrap().index;
+        assert!(!(t.entry_index < roll_index && end >= roll_index), "{t:?}");
+        assert_ne!(t.signal_index, roll_index - 1);
+        // Después del vencimiento, nada hasta tener 200 velas del contrato nuevo.
+        if t.signal_index >= roll_index {
+            assert!(t.signal_index >= roll_index + 200);
+        }
+    }
 }
 
 #[test]

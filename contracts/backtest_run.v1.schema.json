@@ -42,6 +42,10 @@
       "properties": {
         "slippage_spread_fraction": { "$ref": "#/$defs/decimal" },
         "slippage_ticks": { "$ref": "#/$defs/decimal" },
+        "spread_source": {
+          "description": "Opcional (agregado sin romper v1, #267): de dónde sale el spread. 'measured' = velas de IG: el filtro de spread §7.3 usa el spread medido de cada vela (los costos usan el spread típico de config). 'config' = velas de futuros (ADR 0011): no hay spread medido del CFD para esas fechas, así que los costos usan el spread típico de config (nunca cero) y el filtro §7.3 no se aplica. Ausente en las corridas anteriores, todas con velas de IG.",
+          "enum": ["measured", "config"]
+        },
         "instruments": {
           "type": "array",
           "minItems": 1,
