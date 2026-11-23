@@ -31,6 +31,9 @@ use cfds_gateway::fund::{is_fund_route, respond_fund};
 use cfds_gateway::ops::url_password;
 use cfds_gateway::paper::{HttpIn, Ops, PaperConfig, PgPaper, is_paper_route, respond_paper};
 use cfds_gateway::paper_runner::RunnerDeps;
+use cfds_gateway::status::{
+    Feed, FeedWriter, StatusConfig, StatusDeps, is_status_route, respond_status,
+};
 use cfds_gateway::{GatewayConfig, PgSource, Reply, read_only_url, respond};
 use cfds_liquidity::StatsConfig;
 use cfds_market_data::{CandleSources, Catalog};
@@ -74,6 +77,11 @@ struct State {
     /// Fondo del grupo (#312): solo lectura.
     fund: PgFund,
     fund_cfg: FundConfig,
+    /// Estado de la operación (#314): eventos en memoria, límite de pérdida diaria y el
+    /// `Logger` (para tapar secretos). Solo lectura.
+    feed: Arc<Feed>,
+    daily_loss_limit_pct: rust_decimal::Decimal,
+    log: Arc<Logger>,
 }
 
 fn header<'a>(req: &'a Request<Incoming>, name: &str) -> Option<&'a str> {
@@ -121,6 +129,21 @@ async fn handle(
 ) -> Result<Response<Full<Bytes>>, Infallible> {
     let reply = if is_paper_route(req.uri().path()) {
         paper_reply(&state, req).await
+    } else if is_status_route(req.uri().path()) {
+        let scrub = |t: &str| state.log.scrub(t);
+        let deps = StatusDeps {
+            feed: &state.feed,
+            daily_loss_limit_pct: state.daily_loss_limit_pct,
+            scrub: &scrub,
+        };
+        respond_status(
+            state.paper.as_ref(),
+            &deps,
+            req.method().as_str(),
+            req.uri().path(),
+            chrono::Utc::now(),
+        )
+        .await
     } else if is_fund_route(req.uri().path()) {
         respond_fund(
             &state.fund,
@@ -202,8 +225,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         None
     };
-    // Logs sin secretos: el token local y la base se registran antes del primer log.
-    let log = Arc::new(Logger::stderr());
+    let risk = RiskConfig::from_toml(RISK)?;
+    // Logs sin secretos: el token local y la base se registran antes del primer log. Las líneas
+    // ya redactadas del broker y de las alertas quedan además en memoria para la UI (#314).
+    let feed = Feed::new(StatusConfig::from_toml(GATEWAY)?);
+    let log = Arc::new(Logger::new(Box::new(FeedWriter::new(
+        feed.clone(),
+        Box::new(std::io::stderr()),
+    ))));
     let database_url = std::env::var("DATABASE_URL")?;
     log.register_secret(&database_url);
     if let Some(pass) = url_password(&database_url) {
@@ -248,7 +277,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backtest = BacktestConfig::from_toml(BACKTEST)?;
     let broker_cfg = BrokerConfig::from_toml(
         BROKER,
-        RiskConfig::from_toml(RISK)?,
+        risk,
         backtest.costs,
         backtest.exits,
         backtest.day_tz,
@@ -297,6 +326,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let fund_cfg = FundConfig::from_toml(FUND)?;
     let fund = PgFund::new(store.pool().clone());
     let state = Arc::new(State {
+        feed,
+        daily_loss_limit_pct: risk.max_daily_loss_pct,
+        log: log.clone(),
         fund,
         fund_cfg,
         paper,

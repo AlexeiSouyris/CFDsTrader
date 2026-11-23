@@ -232,6 +232,8 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 | `ticket_verdict.v1` | La respuesta del riesgo a una orden **sin enviarla**: acepta o rechaza, con tamaño, riesgo, % de riesgo, apalancamiento y margen. La UI la muestra. |
 | `position.v1` | Una posición abierta valuada al cierre de `as_of`: entrada, stop, `tp1`, último precio, P/L no realizado (en moneda y en R) y margen. |
 | `paper_account.v1` | La cuenta simulada al cierre de `as_of`: capital, P/L, margen, apalancamiento, pérdida diaria usada, posiciones y kill switch. |
+| `ops_status.v1` | `GET /api/v1/ops/status` (#314): compuerta del broker (`starting`, `ready`, `stopping` o `unavailable`), si acepta órdenes, la cuenta (kill switch con el motivo ya redactado, pérdida diaria usada y su límite de `config/risk.toml`, apalancamiento y posiciones; `null` sin broker) y la última reconciliación (al arrancar o periódica). Solo lectura; los números son los de `paper_account.v1`. |
+| `ops_event.v1` | `GET /api/v1/ops/events` (#314): una línea del log de `cfds-obs` ya redactada (`ts`, `level`, `target`, `event` y el resto en `fields`). Entran los eventos del broker, las alertas y lo `warn` o `error`; en memoria, los últimos `[ops] feed_size`. |
 
 - **Solo modo paper:** ninguno de estos mensajes puede describir una orden real (CLAUDE.md §5, fase 11).
 - **Una sola lista de motivos de rechazo**, compartida por `order_report.v1` y `ticket_verdict.v1`: los del módulo de riesgo más `no_price`, `unknown_instrument` y `stop_wrong_side`. Un test comprueba que las dos listas sean iguales.

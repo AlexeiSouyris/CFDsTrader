@@ -16,6 +16,7 @@ pub mod fund;
 pub mod ops;
 pub mod paper;
 pub mod paper_runner;
+pub mod status;
 
 use std::future::Future;
 use std::net::SocketAddr;
@@ -89,6 +90,9 @@ struct RawConfig {
     /// `[context]`: lo lee [`context::ContextConfig`].
     #[allow(dead_code)]
     context: toml::Table,
+    /// `[ops]`: lo lee [`status::StatusConfig`] (#314).
+    #[allow(dead_code)]
+    ops: toml::Table,
 }
 
 #[derive(Deserialize)]

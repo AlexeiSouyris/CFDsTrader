@@ -41,6 +41,11 @@ candles_days = 10
 # Corridas de backtest que devuelve /api/v1/backtest_runs (las más nuevas).
 runs_limit = 50
 
+# Estado de la operación (#314): /api/v1/ops/status y /api/v1/ops/events, solo lectura.
+[ops]
+# Eventos del broker y alertas que se guardan en memoria (los últimos) para la UI.
+feed_size = 50
+
 # Contexto de mercado del Panel (#294): /api/v1/sentiment y /api/v1/analogs, solo lectura.
 [context]
 # Valores del índice de sentimiento que devuelve la historia de un instrumento (los últimos).
