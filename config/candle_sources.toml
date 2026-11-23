@@ -18,3 +18,19 @@ label = "IG CFD"
 source = "databento"
 label = "futuros CME/Eurex (base distinta al CFD)"
 id_suffix = ".FUT"
+# Vencimientos (#269). El contrato continuo `c.0` es el del vencimiento más cercano (Databento:
+# "calendar", sin ajuste de precios). No se usa el `instrument_id` de Databento para saber cuándo
+# cambia el contrato: en Eurex (XEUR.EOBI) cambia de un día a otro y se reusa. Los índices de CME
+# y de Eurex vencen el tercer viernes de estos meses; si ese día la bolsa está cerrada (feriado de
+# config/holidays), el día hábil anterior.
+expiry_months = [3, 6, 9, 12]
+
+# Qué día el continuo ya es el contrato nuevo, medido en los datos de Databento:
+# - "after_expiry_day": el día del vencimiento todavía es del contrato viejo (CME: ES, NQ, YM);
+# - "on_expiry_day": el día del vencimiento ya es del nuevo (Eurex: el viejo deja de operar a
+#   media mañana).
+[futures.roll]
+US500 = "after_expiry_day"
+US100 = "after_expiry_day"
+US30 = "after_expiry_day"
+DE40 = "on_expiry_day"
