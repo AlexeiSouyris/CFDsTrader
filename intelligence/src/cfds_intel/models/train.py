@@ -42,6 +42,9 @@ class WindowResult:
     skipped: str | None
     l2: float | None = None
     predictions: dict[str, list[float]] = field(default_factory=dict)
+    # Lo que la purga y el embargo sacaron del entrenamiento (§5).
+    purged: int = 0
+    embargoed: int = 0
 
 
 @dataclass(frozen=True)
@@ -72,7 +75,16 @@ def evaluate(
         if reason is None and not f.validation:
             reason = "sin propuestas de validación"
         if reason is not None:
-            results.append(WindowResult(f.window, len(f.train), f.validation, reason))
+            results.append(
+                WindowResult(
+                    f.window,
+                    len(f.train),
+                    f.validation,
+                    reason,
+                    purged=f.purged,
+                    embargoed=f.embargoed,
+                )
+            )
             continue
         m1 = fit_with_inner_tuning(
             f.train, cfg.l2_grid, cfg.inner_tune_fraction, cfg.seed, cfg.max_iterations
@@ -82,7 +94,18 @@ def evaluate(
             "B1": B1.fit(f.train, probability).predict(f.validation),
             "M1": m1.predict(f.validation),
         }
-        results.append(WindowResult(f.window, len(f.train), f.validation, None, m1.l2, preds))
+        results.append(
+            WindowResult(
+                f.window,
+                len(f.train),
+                f.validation,
+                None,
+                m1.l2,
+                preds,
+                purged=f.purged,
+                embargoed=f.embargoed,
+            )
+        )
     trained = [r for r in results if r.skipped is None]
     pooled: dict[str, Scores] = {}
     if trained:
