@@ -45,6 +45,33 @@
       "items": {
         "$ref": "instrument.v1.schema.json"
       }
+    },
+    "sources": {
+      "description": "Opcional (agregado sin romper v1, #259): las fuentes de velas de la vista, con su etiqueta. La primera es la que se usa sin ?source=.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "description": "Una fuente: id ('ig' o 'futures') y la etiqueta que muestra la UI.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label"
+        ],
+        "properties": {
+          "id": {
+            "enum": [
+              "ig",
+              "futures"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        }
+      }
     }
   }
 }

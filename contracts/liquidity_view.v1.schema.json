@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/liquidity_view.v1.schema.json",
   "title": "Liquidity view v1",
-  "description": "Respuesta de GET /api/v1/liquidity?instrument=<id>[&timeframe=15m|1h|1d] del gateway (#231): lo que la vista de liquidez de la UI necesita de un instrumento y timeframe, tal como está guardado en PostgreSQL al cierre de la última vela de ese timeframe. No agrega cálculos: junta mensajes de otros contratos, cada uno sin cambios. La UI solo lo muestra (CLAUDE.md §1). Sin velas guardadas, as_of es null y las listas van vacías ('sin datos todavía').",
+  "description": "Respuesta de GET /api/v1/liquidity?instrument=<id>[&timeframe=15m|1h|1d][&source=ig|futures] del gateway (#231): lo que la vista de liquidez de la UI necesita de un instrumento y timeframe, tal como está guardado en PostgreSQL al cierre de la última vela de ese timeframe. No agrega cálculos: junta mensajes de otros contratos, cada uno sin cambios. La UI solo lo muestra (CLAUDE.md §1). Sin velas guardadas, as_of es null y las listas van vacías ('sin datos todavía').",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -28,6 +28,28 @@
         "1h",
         "1d"
       ]
+    },
+    "source": {
+      "description": "Opcional (agregado sin romper v1, #259): de qué velas sale la vista. 'ig' = las del CFD de IG (lo que se usa sin ?source=); 'futures' = las armadas desde los futuros de Databento (ADR 0011), que tienen la forma del precio del futuro y una base distinta a la del CFD, y no tienen diarias. 'label' es el texto que muestra la UI (config/candle_sources.toml). Ausente = 'ig', como en la primera versión.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "ig",
+            "futures"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        }
+      }
     },
     "generated_at": {
       "description": "Cuándo armó el gateway la respuesta, en UTC.",
