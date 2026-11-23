@@ -14,6 +14,7 @@
 pub mod context;
 pub mod emotions;
 pub mod fund;
+pub mod learning;
 pub mod ops;
 pub mod paper;
 pub mod paper_runner;

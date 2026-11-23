@@ -29,6 +29,7 @@ use cfds_fund::pg::PgFund;
 use cfds_gateway::context::{ContextConfig, is_context_route, respond_context};
 use cfds_gateway::emotions::{is_emotions_route, respond_emotions};
 use cfds_gateway::fund::{is_fund_route, respond_fund};
+use cfds_gateway::learning::{NoStoredReports, is_learning_route, respond_learning};
 use cfds_gateway::ops::url_password;
 use cfds_gateway::paper::{HttpIn, Ops, PaperConfig, PgPaper, is_paper_route, respond_paper};
 use cfds_gateway::paper_runner::RunnerDeps;
@@ -152,6 +153,15 @@ async fn handle(
         respond_fund(
             &state.fund,
             &state.fund_cfg,
+            req.method().as_str(),
+            req.uri().path(),
+        )
+        .await
+    } else if is_learning_route(req.uri().path()) {
+        // Fases 8 y 8b (#331): comparaciones del diario; el informe guardado llega con #330.
+        respond_learning(
+            &state.walk_forward,
+            &NoStoredReports,
             req.method().as_str(),
             req.uri().path(),
         )
