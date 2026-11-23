@@ -3,6 +3,7 @@
 //! Los tipos que cruzan entre lenguajes tienen su contrato en `contracts/`
 //! (ver `tests/contracts.rs`).
 
+pub mod broker;
 pub mod candle;
 pub mod daily;
 pub mod daily_drawdown;
@@ -21,6 +22,10 @@ pub mod rate;
 pub mod sentiment;
 pub mod spread;
 
+pub use broker::{
+    AccountCurrency, ClientId, KillSwitch, Order, OrderRejection, OrderReport, OrderSide,
+    OrderStatus, PaperAccount, PaperMode, Position, TicketVerdict,
+};
 pub use candle::{Candle, Timeframe};
 pub use daily::DailyCandle;
 pub use daily_drawdown::DailyDrawdown;
