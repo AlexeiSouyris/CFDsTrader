@@ -13,7 +13,7 @@
 pub mod daily_indicators;
 pub mod gaps;
 
-pub use daily_indicators::daily_indicators;
+pub use daily_indicators::{daily_drawdowns, daily_indicators};
 pub use gaps::{GapPlan, daily_gaps, intraday_gaps, missing_runs, missing_runs_by, session_days};
 
 use cfds_core::{Candle, InstrumentId, Timeframe};

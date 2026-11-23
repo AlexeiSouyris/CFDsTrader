@@ -1,7 +1,7 @@
 //! Histórico en PostgreSQL.
 
 use cfds_core::{
-    Candle, CandleSpread, DailyCandle, DailyIndicator, Instrument, InstrumentId,
+    Candle, CandleSpread, DailyCandle, DailyDrawdown, DailyIndicator, Instrument, InstrumentId,
     NewsInterpretation, ReferenceRate, SentimentObservation, Timeframe,
 };
 use chrono::{DateTime, NaiveDate, Utc};
@@ -454,6 +454,58 @@ impl PgStore {
             .fetch_one(&mut *tx)
             .await?;
             if stored == (r.published_at, r.atr, r.realized_vol) {
+                report.unchanged += 1;
+            } else {
+                return Err(StorageError::DailyIndicatorConflict {
+                    instrument: r.instrument_id.to_string(),
+                    day: r.day,
+                });
+            }
+        }
+        tx.commit().await?;
+        Ok(report)
+    }
+
+    /// Guarda caídas desde el máximo (#213) en **una sola transacción**, como
+    /// [`Self::insert_daily_indicators`]: una idéntica ya guardada cuenta como `unchanged`; otro
+    /// valor para la misma clave es [`StorageError::DailyIndicatorConflict`] y no se guarda nada.
+    pub async fn insert_daily_drawdowns(
+        &self,
+        rows: &[DailyDrawdown],
+    ) -> Result<InsertReport, StorageError> {
+        let mut tx = self.pool.begin().await?;
+        let mut report = InsertReport::default();
+        for r in rows {
+            let window = i32::try_from(r.drawdown_window).unwrap_or(i32::MAX);
+            let inserted = sqlx::query(
+                "INSERT INTO daily_drawdowns (instrument_id, day, published_at, drawdown_window,
+                     drawdown)
+                 VALUES ($1, $2, $3, $4, $5)
+                 ON CONFLICT (instrument_id, day, drawdown_window) DO NOTHING",
+            )
+            .bind(r.instrument_id.as_str())
+            .bind(r.day)
+            .bind(r.published_at)
+            .bind(window)
+            .bind(r.drawdown)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected()
+                == 1;
+            if inserted {
+                report.inserted += 1;
+                continue;
+            }
+            let stored: (DateTime<Utc>, Option<Decimal>) = sqlx::query_as(
+                "SELECT published_at, drawdown FROM daily_drawdowns
+                 WHERE instrument_id = $1 AND day = $2 AND drawdown_window = $3",
+            )
+            .bind(r.instrument_id.as_str())
+            .bind(r.day)
+            .bind(window)
+            .fetch_one(&mut *tx)
+            .await?;
+            if stored == (r.published_at, r.drawdown) {
                 report.unchanged += 1;
             } else {
                 return Err(StorageError::DailyIndicatorConflict {

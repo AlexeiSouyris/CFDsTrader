@@ -673,6 +673,46 @@ async fn daily_indicators_are_idempotent_and_refuse_to_repaint() {
     ));
 }
 
+#[tokio::test]
+#[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
+async fn daily_drawdowns_are_idempotent_and_refuse_to_repaint() {
+    let s = store().await;
+    // La tabla es de solo agregar: un instrumento propio por corrida.
+    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
+    let us = with_instrument(&s, &format!("ITDD{nanos}")).await;
+    let row = |day: &str, drawdown: Option<Decimal>| cfds_core::DailyDrawdown {
+        instrument_id: us.clone(),
+        day: day.parse().unwrap(),
+        published_at: format!("{day}T23:00:00Z").parse().unwrap(),
+        drawdown_window: 252,
+        drawdown,
+    };
+    let rows = vec![
+        row("2026-11-19", None),
+        row("2026-11-20", Some(dec!(-0.05))),
+    ];
+    let first = s.insert_daily_drawdowns(&rows).await.unwrap();
+    let again = s.insert_daily_drawdowns(&rows).await.unwrap();
+    assert_eq!((first.inserted, again.unchanged), (2, 2));
+
+    let repainted = vec![row("2026-11-20", Some(dec!(-0.06)))];
+    assert!(matches!(
+        s.insert_daily_drawdowns(&repainted).await,
+        Err(StorageError::DailyIndicatorConflict { .. })
+    ));
+    // La base tampoco deja una caída positiva ni modificar lo guardado.
+    assert!(
+        s.insert_daily_drawdowns(&[row("2026-11-23", Some(dec!(0.01)))])
+            .await
+            .is_err()
+    );
+    let update = sqlx::query("UPDATE daily_drawdowns SET drawdown = 0 WHERE instrument_id = $1")
+        .bind(us.as_str())
+        .execute(s.pool())
+        .await;
+    assert!(update.is_err());
+}
+
 /// Guarda una noticia y su interpretación con SQL directo, como lo hace Python (#186).
 #[allow(clippy::too_many_arguments)]
 async fn put_interpretation(

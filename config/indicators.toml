@@ -6,10 +6,14 @@
 sma_period = 50
 slope_lookback = 5
 
-# Indicadores sobre velas diarias (#148, spec §13): los usan los análogos v1.
+# Indicadores sobre velas diarias (#148, spec §13): los usan los análogos v1 y el índice de
+# sentimiento (spec §9.1).
 [daily]
 # ATR de Wilder (spec §4) sobre velas diarias: es la R de "+2R antes que −1R".
 atr_period = 14
 # Volatilidad realizada: desvío estándar muestral de los últimos `realized_vol_window` retornos
 # diarios, con retorno = cierre / cierre anterior − 1.
 realized_vol_window = 20
+# Caída desde el máximo (spec §9.1, #213): (cierre − máximo de las últimas `drawdown_window`
+# velas diarias con sesión, la actual incluida) / ese máximo.
+drawdown_window = 252

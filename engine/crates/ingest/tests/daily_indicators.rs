@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use cfds_core::{DailyCandle, InstrumentId};
 use cfds_indicators::{DailyConfig, wilder_atr};
-use cfds_ingest::daily_indicators;
+use cfds_ingest::{daily_drawdowns, daily_indicators};
 use cfds_market_data::ExchangeCalendar;
 use chrono::{DateTime, NaiveDate, TimeDelta, Utc};
 use rust_decimal::{Decimal, dec};
@@ -24,6 +24,7 @@ fn cfg() -> DailyConfig {
     DailyConfig {
         atr_period: 2,
         realized_vol_window: 2,
+        drawdown_window: 2,
     }
 }
 
@@ -99,6 +100,35 @@ fn a_day_outside_the_calendar_is_an_error_not_a_guess() {
     let d = days("1990-01-02", &[dec!(100)]);
     assert_eq!(
         daily_indicators(&d, session, &cfg()),
+        Err("1990-01-02".parse().unwrap())
+    );
+}
+
+#[test]
+fn drawdown_uses_the_same_session_days_and_the_end_of_the_candle() {
+    let cal = calendar();
+    let session = cal.session_for(&de40()).unwrap();
+    // Viernes 20, sábado 21 y domingo 22 (999, sin sesión) y lunes 23 de noviembre de 2026.
+    let closes = [100, 999, 999, 90].map(Decimal::from);
+    let d = days("2026-11-20", &closes);
+    let rows = daily_drawdowns(&d, session, &cfg()).unwrap();
+    let got: Vec<_> = rows
+        .iter()
+        .map(|r| (r.day.to_string(), r.drawdown))
+        .collect();
+    // Ventana 2: el máximo del lunes es el 100 del viernes, no el 999 del fin de semana.
+    assert_eq!(
+        got,
+        [
+            ("2026-11-20".to_owned(), None),
+            ("2026-11-23".to_owned(), Some(dec!(-0.1)))
+        ]
+    );
+    assert_eq!(rows[1].published_at, d[3].end);
+    assert_eq!(rows[1].drawdown_window, 2);
+    let outside = days("1990-01-02", &[dec!(100)]);
+    assert_eq!(
+        daily_drawdowns(&outside, session, &cfg()),
         Err("1990-01-02".parse().unwrap())
     );
 }

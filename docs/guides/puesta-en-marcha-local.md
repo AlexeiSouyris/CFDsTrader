@@ -82,7 +82,7 @@ Antes de cargar, `--dry-run` muestra qué falta y cuántos puntos estima, sin co
 | Interpretación de las noticias nuevas con Ollama (ADR 0008, #186): guarda en `news_interpretations` y publica en Redis. Necesita Ollama con el modelo fijado; ~25 s por noticia. `--limit N` para ir de a poco. Para `cron`, ver la sección 7 | `infra/scripts/interpret_news.sh [--limit N]` (desde la raíz del repo) | 0 (no usa IG) |
 | Diarias de 5 años, **un año de prueba** | `cd engine && cargo run -p cfds-ig --example ig_backfill_daily -- DE40 2021-11-22 2022-11-22` | ~270 |
 | Diarias, el resto | `... ig_backfill_daily -- DE40 2022-11-22 <mañana>` | ~1.060 |
-| Indicadores de las diarias (ATR diario y volatilidad realizada, #148), **después de cada carga de diarias** | `cd engine && cargo run -p cfds-ingest --example daily_indicators` | 0 (no usa IG) |
+| Indicadores de las diarias (ATR diario y volatilidad realizada, #148; caída desde el máximo, #213), **después de cada carga de diarias** | `cd engine && cargo run -p cfds-ingest --example daily_indicators` | 0 (no usa IG) |
 | Análogos v1 de la última ventana de cada índice (#148, solo informativo) | `cd intelligence && uv run python -m cfds_intel.analogs [INSTRUMENTO]` | 0 (no usa IG) |
 | Ídem para US100, US500 y US30 | Cambiar el instrumento | ~1.330 cada uno |
 | Verificación de las velas de US500, US100 y US30 contra SPY, QQQ y DIA de Tiingo (ADR 0009, #206). Guarda solo el veredicto de cada día; `--dry-run` no guarda nada; `--calibrate` muestra cuántos días coinciden con cada tolerancia candidata. Necesita `TIINGO_API_KEY` y `CFDS_DATA_MACHINE=1` | `cd engine && cargo run -q -p cfds-tiingo --example tiingo_verify -- 2026-10-01 2026-10-31` | 0 de IG; 1 pedido de Tiingo por ETF (topes en `config/tiingo.toml`) |

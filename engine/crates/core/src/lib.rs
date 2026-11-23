@@ -5,6 +5,7 @@
 
 pub mod candle;
 pub mod daily;
+pub mod daily_drawdown;
 pub mod daily_indicator;
 pub mod decimal_str;
 pub mod economic_event;
@@ -17,6 +18,7 @@ pub mod spread;
 
 pub use candle::{Candle, Timeframe};
 pub use daily::DailyCandle;
+pub use daily_drawdown::DailyDrawdown;
 pub use daily_indicator::DailyIndicator;
 pub use economic_event::{EconomicEvent, Impact};
 pub use instrument::{AssetClass, Instrument, InstrumentId};
