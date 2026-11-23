@@ -15,6 +15,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 
 import { LiquidityChart } from '@/components/ui/liquidity-chart'
+import { OpsKillSwitchBanner, OpsStatusBar } from '@/components/ui/ops-status'
 import { ProposalCard } from '@/components/ui/proposal-card'
 import { Segmented } from '@/components/ui/segmented'
 import {
@@ -25,6 +26,7 @@ import {
 } from '@/components/ui/trading-terminal'
 import { useInstruments, useLiquidityView } from '@/lib/liquidity-api'
 import { chartBars } from '@/lib/liquidity-bars'
+import { useOpsStatus } from '@/lib/ops-api'
 import type { LiquidityViewData, ViewTimeframe } from '@/lib/liquidity-contracts'
 import { previewOrder, submitOrder, usePaperAccount, usePaperPositions } from '@/lib/paper-api'
 import { cn } from '@/lib/utils'
@@ -178,6 +180,9 @@ export function TerminalView({ member }: { member: Member }) {
   const [refresh, setRefresh] = useState(0)
   const remoteAccount = usePaperAccount(refresh)
   const remotePositions = usePaperPositions(refresh)
+  // Estado de la operación (#314): compuerta, kill switch y pérdida del día, del motor.
+  const ops = useOpsStatus(refresh)
+  const opsLive = ops.status === 'ok' ? ops.data : null
   // con gateway, todo sale del broker simulado; sin gateway, los datos de ejemplo
   const live = remoteAccount.status === 'ok'
   const account = live
@@ -310,8 +315,10 @@ export function TerminalView({ member }: { member: Member }) {
         </div>
       </div>
 
+      {opsLive && <OpsKillSwitchBanner status={opsLive} />}
+      <OpsStatusBar status={opsLive} />
       <AccountStrip account={account} />
-      <KillSwitchBanner account={account} />
+      {!opsLive && <KillSwitchBanner account={account} />}
 
       {count === 1 ? (
         <>

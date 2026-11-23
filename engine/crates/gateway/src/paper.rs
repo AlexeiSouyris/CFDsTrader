@@ -46,6 +46,7 @@ use tokio::sync::Mutex;
 
 use crate::Reply;
 use crate::ops::{Gate, GateState, alert_events, gate_after_reconcile, log_events, report_failure};
+use crate::status::{ReconcileKind, ReconcileStatus};
 
 /// `[paper]` de `config/gateway.toml`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -312,6 +313,8 @@ pub struct PgPaper {
     journal: PgJournal,
     pub(crate) gate: Gate,
     pub(crate) ops: Arc<Ops>,
+    /// La última reconciliación (al arrancar o periódica), para `GET /api/v1/ops/status` (#314).
+    last_reconcile: std::sync::Mutex<Option<ReconcileStatus>>,
 }
 
 impl PgPaper {
@@ -410,6 +413,11 @@ impl PgPaper {
                 journal: journal_db,
                 gate,
                 ops,
+                last_reconcile: std::sync::Mutex::new(Some(ReconcileStatus::new(
+                    ReconcileKind::Startup,
+                    now,
+                    &rec,
+                ))),
             },
             skipped,
         ))
@@ -519,10 +527,18 @@ impl PgPaper {
             }
         }
         let markets = broker.markets().clone();
-        reconcile_periodically(&self.store, broker, markets, sched, now)
+        let rec = reconcile_periodically(&self.store, broker, markets, sched, now)
             .await
             .map_err(|e| e.to_string())?;
+        if let (Some(rec), Ok(mut last)) = (rec, self.last_reconcile.lock()) {
+            *last = Some(ReconcileStatus::new(ReconcileKind::Periodic, now, &rec));
+        }
         Ok(())
+    }
+
+    /// La última reconciliación (al arrancar o periódica).
+    pub fn last_reconcile(&self) -> Option<ReconcileStatus> {
+        self.last_reconcile.lock().ok().and_then(|l| l.clone())
     }
 }
 
