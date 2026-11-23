@@ -355,6 +355,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "cfds-regime"
+version = "0.1.0"
+dependencies = [
+ "cfds-core",
+ "cfds-indicators",
+ "chrono",
+ "rust_decimal",
+ "serde",
+ "toml",
+]
+
+[[package]]
 name = "cfds-risk"
 version = "0.1.0"
 dependencies = [
