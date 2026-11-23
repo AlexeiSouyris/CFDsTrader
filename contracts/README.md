@@ -88,6 +88,17 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - `published_at` nunca es anterior al fin de `ref_date`: un valor solo se usa desde que se publicó (CLAUDE.md §5b).
 - La escribe Python (`cfds_intel.rates`). La lee el motor para el costo de financiación de cada noche.
 
+### Curva del Tesoro de EE. UU. (ADR 0012, #260)
+
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `treasury_yield.v1` | `treasury_yields` | Rendimiento par diario de un plazo (`tenor`: `1M`, `1_5M`, `2M`, `3M`, `4M`, `6M`, `1Y`, `2Y`, `3Y`, `5Y`, `7Y`, `10Y`, `20Y` o `30Y`), con `ref_date`, `published_at` y `yield_pct` (string decimal). |
+
+- Contrato aparte de `reference_rate.v1`, que es solo para la financiación nocturna (ADR 0012 §1.2).
+- Tabla de **solo agregar** (trigger). Una corrección del Tesoro es otra fila, publicada cuando se leyó.
+- `published_at`: en el histórico, el día hábil siguiente de la serie a las 09:30 ET (el Tesoro publica "usually … by 6:00 PM ET" y puede atrasarse); el último valor, la hora de lectura. Un `CHECK` impide que sea anterior a las 15:30 ET de `ref_date`, cuando se toman los precios.
+- La escribe Python (`cfds_intel.treasury`). Es contexto: no suma al puntaje.
+
 ### Noticias (#109, #111, #122)
 
 | Contrato | Dónde | Contenido |

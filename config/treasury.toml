@@ -1,0 +1,24 @@
+# Rendimientos diarios de la curva par del Tesoro de EE. UU. (ADR 0012).
+#
+# Fuente: home.treasury.gov, "Daily Treasury Par Yield Curve Rates", CSV oficial por año.
+# Son datos del gobierno de EE. UU. (obra del gobierno federal, 17 U.S.C. § 105).
+
+[api]
+# El año va en dos lugares de la URL: {year}.
+csv_url = "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/{year}/all?type=daily_treasury_yield_curve&field_tdr_date_value={year}&page&_format=csv"
+user_agent = "cfds-intel/0.1 (automated data reader)"
+timeout_secs = 60
+
+[load]
+# Primer año que se carga sin argumento (el histórico del backtest empieza en 2019).
+start_year = 2019
+
+[publication]
+# El Tesoro: "Yield curve rates are usually available ... by 6:00 PM Eastern Time each trading
+# day, but may be delayed due to system problems or other issues", con precios tomados "at or
+# near 3:30 PM" (Treasury Yield Curve Methodology, revisada el 18-2-2025, consultada el
+# 23-11-2026). Como puede atrasarse, en el histórico cada valor vale recién desde el **día hábil
+# siguiente de la serie a esta hora** (antes de la apertura de Nueva York). El último valor
+# publicado vale desde que el sistema lo leyó.
+time = "09:30"
+timezone = "America/New_York"
