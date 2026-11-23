@@ -13,8 +13,12 @@
 //! Fase 9 (#297): logs en líneas JSON por la salida de errores (sin secretos: el token y la
 //! contraseña de la base se registran para taparlos), alertas de `config/alerts.toml` y parada
 //! segura con SIGTERM o Ctrl-C (deja de aceptar órdenes, guarda el registro, verifica).
+//!
+//! Fase 8 (#305): con `[runner] enabled = true` en `config/runner.toml`, corre además el runner de
+//! paper trading sobre el mismo broker simulado (`cfds_gateway::paper_runner`). Nunca llama a IG.
 
 use std::convert::Infallible;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use cfds_backtest::BacktestConfig;
@@ -26,11 +30,13 @@ use cfds_gateway::context::{ContextConfig, is_context_route, respond_context};
 use cfds_gateway::fund::{is_fund_route, respond_fund};
 use cfds_gateway::ops::url_password;
 use cfds_gateway::paper::{HttpIn, Ops, PaperConfig, PgPaper, is_paper_route, respond_paper};
+use cfds_gateway::paper_runner::RunnerDeps;
 use cfds_gateway::{GatewayConfig, PgSource, Reply, read_only_url, respond};
 use cfds_liquidity::StatsConfig;
 use cfds_market_data::{CandleSources, Catalog};
 use cfds_obs::{AlertConfig, AlertKind, Alerter, Level, Logger, ReqwestPost, TelegramSink};
 use cfds_risk::RiskConfig;
+use cfds_runner::RunnerConfig;
 use cfds_storage::PgStore;
 use http_body_util::{BodyExt, Full, Limited};
 use hyper::body::{Bytes, Incoming};
@@ -50,6 +56,12 @@ const BACKTEST: &str = include_str!("../../../../config/backtest.toml");
 const BROKER: &str = include_str!("../../../../config/broker.toml");
 const ALERTS: &str = include_str!("../../../../config/alerts.toml");
 const FUND: &str = include_str!("../../../../config/fund.toml");
+const RUNNER: &str = include_str!("../../../../config/runner.toml");
+
+/// `config/` del repo (sesiones y feriados del calendario se leen de ahí).
+fn config_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../config")
+}
 
 struct State {
     source: PgSource,
@@ -183,6 +195,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stats = StatsConfig::from_toml(LIQUIDITY)?;
     let paper_cfg = PaperConfig::from_toml(GATEWAY)?;
     let alert_cfg = AlertConfig::from_toml(ALERTS)?;
+    let runner_cfg = RunnerConfig::from_toml(RUNNER)?;
+    // Si el runner está prendido, toda su config se valida antes de abrir nada.
+    let runner = if runner_cfg.enabled {
+        Some(RunnerDeps::from_repo_config(&catalog, &config_dir())?)
+    } else {
+        None
+    };
     // Logs sin secretos: el token local y la base se registran antes del primer log.
     let log = Arc::new(Logger::stderr());
     let database_url = std::env::var("DATABASE_URL")?;
@@ -296,6 +315,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|s| s.instrument.clone())
             .collect(),
     });
+    match (runner, &state.paper) {
+        (Some(deps), Some(_)) => {
+            log.log(
+                Level::Info,
+                "runner",
+                "started",
+                json!({ "poll_secs": runner_cfg.poll.as_secs(), "mode": "paper" }),
+            );
+            let state = state.clone();
+            tokio::spawn(async move {
+                let mut tick = tokio::time::interval(runner_cfg.poll);
+                tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                loop {
+                    tick.tick().await;
+                    let Some(paper) = &state.paper else { break };
+                    // Los errores ya quedan en el log y en las alertas; se reintenta en el
+                    // próximo tick.
+                    let _ = paper.run_once(&deps, chrono::Utc::now()).await;
+                }
+            });
+        }
+        (Some(_), None) => log.log(
+            Level::Error,
+            "runner",
+            "not_started",
+            json!({ "reason": "el broker simulado no arrancó" }),
+        ),
+        (None, _) => {}
+    }
     let listener = TcpListener::bind(cfg.bind).await?;
     log.log(
         Level::Info,
