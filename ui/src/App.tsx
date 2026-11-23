@@ -13,6 +13,7 @@ import { SignIn } from '@/components/ui/sign-in'
 import { CURRENT_MEMBER, NOTICES } from '@/mocks'
 import { ChartsView, CompetitionView, JournalView, NewsView, OverviewView } from '@/views'
 import { LiquidityView } from '@/views/liquidity'
+import { TerminalView } from '@/views/terminal'
 import { VIEWS } from '@/views/nav'
 import { FundView, GlossaryView, ProposalsView } from '@/views/phase10'
 
@@ -88,6 +89,7 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
           >
             {view === 'panel' && <OverviewView onOpen={select} />}
             {view === 'propuestas' && <ProposalsView member={CURRENT_MEMBER} />}
+            {view === 'terminal' && <TerminalView member={CURRENT_MEMBER} />}
             {view === 'graficos' && <ChartsView />}
             {view === 'liquidez' && <LiquidityView />}
             {view === 'noticias' && <NewsView />}

@@ -63,6 +63,7 @@ export function LiquidityChart({
   levels,
   fvgs,
   imbalance,
+  signals = [],
   height = 440,
   className,
 }: {
@@ -74,6 +75,8 @@ export function LiquidityChart({
   fvgs: FvgEvent[]
   /** `imbalance.v1` por vela: la marca de desplazamiento la trae el motor */
   imbalance: Imbalance[]
+  /** señales del motor (cierre de la vela de la señal y dirección), para marcarlas */
+  signals?: { at: string; side: 'long' | 'short'; label: string }[]
   height?: number
   className?: string
 }) {
@@ -268,6 +271,29 @@ export function LiquidityChart({
             )
           })}
 
+          {/* señales del motor: una línea vertical en la vela de la señal y su rótulo */}
+          {signals.map((sg) => {
+            const x = xAt(sg.at) - slot / 2
+            if (x < 0) return null
+            const color = sg.side === 'long' ? 'var(--chart-up)' : 'var(--chart-down)'
+            return (
+              <g key={`${sg.at}-${sg.side}`} data-signal={sg.side}>
+                <line
+                  x1={x}
+                  x2={x}
+                  y1={top + 14}
+                  y2={top + plotH}
+                  stroke={color}
+                  strokeOpacity={0.35}
+                  strokeDasharray="2 3"
+                />
+                <rect x={x - 3} y={top + 2} width={6} height={6} rx={1.5} fill={color}>
+                  <title>{`Señal ${sg.side === 'long' ? 'larga' : 'corta'}: ${sg.label}`}</title>
+                </rect>
+              </g>
+            )
+          })}
+
           {/* niveles: desde que existen hasta la vela que cambió su estado */}
           {shownLevels.map((l) => {
             const v = Number(l.price)
@@ -379,6 +405,13 @@ export function LiquidityChart({
           FVG lleno o vencido
         </li>
         <li>▲ ▼ vela de desplazamiento</li>
+        {signals.length > 0 && (
+          <li className="flex items-center gap-1.5">
+            <span className="inline-block size-2 rounded-[2px] bg-up" aria-hidden />
+            <span className="inline-block size-2 rounded-[2px] bg-down" aria-hidden />
+            señal del motor
+          </li>
+        )}
       </ul>
     </div>
   )

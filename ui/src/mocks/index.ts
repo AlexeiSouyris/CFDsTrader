@@ -584,3 +584,5 @@ export const FUND = {
 }
 
 export * from './liquidity'
+
+export * from './terminal'
