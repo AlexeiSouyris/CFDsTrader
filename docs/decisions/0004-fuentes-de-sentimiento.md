@@ -4,6 +4,7 @@
 - **Fecha:** 2026-11-20 (actualizada el 21-11-2026: enfoque de medidas propias)
 - **Aprobada por:** las dos personas, el 21-11-2026 (informado por el dueño)
 - **Issue:** #26 (relacionado: #25, #27, ADR 0003 §C.4)
+- **Reemplazada en parte por:** el [ADR 0012](0012-tesoro-y-vix.md) (23-11-2026), solo para los cierres diarios del VIX (decisión 4), que entran por decisión del dueño. El ratio put/call y el resto siguen vigentes.
 
 ## Contexto
 
