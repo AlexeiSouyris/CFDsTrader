@@ -5,9 +5,13 @@
  * Sigue el estilo de `trading-chart.tsx` (SVG propio, sin librería de gráficos). **No calcula
  * nada:** ni niveles, ni estados, ni zonas. Solo los ubica en pantalla; `Number()` se usa para la
  * posición y los textos se muestran tal cual llegan.
+ *
+ * Lleva la herramienta de medición (#281, `chart-measure.tsx`): una medición visual del usuario
+ * sobre la escala del eje Y, no lógica de trading.
  */
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
+import { useChartMeasure } from '@/components/ui/chart-measure'
 import { Segmented } from '@/components/ui/segmented'
 import { dateTimeUtc, dateUtc, decimal } from '@/lib/format'
 import { fvgKey, levelKey, levelName, levelShort, STATE_LABEL } from '@/lib/liquidity-labels'
@@ -84,6 +88,7 @@ export function LiquidityChart({
   const [range, setRange] = useState(ranges[1].label)
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('Todos')
   const [boxRef, width] = useElementWidth<HTMLDivElement>(720, 300)
+  const svgRef = useRef<SVGSVGElement>(null)
 
   const n = (ranges.find((r) => r.label === range) ?? ranges[1]).bars
   const view = useMemo(() => bars.slice(Math.max(0, bars.length - n)), [bars, n])
@@ -99,6 +104,8 @@ export function LiquidityChart({
   const pad = (hi - lo) * 0.06 || 1
   const yP = (v: number) => top + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * plotH
   const inScale = (v: number) => v >= lo - pad && v <= hi + pad
+  // la inversa de `yP`: el precio a una altura, solo para la herramienta de medición
+  const priceAt = (y: number) => lo - pad + (1 - (y - top) / plotH) * (hi - lo + 2 * pad)
 
   // Ubica una hora (UTC) en el eje x: el borde derecho de las velas que ya cerraron a esa hora.
   // Cuenta velas, no minutos, así que los huecos (noches, fines de semana) no dejan espacio.
@@ -147,6 +154,18 @@ export function LiquidityChart({
     Math.min(count - 1, Math.round((k * (count - 1)) / 3)),
   )
   const last = view[count - 1]
+  const measure = useChartMeasure(svgRef, {
+    width,
+    height,
+    plotW,
+    top,
+    bottom: top + plotH,
+    slot,
+    starts: view.map((b) => b.start),
+    priceAt,
+    yOf: yP,
+    digits: (last?.close.split('.')[1] ?? '').length,
+  })
 
   return (
     <div className={cn('w-full', className)}>
@@ -184,12 +203,14 @@ export function LiquidityChart({
 
       <div ref={boxRef} className="relative w-full">
         <svg
+          ref={svgRef}
           width={width}
           height={height}
           viewBox={`0 0 ${width} ${height}`}
           role="img"
           aria-label={`${instrument}, ${count} ${TF_LABEL[timeframe].long[count === 1 ? 0 : 1]} con ${shownLevels.length} niveles de liquidez y ${shownFvgs.length} FVG.`}
-          className="block w-full select-none"
+          className="block w-full touch-none select-none"
+          {...measure.handlers}
         >
           {ticks.map((t) => (
             <g key={t}>
@@ -367,6 +388,8 @@ export function LiquidityChart({
               </text>
             ) : null,
           )}
+
+          {measure.overlay}
         </svg>
       </div>
 
@@ -405,6 +428,7 @@ export function LiquidityChart({
           FVG lleno o vencido
         </li>
         <li>▲ ▼ vela de desplazamiento</li>
+        <li>Arrastrá sobre el precio para medir; un clic o Esc la borra</li>
         {signals.length > 0 && (
           <li className="flex items-center gap-1.5">
             <span className="inline-block size-2 rounded-[2px] bg-up" aria-hidden />
