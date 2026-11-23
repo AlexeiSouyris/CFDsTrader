@@ -1,0 +1,86 @@
+//! Arma y guarda las velas diarias de los futuros (#282) desde las velas de 15m ya armadas
+//! (`futures_candles`, ejemplo `futures_candles`). No usa IG ni Databento: solo PostgreSQL.
+//!
+//! ```text
+//! DATABASE_URL=... cargo run -p cfds-ingest --example futures_daily
+//! ```
+//! - Misma ventana que las diarias de IG: de medianoche a medianoche en `daily_timezone`
+//!   (`config/candle_sources.toml`), solo los días con sesión según el calendario del CFD
+//!   (`config/sessions.toml` y los feriados), y solo días cerrados dentro de lo bajado.
+//! - El día del vencimiento (calendario de #270) usa solo el contrato nuevo.
+//! - Se guardan en `daily_candles` bajo el instrumento derivado (por ejemplo `US500.FUT`): nunca
+//!   pisan las diarias de IG. Después, `daily_indicators -- --fuente futuros` les calcula los
+//!   indicadores.
+//! - Es idempotente: una diaria ya guardada e idéntica cuenta como "ya estaba", y una distinta es
+//!   un error (sería repintado).
+
+use std::path::PathBuf;
+
+use cfds_core::{InstrumentId, Timeframe};
+use cfds_market_data::{CandleSource, CandleSources, Catalog, ExchangeCalendar, futures_daily};
+use cfds_storage::PgStore;
+use chrono::Utc;
+
+const CATALOG: &str = include_str!("../../../../config/instruments.toml");
+const SOURCES: &str = include_str!("../../../../config/candle_sources.toml");
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let catalog = Catalog::from_toml(CATALOG)?;
+    let sources = CandleSources::from_toml(SOURCES)?;
+    let config_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../config");
+    let calendar = ExchangeCalendar::load(&config_dir, catalog.exchange_map())?;
+    let store = PgStore::connect(&std::env::var("DATABASE_URL")?).await?;
+    store.migrate().await?;
+    let now = Utc::now();
+    let mut failed = 0;
+    for (id, spec) in &catalog.instruments {
+        let r: Result<(), Box<dyn std::error::Error>> = async {
+            let Some((from, to)) = store
+                .futures_loaded_range(&sources.futures_source, id)
+                .await?
+            else {
+                println!("{id}: sin barras de futuros bajadas");
+                return Ok(());
+            };
+            let until = to.min(now);
+            let m15 = store
+                .futures_candles(&sources.futures_source, id, Timeframe::M15, from, until)
+                .await?;
+            let session = calendar.session_for(id).ok_or("instrumento sin bolsa")?;
+            let rolls = sources.roll_instants(id, session, &m15)?;
+            let out: InstrumentId = sources.instrument_for(CandleSource::Futures, id)?;
+            let daily = futures_daily(&m15, &out, session, sources.daily_tz, &rolls, until);
+            if daily.is_empty() {
+                println!("{out}: sin días cerrados con velas");
+                return Ok(());
+            }
+            store
+                .upsert_instrument(
+                    &sources.derived_instrument(CandleSource::Futures, &spec.instrument)?,
+                )
+                .await?;
+            let saved = store.insert_daily(&daily).await?;
+            println!(
+                "{out} ({}): {} diarias del {} al {} ({} vencimientos) → {} nuevas, {} ya estaban",
+                sources.label(CandleSource::Futures),
+                daily.len(),
+                daily[0].day,
+                daily[daily.len() - 1].day,
+                rolls.len(),
+                saved.inserted,
+                saved.unchanged
+            );
+            Ok(())
+        }
+        .await;
+        if let Err(e) = r {
+            failed += 1;
+            eprintln!("⚠️  {id}: {e}");
+        }
+    }
+    if failed > 0 {
+        return Err(format!("{failed} instrumentos con errores").into());
+    }
+    Ok(())
+}

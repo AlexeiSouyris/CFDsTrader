@@ -46,8 +46,13 @@ def load_points(
     realized_vol_window: int,
     atr_period: int,
     drawdown_window: int,
+    price_instrument: str | None = None,
 ) -> dict[str, list[Point]]:
-    """Los datos crudos de cada componente con datos de `instrument`."""
+    """Los datos crudos de cada componente con datos de `instrument`. Las medidas de precio
+    (volatilidad realizada y caída desde el máximo) salen de `price_instrument` si viene: con la
+    fuente de futuros (#282), el instrumento derivado (por ejemplo `US500.FUT`). El COT es
+    siempre del instrumento."""
+    price = price_instrument or instrument
     cot_rows = conn.execute(
         """
         SELECT series, observed_for, published_at, value FROM sentiment_observations
@@ -62,7 +67,7 @@ def load_points(
           AND realized_vol IS NOT NULL
         ORDER BY day
         """,
-        (instrument, realized_vol_window, atr_period),
+        (price, realized_vol_window, atr_period),
     ).fetchall()
     dd = conn.execute(
         """
@@ -70,7 +75,7 @@ def load_points(
         WHERE instrument_id = %s AND drawdown_window = %s AND drawdown IS NOT NULL
         ORDER BY day
         """,
-        (instrument, drawdown_window),
+        (price, drawdown_window),
     ).fetchall()
     return {
         "cot": cot_points((s, o, p, v) for s, o, p, v in cot_rows),

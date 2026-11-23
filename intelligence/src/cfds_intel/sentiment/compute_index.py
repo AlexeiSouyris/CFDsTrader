@@ -1,8 +1,12 @@
 """Calcula y guarda el índice de sentimiento v1 (spec §9.1, #213) de US500, US100 y US30.
 
 ```text
-DATABASE_URL=... uv run python -m cfds_intel.sentiment.compute_index
+DATABASE_URL=... uv run python -m cfds_intel.sentiment.compute_index [--fuente futuros]
 ```
+Con `--fuente futuros` (#282), la volatilidad realizada y la caída desde el máximo salen de las
+diarias de los futuros (instrumento derivado de `config/candle_sources.toml`, por ejemplo
+`US500.FUT`) y el índice se guarda bajo ese id: rotulado y sin mezclarse con el del CFD. El COT
+es el mismo.
 Lee los datos crudos de PostgreSQL (COT, volatilidad realizada y caída desde el máximo), arma el
 índice cada vez que un componente publicó un dato y guarda lo nuevo en `sentiment_index`. Es
 idempotente: lo ya guardado e idéntico cuenta como "ya estaban". Si un valor ya guardado diera
@@ -17,6 +21,7 @@ from pathlib import Path
 
 import psycopg
 
+from cfds_intel.analogs.data import futures_suffix
 from cfds_intel.sentiment.index import index_series, load_config
 from cfds_intel.sentiment.index_store import insert_index, load_points
 from cfds_intel.sentiment.states import index_states, load_states_config
@@ -37,14 +42,22 @@ def daily_windows(indicators_toml: str) -> tuple[int, int, int]:
         raise ValueError(f"config/indicators.toml [daily] incompleto: {e!r}") from e
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    args = sys.argv[1:] if argv is None else argv
+    if args not in ([], ["--fuente", "ig"], ["--fuente", "futuros"], ["--fuente", "futures"]):
+        print("uso: python -m cfds_intel.sentiment.compute_index [--fuente ig|futuros]")
+        return 2
+    futures = len(args) == 2 and args[1] in ("futuros", "futures")
+    suffix = futures_suffix((CONFIG / "candle_sources.toml").read_text()) if futures else ""
+    print("medidas de precio:", "futuros (diarias de Databento)" if futures else "IG CFD")
     text = (CONFIG / "sentiment.toml").read_text()
     cfg = load_config(text)
     states_cfg = load_states_config(text)
     vol_window, atr_period, dd_window = daily_windows((CONFIG / "indicators.toml").read_text())
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
-        for instrument in cfg.instruments:
-            data = load_points(conn, instrument, vol_window, atr_period, dd_window)
+        for base in cfg.instruments:
+            instrument = base + suffix
+            data = load_points(conn, base, vol_window, atr_period, dd_window, instrument)
             counts = ", ".join(f"{k} {len(v)}" for k, v in data.items())
             emitted, skipped = index_series(instrument, data, cfg)
             r = insert_index(conn, emitted)

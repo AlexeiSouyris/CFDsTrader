@@ -2,8 +2,12 @@
 //! máximo (#213, spec §9.1) y el tercio de la volatilidad (spec §13, spec ML §3) de todos los instrumentos del catálogo que tengan diarias guardadas. No usa IG ni gasta cupo.
 //!
 //! ```text
-//! DATABASE_URL=... cargo run -p cfds-ingest --example daily_indicators
+//! DATABASE_URL=... cargo run -p cfds-ingest --example daily_indicators [-- --fuente futuros]
 //! ```
+//! Con `--fuente futuros` (#282) usa las diarias armadas desde los futuros (ejemplo
+//! `futures_daily`), guardadas bajo el instrumento derivado (por ejemplo `US500.FUT`), y guarda
+//! los indicadores bajo ese mismo id: mismo cálculo, sin mezclar con los del CFD de IG. La sesión
+//! de cada día es la del CFD.
 //! Es idempotente: lo ya guardado e idéntico cuenta como "ya estaban". Si un valor recalculado
 //! diera distinto, frena con error (sería repintado) y no guarda nada de ese instrumento.
 
@@ -11,16 +15,27 @@ use std::path::PathBuf;
 
 use cfds_indicators::DailyConfig;
 use cfds_ingest::{daily_drawdowns, daily_indicators, daily_vol_terciles};
-use cfds_market_data::{Catalog, ExchangeCalendar};
+use cfds_market_data::{CandleSource, CandleSources, Catalog, ExchangeCalendar};
 use cfds_storage::PgStore;
 use chrono::{NaiveDate, Utc};
 
 const CATALOG: &str = include_str!("../../../../config/instruments.toml");
 const INDICATORS: &str = include_str!("../../../../config/indicators.toml");
+const SOURCES: &str = include_str!("../../../../config/candle_sources.toml");
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let catalog = Catalog::from_toml(CATALOG)?;
+    let sources = CandleSources::from_toml(SOURCES)?;
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let source = match args.iter().position(|a| a == "--fuente") {
+        None => CandleSource::Ig,
+        Some(i) => args
+            .get(i + 1)
+            .and_then(|s| CandleSource::parse(s))
+            .ok_or("uso: [--fuente ig|futuros]")?,
+    };
+    println!("diarias: {}", sources.label(source));
     let cfg = DailyConfig::from_toml(INDICATORS)?;
     let config_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../config");
     let calendar = ExchangeCalendar::load(&config_dir, catalog.exchange_map())?;
@@ -31,7 +46,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Utc::now().date_naive().succ_opt().ok_or("fecha")?,
     );
     let now = Utc::now();
-    for id in catalog.instruments.keys() {
+    for base in catalog.instruments.keys() {
+        // Con futuros, las diarias y los indicadores son del instrumento derivado.
+        let id = &sources.instrument_for(source, base)?;
         let days: Vec<_> = store
             .daily_candles(id, from, to)
             .await?
@@ -42,7 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("{id}: sin velas diarias guardadas");
             continue;
         }
-        let session = calendar.session_for(id).ok_or("instrumento sin bolsa")?;
+        let session = calendar.session_for(base).ok_or("instrumento sin bolsa")?;
         let rows = daily_indicators(&days, session, &cfg)
             .map_err(|d| format!("{id}: el calendario de sesiones no cubre el {d}"))?;
         let ready = rows

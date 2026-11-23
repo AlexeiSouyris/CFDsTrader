@@ -50,6 +50,8 @@ pub struct CandleSources {
     pub futures_source: String,
     pub futures_label: String,
     pub id_suffix: String,
+    /// Zona de la ventana de las diarias de los futuros (#282), la misma que las de IG.
+    pub daily_tz: chrono_tz::Tz,
     /// Meses de vencimiento de los futuros (1–12).
     pub expiry_months: Vec<u32>,
     /// Qué día el continuo ya es el contrato nuevo, por instrumento (CFD).
@@ -85,6 +87,7 @@ struct RawFutures {
     source: String,
     label: String,
     id_suffix: String,
+    daily_timezone: String,
     expiry_months: Vec<u32>,
     roll: BTreeMap<InstrumentId, RollDay>,
 }
@@ -125,8 +128,15 @@ impl CandleSources {
         {
             return Err("futures.expiry_months: meses de 1 a 12, en orden y sin repetir".into());
         }
+        let daily_tz: chrono_tz::Tz = r.futures.daily_timezone.parse().map_err(|_| {
+            format!(
+                "futures.daily_timezone desconocida: {}",
+                r.futures.daily_timezone
+            )
+        })?;
         Ok(Self {
             ig_label: r.ig.label,
+            daily_tz,
             futures_source: r.futures.source,
             futures_label: r.futures.label,
             id_suffix: r.futures.id_suffix,
@@ -271,6 +281,19 @@ mod tests {
     }
 
     #[test]
+    fn futures_dailies_use_the_same_day_as_ig_dailies() {
+        let ig: toml::Table = toml::from_str(include_str!("../../../../config/ig.toml")).unwrap();
+        let prices = ig
+            .values()
+            .filter_map(|v| v.as_table())
+            .find_map(|t| t.get("prices_timezone"))
+            .and_then(|v| v.as_str())
+            .unwrap();
+        let c = CandleSources::from_toml(REAL).unwrap();
+        assert_eq!(c.daily_tz.name(), prices);
+    }
+
+    #[test]
     fn rejects_invalid_values() {
         for (from, to) in [
             (r#"id_suffix = ".FUT""#, r#"id_suffix = "fut""#),
@@ -280,6 +303,10 @@ mod tests {
             ("expiry_months = [3, 6, 9, 12]", "expiry_months = [3, 13]"),
             ("expiry_months = [3, 6, 9, 12]", "expiry_months = [6, 3]"),
             (r#"DE40 = "on_expiry_day""#, r#"DE40 = "monday""#),
+            (
+                r#"daily_timezone = "Europe/Madrid""#,
+                r#"daily_timezone = "Madrid""#,
+            ),
             ("[futures]", "[futuros]"),
         ] {
             let text = REAL.replace(from, to);
