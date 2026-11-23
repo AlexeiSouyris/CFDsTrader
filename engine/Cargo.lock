@@ -282,7 +282,9 @@ version = "0.1.0"
 dependencies = [
  "cfds-core",
  "cfds-indicators",
+ "cfds-liquidity",
  "cfds-market-data",
+ "cfds-patterns",
  "cfds-storage",
  "chrono",
  "redis",
@@ -386,6 +388,7 @@ dependencies = [
  "chrono",
  "redis",
  "rust_decimal",
+ "serde",
  "serde_json",
  "sqlx",
  "thiserror",

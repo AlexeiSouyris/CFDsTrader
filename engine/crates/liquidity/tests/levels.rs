@@ -387,13 +387,25 @@ fn a_level_expires_after_max_age_bars_without_changing_its_state() {
     c.extend(more);
     let all = levels(&c);
     let pdh = of(&all, Kind::Pdh)[0];
-    assert_eq!((pdh.price, pdh.state), (dec!(110), State::Intact));
     let born = c.iter().position(|k| k.end() == pdh.exists_from).unwrap();
-    assert!(!is_active_at(pdh, &c, born - 1, cfg.levels.max_age_bars));
-    assert!(is_active_at(pdh, &c, born, cfg.levels.max_age_bars));
+    // Vence al cierre de la vela número max_age_bars desde que existe.
     let expiry = born + cfg.levels.max_age_bars;
-    assert!(is_active_at(pdh, &c, expiry - 1, cfg.levels.max_age_bars));
-    assert!(!is_active_at(pdh, &c, expiry, cfg.levels.max_age_bars));
+    assert_eq!(
+        (pdh.price, pdh.state, pdh.state_changed_at, pdh.expired_at),
+        (dec!(110), State::Intact, None, Some(c[expiry].end()))
+    );
+    assert!(!is_active_at(pdh, c[born - 1].end()));
+    assert!(is_active_at(pdh, c[born].end()));
+    assert!(is_active_at(pdh, c[expiry - 1].end()));
+    assert!(!is_active_at(pdh, c[expiry].end()));
+    // Con una vela menos todavía no venció.
+    let before = levels(&c[..expiry]);
+    assert_eq!(of(&before, Kind::Pdh)[0].expired_at, None);
+    // Un nivel barrido o roto no vence.
+    assert!(
+        all.iter()
+            .all(|l| l.state == State::Intact || l.expired_at.is_none())
+    );
 }
 
 /// Serie de dos semanas con ondas, pivotes, máximos iguales, barridos y rupturas.
@@ -440,6 +452,7 @@ fn adding_candles_never_repaints_the_past() {
     }
     assert!(full.iter().any(|l| l.state == State::Swept));
     assert!(full.iter().any(|l| l.state == State::Broken));
+    assert!(full.iter().any(|l| l.expired_at.is_some()));
     for n in (1..c.len()).step_by(7) {
         let now = c[n - 1].end();
         let part = levels(&c[..n]);
@@ -451,9 +464,10 @@ fn adding_candles_never_repaints_the_past() {
                 (f.kind, f.session, f.price, f.exists_from),
                 "con {n} velas"
             );
-            if p.state == State::Intact {
-                // Lo único que puede pasar después es que cambie con una vela posterior.
+            if p.state == State::Intact && p.expired_at.is_none() {
+                // Lo único que puede pasar después es que cambie o venza con una vela posterior.
                 assert!(f.state_changed_at.is_none_or(|t| t > now), "con {n} velas");
+                assert!(f.expired_at.is_none_or(|t| t > now), "con {n} velas");
             } else {
                 assert_eq!(p, f, "con {n} velas");
             }

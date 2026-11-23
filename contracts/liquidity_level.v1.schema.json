@@ -43,6 +43,13 @@
         { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" },
         { "type": "null" }
       ]
+    },
+    "expired_at": {
+      "description": "Opcional (agregado sin romper v1, #231). Cierre (UTC) de la vela número `max_age_bars` (config/liquidity.toml [levels]) desde `exists_from`, si el nivel llegó intacto hasta ahí: desde ese momento ya no está activo. Ausente o null si no venció. Solo en niveles intactos; siempre posterior a `exists_from`.",
+      "oneOf": [
+        { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" },
+        { "type": "null" }
+      ]
     }
   },
   "allOf": [
@@ -54,7 +61,7 @@
     {
       "if": { "properties": { "state": { "const": "intact" } } },
       "then": { "properties": { "state_changed_at": { "type": "null" } } },
-      "else": { "properties": { "state_changed_at": { "type": "string" } } }
+      "else": { "properties": { "state_changed_at": { "type": "string" }, "expired_at": { "type": "null" } } }
     }
   ]
 }

@@ -669,6 +669,7 @@ fn sample_liquidity_level(
         exists_from: "2026-11-19T21:00:00Z".parse().unwrap(),
         state,
         state_changed_at: (state != Intact).then(|| "2026-11-20T14:45:00Z".parse().unwrap()),
+        expired_at: None,
     }
 }
 
@@ -699,6 +700,15 @@ fn liquidity_level_roundtrips_through_the_contract() {
     assert_eq!(json["kind"], json!("session_high"));
     assert_eq!(json["session"], json!("ny"));
     assert_eq!(json["state_changed_at"], Value::Null);
+    // `expired_at` es opcional: no se escribe si no venció, y un documento sin él es válido.
+    assert!(json.get("expired_at").is_none());
+    let mut expired = sample_liquidity_level(K::Eqh, None, S::Intact);
+    expired.expired_at = Some("2026-11-25T10:00:00Z".parse().unwrap());
+    assert_roundtrip(schema, &expired);
+    let mut d = serde_json::to_value(sample_liquidity_level(K::Eqh, None, S::Intact)).unwrap();
+    d["expired_at"] = Value::Null;
+    assert!(validator(schema).is_valid(&d));
+    assert!(serde_json::from_value::<cfds_core::LiquidityLevel>(d).is_ok());
 }
 
 #[test]
@@ -729,6 +739,14 @@ fn contract_and_rust_reject_the_same_bad_liquidity_levels() {
     let mut d = doc();
     d["state"] = json!("intact"); // intacto con fecha de cambio
     cases.push(d);
+    let mut d = doc();
+    d["expired_at"] = json!("2026-11-25T10:00:00Z"); // un nivel roto no vence
+    cases.push(d);
+    let mut d = doc();
+    d["state"] = json!("intact");
+    d["state_changed_at"] = Value::Null;
+    d["expired_at"] = json!("2026-11-25"); // sin hora ni Z
+    cases.push(d);
     for key in ["session", "state_changed_at"] {
         let mut d = doc();
         d.as_object_mut().unwrap().remove(key);
@@ -744,6 +762,10 @@ fn rust_also_rejects_a_state_change_before_the_level_exists() {
     use cfds_core::{LiquidityLevelKind as K, LiquidityLevelState as S};
     let mut d = serde_json::to_value(sample_liquidity_level(K::Eql, None, S::Swept)).unwrap();
     d["state_changed_at"] = d["exists_from"].clone();
+    assert!(validator("liquidity_level.v1.schema.json").is_valid(&d));
+    assert!(serde_json::from_value::<cfds_core::LiquidityLevel>(d).is_err());
+    let mut d = serde_json::to_value(sample_liquidity_level(K::Eql, None, S::Intact)).unwrap();
+    d["expired_at"] = d["exists_from"].clone();
     assert!(validator("liquidity_level.v1.schema.json").is_valid(&d));
     assert!(serde_json::from_value::<cfds_core::LiquidityLevel>(d).is_err());
 }
