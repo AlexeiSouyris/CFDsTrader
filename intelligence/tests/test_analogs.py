@@ -23,7 +23,6 @@ from cfds_intel.analogs.search import (
     nearest_rank,
     rate_at,
     rates_trend,
-    vol_band,
     zscore,
 )
 
@@ -48,7 +47,7 @@ def bars(closes: list[str], first: date = date(2024, 1, 1), atr: str | None = "1
                 low=close - Decimal("0.5"),
                 close=close,
                 atr=Decimal(atr) if atr else None,
-                realized_vol=None,
+                vol_tercile=None,
             )
         )
     return out
@@ -61,7 +60,7 @@ def test_real_configs_load() -> None:
     assert (CFG.window, CFG.dtw_band, CFG.neighbors, CFG.horizons) == (20, 2, 20, (1, 5, 20))
     assert CFG.max_horizon == 20
     indicators = (ROOT / "config" / "indicators.toml").read_text()
-    assert daily_params(indicators) == (14, 20)
+    assert daily_params(indicators) == (14, 20, 3)
     assert benchmarks((ROOT / "config" / "instruments.toml").read_text()) == {"DE40": "ESTR"}
 
 
@@ -160,20 +159,15 @@ def test_nearest_rank_percentiles() -> None:
 # ---------- contexto ----------
 
 
-def test_vol_band_needs_full_years_of_history() -> None:
-    def bar(d: date, vol: str) -> Bar:
-        return replace(bars(["100"], first=d)[0], realized_vol=Decimal(vol))
-
-    query = bar(date(2024, 1, 10), "5")
-    december = [bar(date(2023, 12, i), str(i)) for i in range(1, 10)]  # 1 a 9
-    # Solo diciembre: no llega a un año completo de historia.
-    assert vol_band([*december, query], 9, 1) is None
-    # Con un dato de hace más de un año, alcanza: 4 de los 9 de diciembre están por debajo de
-    # 5 (el dato viejo queda fuera de la ventana de un año). 4/9 es el segundo tercio.
-    old = bar(date(2022, 12, 1), "100")
-    assert vol_band([old, *december, query], 10, 1) == "media"
-    # Historia que existe pero toda fuera de la ventana: sin dato, no una división por cero.
-    assert vol_band([old, query], 1, 1) is None
+def test_the_vol_context_is_the_tercile_from_rust() -> None:
+    # El contexto toma el tercio que guardó Rust (`daily_vol_terciles`) tal cual: no lo calcula.
+    b = bars([str(100 + i % 7) for i in range(40)])
+    b = [replace(x, vol_tercile="mid") for x in b]
+    b[-1] = replace(b[-1], vol_tercile="high")
+    r = analyze({"US500": b}, {}, "US500", len(b) - 1, SMALL)
+    assert r.context.vol == "high"
+    b[-1] = replace(b[-1], vol_tercile=None)
+    assert analyze({"US500": b}, {}, "US500", len(b) - 1, SMALL).context.vol is None
 
 
 def test_rate_in_force_uses_the_newest_published_day() -> None:

@@ -20,7 +20,6 @@ class AnalogsConfig:
     r_down: Decimal
     r_horizon: int
     percentiles: tuple[int, ...]
-    vol_history_years: int
     rates_lookback: int
     rates_threshold_pp: Decimal
 
@@ -70,7 +69,6 @@ def load_config(text: str) -> AnalogsConfig:
         r_down=r_down,
         r_horizon=_pos_int(out, "r_horizon"),
         percentiles=tuple(pcts),
-        vol_history_years=_pos_int(ctx, "vol_history_years"),
         rates_lookback=_pos_int(ctx, "rates_lookback"),
         rates_threshold_pp=threshold,
     )

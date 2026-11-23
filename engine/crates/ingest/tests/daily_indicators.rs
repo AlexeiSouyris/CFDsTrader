@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use cfds_core::{DailyCandle, InstrumentId};
 use cfds_indicators::{DailyConfig, wilder_atr};
-use cfds_ingest::{daily_drawdowns, daily_indicators};
+use cfds_ingest::{daily_drawdowns, daily_indicators, daily_vol_terciles};
 use cfds_market_data::ExchangeCalendar;
 use chrono::{DateTime, NaiveDate, TimeDelta, Utc};
 use rust_decimal::{Decimal, dec};
@@ -25,6 +25,7 @@ fn cfg() -> DailyConfig {
         atr_period: 2,
         realized_vol_window: 2,
         drawdown_window: 2,
+        vol_tercile_years: 1,
     }
 }
 
@@ -129,6 +130,36 @@ fn drawdown_uses_the_same_session_days_and_the_end_of_the_candle() {
     let outside = days("1990-01-02", &[dec!(100)]);
     assert_eq!(
         daily_drawdowns(&outside, session, &cfg()),
+        Err("1990-01-02".parse().unwrap())
+    );
+}
+
+#[test]
+fn vol_terciles_use_the_same_session_days_and_volatility() {
+    let cal = calendar();
+    let session = cal.session_for(&de40()).unwrap();
+    // Casi dos años de diarias seguidas (fines de semana y feriados incluidos, que no cuentan).
+    let closes: Vec<Decimal> = (0..700)
+        .map(|i| Decimal::from(1000 + (i * 7919) % 97))
+        .collect();
+    let d = days("2024-01-01", &closes);
+    let rows = daily_vol_terciles(&d, session, &cfg()).unwrap();
+    let ind = daily_indicators(&d, session, &cfg()).unwrap();
+    // Una fila por día con sesión, con su misma publicación y la misma volatilidad.
+    assert_eq!(rows.len(), ind.len());
+    for (r, i) in rows.iter().zip(&ind) {
+        assert_eq!((r.day, r.published_at), (i.day, i.published_at));
+        assert_eq!((r.realized_vol_window, r.history_years), (2, 1));
+    }
+    let series: Vec<_> = ind.iter().map(|i| (i.day, i.realized_vol)).collect();
+    let expected = cfds_indicators::vol_terciles(&series, 1);
+    assert_eq!(rows.iter().map(|r| r.tercile).collect::<Vec<_>>(), expected);
+    // El primer año no tiene historia completa; después sí hay tercios.
+    assert!(rows.iter().take(200).all(|r| r.tercile.is_none()));
+    assert!(rows.iter().filter(|r| r.tercile.is_some()).count() > 150);
+    let outside = days("1990-01-02", &[dec!(100)]);
+    assert_eq!(
+        daily_vol_terciles(&outside, session, &cfg()),
         Err("1990-01-02".parse().unwrap())
     );
 }

@@ -1,5 +1,5 @@
 {
- "description": "Tercio de la volatilidad realizada (spec §13, ml_features.v1): el mismo resultado en Rust (cfds_journal::ml_features::vol_tercile) y en Python (cfds_intel.analogs.search.vol_band). Días hábiles consecutivos desde `start`, publicados a las 21:00 UTC de su día.",
+ "description": "Tercio de la volatilidad realizada (spec §13, daily_vol_tercile.v1, cfds_indicators::vol_terciles). Los valores esperados salieron de la implementación de Python de los análogos (#148) antes de borrarla (#158): este fixture guarda que la definición no cambió al moverla a Rust. Días hábiles consecutivos desde `start`, publicados a las 21:00 UTC de su día; cada consulta usa el último día publicado hasta `as_of`.",
  "years": 1,
  "start": "2023-01-02",
  "published_hour_utc": 21,

@@ -6,9 +6,12 @@
 //! - Si el calendario no cubre un día, no se supone nada: se devuelve ese día como error.
 //! - `published_at` = fin de la vela diaria: el valor no existe antes (CLAUDE.md §5b).
 //! - La caída desde el máximo (#213, spec §9.1) sale de los mismos días con sesión.
+//! - El tercio de la volatilidad (spec §13, spec ML §3) sale de la volatilidad de esos días.
 
-use cfds_core::{DailyCandle, DailyDrawdown, DailyIndicator};
-use cfds_indicators::{DailyConfig, drawdown_from_high, realized_volatility, wilder_atr};
+use cfds_core::{DailyCandle, DailyDrawdown, DailyIndicator, DailyVolTercile};
+use cfds_indicators::{
+    DailyConfig, drawdown_from_high, realized_volatility, vol_terciles, wilder_atr,
+};
 use cfds_market_data::Session;
 use chrono::NaiveDate;
 
@@ -61,6 +64,31 @@ pub fn daily_drawdowns(
             published_at: d.end,
             drawdown_window: window,
             drawdown,
+        })
+        .collect())
+}
+
+/// Tercio de la volatilidad realizada (`daily_vol_tercile.v1`) de cada día con sesión, frente
+/// a los `vol_tercile_years` años anteriores, con la misma volatilidad que
+/// [`daily_indicators`]. `Err(día)` si el calendario de sesiones no cubre ese día.
+pub fn daily_vol_terciles(
+    days: &[DailyCandle],
+    session: &Session,
+    cfg: &DailyConfig,
+) -> Result<Vec<DailyVolTercile>, NaiveDate> {
+    let rows = daily_indicators(days, session, cfg)?;
+    let series: Vec<_> = rows.iter().map(|r| (r.day, r.realized_vol)).collect();
+    let terciles = vol_terciles(&series, cfg.vol_tercile_years);
+    Ok(rows
+        .into_iter()
+        .zip(terciles)
+        .map(|(r, tercile)| DailyVolTercile {
+            instrument_id: r.instrument_id,
+            day: r.day,
+            published_at: r.published_at,
+            realized_vol_window: r.realized_vol_window,
+            history_years: cfg.vol_tercile_years,
+            tercile,
         })
         .collect())
 }

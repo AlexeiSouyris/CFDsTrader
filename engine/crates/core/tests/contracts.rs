@@ -602,3 +602,55 @@ fn contract_and_rust_reject_the_same_bad_daily_drawdowns() {
         assert_both_reject::<cfds_core::DailyDrawdown>(schema, d);
     }
 }
+
+fn sample_vol_tercile(t: Option<cfds_core::VolTercile>) -> cfds_core::DailyVolTercile {
+    cfds_core::DailyVolTercile {
+        instrument_id: "US500".parse().unwrap(),
+        day: "2022-03-08".parse().unwrap(),
+        published_at: "2022-03-08T23:00:00Z".parse().unwrap(),
+        realized_vol_window: 20,
+        history_years: 3,
+        tercile: t,
+    }
+}
+
+#[test]
+fn daily_vol_tercile_roundtrips_through_the_contract() {
+    use cfds_core::VolTercile;
+    let schema = "daily_vol_tercile.v1.schema.json";
+    for t in [
+        None,
+        Some(VolTercile::Low),
+        Some(VolTercile::Mid),
+        Some(VolTercile::High),
+    ] {
+        assert_roundtrip(schema, &sample_vol_tercile(t));
+    }
+}
+
+#[test]
+fn contract_and_rust_reject_the_same_bad_daily_vol_terciles() {
+    let schema = "daily_vol_tercile.v1.schema.json";
+    let doc = || serde_json::to_value(sample_vol_tercile(None)).unwrap();
+    let mut cases: Vec<Value> = Vec::new();
+    for (key, value) in [
+        ("tercile", json!("medium")),
+        ("tercile", json!("LOW")),
+        ("history_years", json!("3")),
+        ("realized_vol_window", json!(-1)),
+        ("day", json!("08-03-2022")),
+        ("published_at", json!("2022-03-09T00:00:00+01:00")),
+        ("instrument_id", json!("us500")),
+        ("extra", json!(1)),
+    ] {
+        let mut d = doc();
+        d[key] = value;
+        cases.push(d);
+    }
+    let mut d = doc();
+    d.as_object_mut().unwrap().remove("tercile");
+    cases.push(d); // tiene que venir, aunque sea null
+    for d in cases {
+        assert_both_reject::<cfds_core::DailyVolTercile>(schema, d);
+    }
+}

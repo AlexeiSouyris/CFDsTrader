@@ -713,6 +713,55 @@ async fn daily_drawdowns_are_idempotent_and_refuse_to_repaint() {
     assert!(update.is_err());
 }
 
+#[tokio::test]
+#[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
+async fn daily_vol_terciles_are_idempotent_read_back_and_refuse_to_repaint() {
+    use cfds_core::{DailyVolTercile, VolTercile};
+    let s = store().await;
+    // La tabla es de solo agregar: un instrumento propio por corrida.
+    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
+    let us = with_instrument(&s, &format!("ITVT{nanos}")).await;
+    let row = |day: &str, tercile: Option<VolTercile>| DailyVolTercile {
+        instrument_id: us.clone(),
+        day: day.parse().unwrap(),
+        published_at: format!("{day}T23:00:00Z").parse().unwrap(),
+        realized_vol_window: 20,
+        history_years: 3,
+        tercile,
+    };
+    let rows = vec![
+        row("2026-11-19", None),
+        row("2026-11-20", Some(VolTercile::High)),
+    ];
+    let first = s.insert_daily_vol_terciles(&rows).await.unwrap();
+    let again = s.insert_daily_vol_terciles(&rows).await.unwrap();
+    assert_eq!((first.inserted, again.unchanged), (2, 2));
+    let day = |d: &str| d.parse::<chrono::NaiveDate>().unwrap();
+    let read = s
+        .daily_vol_terciles(&us, 20, 3, day("2026-11-01"), day("2026-12-01"))
+        .await
+        .unwrap();
+    assert_eq!(read, rows);
+    // Otros parámetros son otra serie.
+    let other = s
+        .daily_vol_terciles(&us, 20, 2, day("2026-11-01"), day("2026-12-01"))
+        .await
+        .unwrap();
+    assert!(other.is_empty());
+
+    let repainted = vec![row("2026-11-20", Some(VolTercile::Mid))];
+    assert!(matches!(
+        s.insert_daily_vol_terciles(&repainted).await,
+        Err(StorageError::DailyIndicatorConflict { .. })
+    ));
+    let update =
+        sqlx::query("UPDATE daily_vol_terciles SET tercile = 'low' WHERE instrument_id = $1")
+            .bind(us.as_str())
+            .execute(s.pool())
+            .await;
+    assert!(update.is_err());
+}
+
 /// Guarda una noticia y su interpretación con SQL directo, como lo hace Python (#186).
 #[allow(clippy::too_many_arguments)]
 async fn put_interpretation(

@@ -1,15 +1,15 @@
 //! Variables de ML de una propuesta (`contracts/ml_features.v1`, docs/spec/ml-v1.md §3 y §8,
-//! #158): contrato, tercio de volatilidad (fixture compartido con Python), franja de sesión, y
-//! que no miren el futuro ni repinten.
+//! #158): contrato, tercio de volatilidad guardado (solo publicado), franja de sesión, y que no
+//! miren el futuro ni repinten.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 
 use cfds_backtest::TradeRecord;
-use cfds_core::{Candle, DailyIndicator, InstrumentId, Timeframe};
+use cfds_core::{Candle, DailyVolTercile, InstrumentId, Timeframe};
+use cfds_indicators::vol_terciles;
 use cfds_journal::ml_features::{
-    FeaturesConfig, MlFeatures, SessionBand, VolTercile, atr14_m15, from_backtest, session_band,
-    vol_tercile,
+    MlFeatures, SessionBand, VolTercile, atr14_m15, from_backtest, session_band, vol_tercile,
 };
 use cfds_market_data::{ExchangeCalendar, Session};
 use cfds_strategy::{Side, TriggerKind};
@@ -38,15 +38,14 @@ fn nyse() -> Session {
     cal.session_for(&us500()).unwrap().clone()
 }
 
-fn daily(day: NaiveDate, hour: u32, vol: Option<Decimal>) -> DailyIndicator {
-    DailyIndicator {
+fn daily(day: NaiveDate, tercile: Option<VolTercile>) -> DailyVolTercile {
+    DailyVolTercile {
         instrument_id: us500(),
         day,
-        published_at: day.and_hms_opt(hour, 0, 0).unwrap().and_utc(),
-        atr_period: 14,
-        atr: None,
+        published_at: day.and_hms_opt(21, 0, 0).unwrap().and_utc(),
         realized_vol_window: 20,
-        realized_vol: vol,
+        history_years: 1,
+        tercile,
     }
 }
 
@@ -70,44 +69,28 @@ fn features_validate_against_their_contract_and_read_back_identical() {
 }
 
 #[test]
-fn the_vol_tercile_matches_the_fixture_shared_with_python() {
-    let path = root().join("intelligence/tests/fixtures/vol_tercile.json");
-    let doc: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
-    let hour = u32::try_from(doc["published_hour_utc"].as_u64().unwrap()).unwrap();
-    let mut day: NaiveDate = doc["start"].as_str().unwrap().parse().unwrap();
-    let mut series = Vec::new();
-    for v in doc["realized_vol"].as_array().unwrap() {
-        while matches!(day.weekday(), Weekday::Sat | Weekday::Sun) {
-            day = day.succ_opt().unwrap();
-        }
-        series.push(daily(day, hour, v.as_str().map(|s| s.parse().unwrap())));
-        day = day.succ_opt().unwrap();
-    }
-    let years = u32::try_from(doc["years"].as_u64().unwrap()).unwrap();
-    let queries = doc["queries"].as_array().unwrap();
-    assert!(queries.len() > 30);
-    for q in queries {
-        let got = vol_tercile(&series, at(q["as_of"].as_str().unwrap()), years);
-        assert_eq!(serde_json::to_value(got).unwrap(), q["expected"], "{q}");
-    }
-}
-
-#[test]
-fn a_daily_value_counts_only_from_its_publication() {
+fn a_daily_tercile_counts_only_from_its_publication() {
     let d = |s: &str| s.parse::<NaiveDate>().unwrap();
-    let mut series = vec![
-        daily(d("2024-01-02"), 21, Some(dec!(0.01))),
-        daily(d("2024-01-03"), 21, Some(dec!(0.02))),
-        daily(d("2024-01-04"), 21, Some(dec!(0.03))),
+    let series = vec![
+        daily(d("2025-01-02"), Some(VolTercile::Low)),
+        daily(d("2025-01-03"), Some(VolTercile::High)),
+        daily(d("2025-01-06"), None),
     ];
-    series.push(daily(d("2025-01-03"), 21, Some(dec!(0.05))));
-    // Antes de publicarse el del 03-01-2025 rige el del 04-01-2024, sin un año de historia.
-    assert_eq!(vol_tercile(&series, at("2025-01-03T20:59:00Z"), 1), None);
-    // Publicado: la historia del año anterior (03-01-2024 y 04-01-2024) es toda menor.
+    assert_eq!(vol_tercile(&series, at("2025-01-02T20:59:00Z")), None);
     assert_eq!(
-        vol_tercile(&series, at("2025-01-03T21:00:00Z"), 1),
+        vol_tercile(&series, at("2025-01-03T20:59:00Z")),
+        Some(VolTercile::Low)
+    );
+    assert_eq!(
+        vol_tercile(&series, at("2025-01-03T21:00:00Z")),
         Some(VolTercile::High)
     );
+    // El fin de semana rige el del viernes; el lunes sin tercio (calentamiento) no tiene dato.
+    assert_eq!(
+        vol_tercile(&series, at("2025-01-05T12:00:00Z")),
+        Some(VolTercile::High)
+    );
+    assert_eq!(vol_tercile(&series, at("2025-01-06T21:00:00Z")), None);
 }
 
 #[test]
@@ -178,33 +161,36 @@ fn trade(m15: &[Candle], t: usize) -> TradeRecord {
     }
 }
 
-/// Dos años de diarias con volatilidad creciente: el último día queda en el tercio alto.
-fn history() -> Vec<DailyIndicator> {
+/// Dos años de tercios (de un año de historia) con volatilidad creciente, como los guarda
+/// `cfds-ingest`: el último día queda en el tercio alto y el primer año, sin dato.
+fn history() -> Vec<DailyVolTercile> {
     let mut day: NaiveDate = "2023-11-01".parse().unwrap();
-    let mut out = Vec::new();
+    let mut series = Vec::new();
     let mut i = 0;
     while day < "2025-11-19".parse().unwrap() {
         if !matches!(day.weekday(), Weekday::Sat | Weekday::Sun) {
-            out.push(daily(day, 21, Some(Decimal::new(100 + i, 4))));
+            series.push((day, Some(Decimal::new(100 + i, 4))));
             i += 1;
         }
         day = day.succ_opt().unwrap();
     }
-    out
+    let terciles = vol_terciles(&series, 1);
+    series
+        .iter()
+        .zip(terciles)
+        .map(|((d, _), t)| daily(*d, t))
+        .collect()
 }
 
 #[test]
 fn features_use_nothing_after_the_signal_and_never_repaint() {
     let s = nyse();
-    let cfg = FeaturesConfig {
-        vol_history_years: 1,
-    };
     // La vela 20 cierra a las 17:15 UTC: 165 min después de la apertura (tercio medio).
     let m15 = candles("2025-11-19T12:00:00Z", 40, Decimal::ZERO);
     let t = 20;
     let tr = trade(&m15, t);
-    let feats = |m15: &[Candle], daily: &[DailyIndicator]| {
-        from_backtest("bt-ml", &us500(), &tr, &atr14_m15(m15), daily, &s, &cfg)
+    let feats = |m15: &[Candle], daily: &[DailyVolTercile]| {
+        from_backtest("bt-ml", &us500(), &tr, &atr14_m15(m15), daily, &s)
     };
     let daily = history();
     let base = feats(&m15, &daily).expect("todas las variables");
@@ -234,36 +220,28 @@ fn features_use_nothing_after_the_signal_and_never_repaint() {
     assert_eq!(feats(&longer, &later), Some(base));
 }
 
-fn daily_after() -> DailyIndicator {
-    daily("2025-11-19".parse().unwrap(), 21, Some(dec!(0.0001)))
+fn daily_after() -> DailyVolTercile {
+    daily("2025-11-19".parse().unwrap(), Some(VolTercile::Low))
 }
 
 #[test]
 fn a_missing_feature_means_no_row() {
     let s = nyse();
-    let cfg = FeaturesConfig {
-        vol_history_years: 1,
-    };
     let m15 = candles("2025-11-19T12:00:00Z", 40, Decimal::ZERO);
     // Calentamiento del ATR (menos de 14 velas antes).
     let early = trade(&m15, 5);
     assert_eq!(
-        from_backtest(
-            "bt",
-            &us500(),
-            &early,
-            &atr14_m15(&m15),
-            &history(),
-            &s,
-            &cfg
-        ),
+        from_backtest("bt", &us500(), &early, &atr14_m15(&m15), &history(), &s),
         None
     );
-    // Sin historia diaria suficiente.
+    // Sin tercio publicado ese día (historia diaria insuficiente).
     let tr = trade(&m15, 20);
-    let short: Vec<_> = history().split_off(400);
+    let short: Vec<_> = history()
+        .into_iter()
+        .map(|d| DailyVolTercile { tercile: None, ..d })
+        .collect();
     assert_eq!(
-        from_backtest("bt", &us500(), &tr, &atr14_m15(&m15), &short, &s, &cfg),
+        from_backtest("bt", &us500(), &tr, &atr14_m15(&m15), &short, &s),
         None
     );
     // Fuera de la sesión: la vela 20 cierra a las 13:15 UTC, antes de la apertura.
@@ -276,18 +254,8 @@ fn a_missing_feature_means_no_row() {
             &tr,
             &atr14_m15(&before_open),
             &history(),
-            &s,
-            &cfg
+            &s
         ),
         None
     );
-}
-
-#[test]
-fn the_config_reads_its_section_of_ml_toml() {
-    let text = std::fs::read_to_string(root().join("config/ml.toml")).unwrap();
-    let cfg = FeaturesConfig::from_toml(&text).unwrap();
-    assert_eq!(cfg.vol_history_years, 3);
-    assert!(FeaturesConfig::from_toml("[features]\nvol_history_years = 0").is_err());
-    assert!(FeaturesConfig::from_toml("[features]\nvol_history_years = 3\nx = 1").is_err());
 }
