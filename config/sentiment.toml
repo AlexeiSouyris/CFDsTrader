@@ -1,0 +1,48 @@
+# Índice de sentimiento v1 (spec §9.1, #213). Todos los valores son iniciales: cambiarlos no
+# toca código, pero queda registrado. Se valida al arrancar (`cfds_intel.sentiment.index`).
+
+[index]
+# Alcance v1: solo EE. UU. DE40 queda afuera (no tiene COT y las fuentes miden EE. UU.).
+instruments = ["US500", "US100", "US30"]
+# Calentamiento: cada componente necesita al menos esta historia publicada, y su percentil se
+# calcula contra los valores publicados en estos años anteriores al dato actual.
+warmup_years = 3
+# Mínimo de componentes válidos para emitir el índice.
+min_components = 3
+
+# Componentes. weight: peso inicial (iguales). inverted: true si un valor alto es miedo.
+# expiry_days: días corridos desde el momento al que corresponde el último dato (observed_for)
+# a partir de los cuales ese dato está vencido. pending: sin datos todavía, no se calcula.
+# only: si está, el componente aplica solo a esos instrumentos.
+
+# (largos − cortos de Leveraged Funds) / interés abierto, del COT (config/cot.toml).
+[components.cot]
+weight = "1"
+inverted = false
+expiry_days = 21
+
+# Volatilidad realizada de 20 retornos diarios (daily_indicators, #148). Alta = miedo.
+[components.realized_vol]
+weight = "1"
+inverted = true
+expiry_days = 5
+
+# Caída desde el máximo de 252 velas diarias (daily_drawdowns, #213).
+[components.drawdown]
+weight = "1"
+inverted = false
+expiry_days = 5
+
+# Pendientes de datos (precios de los componentes del NASDAQ 100, ADR 0005).
+[components.breadth]
+only = ["US100"]
+weight = "1"
+inverted = false
+expiry_days = 5
+pending = true
+
+[components.new_highs_lows]
+weight = "1"
+inverted = false
+expiry_days = 5
+pending = true
