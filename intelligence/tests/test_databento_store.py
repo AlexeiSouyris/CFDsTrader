@@ -109,3 +109,18 @@ def test_the_tables_are_append_only_and_check_the_contract(conn: psycopg.Connect
             insert_chunk(
                 conn, s, DAY + timedelta(days=5), DAY + timedelta(days=6), [bad], Decimal(0)
             )
+
+
+def test_two_chunks_in_a_row_on_a_connection_with_an_open_transaction() -> None:
+    # Regresión: sin autocommit, `conn.transaction()` es un savepoint y la tabla temporal del
+    # primer tramo seguía viva en el segundo ("relation incoming already exists").
+    s = sym()
+    with psycopg.connect(os.environ["DATABASE_URL"]) as c:
+        c.execute("SELECT 1")  # abre la transacción implícita, como en la corrida real
+        first = insert_chunk(c, s, DAY, DAY + timedelta(days=1), bars(s, 2), Decimal("0.01"))
+        second_day = DAY + timedelta(days=1)
+        later = [replace(b, start=b.start + timedelta(days=1)) for b in bars(s, 2)]
+        second = insert_chunk(
+            c, s, second_day, second_day + timedelta(days=1), later, Decimal("0.01")
+        )
+        assert (first.inserted, second.inserted) == (2, 2)
