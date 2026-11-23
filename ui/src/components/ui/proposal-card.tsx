@@ -34,7 +34,16 @@ function useRemaining(until: string) {
   return Math.max(0, Math.floor((Date.parse(until) - now) / 1000))
 }
 
-export function ProposalCard({ item, canApprove }: { item: PendingProposal; canApprove: boolean }) {
+export function ProposalCard({
+  item,
+  canApprove,
+  locked,
+}: {
+  item: PendingProposal
+  canApprove: boolean
+  /** motivo por el que no se puede aprobar (por ejemplo, kill switch activo) */
+  locked?: string
+}) {
   const { proposal: p, extras } = item
   const [decision, setDecision] = useState<Decision>(null)
   const left = useRemaining(extras.expiresAt)
@@ -156,6 +165,8 @@ export function ProposalCard({ item, canApprove }: { item: PendingProposal; canA
           <p role="status" className="text-[12px] font-bold">
             {decision === 'approved' ? 'Aprobada' : 'Rechazada'} (maqueta: no se envió nada).
           </p>
+        ) : locked ? (
+          <p className="text-[12px] font-semibold text-down">{locked}</p>
         ) : canApprove ? (
           <>
             <button

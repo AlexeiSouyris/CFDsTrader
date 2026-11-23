@@ -3,6 +3,7 @@ import {
   BarChart3,
   BookOpen,
   ClipboardCheck,
+  CandlestickChart,
   Droplets,
   FolderOpen,
   LayoutDashboard,
@@ -20,6 +21,13 @@ export const VIEWS: ShellView[] = [
     short: 'Panel',
     icon: LayoutDashboard,
     description: 'Cómo va el fondo, los índices y lo último de la simulación.',
+  },
+  {
+    id: 'terminal',
+    label: 'Terminal',
+    short: 'Terminal',
+    icon: CandlestickChart,
+    description: 'Gráfico, propuestas, ticket y posiciones. Solo simulación, con datos de ejemplo.',
   },
   {
     id: 'propuestas',
