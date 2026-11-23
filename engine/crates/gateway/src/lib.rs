@@ -15,6 +15,7 @@ pub mod context;
 pub mod fund;
 pub mod ops;
 pub mod paper;
+pub mod paper_runner;
 
 use std::future::Future;
 use std::net::SocketAddr;

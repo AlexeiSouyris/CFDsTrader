@@ -306,12 +306,12 @@ pub struct Ops {
 
 /// El broker simulado del gateway: en memoria, con su registro en PostgreSQL.
 pub struct PgPaper {
-    state: Mutex<(PaperBroker, ReconcileSchedule)>,
+    pub(crate) state: Mutex<(PaperBroker, ReconcileSchedule)>,
     /// Sesión de solo lectura salvo la transacción del registro (`insert_paper_order`).
-    store: PgStore,
+    pub(crate) store: PgStore,
     journal: PgJournal,
-    gate: Gate,
-    ops: Arc<Ops>,
+    pub(crate) gate: Gate,
+    pub(crate) ops: Arc<Ops>,
 }
 
 impl PgPaper {
@@ -456,19 +456,19 @@ impl PgPaper {
         flush
     }
 
-    async fn fail(&self, kind: AlertKind, event: &str, error: &str, now: DateTime<Utc>) {
+    pub(crate) async fn fail(&self, kind: AlertKind, event: &str, error: &str, now: DateTime<Utc>) {
         report_failure(&self.ops.log, &self.ops.alerts, kind, event, error, now).await;
     }
 
     /// Después de cada operación: los eventos del broker al log y a las alertas.
-    async fn drain(&self, broker: &mut PaperBroker, now: DateTime<Utc>) {
+    pub(crate) async fn drain(&self, broker: &mut PaperBroker, now: DateTime<Utc>) {
         let events = broker.take_events();
         log_events(&self.ops.log, &events);
         alert_events(&self.ops.alerts, &events, now).await;
     }
 
     /// `refresh` con sus errores logueados y alertados.
-    async fn refresh_checked(
+    pub(crate) async fn refresh_checked(
         &self,
         broker: &mut PaperBroker,
         sched: &mut ReconcileSchedule,

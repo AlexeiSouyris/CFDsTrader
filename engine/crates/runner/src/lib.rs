@@ -81,6 +81,23 @@ impl RunnerConfig {
     }
 }
 
+/// La config de la estrategia (la misma del backtest), validada: `config/patterns.toml`,
+/// `liquidity.toml`, `indicators.toml` y `strategy.toml`.
+pub fn strategy_from_toml(
+    patterns: &str,
+    liquidity: &str,
+    indicators: &str,
+    strategy: &str,
+) -> Result<Configs, String> {
+    Ok(Configs {
+        patterns: cfds_patterns::PatternsConfig::from_toml(patterns).map_err(|e| e.to_string())?,
+        liquidity: cfds_liquidity::LiquidityConfig::from_toml(liquidity)
+            .map_err(|e| e.to_string())?,
+        trend: cfds_indicators::TrendConfig::from_toml(indicators).map_err(|e| e.to_string())?,
+        strategy: cfds_strategy::StrategyConfig::from_toml(strategy).map_err(|e| e.to_string())?,
+    })
+}
+
 /// Lo que pasó en un paso, para el log y las alertas (ver [`publish`]).
 #[derive(Debug, Clone, PartialEq)]
 pub enum Notice {
