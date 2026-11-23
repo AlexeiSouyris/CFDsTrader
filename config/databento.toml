@@ -1,0 +1,54 @@
+# Histórico intradía de futuros desde Databento (ADR 0011, en propuesta; importador #247).
+# Se valida al arrancar (`cfds_intel.databento.config`). La key va en el .env
+# (DATABENTO_API_KEY), nunca acá. Los datos se guardan solo en la base local de la máquina de
+# datos (CFDS_DATA_MACHINE=1), nunca en el repo.
+
+[download]
+# Esquema oficial de velas de 1 minuto (docs: schemas-and-data-formats/ohlcv).
+schema = "ohlcv-1m"
+# Contrato continuo: RAÍZ.REGLA.RANGO (docs: standards-and-conventions/symbology). Se usa `c.0`,
+# el vencimiento más cercano: su base es la más chica y la más parecida al CFD de contado, y el
+# costo está medido con él (ADR 0011: USD 30,45 en total al 23-11-2026). Si se cambia a `v.0`,
+# medirlo antes con --estimate.
+stype_in = "continuous"
+# Desde cuándo se quiere el histórico. Si un dataset empieza después, se baja desde su inicio,
+# que sale de metadata.get_dataset_range en cada corrida (nunca fijo acá): Eurex (XEUR.EOBI)
+# arranca el 2025-03-10 (medido el 23-11-2026). El fin es la medianoche UTC de hoy (exclusivo).
+start = "2021-11-01"
+
+[budget]
+# Tope de gasto total (USD) de una corrida, por debajo de los USD 125 de crédito gratis. Si la
+# estimación lo pasa, --estimate y --run frenan sin bajar nada.
+max_usd = "100"
+
+[sample]
+# Validación de --sample sobre un día UTC: huecos entre barras de más de estos minutos cuentan
+# como huecos, salvo el más largo (la pausa diaria del mercado).
+max_gap_minutes = 5
+
+# Futuro → instrumento (CFD de IG). `min_session_hours`: horas mínimas con barras en un día UTC
+# hábil (CME opera unas 23 h; Eurex, unas 21 h).
+[[symbols]]
+dataset = "GLBX.MDP3"
+symbol = "ES.c.0"
+instrument_id = "US500"
+min_session_hours = 22
+
+[[symbols]]
+dataset = "GLBX.MDP3"
+symbol = "NQ.c.0"
+instrument_id = "US100"
+min_session_hours = 22
+
+[[symbols]]
+dataset = "GLBX.MDP3"
+symbol = "YM.c.0"
+instrument_id = "US30"
+min_session_hours = 22
+
+# FDAX.c.0 existe y tiene ohlcv-1m (metadata, 23-11-2026). Histórico solo desde 2025-03-10.
+[[symbols]]
+dataset = "XEUR.EOBI"
+symbol = "FDAX.c.0"
+instrument_id = "DE40"
+min_session_hours = 20
