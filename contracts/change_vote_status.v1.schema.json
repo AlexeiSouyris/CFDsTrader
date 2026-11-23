@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/change_vote_status.v1.schema.json",
+  "title": "Change vote status v1",
+  "description": "Estado de una propuesta de cambio (change_proposal.v1) en un momento, contando sus votos (change_vote.v1) con las reglas de config/votes.toml (spec §1.2): aprobada con la mayoría dentro del plazo, rechazada si ya no puede llegar o pasó el plazo, y si no, pendiente de voto. Lo calcula el motor (cfds_journal::votes::tally) y lo sirve el gateway en GET /api/v1/learning_report/votes (#331). Solo lectura: contar votos nunca aplica un cambio, y desde la UI no se vota.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["change_id", "status", "in_favor", "against"],
+  "properties": {
+    "change_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,200}$"
+    },
+    "status": {
+      "enum": ["pendiente_de_voto", "aprobada", "rechazada"]
+    },
+    "in_favor": {
+      "description": "Votos a favor válidos (uno por miembro, dentro del plazo).",
+      "type": "integer",
+      "minimum": 0
+    },
+    "against": {
+      "description": "Votos en contra válidos.",
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

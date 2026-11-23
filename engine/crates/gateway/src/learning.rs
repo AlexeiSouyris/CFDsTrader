@@ -7,13 +7,17 @@
 //! | `GET /api/v1/paper_comparisons` | `paper_comparison.v1[]`: la última de cada instrumento |
 //! | `GET /api/v1/paper_comparisons/{comparison_id}` | esa `paper_comparison.v1` (404 si no existe) |
 //! | `GET /api/v1/learning_report` | el último `learning_report.v1`, o `null` si no hay |
+//! | `GET /api/v1/learning_report/votes` | `change_vote_status.v1[]`: el estado de cada propuesta del último informe ahora (vacío si no hay informe) |
 //!
-//! No escribe nada y no hay rutas para votar: votar una propuesta de cambio necesita cuentas y
-//! 2FA, una decisión aparte. Las propuestas siempre llegan como el informe las trae.
+//! No escribe nada y no hay rutas para **votar**: votar una propuesta de cambio necesita cuentas y
+//! 2FA, una decisión aparte. El estado de cada propuesta lo cuenta el motor con sus votos
+//! (`cfds_journal::votes::tally`, reglas de `config/votes.toml`); contar nunca aplica un cambio.
 
 use std::future::Future;
 
 use cfds_journal::pg::PgJournal;
+use cfds_journal::votes::{ChangeStatus, VoteRules};
+use chrono::{DateTime, Utc};
 use serde_json::Value;
 
 use crate::Reply;
@@ -21,6 +25,7 @@ use crate::Reply;
 const COMPARISONS: &str = "/api/v1/paper_comparisons";
 const COMPARISON_BY_ID: &str = "/api/v1/paper_comparisons/";
 const LEARNING: &str = "/api/v1/learning_report";
+const VOTES: &str = "/api/v1/learning_report/votes";
 
 /// De dónde salen las comparaciones. En producción, el diario en PostgreSQL (tabla 0032).
 pub trait ComparisonSource: Sync {
@@ -39,25 +44,47 @@ impl ComparisonSource for PgJournal {
     }
 }
 
-/// De dónde sale el último informe de aprendizaje.
+/// De dónde salen el último informe de aprendizaje y el estado de sus propuestas.
 pub trait LearningSource: Sync {
     fn latest(&self) -> impl Future<Output = Result<Option<Value>, String>> + Send;
+    /// El estado de cada propuesta del informe `report_id` en `now`.
+    fn statuses(
+        &self,
+        report_id: &str,
+        now: DateTime<Utc>,
+    ) -> impl Future<Output = Result<Vec<ChangeStatus>, String>> + Send;
 }
 
-/// Mientras el diario no guarde los informes, no hay ninguno: la tabla `learning_reports` y su
-/// lectura llegan con #330. Cuando entre, se reemplaza por una lectura del diario.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct NoStoredReports;
+/// En producción: el diario en PostgreSQL (`learning_reports`, `change_proposals` y
+/// `change_votes`, migración 0034) con las reglas de voto de `config/votes.toml`.
+#[derive(Debug, Clone)]
+pub struct PgLearning {
+    pub journal: PgJournal,
+    pub rules: VoteRules,
+}
 
-impl LearningSource for NoStoredReports {
+impl LearningSource for PgLearning {
     async fn latest(&self) -> Result<Option<Value>, String> {
-        Ok(None)
+        self.journal
+            .latest_learning_report()
+            .await
+            .map_err(|e| e.to_string())
+    }
+    async fn statuses(
+        &self,
+        report_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Vec<ChangeStatus>, String> {
+        self.journal
+            .change_statuses(report_id, &self.rules, now)
+            .await
+            .map_err(|e| e.to_string())
     }
 }
 
 /// `true` si la ruta es de este módulo.
 pub fn is_learning_route(path: &str) -> bool {
-    path == COMPARISONS || path == LEARNING || path.starts_with(COMPARISON_BY_ID)
+    path == COMPARISONS || path == LEARNING || path == VOTES || path.starts_with(COMPARISON_BY_ID)
 }
 
 /// Mismo formato que `comparison_id` en `paper_comparison.v1`.
@@ -103,6 +130,7 @@ pub async fn respond_learning<C: ComparisonSource, L: LearningSource>(
     learning: &L,
     method: &str,
     path: &str,
+    now: DateTime<Utc>,
 ) -> Reply {
     if !is_learning_route(path) {
         return text(404, "ruta desconocida");
@@ -112,6 +140,23 @@ pub async fn respond_learning<C: ComparisonSource, L: LearningSource>(
     }
     if path == LEARNING {
         return learning.latest().await.map_or_else(internal, |r| json(&r));
+    }
+    if path == VOTES {
+        let report = match learning.latest().await {
+            Ok(r) => r,
+            Err(e) => return internal(e),
+        };
+        let Some(report_id) = report
+            .as_ref()
+            .and_then(|r| r.get("report_id"))
+            .and_then(Value::as_str)
+        else {
+            return json(&Vec::<ChangeStatus>::new());
+        };
+        return learning
+            .statuses(report_id, now)
+            .await
+            .map_or_else(internal, |v| json(&v));
     }
     if path == COMPARISONS {
         return comparisons

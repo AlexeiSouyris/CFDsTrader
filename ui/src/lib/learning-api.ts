@@ -6,6 +6,7 @@
  * | `GET /api/v1/paper_comparisons` | `paper_comparison.v1[]`: la última de cada instrumento |
  * | `GET /api/v1/paper_comparisons/{id}` | esa `paper_comparison.v1` |
  * | `GET /api/v1/learning_report` | el último `learning_report.v1`, o `null` |
+ * | `GET /api/v1/learning_report/votes` | `change_vote_status.v1[]`: el estado de cada propuesta ahora |
  *
  * Todo lo calcula el motor. La UI no recalcula nada: muestra lo que llega. Sin gateway no hay datos
  * de ejemplo. **No se vota desde la UI** (cuentas y 2FA son una decisión aparte).
@@ -143,10 +144,35 @@ export type LearningReport = {
 }
 
 /**
- * Estado del voto de una propuesta, para cuando el gateway lo exponga (#330: propuestas y votos).
- * La UI solo lo muestra; votar no se hace desde acá.
+ * Cómo se muestra el estado del voto de una propuesta. La UI solo lo muestra; votar no se hace
+ * desde acá.
  */
 export type VoteStatus = { label: string; detail?: string }
+
+/**
+ * `contracts/change_vote_status.v1`: el estado de una propuesta contado por el motor
+ * (`cfds_journal::votes::tally`, reglas de `config/votes.toml`). La UI no cuenta votos.
+ */
+export type ChangeVoteStatus = {
+  change_id: string
+  status: 'pendiente_de_voto' | 'aprobada' | 'rechazada'
+  in_favor: number
+  against: number
+}
+
+const STATUS_LABEL: Record<ChangeVoteStatus['status'], string> = {
+  pendiente_de_voto: 'pendiente de voto',
+  aprobada: 'aprobada',
+  rechazada: 'rechazada',
+}
+
+/** El estado del motor, en palabras (solo texto: los números llegan contados). */
+export function voteLabel(s: ChangeVoteStatus): VoteStatus {
+  return {
+    label: STATUS_LABEL[s.status],
+    detail: `${s.in_favor} a favor, ${s.against} en contra`,
+  }
+}
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { signal, headers: { Accept: 'application/json' } })
@@ -164,3 +190,8 @@ export const usePaperComparisons = () =>
   useRemote('paper-comparisons', fetchPaperComparisons, REFRESH_MS)
 
 export const useLearningReport = () => useRemote('learning-report', fetchLearningReport, REFRESH_MS)
+
+export const fetchVoteStatuses = (signal?: AbortSignal) =>
+  getJson<ChangeVoteStatus[]>('/api/v1/learning_report/votes', signal)
+
+export const useVoteStatuses = () => useRemote('learning-votes', fetchVoteStatuses, REFRESH_MS)

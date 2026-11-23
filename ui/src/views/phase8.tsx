@@ -7,7 +7,12 @@ import type { ReactNode } from 'react'
 import { Term } from '@/components/ui/term'
 import { LearningReportView } from '@/components/ui/learning-report'
 import { PaperVsBacktest } from '@/components/ui/paper-vs-backtest'
-import { useLearningReport, usePaperComparisons } from '@/lib/learning-api'
+import {
+  useLearningReport,
+  usePaperComparisons,
+  useVoteStatuses,
+  voteLabel,
+} from '@/lib/learning-api'
 
 function Section({
   id,
@@ -73,6 +78,12 @@ export function PaperVsBacktestSection() {
 
 export function LearningSection() {
   const r = useLearningReport()
+  // El estado de cada propuesta, contado por el motor (#331). Sin él, "pendiente de voto".
+  const votes = useVoteStatuses()
+  const statusOf = (changeId: string) => {
+    const s = votes.status === 'ok' ? votes.data.find((v) => v.change_id === changeId) : undefined
+    return s && voteLabel(s)
+  }
   return (
     <Section id="perf-aprendizaje" title="Aprendizaje" aside="fase 8b · informe del diario">
       {r.status === 'loading' ? (
@@ -82,7 +93,7 @@ export function LearningSection() {
       ) : r.data === null ? (
         note('Todavía no hay un informe de aprendizaje guardado.')
       ) : (
-        <LearningReportView report={r.data} />
+        <LearningReportView report={r.data} voteStatus={statusOf} />
       )}
     </Section>
   )

@@ -29,7 +29,7 @@ use cfds_fund::pg::PgFund;
 use cfds_gateway::context::{ContextConfig, is_context_route, respond_context};
 use cfds_gateway::emotions::{is_emotions_route, respond_emotions};
 use cfds_gateway::fund::{is_fund_route, respond_fund};
-use cfds_gateway::learning::{NoStoredReports, is_learning_route, respond_learning};
+use cfds_gateway::learning::{PgLearning, is_learning_route, respond_learning};
 use cfds_gateway::ops::url_password;
 use cfds_gateway::ops_store::{persistence, run_persister};
 use cfds_gateway::paper::{HttpIn, Ops, PaperConfig, PgPaper, is_paper_route, respond_paper};
@@ -39,6 +39,7 @@ use cfds_gateway::status::{
 };
 use cfds_gateway::walk_forward::{is_walk_forward_route, respond_walk_forward};
 use cfds_gateway::{GatewayConfig, PgSource, Reply, read_only_url, respond};
+use cfds_journal::votes::VoteRules;
 use cfds_liquidity::StatsConfig;
 use cfds_market_data::{CandleSources, Catalog};
 use cfds_obs::{AlertConfig, AlertKind, Alerter, Level, Logger, ReqwestPost, TelegramSink};
@@ -63,6 +64,7 @@ const BACKTEST: &str = include_str!("../../../../config/backtest.toml");
 const BROKER: &str = include_str!("../../../../config/broker.toml");
 const ALERTS: &str = include_str!("../../../../config/alerts.toml");
 const FUND: &str = include_str!("../../../../config/fund.toml");
+const VOTES: &str = include_str!("../../../../config/votes.toml");
 const RUNNER: &str = include_str!("../../../../config/runner.toml");
 
 /// `config/` del repo (sesiones y feriados del calendario se leen de ahí).
@@ -88,6 +90,8 @@ struct State {
     log: Arc<Logger>,
     /// Reportes de walk-forward (#316): solo lectura del diario.
     walk_forward: cfds_journal::pg::PgJournal,
+    /// Informe de aprendizaje y estado de sus propuestas (#331), solo lectura.
+    learning: PgLearning,
 }
 
 fn header<'a>(req: &'a Request<Incoming>, name: &str) -> Option<&'a str> {
@@ -160,12 +164,13 @@ async fn handle(
         )
         .await
     } else if is_learning_route(req.uri().path()) {
-        // Fases 8 y 8b (#331): comparaciones del diario; el informe guardado llega con #330.
+        // Fases 8 y 8b (#331): comparaciones, el último informe y el estado de sus propuestas.
         respond_learning(
             &state.walk_forward,
-            &NoStoredReports,
+            &state.learning,
             req.method().as_str(),
             req.uri().path(),
+            chrono::Utc::now(),
         )
         .await
     } else if is_walk_forward_route(req.uri().path()) {
@@ -390,6 +395,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         daily_loss_limit_pct: risk.max_daily_loss_pct,
         log: log.clone(),
         walk_forward: cfds_journal::pg::PgJournal::new(store.pool().clone()),
+        learning: PgLearning {
+            journal: cfds_journal::pg::PgJournal::new(store.pool().clone()),
+            rules: VoteRules::from_toml(VOTES)?,
+        },
         fund,
         fund_cfg,
         paper,
