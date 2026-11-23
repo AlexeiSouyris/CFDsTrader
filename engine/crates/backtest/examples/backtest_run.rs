@@ -37,7 +37,8 @@
 //!   (nunca cero), el filtro de spread §7.3 no se aplica y la corrida lo dice
 //!   (`costs.spread_source = "config"`);
 //! - en cada vencimiento se cierra lo abierto al cierre de la última vela del contrato viejo y el
-//!   calentamiento empieza de nuevo (`cfds_backtest::mark_rollovers`);
+//!   calentamiento empieza de nuevo (`cfds_backtest::mark_rollovers`). Los vencimientos salen del
+//!   calendario (`CandleSources::roll_instants`, #269), no de los ids de contrato de la fuente;
 //! - la financiación, las noticias, el calendario y los tercios de la volatilidad son los mismos
 //!   que con IG (del instrumento del CFD).
 //!
@@ -195,10 +196,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (mut entries, mut force_close) =
         trading_window::flags(session, &m15, &window).ok_or("fechas fuera del calendario")?;
     // Vencimientos de los futuros (#267): se cierra antes y el calentamiento empieza de nuevo.
-    if let CandleFeed::Futures(src) = feed {
-        let rolls = store
-            .futures_contract_changes(src, &id, Timeframe::M15, from, to)
-            .await?;
+    // Salen del calendario de vencimientos (#269), no de los ids de contrato de la fuente: en
+    // Eurex el `instrument_id` de Databento cambia de un día a otro y se reusa.
+    if source == CandleSource::Futures {
+        let rolls = sources.roll_instants(&id, session, &m15)?;
         let closed = mark_rollovers(
             &m15,
             &rolls,
@@ -207,7 +208,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             &mut data_errors,
         );
         println!(
-            "vencimientos: {} cambios de contrato; se cierra lo abierto en {} velas",
+            "vencimientos (calendario): {} cambios de contrato; se cierra lo abierto en {} velas",
             rolls.len(),
             closed.len()
         );
@@ -492,11 +493,23 @@ async fn journal_and_probability(
     let (Some(first), Some(last)) = (m15.first(), m15.last()) else {
         return Ok(());
     };
-    let split = plan(
+    // Con pocos meses no se puede separar el tramo fuera de muestra (#269): la tabla queda
+    // "datos insuficientes", pero la corrida sigue y se guarda.
+    let split = match plan(
         first.start,
         last.end(),
         &SplitConfig::from_toml(cfg!("data_split.toml"))?,
-    )?;
+    ) {
+        Ok(split) => split,
+        Err(cfds_market_data::SplitError::NotEnoughData { needed }) => {
+            println!(
+                "probabilidad §13: datos insuficientes (hacen falta {needed} meses de velas para \
+                 separar el tramo fuera de muestra)"
+            );
+            return Ok(());
+        }
+        Err(e) => return Err(e.into()),
+    };
     let cutoff = split.out_of_sample.start;
     let cfg = ProbabilityConfig::from_toml(cfg!("probability.toml"))?;
     let table = ProbabilityTable::build(&pairs, cutoff, &cfg)?;
