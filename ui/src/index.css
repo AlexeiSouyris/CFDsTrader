@@ -77,6 +77,8 @@
 
 html,
 body {
+  /* nunca scroll horizontal de la página (#307): las tablas anchas se desplazan dentro de su caja */
+  overflow-x: clip;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
@@ -206,6 +208,33 @@ body {
 /* la marca de la pestaña activa */
 .tab-thumb {
   transition: transform 320ms var(--ease-out);
+}
+
+/*
+ * Celular (#307): toques de al menos 44 px (pautas de Apple y WCAG 2.5.5). Los términos del
+ * glosario dentro de un texto no se agrandan (romperían la línea): su zona de toque crece con un
+ * pseudo-elemento invisible (`data-inline-hit`).
+ */
+@media (pointer: coarse), (max-width: 767px) {
+  button:not([data-inline-hit]),
+  a[href]:not([data-inline-hit]),
+  select,
+  input:not([type='range'], [type='checkbox'], [type='radio']),
+  summary,
+  [role='button'] {
+    min-height: 44px;
+  }
+  button:not([data-inline-hit]) {
+    min-width: 44px;
+  }
+  [data-inline-hit] {
+    position: relative;
+  }
+  [data-inline-hit]::after {
+    content: '';
+    position: absolute;
+    inset: -14px -6px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

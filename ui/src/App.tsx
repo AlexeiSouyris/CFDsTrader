@@ -56,6 +56,10 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
+    // barra del sistema en el celular (PWA, #307), del color del fondo de cada tema
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute('content', theme === 'dark' ? '#101113' : '#e7e9ec')
   }, [theme])
 
   useEffect(() => {

@@ -195,32 +195,55 @@ export function TerminalView({ member }: { member: Member }) {
     : undefined
   const [saved, setSaved] = useState(loadLayout)
   useEffect(() => saveLayout(saved), [saved])
+  const [shown, setShown] = useState(0)
   const catalog = useInstruments()
   const instruments =
     catalog.status === 'ok' ? catalog.data.instruments.map((i) => i.id) : TERMINAL_INSTRUMENTS
   const timeframes = catalog.status === 'ok' ? catalog.data.timeframes : TIMEFRAMES
   const count = Number(saved.layout)
+  // En el celular (menos de `lg`) se ve un gráfico por vez, con un selector de índice (#307).
+  const visible = Math.min(shown, count - 1)
   const charts = (
-    <div
-      data-chart-layout={saved.layout}
-      className={cn('grid min-w-0 gap-4', count > 1 && 'lg:grid-cols-2')}
-    >
-      {saved.slots.slice(0, count).map((sel, i) => (
-        <ChartSlot
-          key={i}
-          index={i}
-          sel={sel}
-          instruments={instruments}
-          timeframes={timeframes}
-          height={CHART_HEIGHT[saved.layout]}
-          onChange={(s) =>
-            setSaved((prev) => ({
-              ...prev,
-              slots: prev.slots.map((old, k) => (k === i ? { ...old, ...s } : old)),
-            }))
-          }
-        />
-      ))}
+    <div className="grid min-w-0 gap-3">
+      {count > 1 && (
+        <div className="flex items-center gap-2 lg:hidden" data-chart-switcher>
+          <span className="text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
+            Gráfico
+          </span>
+          <Segmented
+            label="Gráfico a la vista"
+            options={Array.from({ length: count }, (_, i) => String(i + 1))}
+            value={String(visible + 1)}
+            onChange={(v) => setShown(Number(v) - 1)}
+          />
+        </div>
+      )}
+      <div
+        data-chart-layout={saved.layout}
+        className={cn('grid min-w-0 gap-4', count > 1 && 'lg:grid-cols-2')}
+      >
+        {saved.slots.slice(0, count).map((sel, i) => (
+          <div
+            key={i}
+            data-chart-slot={i}
+            className={cn('min-w-0', i !== visible && 'max-lg:hidden')}
+          >
+            <ChartSlot
+              index={i}
+              sel={sel}
+              instruments={instruments}
+              timeframes={timeframes}
+              height={CHART_HEIGHT[saved.layout]}
+              onChange={(s) =>
+                setSaved((prev) => ({
+                  ...prev,
+                  slots: prev.slots.map((old, k) => (k === i ? { ...old, ...s } : old)),
+                }))
+              }
+            />
+          </div>
+        ))}
+      </div>
     </div>
   )
   const ticket = (
