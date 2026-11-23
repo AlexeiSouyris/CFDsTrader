@@ -11,3 +11,12 @@ atr_period = 14
 # Una vela es sospechosa si su rango, o el salto desde el cierre anterior, supera este múltiplo
 # del ATR sin que haya habido un corte de sesión en el medio.
 max_jump_atr_multiple = 10
+# ¿Pico aislado (dato malo) o movimiento real? (#271). Se decide recién al cierre de la vela
+# número `confirm_bars` después del salto, como un pivote: mientras tanto no se abre nada.
+# Es un pico si en esas velas (incluida la del salto) algún cierre vuelve a menos de
+# `return_fraction` del salto desde el cierre anterior (el salto = la distancia hasta el extremo
+# de la vela). Un pico se descarta y es un error de datos (el calentamiento empieza de nuevo).
+# Si el precio se sostiene, es un movimiento real: la vela se acepta y queda registrada como
+# evento de volatilidad, sin reiniciar el calentamiento.
+confirm_bars = 4
+return_fraction = "0.25"

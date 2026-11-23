@@ -39,5 +39,6 @@ pub use trading_window::{
     TradingWindowConfig, entry_allowed, is_last_session_of_week, is_week_close_candle,
 };
 pub use validation::{
-    CheckedSeries, Issue, IssueKind, SessionCalendar, check_series, validate_series,
+    CheckedSeries, Issue, IssueKind, JumpOutcome, SessionCalendar, check_series, decision_flags,
+    jump_outcome, validate_series,
 };

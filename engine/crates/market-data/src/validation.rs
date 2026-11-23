@@ -106,6 +106,71 @@ pub struct CheckedSeries {
     pub candles: Vec<Candle>,
     pub issues: Vec<Issue>,
     pub data_errors: Vec<DateTime<Utc>>,
+    /// Saltos de más de `max_jump_atr_multiple` ATR que se sostuvieron (movimientos reales,
+    /// #271): la vela se acepta y queda este registro, sin reiniciar el calentamiento.
+    pub volatility: Vec<DateTime<Utc>>,
+    /// Tramos `[desde, hasta)` de inicios de vela en los que no se decide nada porque un salto
+    /// todavía no se confirmó (#271). `hasta = None`: sin confirmar al final de la serie.
+    pub blocked: Vec<(DateTime<Utc>, Option<DateTime<Utc>>)>,
+}
+
+impl CheckedSeries {
+    /// `true` si se puede decidir al cierre de la vela que empieza en `start` (no está dentro de
+    /// un salto sin confirmar).
+    pub fn decision_allowed(&self, start: DateTime<Utc>) -> bool {
+        !self
+            .blocked
+            .iter()
+            .any(|(from, to)| start >= *from && to.is_none_or(|t| start < t))
+    }
+}
+
+/// Para cada vela de `candles`, `true` si se puede decidir a su cierre: no está dentro de un
+/// salto sin confirmar de ninguna de las series revisadas (por ejemplo, la de 15m y la de 1h).
+pub fn decision_flags(candles: &[Candle], checked: &[&CheckedSeries]) -> Vec<bool> {
+    candles
+        .iter()
+        .map(|c| checked.iter().all(|s| s.decision_allowed(c.start)))
+        .collect()
+}
+
+/// Qué fue un salto de más de `max_jump_atr_multiple` ATR (#271).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JumpOutcome {
+    /// Algún cierre volvió cerca del nivel anterior: pico aislado, dato malo.
+    Spike,
+    /// El precio se sostuvo `confirm_bars` velas: movimiento real.
+    Sustained,
+    /// Todavía no hay `confirm_bars` velas después del salto.
+    Pending,
+}
+
+/// Decide si el salto de la vela `i` fue un pico o un movimiento real, mirando solo hasta la
+/// vela `i + confirm_bars` (la decisión se usa recién al cierre de esa vela).
+///
+/// ```text
+/// base = cierre de la vela anterior; extremo = el máximo o el mínimo de la vela i, el que esté
+/// más lejos de la base; salto = |extremo − base|
+/// pico      ⇔ algún cierre de las velas i..=i+confirm_bars cumple |cierre − base| ≤ fracción × salto
+/// sostenido ⇔ no es pico y la vela i+confirm_bars existe
+/// ```
+pub fn jump_outcome(candles: &[Candle], i: usize, cfg: &ValidationConfig) -> JumpOutcome {
+    let (Some(prev), Some(c)) = (i.checked_sub(1).map(|p| &candles[p]), candles.get(i)) else {
+        return JumpOutcome::Pending;
+    };
+    let base = prev.close;
+    let size = (c.high - base).abs().max((base - c.low).abs());
+    let end = (i + cfg.confirm_bars).min(candles.len() - 1);
+    let back = candles[i..=end]
+        .iter()
+        .any(|k| (k.close - base).abs() <= cfg.return_fraction * size);
+    if back {
+        JumpOutcome::Spike
+    } else if i + cfg.confirm_bars < candles.len() {
+        JumpOutcome::Sustained
+    } else {
+        JumpOutcome::Pending
+    }
 }
 
 /// Valida la serie, **descarta** las velas sospechosas y devuelve los momentos de error, para
@@ -117,12 +182,38 @@ pub fn check_series(
     cfg: &ValidationConfig,
 ) -> CheckedSeries {
     let issues = validate_series(candles, calendar, cfg);
+    // Un salto grande es un error solo si fue un pico (#271): si se sostuvo, o todavía no se
+    // sabe, la vela queda y no hay error de datos. En los dos casos no se decide hasta confirmar.
+    let mut volatility = Vec::new();
+    let mut blocked = Vec::new();
+    let mut real_jump = std::collections::BTreeSet::new();
+    for i in issues
+        .iter()
+        .filter(|i| matches!(i.kind, IssueKind::Outlier { .. }))
+    {
+        let confirm = candles.get(i.index + cfg.confirm_bars).map(|c| c.start);
+        blocked.push((i.start, confirm));
+        match jump_outcome(candles, i.index, cfg) {
+            JumpOutcome::Spike => {}
+            JumpOutcome::Sustained => {
+                volatility.push(i.start);
+                real_jump.insert(i.index);
+            }
+            JumpOutcome::Pending => {
+                real_jump.insert(i.index);
+            }
+        }
+    }
+    let counts =
+        |i: &&Issue| !(matches!(i.kind, IssueKind::Outlier { .. }) && real_jump.contains(&i.index));
     let discarded: std::collections::BTreeSet<usize> = issues
         .iter()
+        .filter(counts)
         .filter(|i| i.kind.discards_candle())
         .map(|i| i.index)
         .collect();
-    let mut data_errors: Vec<DateTime<Utc>> = issues.iter().map(Issue::since).collect();
+    let mut data_errors: Vec<DateTime<Utc>> =
+        issues.iter().filter(counts).map(Issue::since).collect();
     data_errors.sort();
     data_errors.dedup();
     CheckedSeries {
@@ -134,6 +225,8 @@ pub fn check_series(
             .collect(),
         issues,
         data_errors,
+        volatility,
+        blocked,
     }
 }
 

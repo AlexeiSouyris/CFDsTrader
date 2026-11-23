@@ -381,7 +381,8 @@ Por instrumento, en `config/`: [spread](../GLOSARIO.md#spread) por franja horari
 | Feriado | Calendario por bolsa: ese instrumento no opera, y el cierre del viernes se adelanta al último día hábil |
 | [Halt](../GLOSARIO.md#halt) | No se proponen operaciones nuevas en el instrumento. La posición abierta se marca a riesgo y se alerta |
 | Ejecución parcial (registro real) | El responsable registra lo ejecutado y el stop y el TP se ajustan al tamaño real |
-| Datos sospechosos (precio ≤ 0, salto > 10 × ATR sin gap de sesión, duplicados, orden temporal roto) | Se descartan, se alerta y se aplica la primera fila de esta tabla |
+| Datos sospechosos (precio ≤ 0, duplicados, orden temporal roto, o un **pico aislado**: salto > 10 × ATR sin gap de sesión que vuelve, ver la fila siguiente) | Se descartan, se alerta y se aplica la primera fila de esta tabla |
+| Salto > 10 × ATR sin gap de sesión (#271) | No se decide nada hasta confirmarlo, `confirm_bars` (4) velas después, como un pivote. Es un **pico** (dato malo, fila anterior) si algún cierre de esas velas vuelve a menos de `return_fraction` (0,25) del salto desde el cierre anterior. Si no, es un **movimiento real**: la vela se acepta, se registra como evento de volatilidad y **no** reinicia el calentamiento (`config/data_validation.toml`). La ingesta no rechaza el lote por el salto: lo decide quien usa la serie |
 
 ## 13. Probabilidad y [análogos](../GLOSARIO.md#analogos)
 

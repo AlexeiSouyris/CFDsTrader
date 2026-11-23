@@ -20,6 +20,10 @@ pub struct ValidationConfig {
     pub atr_period: usize,
     /// Salto máximo, en múltiplos del ATR, sin corte de sesión.
     pub max_jump_atr_multiple: Decimal,
+    /// Velas después de un salto hasta decidir si fue un pico o un movimiento real (#271).
+    pub confirm_bars: usize,
+    /// Un cierre a menos de esta fracción del salto (desde el cierre anterior) es "volvió".
+    pub return_fraction: Decimal,
 }
 
 #[derive(Deserialize)]
@@ -40,6 +44,8 @@ struct RawGrid {
 struct RawOutliers {
     atr_period: usize,
     max_jump_atr_multiple: u32,
+    confirm_bars: usize,
+    return_fraction: String,
 }
 
 impl ValidationConfig {
@@ -60,10 +66,25 @@ impl ValidationConfig {
                 "outliers.max_jump_atr_multiple tiene que ser mayor que 0",
             ));
         }
+        if raw.outliers.confirm_bars == 0 {
+            return Err(ConfigError::Invalid(
+                "outliers.confirm_bars tiene que ser mayor que 0",
+            ));
+        }
+        let return_fraction: Decimal = raw.outliers.return_fraction.parse().map_err(|_| {
+            ConfigError::Invalid("outliers.return_fraction tiene que ser un decimal como texto")
+        })?;
+        if return_fraction <= Decimal::ZERO || return_fraction >= Decimal::ONE {
+            return Err(ConfigError::Invalid(
+                "outliers.return_fraction tiene que estar entre 0 y 1",
+            ));
+        }
         Ok(Self {
             grid_minutes: raw.grid.minutes,
             atr_period: raw.outliers.atr_period,
             max_jump_atr_multiple: Decimal::from(raw.outliers.max_jump_atr_multiple),
+            confirm_bars: raw.outliers.confirm_bars,
+            return_fraction,
         })
     }
 }
@@ -79,13 +100,15 @@ mod tests {
         assert_eq!(cfg.grid_minutes, 15);
         assert_eq!(cfg.atr_period, 14);
         assert_eq!(cfg.max_jump_atr_multiple, Decimal::from(10));
+        assert_eq!(cfg.confirm_bars, 4);
+        assert_eq!(cfg.return_fraction, Decimal::new(25, 2));
     }
 
     #[test]
     fn rejects_invalid_values_and_unknown_keys() {
         let base = |grid: &str, period: &str, mult: &str| {
             format!(
-                "[grid]\nminutes = {grid}\n[outliers]\natr_period = {period}\nmax_jump_atr_multiple = {mult}\n"
+                "[grid]\nminutes = {grid}\n[outliers]\natr_period = {period}\nmax_jump_atr_multiple = {mult}\nconfirm_bars = 4\nreturn_fraction = \"0.25\"\n"
             )
         };
         assert!(ValidationConfig::from_toml(&base("15", "14", "10")).is_ok());
@@ -95,5 +118,13 @@ mod tests {
         assert!(ValidationConfig::from_toml(&base("15", "14", "0")).is_err());
         let typo = base("15", "14", "10").replace("atr_period", "atr_periodo");
         assert!(ValidationConfig::from_toml(&typo).is_err());
+        for (from, to) in [
+            ("confirm_bars = 4", "confirm_bars = 0"),
+            ("return_fraction = \"0.25\"", "return_fraction = \"1\""),
+            ("return_fraction = \"0.25\"", "return_fraction = 0.25"),
+        ] {
+            let bad = base("15", "14", "10").replace(from, to);
+            assert!(ValidationConfig::from_toml(&bad).is_err(), "{to}");
+        }
     }
 }
