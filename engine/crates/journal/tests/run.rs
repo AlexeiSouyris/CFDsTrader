@@ -60,6 +60,21 @@ fn a_run_validates_against_its_contract_and_reads_back_identical() {
         assert_eq!(serde_json::from_value::<BacktestRun>(j).unwrap(), r);
     }
 
+    // `kill_switch_at` (#273): ausente si no se activó; si se activó, valida y vuelve igual.
+    assert!(json["metrics"].get("kill_switch_at").is_none());
+    let mut killed = run.clone();
+    killed.metrics = killed
+        .metrics
+        .clone()
+        .with_kill_switch(Some(at("2025-10-23T09:15:00Z")));
+    let j = serde_json::to_value(&killed).unwrap();
+    assert_eq!(
+        j["metrics"]["kill_switch_at"],
+        json!("2025-10-23T09:15:00Z")
+    );
+    assert!(validator().is_valid(&j), "{j}");
+    assert_eq!(serde_json::from_value::<BacktestRun>(j).unwrap(), killed);
+
     let mut no_news = run.clone();
     no_news.news = None;
     let j = serde_json::to_value(&no_news).unwrap();
@@ -128,6 +143,7 @@ fn the_contract_and_rust_reject_the_same_bad_runs() {
         with("/news/interpretations", json!(-1)),
         with("/extra", json!(1)),
         with("/costs/spread_source", json!("estimated")),
+        with("/metrics/kill_switch_at", json!("2025-10-23 09:15")),
     ];
     let v = validator();
     for doc in bad {

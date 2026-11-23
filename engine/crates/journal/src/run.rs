@@ -143,6 +143,33 @@ pub struct RunMetrics {
     pub profit_factor: Option<Decimal>,
     #[serde(with = "decimal_str::option")]
     pub exposure: Option<Decimal>,
+    /// Cuándo se activó el kill switch por drawdown, si pasó (#273): desde ahí el recorrido no
+    /// abre nada más. Opcional en el contrato: ausente si no pasó (y en corridas anteriores).
+    #[serde(
+        default,
+        with = "optional_utc",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub kill_switch_at: Option<DateTime<Utc>>,
+}
+
+/// `utc_z` para un campo opcional que, si viene, es una hora UTC.
+mod optional_utc {
+    use chrono::{DateTime, Utc};
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(t: &Option<DateTime<Utc>>, s: S) -> Result<S::Ok, S::Error> {
+        match t {
+            Some(t) => cfds_core::candle::utc_z::serialize(t, s),
+            None => s.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<DateTime<Utc>>, D::Error> {
+        #[derive(Deserialize)]
+        struct Wrap(#[serde(with = "cfds_core::candle::utc_z")] DateTime<Utc>);
+        Ok(Option::<Wrap>::deserialize(d)?.map(|w| w.0))
+    }
 }
 
 impl RunMetrics {
@@ -157,7 +184,14 @@ impl RunMetrics {
             win_rate: m.win_rate.map(|d| d.normalize()),
             profit_factor: m.profit_factor.map(|d| d.normalize()),
             exposure: m.exposure.map(|d| d.normalize()),
+            kill_switch_at: None,
         }
+    }
+
+    /// Las mismas, con la hora del kill switch si se activó (#273).
+    pub fn with_kill_switch(mut self, at: Option<DateTime<Utc>>) -> Self {
+        self.kill_switch_at = at;
+        self
     }
 }
 

@@ -131,6 +131,29 @@ pub struct Report {
     pub daily_equity: Vec<(chrono::NaiveDate, Decimal)>,
 }
 
+impl Report {
+    /// Cuántas señales se rechazaron por cada motivo, para mostrarlo al final de una corrida
+    /// (#273): un recorrido que deja de operar nunca tiene que pasar en silencio.
+    pub fn rejections_by_reason(&self) -> std::collections::BTreeMap<String, usize> {
+        let mut out = std::collections::BTreeMap::new();
+        for r in &self.rejected {
+            let name = match &r.reason {
+                Rejection::InvalidInput(_) => "InvalidInput".to_owned(),
+                other => format!("{other:?}"),
+            };
+            *out.entry(name).or_insert(0) += 1;
+        }
+        out
+    }
+
+    /// Hora (inicio de la vela de 15m de `m15`) en que se activó el kill switch, si pasó.
+    pub fn kill_switch_time(&self, m15: &[Candle]) -> Option<DateTime<Utc>> {
+        self.kill_switch_at
+            .and_then(|i| m15.get(i))
+            .map(|c| c.start)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RunError {
     Score(ScoreError),

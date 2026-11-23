@@ -150,7 +150,11 @@
         "sortino": { "$ref": "#/$defs/signed_or_null" },
         "win_rate": { "$ref": "#/$defs/decimal_or_null" },
         "profit_factor": { "$ref": "#/$defs/decimal_or_null" },
-        "exposure": { "$ref": "#/$defs/decimal_or_null" }
+        "exposure": { "$ref": "#/$defs/decimal_or_null" },
+        "kill_switch_at": {
+          "description": "Opcional (agregado sin romper v1, #273): cuándo se activó el kill switch por drawdown (inicio de la vela, UTC). Desde ahí el recorrido no abre nada más. Ausente si no se activó.",
+          "$ref": "#/$defs/utc"
+        }
       }
     },
     "started_at": { "$ref": "#/$defs/utc" },
