@@ -145,6 +145,46 @@ BOS alcista (contexto): un cierre por encima del último pivote alto confirmado 
 CHoCH alcista (contexto): lo mismo, pero con tendencia 1h BAJISTA (posible giro). Vale si ocurrió en las últimas 12 velas
 ```
 
+### 5.4.1 Liquidez en vivo: mapa, estadísticas y desequilibrio (informativo, #231)
+
+Capa **solo informativa** en v1: **no suma al puntaje** de §6 hasta que se valide en la fase 5 con su propio criterio. Todo se calcula en **Rust** (`engine/crates/liquidity`) con **velas cerradas**, sin repintado, y con los parámetros en `config/liquidity.toml`. La UI solo muestra lo que manda el motor. Los ejemplos de abajo son para el lado alcista; el bajista es el espejo.
+
+**Mapa de liquidez.** Un *nivel* es un precio donde probablemente hay stops. Existe desde el momento indicado y nunca antes.
+
+| Nivel | Definición | Existe desde |
+|---|---|---|
+| Máximos iguales (EQH) | ≥ `equal.min_touches` (2) pivotes altos confirmados de 15m (pivotes de `config/patterns.toml`) dentro de las últimas `equal.lookback_bars` (200) velas, cuya diferencia máxima es ≤ `equal.tolerance_atr` (0,10) × ATR14 de 15m. Nivel = el mayor de esos máximos | la vela que confirma el último pivote |
+| Mínimos iguales (EQL) | espejo con pivotes bajos; nivel = el menor | ídem |
+| Máximo y mínimo del día anterior (PDH, PDL) | máximo y mínimo de la sesión de bolsa anterior del instrumento (calendario de `config/sessions.toml`) | el cierre de esa sesión |
+| Máximo y mínimo de la semana anterior (PWH, PWL) | máximo y mínimo de las sesiones de la semana anterior (de lunes a viernes) | el cierre de la última sesión de esa semana |
+| Máximo y mínimo de cada sesión (Asia, Londres, Nueva York) | máximo y mínimo de las velas de 15m dentro de cada ventana UTC de `sessions_utc` (configurable) | el cierre de la última vela de la ventana |
+
+Estado de un nivel alto (el bajo es el espejo), evaluado vela por vela de 15m desde que existe:
+- **intacto:** ninguna vela cerrada tuvo `H > nivel`;
+- **barrido con reversión:** la primera vela con `H > nivel` cierra con `C ≤ nivel` (es el sweep de §5.4);
+- **roto:** la primera vela con `H > nivel` cierra con `C > nivel`.
+
+Un nivel deja de estar activo cuando se barre o se rompe, o cuando pasan `max_age_bars` (500) velas. El estado se guarda con la vela que lo cambió y nunca se reescribe.
+
+**Estadísticas de FVG** (definición de FVG de §5.4, en 15m, 1h y 1d). Para cada FVG se registra:
+- la vela de creación, el tamaño de la zona en múltiplos del ATR14 de su timeframe y la dirección;
+- la **primera vela que toca** la zona, la que llega a la **mitad** (precio medio de la zona) y la que la **llena** (cierre más allá del borde lejano, igual que §5.4), con la cantidad de velas desde la creación hasta cada una;
+- la **reacción** después del primer toque: retorno del cierre a `reaction_bars` velas (4 y 8), en múltiplos del ATR, con signo a favor de la dirección del FVG;
+- si **vence sin llenarse** después de `max_age_bars` velas.
+
+**Gaps de apertura (diario).** Hay gap si `|apertura de la sesión − cierre de la sesión anterior| ≥ gaps.min_atr` (0,25) × ATR14 diario. El gap **se llena** cuando el precio toca el cierre anterior; se registra si se llena en la misma sesión, cuántas sesiones tarda y si vence a las `gaps.max_sessions` (20).
+
+**Agregados.** Por instrumento, timeframe, dirección y tamaño (terciles del tamaño en ATR): la tasa de toque, de mitad y de llenado con su **IC 95 % de Wilson** y la cantidad de casos; la mediana de las velas hasta cada evento, y la mediana y el rango intercuartílico de la reacción. Con menos de `stats.min_cases` (30) casos, se muestra "datos insuficientes" en vez de la tasa.
+
+**Desequilibrio aproximado desde el precio** (no es flujo de órdenes: IG no da volumen ni libro de órdenes).
+- Una vela es de **desplazamiento** si `|C − O| ≥ imbalance.displacement_body_atr` (1,5) × ATR14 y `|C − O| / (H − L) ≥ imbalance.min_body_ratio` (0,7).
+- **Índice de desequilibrio** de la ventana de las últimas `imbalance.window_bars` (20) velas cerradas: (Σ cuerpos de las velas de desplazamiento alcistas − Σ de las bajistas) / Σ de los rangos `H − L` de todas las velas de la ventana. Va de −1 a +1, y 0 cuando el denominador es 0.
+- Siempre se muestra con el rótulo "aproximación desde el precio".
+
+**Calentamiento.** Nada se emite antes de tener ATR14 válido y, para EQH y EQL, las `equal.lookback_bars` velas. Las estadísticas usan solo eventos ya cerrados (un FVG todavía abierto cuenta para "tocado", pero aún no para "llenado" ni "vencido").
+
+**Tests obligatorios.** Sin repintado (agregar velas nuevas no cambia ningún nivel, estado ni evento pasado), sin look-ahead (un nivel no existe antes de su hora), casos borde (gaps de fin de semana, velas faltantes, un nivel barrido y roto en la misma vela, FVG de tamaño cero) y el IC de Wilson contra valores calculados a mano.
+
 ## 6. Puntaje de confluencia y entrada
 
 ```
