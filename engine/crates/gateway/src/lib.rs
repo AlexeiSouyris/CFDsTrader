@@ -585,9 +585,12 @@ mod tests {
         assert_ne!(bad, CONFIG);
         assert!(GatewayConfig::from_toml(&bad).is_err());
         let extra = format!("nope = 1\n{CONFIG}");
-        // Una clave de más dentro de [paper] la rechaza PaperConfig.
-        let in_paper = format!("{CONFIG}\nnope = 1\n");
+        // Una clave de más dentro de [paper] o de [context] la rechaza su propia config.
+        let in_paper = CONFIG.replace("runs_limit = 50", "runs_limit = 50\nnope = 1");
+        assert_ne!(in_paper, CONFIG);
         assert!(crate::paper::PaperConfig::from_toml(&in_paper).is_err());
+        let in_context = format!("{CONFIG}\nnope = 1\n");
+        assert!(crate::context::ContextConfig::from_toml(&in_context).is_err());
         assert!(GatewayConfig::from_toml(&extra).is_err());
     }
 
