@@ -292,8 +292,12 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 | Contrato | Contenido |
 |---|---|
 | `learning_report.v1` | El informe periódico de la spec §15b, armado solo con el diario (`proposal.v1` + `outcome.v1`) de un período. Trae la **calibración** (tabla de confiabilidad por rango de probabilidad mostrada §13: casos, aciertos, promedio mostrado, frecuencia real e intervalo de Wilson, y "datos insuficientes" con menos de `min_cases`), una **muestra** por rango para verificarla a mano, el **aporte de cada señal** (R medio y % de TP1 con la señal y sin ella, con las muestras chicas marcadas) y las **propuestas de cambio** en texto, cada una con su evidencia. |
+| `change_proposal.v1` | Una propuesta de cambio de un informe, guardada como nació (`pendiente_de_voto`), con su evidencia. |
+| `change_vote.v1` | El voto de un miembro sobre una propuesta: a favor o en contra, y cuándo. Uno por miembro y propuesta. |
 
 - **El sistema nunca se cambia solo:** cada propuesta nace `pendiente_de_voto` (spec §1.2: cambios de reglas o parámetros, 4 de 6 en 48 h). El informe solo lee el diario; nada aplica un cambio.
+- **Votos** (spec §1.2, `config/votes.toml`): cambios de reglas o parámetros, 4 de 6 a favor dentro de 48 h; si no se llega en el plazo, o ya no se puede llegar, queda rechazada. El estado se calcula con los votos (`cfds_journal::votes::tally`); **contar votos no aplica nada**: el cambio se hace a mano en `config/` con el voto registrado.
+- **Guardado** (`infra/migrations/0034_learning_votes.sql`, solo agregar con triggers): `learning_reports`, `change_proposals` (siempre `pendiente_de_voto`, lo impone un CHECK) y `change_votes` (único por miembro y propuesta). Lo escribe Rust (`PgJournal::record_learning_report` y `record_vote`). Se arma con el ejemplo `learning_report` de `cfds-journal`.
 - La probabilidad mostrada se recalcula con la tabla de entrenamiento (`cfds_journal::probability`), porque `proposal.v1` no la guarda. Umbrales en `config/learning.toml` y `config/probability.toml`.
 - **UI (#331):** el gateway sirve la última `paper_comparison.v1` de cada instrumento (`GET /api/v1/paper_comparisons`), una por id (`/api/v1/paper_comparisons/{id}`) y el último `learning_report.v1` (`GET /api/v1/learning_report`, `null` mientras no haya ninguno guardado). Performance los muestra tal cual. Votar no se hace desde la UI (cuentas y 2FA, decisión aparte).
 
