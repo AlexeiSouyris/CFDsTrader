@@ -62,4 +62,7 @@ dataset = "XEUR.EOBI"
 symbol = "FDAX.c.0"
 publisher = "XEUR.EOBI.XEUR"
 instrument_id = "DE40"
-min_session_hours = 20
+# Se mide en minutos con barra (horas = barras / 60). La sesión de Eurex va de ~00:15 a ~21:00 UTC,
+# pero de madrugada hay minutos sin operaciones en el libro central y esos minutos no tienen barra:
+# el 2026-11-20 dio 1112 barras (18,5 h) en 20,8 h de sesión. Medido con --sample el 23-11-2026.
+min_session_hours = 18
