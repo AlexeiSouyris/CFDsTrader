@@ -12,7 +12,7 @@
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
-use rust_decimal::{Decimal, MathematicalOps};
+use rust_decimal::Decimal;
 use serde::Deserialize;
 
 use crate::{Outcome, OutcomeKind, Proposal, Signal, Source};
@@ -123,20 +123,8 @@ pub enum Shown {
     Insufficient { cases: u32, needed: u32 },
 }
 
-/// Intervalo de Wilson de `hits / n` con el `z` dado, en [0, 1]. `n` tiene que ser > 0.
-pub fn wilson(hits: u32, n: u32, z: Decimal) -> (Decimal, Decimal) {
-    debug_assert!(n > 0 && hits <= n);
-    let n_d = Decimal::from(n);
-    let p = Decimal::from(hits) / n_d;
-    let z2 = z * z;
-    let denom = Decimal::ONE + z2 / n_d;
-    let center = p + z2 / (Decimal::TWO * n_d);
-    let radicand = p * (Decimal::ONE - p) / n_d + z2 / (Decimal::from(4) * n_d * n_d);
-    let half = z * radicand.sqrt().unwrap_or(Decimal::ZERO);
-    let low = ((center - half) / denom).max(Decimal::ZERO);
-    let high = ((center + half) / denom).min(Decimal::ONE);
-    (low, high)
-}
+/// Intervalo de Wilson: vive en `cfds-indicators` (un solo cálculo, #231).
+pub use cfds_indicators::wilson;
 
 /// Tabla de frecuencias por grupo, armada con el backtest de entrenamiento y validación.
 #[derive(Debug, Clone, PartialEq, Eq)]

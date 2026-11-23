@@ -747,3 +747,241 @@ fn rust_also_rejects_a_state_change_before_the_level_exists() {
     assert!(validator("liquidity_level.v1.schema.json").is_valid(&d));
     assert!(serde_json::from_value::<cfds_core::LiquidityLevel>(d).is_err());
 }
+
+// ---------- estadísticas de liquidez (#231) ----------
+
+fn sample_fvg_event(open: bool) -> cfds_core::FvgEvent {
+    use cfds_core::{Direction, FvgEventPoint, FvgReaction, StatsTimeframe, ZoneStatus};
+    use std::num::NonZeroU32;
+    let point = |at: &str, bars| FvgEventPoint {
+        at: at.parse().unwrap(),
+        bars: NonZeroU32::new(bars).unwrap(),
+    };
+    cfds_core::FvgEvent {
+        instrument_id: "US100".parse().unwrap(),
+        timeframe: StatsTimeframe::M15,
+        direction: Direction::Bearish,
+        created_at: "2026-11-19T15:45:00Z".parse().unwrap(),
+        bottom: dec!(101.5),
+        top: dec!(103.25),
+        atr: dec!(4.2),
+        size_atr: dec!(0.4166666666666666666666666667),
+        touch: Some(point("2026-11-19T16:15:00Z", 2)),
+        mid: None,
+        fill: (!open).then(|| point("2026-11-19T17:00:00Z", 5)),
+        expiry: None,
+        reactions: vec![
+            FvgReaction {
+                bars: NonZeroU32::new(4).unwrap(),
+                return_atr: Some(dec!(-0.75)),
+            },
+            FvgReaction {
+                bars: NonZeroU32::new(8).unwrap(),
+                return_atr: None,
+            },
+        ],
+        status: if open {
+            ZoneStatus::Open
+        } else {
+            ZoneStatus::Filled
+        },
+        as_of: "2026-11-19T17:15:00Z".parse().unwrap(),
+    }
+}
+
+#[test]
+fn fvg_event_roundtrips_through_the_contract() {
+    for open in [true, false] {
+        assert_roundtrip("fvg_event.v1.schema.json", &sample_fvg_event(open));
+    }
+}
+
+#[test]
+fn contract_and_rust_reject_the_same_bad_fvg_events() {
+    let schema = "fvg_event.v1.schema.json";
+    let doc = || serde_json::to_value(sample_fvg_event(true)).unwrap();
+    let mut cases: Vec<Value> = Vec::new();
+    for (key, value) in [
+        ("timeframe", json!("4h")),
+        ("direction", json!("long")),
+        ("status", json!("closed")),
+        ("top", json!(103.25)),
+        ("size_atr", json!("-1")),
+        ("touch", json!({ "at": "2026-11-19T16:15:00Z", "bars": 0 })),
+        (
+            "touch",
+            json!({ "at": "2026-11-19T16:15:00+01:00", "bars": 2 }),
+        ),
+        ("reactions", json!([{ "bars": 4, "return_atr": "1e3" }])),
+        ("reactions", json!([{ "bars": 4 }])),
+        ("extra", json!(1)),
+    ] {
+        let mut d = doc();
+        d[key] = value;
+        cases.push(d);
+    }
+    let mut d = doc();
+    d.as_object_mut().unwrap().remove("fill");
+    cases.push(d); // tiene que venir, aunque sea null
+    for d in cases {
+        assert_both_reject::<cfds_core::FvgEvent>(schema, d);
+    }
+}
+
+fn sample_opening_gap(filled: bool) -> cfds_core::OpeningGap {
+    use cfds_core::{Direction, GapSession, ZoneStatus};
+    let fill = filled.then(|| GapSession {
+        day: "2026-11-17".parse().unwrap(),
+        sessions: 1,
+    });
+    cfds_core::OpeningGap {
+        instrument_id: "US500".parse().unwrap(),
+        day: "2026-11-16".parse().unwrap(),
+        direction: Direction::Bullish,
+        prev_close: dec!(100),
+        open: dec!(103),
+        atr: dec!(2),
+        size_atr: dec!(1.5),
+        fill,
+        same_session: false,
+        expiry: None,
+        status: if filled {
+            ZoneStatus::Filled
+        } else {
+            ZoneStatus::Open
+        },
+        as_of: "2026-11-18T05:00:00Z".parse().unwrap(),
+    }
+}
+
+#[test]
+fn opening_gap_roundtrips_through_the_contract() {
+    for filled in [true, false] {
+        assert_roundtrip("opening_gap.v1.schema.json", &sample_opening_gap(filled));
+    }
+}
+
+#[test]
+fn contract_and_rust_reject_the_same_bad_opening_gaps() {
+    let schema = "opening_gap.v1.schema.json";
+    let doc = || serde_json::to_value(sample_opening_gap(true)).unwrap();
+    let mut cases: Vec<Value> = Vec::new();
+    for (key, value) in [
+        ("day", json!("16-11-2026")),
+        ("direction", json!("up")),
+        ("prev_close", json!(100)),
+        ("same_session", json!("no")),
+        ("fill", json!({ "day": "2026-11-17", "sessions": -1 })),
+        ("fill", json!({ "day": "2026-11-17" })),
+        ("extra", json!(1)),
+    ] {
+        let mut d = doc();
+        d[key] = value;
+        cases.push(d);
+    }
+    let mut d = doc();
+    d.as_object_mut().unwrap().remove("expiry");
+    cases.push(d);
+    for d in cases {
+        assert_both_reject::<cfds_core::OpeningGap>(schema, d);
+    }
+}
+
+fn sample_liquidity_stats(insufficient: bool) -> cfds_core::LiquidityStats {
+    use cfds_core::{
+        Direction, DistMetric, DistStat, RateMetric, RateStat, SizeBucket, SizeCuts, StatsSubject,
+        StatsTimeframe,
+    };
+    use std::num::NonZeroU32;
+    let some = |d| (!insufficient).then_some(d);
+    cfds_core::LiquidityStats {
+        instrument_id: "US100".parse().unwrap(),
+        subject: StatsSubject::Fvg,
+        timeframe: StatsTimeframe::H1,
+        direction: Direction::Bullish,
+        size_tercile: SizeBucket::Low,
+        size_cuts_atr: SizeCuts {
+            low_max: dec!(0.3),
+            mid_max: dec!(0.7),
+        },
+        min_cases: NonZeroU32::new(30).unwrap(),
+        n: if insufficient { 12 } else { 40 },
+        rates: vec![RateStat {
+            metric: RateMetric::Touch,
+            successes: 7,
+            n: if insufficient { 12 } else { 40 },
+            insufficient,
+            rate: some(dec!(0.175)),
+            ci_low: some(dec!(0.0874)),
+            ci_high: some(dec!(0.3196)),
+        }],
+        distributions: vec![
+            DistStat {
+                metric: DistMetric::BarsToTouch,
+                horizon_bars: None,
+                n: 7,
+                insufficient: true,
+                median: None,
+                p25: None,
+                p75: None,
+                iqr: None,
+            },
+            DistStat {
+                metric: DistMetric::Reaction,
+                horizon_bars: NonZeroU32::new(4),
+                n: 35,
+                insufficient: false,
+                median: Some(dec!(-0.25)),
+                p25: Some(dec!(-1.5)),
+                p75: Some(dec!(0.75)),
+                iqr: Some(dec!(2.25)),
+            },
+        ],
+        as_of: "2026-11-19T17:00:00Z".parse().unwrap(),
+    }
+}
+
+#[test]
+fn liquidity_stats_roundtrip_through_the_contract() {
+    for insufficient in [true, false] {
+        assert_roundtrip(
+            "liquidity_stats.v1.schema.json",
+            &sample_liquidity_stats(insufficient),
+        );
+    }
+}
+
+#[test]
+fn contract_and_rust_reject_the_same_bad_liquidity_stats() {
+    let schema = "liquidity_stats.v1.schema.json";
+    let doc = || serde_json::to_value(sample_liquidity_stats(false)).unwrap();
+    let mut cases: Vec<Value> = Vec::new();
+    for (key, value) in [
+        ("subject", json!("order_block")),
+        ("size_tercile", json!("medium")),
+        ("min_cases", json!(0)),
+        ("n", json!(-1)),
+        ("size_cuts_atr", json!({ "low_max": "0.3" })),
+        (
+            "rates",
+            json!([{ "metric": "touch", "successes": 1, "n": 1, "insufficient": false, "rate": 1, "ci_low": null, "ci_high": null }]),
+        ),
+        (
+            "rates",
+            json!([{ "metric": "sweep", "successes": 1, "n": 1, "insufficient": false, "rate": null, "ci_low": null, "ci_high": null }]),
+        ),
+        (
+            "distributions",
+            json!([{ "metric": "reaction", "horizon_bars": 0, "n": 1, "insufficient": true, "median": null, "p25": null, "p75": null, "iqr": null }]),
+        ),
+        ("as_of", json!("2026-11-19 17:00:00")),
+        ("extra", json!(1)),
+    ] {
+        let mut d = doc();
+        d[key] = value;
+        cases.push(d);
+    }
+    for d in cases {
+        assert_both_reject::<cfds_core::LiquidityStats>(schema, d);
+    }
+}
