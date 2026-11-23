@@ -11,6 +11,7 @@
  */
 import { useMemo, useRef, useState } from 'react'
 
+import { AnimatedNumber } from '@/components/ui/animated-number'
 import { useChartMeasure } from '@/components/ui/chart-measure'
 import { Segmented } from '@/components/ui/segmented'
 import { dateTimeUtc, dateUtc, decimal } from '@/lib/format'
@@ -176,7 +177,7 @@ export function LiquidityChart({
           </p>
           {last && (
             <p className="mt-1 text-[26px] leading-none font-bold tracking-[-0.03em]">
-              {decimal(last.close)}
+              <AnimatedNumber value={last.close} format={decimal} />
             </p>
           )}
           {lastClose && (
@@ -201,7 +202,7 @@ export function LiquidityChart({
         </div>
       </div>
 
-      <div ref={boxRef} className="relative w-full">
+      <div ref={boxRef} className="chart-enter relative w-full">
         <svg
           ref={svgRef}
           width={width}

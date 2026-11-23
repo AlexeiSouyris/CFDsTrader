@@ -9,6 +9,7 @@
 import { Check, OctagonAlert, ShieldCheck, X } from 'lucide-react'
 import { useId, useState, type FormEvent, type ReactNode } from 'react'
 
+import { AnimatedNumber } from '@/components/ui/animated-number'
 import { Term } from '@/components/ui/term'
 import { dateTimeUtc, decimal, isNegative, signed } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -80,21 +81,23 @@ export function AccountStrip({ account }: { account: PaperAccount }) {
       <PaperBadge />
       <dl className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-3 2xl:grid-cols-6">
         <Stat label="Capital" big hint={`${account.currency}, al ${dateTimeUtc(account.as_of)}`}>
-          {decimal(account.equity, 2)}
+          <AnimatedNumber value={account.equity} format={(t) => decimal(t, 2)} />
         </Stat>
         <Stat label={<Term id="pl">P/L abierto</Term>} hint="posiciones abiertas">
-          <span className={tone(account.unrealized_pl)}>{signed(account.unrealized_pl, 2)}</span>
+          <span className={tone(account.unrealized_pl)}>
+            <AnimatedNumber value={account.unrealized_pl} format={(t) => signed(t, 2)} />
+          </span>
         </Stat>
         <Stat label="P/L del día" hint="realizado">
           <span className={tone(account.realized_pl_today)}>
-            {signed(account.realized_pl_today, 2)}
+            <AnimatedNumber value={account.realized_pl_today} format={(t) => signed(t, 2)} />
           </span>
         </Stat>
         <Stat
           label={<Term id="margen">Margen</Term>}
           hint={`libre ${decimal(account.margin_free, 2)}`}
         >
-          {decimal(account.margin_used, 2)}
+          <AnimatedNumber value={account.margin_used} format={(t) => decimal(t, 2)} />
         </Stat>
         <Stat
           label={<Term id="apalancamiento">Apalancamiento</Term>}

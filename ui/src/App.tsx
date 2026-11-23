@@ -1,6 +1,10 @@
 /**
  * Prototipo de la interfaz (#164, sigue al #30): carga → ingreso → armazón con las vistas.
  * Todo con datos de ejemplo: no se conecta al motor ni a IG y no calcula nada (CLAUDE.md §1).
+ *
+ * Tres pestañas principales (#286): Performance, Panel y Terminal. Cada vista tiene su hash y entra
+ * en el historial, así atrás/adelante del navegador cambia de pestaña. El deslizamiento horizontal
+ * del trackpad y los atajos de teclado pasan a la pestaña anterior o siguiente.
  */
 import { useEffect, useState } from 'react'
 
@@ -11,20 +15,31 @@ import { HalftoneWallpaper } from '@/components/ui/halftone-wallpaper'
 import { NotFound } from '@/components/ui/not-found'
 import { SignIn } from '@/components/ui/sign-in'
 import { CURRENT_MEMBER, NOTICES } from '@/mocks'
-import { ChartsView, CompetitionView, JournalView, NewsView, OverviewView } from '@/views'
+import { ChartsView, CompetitionView, JournalView, NewsView } from '@/views'
+import { useTabSwipe } from '@/lib/use-tab-swipe'
 import { LiquidityView } from '@/views/liquidity'
+import { PanelView } from '@/views/panel'
+import { PerformanceView } from '@/views/performance'
 import { TerminalView } from '@/views/terminal'
-import { VIEWS } from '@/views/nav'
+import { HOME_VIEW, MAIN_TABS, VIEWS } from '@/views/nav'
 import { FundView, GlossaryView, ProposalsView } from '@/views/phase10'
 
 const NOT_FOUND = 'no-encontrada'
 const viewFromHash = () => {
   const id = typeof location === 'undefined' ? '' : location.hash.slice(1)
-  if (!id) return VIEWS[0].id
+  if (!id) return HOME_VIEW
   return VIEWS.some((v) => v.id === id) ? id : NOT_FOUND
 }
 
 type Stage = 'loading' | 'signin' | 'app'
+
+/** Hacia dónde entra la vista nueva: por el orden de la navegación (para la transición). */
+const order = (id: string) => VIEWS.findIndex((v) => v.id === id)
+const TABS = MAIN_TABS.map((id) => VIEWS.find((v) => v.id === id)!)
+const navTo = (id: string) => (prev: { view: string; dir: number }) => ({
+  view: id,
+  dir: Math.sign(order(id) - order(prev.view)),
+})
 
 /**
  * El ingreso es una maqueta (no se conecta a nada). `infra/scripts/ui_liquidez.sh` lo saltea con
@@ -35,7 +50,7 @@ const FIRST_STAGE: Stage =
 
 export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Stage }) {
   const [stage, setStage] = useState<Stage>(initialStage)
-  const [view, setView] = useState(viewFromHash)
+  const [{ view, dir }, setNav] = useState(() => ({ view: viewFromHash(), dir: 0 }))
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [glass, setGlass] = useState(DEFAULT_GLASS)
 
@@ -50,16 +65,25 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
   }, [stage])
 
   useEffect(() => {
-    const onHash = () => setView(viewFromHash())
+    const onHash = () => setNav(navTo(viewFromHash()))
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
   const select = (id: string) => {
     if (location.hash !== `#${id}`) history.pushState(null, '', `#${id}`)
-    setView(id)
+    setNav(navTo(id))
     window.scrollTo({ top: 0 })
   }
+
+  const tab = (MAIN_TABS as readonly string[]).indexOf(view)
+  useTabSwipe(
+    (step) => {
+      const next = MAIN_TABS[tab + step]
+      if (next) select(next)
+    },
+    stage === 'app' && tab >= 0,
+  )
 
   return (
     <div data-theme={theme} className="relative isolate min-h-svh text-foreground">
@@ -70,6 +94,7 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
         {stage === 'app' && (
           <GlassShell
             views={VIEWS}
+            tabs={TABS}
             active={view}
             heading={
               view === NOT_FOUND
@@ -87,19 +112,22 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
             notices={NOTICES}
             user={CURRENT_MEMBER}
           >
-            {view === 'panel' && <OverviewView onOpen={select} />}
-            {view === 'propuestas' && <ProposalsView member={CURRENT_MEMBER} />}
-            {view === 'terminal' && <TerminalView member={CURRENT_MEMBER} />}
-            {view === 'graficos' && <ChartsView />}
-            {view === 'liquidez' && <LiquidityView />}
-            {view === 'noticias' && <NewsView />}
-            {view === 'operaciones' && <JournalView />}
-            {view === 'fondo' && <FundView />}
-            {view === 'competencia' && <CompetitionView />}
-            {view === 'glosario' && <GlossaryView />}
-            {view === NOT_FOUND && (
-              <NotFound onHome={() => select('panel')} onExplore={() => select('graficos')} />
-            )}
+            <div key={view} data-dir={dir} className="view-enter">
+              {view === 'performance' && <PerformanceView onOpen={select} />}
+              {view === 'panel' && <PanelView onOpen={select} />}
+              {view === 'propuestas' && <ProposalsView member={CURRENT_MEMBER} />}
+              {view === 'terminal' && <TerminalView member={CURRENT_MEMBER} />}
+              {view === 'graficos' && <ChartsView />}
+              {view === 'liquidez' && <LiquidityView />}
+              {view === 'noticias' && <NewsView />}
+              {view === 'operaciones' && <JournalView />}
+              {view === 'fondo' && <FundView />}
+              {view === 'competencia' && <CompetitionView />}
+              {view === 'glosario' && <GlossaryView />}
+              {view === NOT_FOUND && (
+                <NotFound onHome={() => select('panel')} onExplore={() => select('graficos')} />
+              )}
+            </div>
           </GlassShell>
         )}
       </div>

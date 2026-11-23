@@ -583,6 +583,8 @@ export const FUND = {
   ] satisfies FundMove[],
 }
 
+export * from './backtest'
+
 export * from './liquidity'
 
 export * from './terminal'

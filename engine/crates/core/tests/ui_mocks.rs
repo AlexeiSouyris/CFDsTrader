@@ -53,3 +53,10 @@ fn ui_liquidity_mock_follows_the_contracts() {
         assert_all_valid(&mock, "imbalance", "imbalance.v1.schema.json");
     }
 }
+
+#[test]
+fn ui_backtest_runs_mock_follows_the_contract() {
+    // la pestaña Performance (#286) muestra corridas de ejemplo con la forma de backtest_run.v1
+    let mock = read_json(&repo().join("ui/src/mocks/backtest-runs.json"));
+    assert_all_valid(&mock, "runs", "backtest_run.v1.schema.json");
+}
