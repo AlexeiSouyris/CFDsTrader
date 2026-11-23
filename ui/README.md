@@ -4,18 +4,19 @@
 
 ## Qué hay
 
-Una sola app (no una galería de piezas sueltas): carga → ingreso (email, contraseña y código 2FA) → armazón de vidrio con ocho vistas y una página 404.
+Una sola app (no una galería de piezas sueltas): carga → ingreso (email, contraseña y código 2FA) → armazón de vidrio con nueve vistas y una página 404.
 
-| Vista (`#hash`)            | Qué muestra                                                                                                                                                    |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Panel (`#panel`)           | KPIs del fondo, comparación de índices con mini curvas, mapa de mercado, últimas operaciones y la tabla de la competencia                                      |
-| Gráficos (`#graficos`)     | Velas o línea con volumen, RSI 14 y MACD 12·26·9 en paneles, y la profundidad del mercado                                                                      |
-| Propuestas (`#propuestas`) | Las propuestas del motor (campos de `proposal.v1`), con su desglose, la probabilidad de §13, cuándo vencen y aprobar o rechazar (maqueta, solo el responsable) |
-| Noticias (`#noticias`)     | Una carpeta por miembro: todos ven todas, cada uno agrega solo en la suya                                                                                      |
-| Diario (`#operaciones`)    | Diario de operaciones simuladas, con filtro por período                                                                                                        |
-| Fondo (`#fondo`)           | Valor de la unidad, y unidades, aportes, valor y P&L de cada miembro, tal como llegan                                                                          |
-| Trofeos (`#competencia`)   | Trofeo del día (plata) y de la semana (oro), y la tabla del grupo                                                                                              |
-| Glosario (`#glosario`)     | Buscador de todos los términos de `docs/GLOSARIO.md`                                                                                                           |
+| Vista (`#hash`)            | Qué muestra                                                                                                                                                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Panel (`#panel`)           | KPIs del fondo, comparación de índices con mini curvas, mapa de mercado, últimas operaciones y la tabla de la competencia                                                                                                             |
+| Gráficos (`#graficos`)     | Velas o línea con volumen, RSI 14 y MACD 12·26·9 en paneles, y la profundidad del mercado                                                                                                                                             |
+| Liquidez (`#liquidez`)     | Velas de 15m con los niveles de liquidez (EQH/EQL, PDH/PDL, PWH/PWL y sesiones) y su estado, los FVG abiertos y llenos, las estadísticas con IC 95 % y el índice de desequilibrio ("aproximación desde el precio"). Spec §5.4.1, #231 |
+| Propuestas (`#propuestas`) | Las propuestas del motor (campos de `proposal.v1`), con su desglose, la probabilidad de §13, cuándo vencen y aprobar o rechazar (maqueta, solo el responsable)                                                                        |
+| Noticias (`#noticias`)     | Una carpeta por miembro: todos ven todas, cada uno agrega solo en la suya                                                                                                                                                             |
+| Diario (`#operaciones`)    | Diario de operaciones simuladas, con filtro por período                                                                                                                                                                               |
+| Fondo (`#fondo`)           | Valor de la unidad, y unidades, aportes, valor y P&L de cada miembro, tal como llegan                                                                                                                                                 |
+| Trofeos (`#competencia`)   | Trofeo del día (plata) y de la semana (oro), y la tabla del grupo                                                                                                                                                                     |
+| Glosario (`#glosario`)     | Buscador de todos los términos de `docs/GLOSARIO.md`                                                                                                                                                                                  |
 
 El fondo es un flujo en semitono gris grafito y plata (WebGL, lento, quieto con `prefers-reduced-motion`). El vidrio se ajusta desde la barra superior (desenfoque y opacidad), y hay tema claro y oscuro.
 
@@ -27,7 +28,7 @@ Los términos subrayados con puntos (`<Term id="...">`) muestran su definición 
 
 - `src/components/ui/`: los componentes. Cada uno dice en su encabezado de qué original de 21st.dev o AnimateIcons se inspira y qué se cambió.
 - `src/views/`: las vistas, que solo ubican componentes y les pasan datos.
-- `src/mocks/`: los datos de ejemplo, con la forma de los contratos (precios como texto decimal, horas en UTC). El RSI y el MACD de `us100-1h.json` vienen **precalculados** en el archivo: la UI no los calcula.
+- `src/mocks/`: los datos de ejemplo, con la forma de los contratos (precios como texto decimal, horas en UTC). Los de liquidez (`liquidity.ts`) usan tipos derivados de la spec §5.4.1 hasta que estén los contratos `liquidity_level.v1`, `fvg_event.v1` y `liquidity_stats.v1` (TODO en el archivo). El RSI y el MACD de `us100-1h.json` vienen **precalculados** en el archivo: la UI no los calcula.
 - `src/lib/`: formato en español (`format.ts`), el reparto del mapa de mercado (`squarify.ts`, geometría de dibujo) y un hook de ancho.
 
 ## Repetidos que se unificaron
