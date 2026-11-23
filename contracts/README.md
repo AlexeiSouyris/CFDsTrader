@@ -248,6 +248,18 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - **Solo informativo:** es la distribución de lo que pasó después de situaciones parecidas, **nunca un pronóstico ni una recomendación**. Con menos de `min_neighbors` vecinos, `insufficient = true` y se muestra "datos insuficientes".
 - Lo calcula y lo escribe **solo Python** (`python -m cfds_intel.analogs --guardar`, migración 0029, solo agregar). Un informe igual al último del mismo día no se repite. Rust (gateway) y la UI lo leen sin recalcular.
 
+### Evaluación de la Fase 5 (#298)
+
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `walk_forward_report.v1` | `walk_forward_reports` | La evaluación de un instrumento: cada ventana walk-forward de `config/data_split.toml` (entrenamiento y prueba con los parámetros de config, cada tramo con sus métricas y comprar y mantener con costos y financiación), el resumen de las pruebas, la sensibilidad de los parámetros de `config/evaluation.toml` (solo con el entrenamiento) y su estabilidad, y el tramo **fuera de muestra aparte**. Fuente de las velas (`ig` o `futures`, con el instrumento derivado) y `config_sha256`. |
+
+- **No elige nada:** la sensibilidad solo mide cómo cambian las métricas alrededor de los valores de config. Cambiar la estrategia es del dueño.
+- El fuera de muestra se evalúa una sola vez, con los parámetros de config: la investigación (entrenamiento, prueba y sensibilidad) nunca lo toca (`research_period`).
+- Decimales como texto y `null` cuando algo no está definido (un tramo sin velas no tiene métricas). Retornos y métricas en la moneda de la cuenta; los montos de comprar y mantener, en la del instrumento.
+- **UI:** el bloque "Walk-forward / fuera de muestra" del detalle de una corrida (#304, `data-walk-forward`) puede mostrar el último reporte del mismo `instrument_id` y `candle_source` (índice `(instrument_id, computed_at)`) tal cual llega: cada tramo trae sus métricas y comprar y mantener, sin nada que calcular en la UI.
+- Lo escribe **solo Rust** (`PgJournal::record_walk_forward`, migración 0031, solo agregar con trigger). El mismo reporte (salvo `computed_at`) no guarda nada; con otro contenido es un error.
+
 ### Fondo del grupo (#179)
 
 | Contrato | Tabla | Contenido |
