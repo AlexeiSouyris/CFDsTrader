@@ -20,7 +20,7 @@ export function OperationView() {
         </h3>
         <p className="mb-3 text-[11px] text-muted-foreground">
           Los últimos, del más nuevo al más viejo, tal como los registra el motor (sin secretos). Se
-          guardan en memoria: al reiniciar el gateway empiezan de cero.
+          guardan en la base y se conservan al reiniciar el gateway.
         </p>
         {events.status === 'ok' ? (
           <OpsEventFeed events={events.data} />

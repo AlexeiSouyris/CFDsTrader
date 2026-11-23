@@ -31,6 +31,7 @@ use cfds_gateway::emotions::{is_emotions_route, respond_emotions};
 use cfds_gateway::fund::{is_fund_route, respond_fund};
 use cfds_gateway::learning::{NoStoredReports, is_learning_route, respond_learning};
 use cfds_gateway::ops::url_password;
+use cfds_gateway::ops_store::{persistence, run_persister};
 use cfds_gateway::paper::{HttpIn, Ops, PaperConfig, PgPaper, is_paper_route, respond_paper};
 use cfds_gateway::paper_runner::RunnerDeps;
 use cfds_gateway::status::{
@@ -138,6 +139,7 @@ async fn handle(
         let scrub = |t: &str| state.log.scrub(t);
         let deps = StatusDeps {
             feed: &state.feed,
+            events: Some(&state.source.store),
             daily_loss_limit_pct: state.daily_loss_limit_pct,
             scrub: &scrub,
         };
@@ -258,8 +260,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let risk = RiskConfig::from_toml(RISK)?;
     // Logs sin secretos: el token local y la base se registran antes del primer log. Las líneas
-    // ya redactadas del broker y de las alertas quedan además en memoria para la UI (#314).
-    let feed = Feed::new(StatusConfig::from_toml(GATEWAY)?);
+    // ya redactadas del broker y de las alertas quedan además en memoria para la UI (#314) y se
+    // guardan en `ops_events` en segundo plano (#337): la cola existe desde ya y la tarea que la
+    // vacía arranca cuando hay base. El broker nunca espera a la base.
+    let status_cfg = StatusConfig::from_toml(GATEWAY)?;
+    let feed = Feed::new(status_cfg);
+    let (sink, events_rx) = persistence(status_cfg.persist_queue);
+    feed.attach(sink);
     let log = Arc::new(Logger::new(Box::new(FeedWriter::new(
         feed.clone(),
         Box::new(std::io::stderr()),
@@ -305,6 +312,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err(log.scrub(&e.to_string()).into());
         }
     };
+    {
+        // Si la base no responde, avisa con la alerta de desconexión de siempre (con su intervalo
+        // mínimo) y reintenta; el feed en memoria sigue.
+        let ops = ops.clone();
+        tokio::spawn(run_persister(
+            events_rx,
+            Arc::new(store.clone()),
+            status_cfg.persist_queue,
+            status_cfg.retry,
+            move |msg: String| {
+                let ops = ops.clone();
+                async move {
+                    ops.alerts
+                        .raise(AlertKind::Disconnect, &msg, chrono::Utc::now())
+                        .await;
+                }
+            },
+        ));
+    }
     let backtest = BacktestConfig::from_toml(BACKTEST)?;
     // Con la sesión de cada instrumento: el cierre de fin de semana de la spec §8 (#334).
     let calendar = cfds_market_data::ExchangeCalendar::load(&config_dir(), catalog.exchange_map())?;

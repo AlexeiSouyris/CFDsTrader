@@ -45,6 +45,14 @@ runs_limit = 50
 [ops]
 # Eventos del broker y alertas que se guardan en memoria (los últimos) para la UI.
 feed_size = 50
+# Días de eventos que conserva la base (#337). Los borra el job de retención:
+#   DATABASE_URL=... cargo run -p cfds-gateway --example ops_events_retention
+retention_days = 30
+# Eventos que pueden esperar para guardarse (cola y pendientes con la base caída). Si no
+# entran, quedan solo en memoria: el broker nunca espera a la base.
+persist_queue = 1000
+# Segundos entre reintentos si la base no responde.
+retry_secs = 30
 
 # Contexto de mercado del Panel (#294): /api/v1/sentiment y /api/v1/analogs, solo lectura.
 [context]
