@@ -19,14 +19,17 @@
 //! - **Tamaño:** body de hasta `[paper] max_body_bytes`.
 //! - **Hora de la orden:** `created_at` tiene que estar a menos de `[paper] max_order_age_secs`
 //!   de la hora del gateway (nunca en el futuro): nadie elige a qué precio viejo entra.
+//! - **Arranque y parada (fase 9, #297):** `POST /api/v1/paper/orders` responde 503 mientras la
+//!   reconciliación al arrancar no pasó limpia o el gateway se está apagando (ver [`crate::ops`]).
 
 use std::collections::BTreeMap;
 use std::future::Future;
+use std::sync::Arc;
 
 use cfds_backtest::{DailyRates, FundingRates, market_terms_from_catalog};
 use cfds_broker::{
-    Broker, BrokerConfig, FundingSetup, MarketSetup, PaperBroker, ReconcileSchedule,
-    reconcile_periodically, restore_and_reconcile, submit_and_record,
+    Broker, BrokerConfig, Flush, FundingSetup, MarketSetup, PaperBroker, ReconcileSchedule,
+    flush_journal, reconcile_periodically, restore_and_reconcile, submit_and_record,
 };
 use cfds_core::{
     InstrumentId, Order, OrderReport, PaperAccount, Position, TicketVerdict, Timeframe,
@@ -34,12 +37,15 @@ use cfds_core::{
 use cfds_journal::pg::PgJournal;
 use cfds_journal::{BacktestRun, RunDetail};
 use cfds_market_data::Catalog;
+use cfds_obs::{AlertKind, Alerter, Level, Logger, ReqwestPost};
 use cfds_storage::PgStore;
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::Deserialize;
+use serde_json::json;
 use tokio::sync::Mutex;
 
 use crate::Reply;
+use crate::ops::{Gate, GateState, alert_events, gate_after_reconcile, log_events, report_failure};
 
 /// `[paper]` de `config/gateway.toml`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -119,6 +125,10 @@ pub trait PaperService: Sync {
         &self,
         run_id: &str,
     ) -> impl Future<Output = Result<Option<RunDetail>, String>> + Send;
+    /// La etapa del broker (fase 9): solo en `Ready` se aceptan órdenes.
+    fn gate(&self) -> GateState {
+        GateState::Ready
+    }
 }
 
 /// Un pedido HTTP ya leído (el body, con el límite de tamaño aplicado).
@@ -259,6 +269,20 @@ pub async fn respond_paper<P: PaperService>(
     if req.body.len() > cfg.max_body_bytes {
         return text(413, "body demasiado grande");
     }
+    if req.path == "/api/v1/paper/orders" {
+        match paper.gate() {
+            GateState::Ready => {}
+            GateState::Starting => {
+                return text(
+                    503,
+                    "el broker simulado no acepta órdenes: la reconciliación al arrancar no pasó",
+                );
+            }
+            GateState::Stopping => {
+                return text(503, "el gateway se está apagando: no acepta órdenes nuevas");
+            }
+        }
+    }
     let order: Order = match serde_json::from_slice(req.body) {
         Ok(o) => o,
         Err(e) => return text(400, &format!("no es un order.v1 válido: {e}")),
@@ -274,23 +298,35 @@ pub async fn respond_paper<P: PaperService>(
     result.unwrap_or_else(internal)
 }
 
+/// Logs y alertas del gateway.
+pub struct Ops {
+    pub log: Arc<Logger>,
+    pub alerts: Alerter<ReqwestPost>,
+}
+
 /// El broker simulado del gateway: en memoria, con su registro en PostgreSQL.
 pub struct PgPaper {
     state: Mutex<(PaperBroker, ReconcileSchedule)>,
     /// Sesión de solo lectura salvo la transacción del registro (`insert_paper_order`).
     store: PgStore,
     journal: PgJournal,
+    gate: Gate,
+    ops: Arc<Ops>,
 }
 
 impl PgPaper {
     /// Arma los mercados desde el catálogo y las velas de 15m guardadas, reconstruye el broker
     /// desde el registro y lo reconcilia (kill switch si algo no coincide). Los instrumentos con
     /// datos del broker pendientes en el catálogo no se operan: se devuelven aparte.
+    ///
+    /// Solo con la reconciliación limpia queda en [`GateState::Ready`]; si no, se queda en
+    /// `Starting` y las órdenes responden 503.
     pub async fn start(
         store: PgStore,
         catalog: &Catalog,
         cfg: BrokerConfig,
         paper: &PaperConfig,
+        ops: Arc<Ops>,
         now: DateTime<Utc>,
     ) -> Result<(Self, Vec<String>), String> {
         let mut markets = BTreeMap::new();
@@ -344,16 +380,107 @@ impl PgPaper {
         let (probe, _) = restore_and_reconcile(cfg.clone(), markets.clone(), &journal, &[], now);
         let mut probe = probe;
         let positions = probe.positions(now);
-        let (broker, _) = restore_and_reconcile(cfg, markets, &journal, &positions, now);
+        let (mut broker, rec) = restore_and_reconcile(cfg, markets, &journal, &positions, now);
+        let gate = Gate::default();
+        gate.set(gate_after_reconcile(&rec));
+        ops.log.log(
+            if rec.is_clean() {
+                Level::Info
+            } else {
+                Level::Error
+            },
+            "gateway",
+            "startup_reconcile",
+            json!({
+                "clean": rec.is_clean(),
+                "matched": rec.matched,
+                "mismatches": rec.mismatches.len(),
+                "drifts": rec.drifts.len(),
+                "orders_accepted": gate.state() == GateState::Ready,
+            }),
+        );
+        let events = broker.take_events();
+        log_events(&ops.log, &events);
+        alert_events(&ops.alerts, &events, now).await;
         let journal_db = PgJournal::new(store.pool().clone());
         Ok((
             Self {
                 state: Mutex::new((broker, ReconcileSchedule::default())),
                 store,
                 journal: journal_db,
+                gate,
+                ops,
             },
             skipped,
         ))
+    }
+
+    /// Parada segura: deja de aceptar órdenes, espera a la que esté en curso (el candado),
+    /// guarda en el registro lo que falte y verifica que no quede ninguna orden sin guardar.
+    pub async fn shutdown(&self, now: DateTime<Utc>) -> Result<Flush, String> {
+        self.gate.set(GateState::Stopping);
+        let guard = self.state.lock().await;
+        let flush = flush_journal(&guard.0, &self.store).await;
+        match &flush {
+            Ok(f) => {
+                self.ops.log.log(
+                    if f.is_clean() {
+                        Level::Info
+                    } else {
+                        Level::Error
+                    },
+                    "gateway",
+                    "shutdown",
+                    json!({
+                        "clean": f.is_clean(),
+                        "saved_now": f.saved_now,
+                        "orphans": f.orphans,
+                    }),
+                );
+                if !f.is_clean() {
+                    self.ops
+                        .alerts
+                        .raise(
+                            AlertKind::Disconnect,
+                            &format!("apagado con {} órdenes sin guardar", f.orphans.len()),
+                            now,
+                        )
+                        .await;
+                }
+            }
+            Err(e) => {
+                self.fail(AlertKind::Disconnect, "shutdown_failed", e, now)
+                    .await;
+            }
+        }
+        flush
+    }
+
+    async fn fail(&self, kind: AlertKind, event: &str, error: &str, now: DateTime<Utc>) {
+        report_failure(&self.ops.log, &self.ops.alerts, kind, event, error, now).await;
+    }
+
+    /// Después de cada operación: los eventos del broker al log y a las alertas.
+    async fn drain(&self, broker: &mut PaperBroker, now: DateTime<Utc>) {
+        let events = broker.take_events();
+        log_events(&self.ops.log, &events);
+        alert_events(&self.ops.alerts, &events, now).await;
+    }
+
+    /// `refresh` con sus errores logueados y alertados.
+    async fn refresh_checked(
+        &self,
+        broker: &mut PaperBroker,
+        sched: &mut ReconcileSchedule,
+        now: DateTime<Utc>,
+    ) -> Result<(), String> {
+        let r = self.refresh(broker, sched, now).await;
+        if let Err(e) = &r {
+            self.fail(AlertKind::Disconnect, "store_failed", e, now)
+                .await;
+        }
+        self.drain(broker, now).await;
+        r
     }
 
     /// Antes de cada operación: velas nuevas cerradas y, si toca, la reconciliación periódica.
@@ -377,8 +504,18 @@ impl PgPaper {
                 .await
                 .map_err(|e| e.to_string())?;
             for c in fresh.into_iter().filter(|c| c.is_closed_at(now)) {
-                // Una vela fuera de orden no se agrega (la validación de datos es de la ingesta).
-                let _ = broker.push_candle(c);
+                // Una vela fuera de orden no se agrega (la validación de datos es de la ingesta),
+                // pero se avisa: es un error de datos.
+                let start = c.start;
+                if let Err(e) = broker.push_candle(c) {
+                    self.fail(
+                        AlertKind::DataError,
+                        "candle_rejected",
+                        &format!("{id} {start}: {e}"),
+                        now,
+                    )
+                    .await;
+                }
             }
         }
         let markets = broker.markets().clone();
@@ -393,30 +530,42 @@ impl PaperService for PgPaper {
     async fn preview(&self, order: Order, now: DateTime<Utc>) -> Result<TicketVerdict, String> {
         let mut guard = self.state.lock().await;
         let (broker, sched) = &mut *guard;
-        self.refresh(broker, sched, now).await?;
+        self.refresh_checked(broker, sched, now).await?;
         Ok(broker.preview(&order, now))
     }
 
     async fn submit(&self, order: Order) -> Result<OrderReport, String> {
         let mut guard = self.state.lock().await;
         let (broker, sched) = &mut *guard;
-        self.refresh(broker, sched, order.created_at).await?;
-        submit_and_record(broker, &self.store, &order)
+        // Una orden que esperaba el candado mientras empezaba la parada no se procesa.
+        if self.gate.state() != GateState::Ready {
+            return Err("el broker simulado no acepta órdenes ahora".into());
+        }
+        let now = order.created_at;
+        self.refresh_checked(broker, sched, now).await?;
+        let r = submit_and_record(broker, &self.store, &order)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string());
+        if let Err(e) = &r {
+            // El informe quedó en el broker: la parada segura lo guarda si la base vuelve.
+            self.fail(AlertKind::Disconnect, "journal_write_failed", e, now)
+                .await;
+        }
+        self.drain(broker, now).await;
+        r
     }
 
     async fn positions(&self, now: DateTime<Utc>) -> Result<Vec<Position>, String> {
         let mut guard = self.state.lock().await;
         let (broker, sched) = &mut *guard;
-        self.refresh(broker, sched, now).await?;
+        self.refresh_checked(broker, sched, now).await?;
         Ok(broker.positions(now))
     }
 
     async fn account(&self, now: DateTime<Utc>) -> Result<PaperAccount, String> {
         let mut guard = self.state.lock().await;
         let (broker, sched) = &mut *guard;
-        self.refresh(broker, sched, now).await?;
+        self.refresh_checked(broker, sched, now).await?;
         Ok(broker.account(now))
     }
 
@@ -428,5 +577,9 @@ impl PaperService for PgPaper {
             .run_detail(run_id)
             .await
             .map_err(|e| e.to_string())
+    }
+
+    fn gate(&self) -> GateState {
+        self.gate.state()
     }
 }

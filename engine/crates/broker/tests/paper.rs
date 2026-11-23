@@ -6,8 +6,10 @@ use std::path::PathBuf;
 
 use cfds_backtest::{Commission, CostConfig, ExitConfig, FundingRates, InstrumentCosts};
 use cfds_broker::{
-    Broker, BrokerConfig, FundingSetup, LiveBroker, MarketSetup, PaperBroker, live_trading_status,
+    Broker, BrokerConfig, BrokerEvent, FundingSetup, JournalStore, LiveBroker, MarketSetup,
+    PaperBroker, flush_journal, live_trading_status,
 };
+use cfds_core::OrderReport;
 use cfds_core::{
     Candle, InstrumentId, KillSwitch, Mode, Order, OrderRejection, OrderSide, OrderStatus,
     PaperMode, Timeframe,
@@ -16,6 +18,7 @@ use cfds_risk::{InstrumentLimits, RiskConfig};
 use chrono::{DateTime, NaiveTime, TimeDelta, Utc};
 use rust_decimal::{Decimal, dec};
 use serde_json::Value;
+use std::sync::Mutex;
 
 const RISK: &str = include_str!("../../../../config/risk.toml");
 const BACKTEST: &str = include_str!("../../../../config/backtest.toml");
@@ -440,4 +443,108 @@ fn there_is_no_way_to_send_a_real_order() {
     assert_eq!(std::mem::size_of::<LiveBroker>(), 0);
     let json = serde_json::to_value(order("x", "US100", OrderSide::Long, dec!(98), 20)).unwrap();
     assert_eq!(json["mode"], "paper");
+}
+
+#[test]
+fn every_decision_report_and_kill_switch_leaves_an_event() {
+    let mut b = broker();
+    let ok = order("o1", "US100", OrderSide::Long, dec!(98), 20);
+    let report = b.submit(&ok);
+    b.submit(&ok);
+    b.activate_kill_switch("Error de datos", at(21));
+    b.activate_kill_switch("otra vez", at(22));
+    let events = b.take_events();
+    assert!(b.take_events().is_empty(), "take_events vacía la lista");
+    let names: Vec<String> = events
+        .iter()
+        .map(|e| {
+            serde_json::to_value(e).unwrap()["event"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "order_received",
+            "risk_decision",
+            "order_report",
+            "order_duplicate",
+            "kill_switch"
+        ]
+    );
+    assert!(matches!(
+        &events[1],
+        BrokerEvent::RiskDecision { accepted: true, size: Some(s), .. } if *s == dec!(5)
+    ));
+    assert_eq!(events[2], BrokerEvent::OrderReport { report });
+    // Una orden rechazada deja la decisión con el motivo.
+    rejected(&mut b, &order("o2", "US100", OrderSide::Long, dec!(98), 23));
+    let events = b.take_events();
+    assert!(matches!(
+        &events[1],
+        BrokerEvent::RiskDecision {
+            accepted: false,
+            rejection: Some(OrderRejection::KillSwitchActive),
+            ..
+        }
+    ));
+}
+
+/// Un registro en memoria; `fail` hace fallar los guardados de esos `order_id`.
+#[derive(Default)]
+struct MemJournal {
+    saved: Mutex<Vec<(Order, OrderReport)>>,
+    fail: Vec<String>,
+}
+
+impl JournalStore for MemJournal {
+    async fn save(&self, order: &Order, report: &OrderReport) -> Result<(), String> {
+        if self.fail.contains(&order.order_id.to_string()) {
+            return Err("sin base".into());
+        }
+        let mut s = self.saved.lock().unwrap();
+        if !s.iter().any(|(o, _)| o.order_id == order.order_id) {
+            s.push((order.clone(), report.clone()));
+        }
+        Ok(())
+    }
+    async fn saved_ids(&self) -> Result<Vec<String>, String> {
+        Ok(self
+            .saved
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(o, _)| o.order_id.to_string())
+            .collect())
+    }
+}
+
+#[tokio::test]
+async fn the_shutdown_flush_saves_what_was_missing_and_reports_orphans() {
+    let mut b = broker();
+    let o1 = order("o1", "US100", OrderSide::Long, dec!(98), 20);
+    let o2 = order("o2", "US100", OrderSide::Long, dec!(98), 21);
+    let r1 = b.submit(&o1);
+    b.submit(&o2);
+    // o1 llegó a guardarse; o2 no (el guardado falló en su momento).
+    let store = MemJournal::default();
+    store.saved.lock().unwrap().push((o1.clone(), r1));
+    let flush = flush_journal(&b, &store).await.unwrap();
+    assert!(flush.is_clean());
+    assert_eq!(flush.saved_now, ["o2"]);
+    assert_eq!(store.saved_ids().await.unwrap(), ["o1", "o2"]);
+    // Otra vez: nada que guardar.
+    let again = flush_journal(&b, &store).await.unwrap();
+    assert!(again.is_clean() && again.saved_now.is_empty());
+    // Si la base sigue sin aceptar una orden, queda huérfana y la parada no es limpia.
+    let broken = MemJournal {
+        fail: vec!["o2".into()],
+        ..Default::default()
+    };
+    let flush = flush_journal(&b, &broken).await.unwrap();
+    assert!(!flush.is_clean());
+    assert_eq!(flush.saved_now, ["o1"]);
+    assert_eq!(flush.orphans, ["o2"]);
 }

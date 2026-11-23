@@ -160,6 +160,18 @@ impl Logger {
         line
     }
 
+    /// Un texto sin secretos: contraseñas de URL y valores registrados tapados. Lo usan las
+    /// alertas antes de mandar un mensaje fuera del proceso.
+    pub fn scrub(&self, text: &str) -> String {
+        let mut out = redact_url(text);
+        if let Ok(secrets) = self.secrets.lock() {
+            for s in secrets.iter() {
+                out = out.replace(s.as_str(), MASK);
+            }
+        }
+        out
+    }
+
     /// Escribe el evento. Un error de escritura no frena al motor (se ignora).
     pub fn log(&self, level: Level, target: &str, event: &str, fields: Value) {
         let line = self.line(Utc::now(), level, target, event, fields);

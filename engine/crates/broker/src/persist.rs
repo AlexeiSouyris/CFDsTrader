@@ -103,3 +103,73 @@ pub async fn reconcile_periodically(
     }
     Ok(Some(rec))
 }
+
+/// Lo que la parada segura necesita del registro guardado. En producción, [`PgStore`]; en los
+/// tests, uno en memoria.
+pub trait JournalStore: Sync {
+    /// Guarda la orden y su informe (idempotente por `order_id`).
+    fn save(
+        &self,
+        order: &Order,
+        report: &OrderReport,
+    ) -> impl std::future::Future<Output = Result<(), String>> + Send;
+    /// Los `order_id` que ya están guardados.
+    fn saved_ids(&self) -> impl std::future::Future<Output = Result<Vec<String>, String>> + Send;
+}
+
+impl JournalStore for PgStore {
+    async fn save(&self, order: &Order, report: &OrderReport) -> Result<(), String> {
+        self.insert_paper_order(order, report)
+            .await
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+
+    async fn saved_ids(&self) -> Result<Vec<String>, String> {
+        self.paper_journal()
+            .await
+            .map(|j| j.into_iter().map(|(o, _)| o.order_id.to_string()).collect())
+            .map_err(|e| e.to_string())
+    }
+}
+
+/// Resultado de [`flush_journal`].
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Flush {
+    /// Órdenes que el broker procesó y no estaban guardadas (se guardaron ahora).
+    pub saved_now: Vec<String>,
+    /// Órdenes que siguen sin guardar después del intento (huérfanas). Vacío = parada limpia.
+    pub orphans: Vec<String>,
+}
+
+impl Flush {
+    pub fn is_clean(&self) -> bool {
+        self.orphans.is_empty()
+    }
+}
+
+/// Parada segura (fase 9, #297): guarda toda orden que el broker procesó y no llegó al registro
+/// (por ejemplo, si un guardado falló) y verifica contra lo guardado que no quede ninguna suelta.
+pub async fn flush_journal<S: JournalStore>(
+    broker: &PaperBroker,
+    store: &S,
+) -> Result<Flush, String> {
+    let saved = store.saved_ids().await?;
+    let mut flush = Flush::default();
+    for (o, r) in broker.journal() {
+        let id = o.order_id.to_string();
+        if !saved.contains(&id) && store.save(o, r).await.is_ok() {
+            flush.saved_now.push(id);
+        }
+    }
+    // Verificación final contra lo guardado de verdad.
+    let saved = store.saved_ids().await?;
+    for (o, _) in broker.journal() {
+        let id = o.order_id.to_string();
+        if !saved.contains(&id) {
+            flush.saved_now.retain(|s| s != &id);
+            flush.orphans.push(id);
+        }
+    }
+    Ok(flush)
+}
