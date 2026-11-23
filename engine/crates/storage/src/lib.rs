@@ -16,6 +16,8 @@
 //! Las migraciones viven en `infra/migrations/` y se aplican con [`PgStore::migrate`].
 
 mod economic_events;
+mod futures_bars;
+mod futures_candles;
 mod liquidity_levels;
 mod liquidity_stats;
 mod news_stream;

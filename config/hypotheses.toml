@@ -1,0 +1,30 @@
+# Arnés de las hipótesis H1–H7 de la spec §9.1 (#227). Escritas antes de mirar los datos: cambiar
+# una condición, un horizonte o el criterio después de mirarlos invalida la prueba. Se valida al
+# arrancar (`cfds_intel.sentiment.hypotheses`).
+#
+# Criterio (spec §9.1): una hipótesis está "apoyada" solo si el intervalo de confianza del
+# `confidence` (bootstrap) de la diferencia contra la media no incluye el 0 y está del lado
+# esperado. Retornos de cierre a cierre, sin costos.
+
+[test]
+confidence = "0.95"
+# Menos casos que esto en un grupo: "datos insuficientes", y no se calcula nada.
+min_cases = 30
+bootstrap_iterations = 10000
+# Semilla fija: la misma entrada da siempre el mismo intervalo.
+seed = 20261123
+
+# Umbrales de las condiciones (los del índice son los de config/sentiment.toml [states]).
+[conditions]
+# H3: % de clientes de IG largos ≥ esto (mayoría larga) o ≤ 100 − esto (mayoría corta).
+ig_majority_pct = "75"
+
+# Horizontes, en velas: días hábiles (diarias) u horas (velas de 1h).
+[horizons]
+h1_days = 20
+h2_days = 20
+h3_days = [1, 5]
+h4_hours = 4
+h4_days = 5
+h5_days = 5
+h7_days = 20
