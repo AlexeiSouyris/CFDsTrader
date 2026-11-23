@@ -231,3 +231,40 @@ async fn a_backtest_run_is_stored_once_and_never_rewritten() {
         );
     }
 }
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn ml_features_are_stored_once_and_never_rewritten() {
+    use cfds_journal::ml_features::{MlFeatures, SessionBand, VolTercile};
+    // `ml_features` es de solo agregar: este run_id no se borra entre corridas, así que todo
+    // tiene que ser idempotente (la propuesta y sus variables, siempre las mismas).
+    let j = journal("it-ml-features-setup").await;
+    let (p, o) = entry("it-ml-features");
+    j.record(&p, Some(&o)).await.unwrap();
+    let f = MlFeatures {
+        proposal_id: p.id.clone(),
+        as_of: p.signal_at,
+        atr14_m15: dec!(4.25),
+        realized_vol_tercile: VolTercile::Low,
+        session_band: SessionBand::Mid,
+    };
+    let first = j.record_ml_features(&f).await.unwrap();
+    assert!(matches!(first, Recorded::Inserted | Recorded::Unchanged));
+    assert_eq!(j.record_ml_features(&f).await.unwrap(), Recorded::Unchanged);
+    assert_eq!(j.ml_features(&p.id).await.unwrap(), Some(f.clone()));
+    assert_eq!(j.ml_features("no-existe").await.unwrap(), None);
+
+    let mut other = f.clone();
+    other.session_band = SessionBand::Close;
+    assert!(matches!(
+        j.record_ml_features(&other).await,
+        Err(JournalError::Conflict { .. })
+    ));
+    // Sin propuesta guardada, la base lo rechaza (clave foránea).
+    let mut orphan = f;
+    orphan.proposal_id = "it-ml-features:sin-propuesta".into();
+    assert!(matches!(
+        j.record_ml_features(&orphan).await,
+        Err(JournalError::Db(_))
+    ));
+}

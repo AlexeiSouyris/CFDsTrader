@@ -9,7 +9,9 @@
 //! Con `run_id`, además guarda cada operación en el diario (`proposals` y `outcomes`, de forma
 //! idempotente) y, al terminar, la corrida en `backtest_runs` (`backtest_run.v1`, #200): período,
 //! hash de la configuración, costos, intérprete y corte de las noticias y resumen de métricas.
-//! Las propuestas quedan ligadas a la corrida por el mismo `run_id`. Antes:
+//! Las propuestas quedan ligadas a la corrida por el mismo `run_id`. También guarda las variables
+//! de ML de cada propuesta (`ml_features.v1`, #158), con lo disponible al cierre de su señal; las
+//! que no tienen todas sus variables quedan sin fila y se cuentan. Antes:
 //! idempotente) y muestra la probabilidad de la spec §13 por gatillo y rango de puntaje, solo
 //! con los resultados anteriores al tramo fuera de muestra de `config/data_split.toml` (#181).
 //! Si al instrumento le falta algún dato del broker (por ejemplo el tipo de referencia de la
@@ -47,13 +49,14 @@ macro_rules! cfg {
 }
 
 /// Archivos de `config/` que lee la corrida, para el hash de `backtest_run.v1` (#200).
-const CONFIG_FILES: [(&str, &str); 14] = [
+const CONFIG_FILES: [(&str, &str); 15] = [
     ("backtest.toml", cfg!("backtest.toml")),
     ("data_split.toml", cfg!("data_split.toml")),
     ("data_validation.toml", cfg!("data_validation.toml")),
     ("indicators.toml", cfg!("indicators.toml")),
     ("instruments.toml", cfg!("instruments.toml")),
     ("liquidity.toml", cfg!("liquidity.toml")),
+    ("ml.toml", cfg!("ml.toml")),
     ("news_interpreter.toml", cfg!("news_interpreter.toml")),
     ("patterns.toml", cfg!("patterns.toml")),
     ("probability.toml", cfg!("probability.toml")),
@@ -240,6 +243,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if let Some(run_id) = run_id {
         journal_and_probability(&store, run_id, &id, &report.trades, &m15).await?;
+        record_ml_features(&store, run_id, &id, &report.trades, &m15, session, from, to).await?;
         let news_used = cfds_journal::RunNews {
             interpreter_name: interpreter.name.clone(),
             interpreter_version: interpreter.version.clone(),
@@ -393,5 +397,60 @@ async fn journal_and_probability(
         };
         println!("  {:?}, puntaje {band}: {shown}", g.trigger);
     }
+    Ok(())
+}
+
+/// Guarda las variables de ML de cada operación (`ml_features.v1`, #158). Las diarias se leen
+/// desde `vol_history_years` + 1 años antes del período, para tener la historia de los tercios.
+#[allow(clippy::too_many_arguments)]
+async fn record_ml_features(
+    store: &PgStore,
+    run_id: &str,
+    id: &cfds_core::InstrumentId,
+    trades: &[cfds_backtest::TradeRecord],
+    m15: &[cfds_core::Candle],
+    session: &cfds_market_data::Session,
+    from: chrono::DateTime<chrono::Utc>,
+    to: chrono::DateTime<chrono::Utc>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use cfds_journal::ml_features::{FeaturesConfig, atr14_m15, from_backtest};
+    use cfds_journal::pg::{PgJournal, Recorded};
+
+    let cfg = FeaturesConfig::from_toml(cfg!("ml.toml"))?;
+    let daily_cfg = cfds_indicators::DailyConfig::from_toml(cfg!("indicators.toml"))?;
+    let years = i32::try_from(cfg.vol_history_years)?;
+    let first_day = from.date_naive() - chrono::Months::new(12 * u32::try_from(years + 1)?);
+    let daily = store
+        .daily_indicators(
+            id,
+            u32::try_from(daily_cfg.atr_period)?,
+            u32::try_from(daily_cfg.realized_vol_window)?,
+            first_day,
+            to.date_naive() + chrono::Days::new(1),
+        )
+        .await?;
+    if daily.is_empty() {
+        eprintln!(
+            "⚠️  sin indicadores diarios de {id}: ninguna propuesta tiene variables de ML \
+             (cargarlos con el ejemplo `daily_indicators` de cfds-ingest)"
+        );
+    }
+    let atr = atr14_m15(m15);
+    let journal = PgJournal::new(store.pool().clone());
+    let (mut with, mut new) = (0, 0);
+    for t in trades {
+        let Some(f) = from_backtest(run_id, id, t, &atr, &daily, session, &cfg) else {
+            continue;
+        };
+        with += 1;
+        if journal.record_ml_features(&f).await? == Recorded::Inserted {
+            new += 1;
+        }
+    }
+    println!(
+        "variables de ML: {with} de {} propuestas ({new} nuevas); el resto sin alguna variable \
+         (calentamiento, sin historia diaria o fuera de sesión)",
+        trades.len()
+    );
     Ok(())
 }
