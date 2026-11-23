@@ -123,6 +123,13 @@ export type Imbalance = {
 /** Los timeframes de la vista. */
 export type ViewTimeframe = '15m' | '1h' | '1d'
 
+/**
+ * De qué velas sale la vista (#259): `ig` = las del CFD de IG; `futures` = las armadas desde los
+ * futuros de Databento, con la forma del precio del futuro y una base distinta a la del CFD.
+ * `label` es el texto que manda el motor (`config/candle_sources.toml`).
+ */
+export type ViewSource = { id: 'ig' | 'futures'; label: string }
+
 /** `daily_candle.v1`: día local de medianoche a medianoche, con `start` y `end` explícitos. */
 export type DailyBar = {
   instrument_id: string
@@ -141,6 +148,8 @@ export type LiquidityViewData = {
   instrument_id: string
   /** opcional en el contrato; ausente = 15m */
   timeframe?: ViewTimeframe
+  /** opcional en el contrato (#259); ausente = velas del CFD de IG */
+  source?: ViewSource
   generated_at: Utc
   /** cierre de la última vela cerrada guardada; null si no hay velas ("sin datos todavía") */
   as_of: Utc | null
@@ -168,4 +177,6 @@ export type GatewayInstruments = {
   default_timeframe: ViewTimeframe
   timeframes: ViewTimeframe[]
   instruments: InstrumentInfo[]
+  /** opcional en el contrato (#259); la primera es la que se usa sin `source` */
+  sources?: ViewSource[]
 }
