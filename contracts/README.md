@@ -72,10 +72,11 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 
 | Contrato | Tabla | Contenido |
 |---|---|---|
-| `sentiment.v1` | (en la parte 3 de #213) | Índice de sentimiento v1 de un instrumento (spec §9.1): `instrument_id`, `as_of`, `published_at` (la del dato más reciente que usa), `value` ∈ [−1, 1], `warmup_complete`, `min_components` y cada componente con su estado (`valid`, `warming_up`, `expired`, `missing` o `pending_data`), su último dato crudo, su percentil y su componente. |
+| `sentiment.v1` | `sentiment_index` | Índice de sentimiento v1 de un instrumento (spec §9.1): `instrument_id`, `as_of`, `published_at` (la del dato más reciente que usa), `value` ∈ [−1, 1], `warmup_complete`, `min_components` y cada componente con su estado (`valid`, `warming_up`, `expired`, `missing` o `pending_data`), su último dato crudo, su percentil y su componente. |
 
 - Lo calcula **Python** (`cfds_intel.sentiment.index`, `config/sentiment.toml`) con los valores crudos del COT (`sentiment_observations`) y las medidas de precio de Rust (`daily_indicators` y `daily_drawdowns`). Nadie lo recalcula.
 - Solo se emite con al menos `min_components` componentes válidos. Un valor emitido no cambia nunca.
+- Tabla de **solo agregar** (trigger), clave `(instrument_id, published_at)`. Los componentes van tal cual el contrato en `components` (JSONB). La escribe `python -m cfds_intel.sentiment.compute_index`: lo idéntico cuenta como "ya estaba", y otro valor para la misma clave es repintado y frena sin guardar.
 
 ### Tipos de referencia (#79)
 

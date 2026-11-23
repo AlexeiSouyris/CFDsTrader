@@ -83,6 +83,7 @@ Antes de cargar, `--dry-run` muestra qué falta y cuántos puntos estima, sin co
 | Diarias de 5 años, **un año de prueba** | `cd engine && cargo run -p cfds-ig --example ig_backfill_daily -- DE40 2021-11-22 2022-11-22` | ~270 |
 | Diarias, el resto | `... ig_backfill_daily -- DE40 2022-11-22 <mañana>` | ~1.060 |
 | Indicadores de las diarias (ATR diario y volatilidad realizada, #148; caída desde el máximo, #213), **después de cada carga de diarias** | `cd engine && cargo run -p cfds-ingest --example daily_indicators` | 0 (no usa IG) |
+| Índice de sentimiento v1 (spec §9.1, #213), **después de los indicadores de las diarias o de cargar el COT** | `cd intelligence && uv run python -m cfds_intel.sentiment.compute_index` | 0 (no usa IG ni la red) |
 | Análogos v1 de la última ventana de cada índice (#148, solo informativo) | `cd intelligence && uv run python -m cfds_intel.analogs [INSTRUMENTO]` | 0 (no usa IG) |
 | Ídem para US100, US500 y US30 | Cambiar el instrumento | ~1.330 cada uno |
 | Verificación de las velas de US500, US100 y US30 contra SPY, QQQ y DIA de Tiingo (ADR 0009, #206). Guarda solo el veredicto de cada día; `--dry-run` no guarda nada; `--calibrate` muestra cuántos días coinciden con cada tolerancia candidata. Necesita `TIINGO_API_KEY` y `CFDS_DATA_MACHINE=1` | `cd engine && cargo run -q -p cfds-tiingo --example tiingo_verify -- 2026-10-01 2026-10-31` | 0 de IG; 1 pedido de Tiingo por ETF (topes en `config/tiingo.toml`) |
@@ -103,6 +104,7 @@ Solo graban mientras la computadora está **prendida y despierta**. En macOS: Co
 | Noticias de la Fed y del BCE | 15 min | `uv run python -m cfds_intel.news` (en `intelligence/`) |
 | Sentimiento de clientes de IG | 15 min | `cargo run -p cfds-ig --example ig_sentiment -- --once` (en `engine/`) |
 | COT | 1 vez por semana (por ejemplo, el sábado) | `uv run python -m cfds_intel.sentiment 2026-01-01` (en `intelligence/`) |
+| Índice de sentimiento (#213). **Lo agrega el dueño cuando decida** | 1 vez por día hábil, después de los indicadores de las diarias, y después del COT del sábado | `uv run python -m cfds_intel.sentiment.compute_index` (en `intelligence/`) |
 | €STR del BCE | 1 vez por día hábil, después de las 09:00 CET | `uv run python -m cfds_intel.rates 2026-01-01` (en `intelligence/`) |
 | Velas de 15m y 1h en vivo (#124) | 15 min, un minuto después de cada cierre (`:01`, `:16`, `:31`, `:46`) | `cargo run -q -p cfds-ig --example ig_live -- --once` (en `engine/`). Gasta unos 690 puntos por semana con 4 índices, de los 3.400 de `budget.live` |
 | Interpretación de las noticias nuevas con Ollama (#186, #191). **La agrega el dueño cuando decida** | 15 min, 3 minutos después de la ingesta de noticias (`:03`, `:18`, `:33`, `:48`) | `infra/scripts/interpret_news.sh --limit 20` (desde la raíz del repo) |
