@@ -29,7 +29,6 @@ class DatabentoConfig:
     schema: str
     stype_in: str
     start: date
-    min_start: date
     max_usd: Decimal
     max_gap_minutes: int
     symbols: tuple[SymbolConfig, ...]
@@ -60,12 +59,10 @@ def load_config(text: str) -> DatabentoConfig:
         raise ConfigError("download.schema tiene que ser ohlcv-1m")
     if d.get("stype_in") != "continuous":
         raise ConfigError("download.stype_in tiene que ser continuous")
-    start, min_start = (
-        _date(d.get("start"), "download.start"),
-        _date(d.get("min_start"), "download.min_start"),
-    )
-    if start > min_start:
-        raise ConfigError("download.start tiene que ser anterior o igual a min_start")
+    start = _date(d.get("start"), "download.start")
+    extra = set(d) - {"schema", "stype_in", "start"}
+    if extra:
+        raise ConfigError(f"download: claves desconocidas {sorted(extra)}")
     try:
         max_usd = Decimal(str(b.get("max_usd")))
     except InvalidOperation as e:
@@ -97,7 +94,6 @@ def load_config(text: str) -> DatabentoConfig:
         schema=d["schema"],
         stype_in=d["stype_in"],
         start=start,
-        min_start=min_start,
         max_usd=max_usd,
         max_gap_minutes=_positive_int(s.get("max_gap_minutes"), "sample.max_gap_minutes"),
         symbols=tuple(symbols),

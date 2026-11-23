@@ -53,7 +53,7 @@ def today_utc() -> date:
     return datetime.now(UTC).date()
 
 
-def print_estimates(estimates: list[Estimate]) -> None:
+def print_estimates(estimates: list[Estimate], cfg: DatabentoConfig) -> None:
     for e in estimates:
         s = e.symbol
         if e.skipped:
@@ -62,6 +62,7 @@ def print_estimates(estimates: list[Estimate]) -> None:
             print(
                 f"{s.symbol} ({s.dataset} → {s.instrument_id}): {e.start} → {e.end}, "
                 f"{e.records} barras, USD {e.cost_usd:.2f}"
+                + (f" (el dataset empieza el {e.start})" if e.start > cfg.start else "")
             )
 
 
@@ -69,7 +70,7 @@ def guarded_estimate(
     c: Client, cfg: DatabentoConfig, end: date, loaded: dict[tuple[str, str], date]
 ) -> list[Estimate]:
     est = estimate(c, cfg, end, loaded)
-    print_estimates(est)
+    print_estimates(est, cfg)
     total = check_budget(est, cfg.max_usd)
     print(f"total estimado: USD {total:.2f} (tope USD {cfg.max_usd})")
     return est
@@ -84,7 +85,7 @@ def last_weekday_before(d: date) -> date:
 
 def sample(c: Client, cfg: DatabentoConfig, day: date) -> int:
     end = day + timedelta(days=1)
-    sample_cfg = replace(cfg, start=day, min_start=max(day, cfg.min_start))
+    sample_cfg = replace(cfg, start=day)
     est = guarded_estimate(c, sample_cfg, end, {})
     failed = 0
     for sym in (e.symbol for e in est if not e.skipped):

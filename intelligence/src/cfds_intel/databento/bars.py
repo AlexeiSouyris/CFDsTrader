@@ -193,11 +193,8 @@ def estimate(
     for sym in cfg.symbols:
         if sym.dataset not in starts:
             starts[sym.dataset] = dataset_start(client, sym.dataset, cfg.schema)
+        # Si el dataset empieza después de `start` (Eurex), se baja desde su inicio.
         available = starts[sym.dataset]
-        if available > cfg.min_start:
-            msg = f"el dataset empieza el {available}, después del mínimo {cfg.min_start}"
-            out.append(Estimate(sym, available, end, Decimal(0), 0, msg))
-            continue
         start = max(cfg.start, available, loaded_until.get((sym.dataset, sym.symbol), cfg.start))
         if start >= end:
             out.append(Estimate(sym, start, end, Decimal(0), 0, "ya está todo guardado"))

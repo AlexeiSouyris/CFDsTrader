@@ -89,9 +89,9 @@ class FakeClient:
                     "schema": {"ohlcv-1m": {"start": "2010-06-06T00:00:00.000000000Z"}},
                 },
                 "XEUR.EOBI": {
-                    "start": "2023-03-28T00:00:00.000000000Z",
+                    "start": "2025-03-10T00:00:00.000000000Z",
                     "end": "2026-11-23T00:00:00.000000000Z",
-                    "schema": {"ohlcv-1m": {"start": "2023-03-28T00:00:00.000000000Z"}},
+                    "schema": {"ohlcv-1m": {"start": "2025-03-10T00:00:00.000000000Z"}},
                 },
             },
             cost,
@@ -109,16 +109,12 @@ class FakeClient:
 
 def test_the_repository_config_maps_the_four_futures() -> None:
     assert [(s.dataset, s.symbol, s.instrument_id) for s in CFG.symbols] == [
-        ("GLBX.MDP3", "ES.v.0", "US500"),
-        ("GLBX.MDP3", "NQ.v.0", "US100"),
-        ("GLBX.MDP3", "YM.v.0", "US30"),
-        ("XEUR.EOBI", "FDAX.v.0", "DE40"),
+        ("GLBX.MDP3", "ES.c.0", "US500"),
+        ("GLBX.MDP3", "NQ.c.0", "US100"),
+        ("GLBX.MDP3", "YM.c.0", "US30"),
+        ("XEUR.EOBI", "FDAX.c.0", "DE40"),
     ]
-    assert (CFG.start, CFG.min_start, CFG.max_usd) == (
-        date(2021, 11, 1),
-        date(2023, 8, 1),
-        Decimal(100),
-    )
+    assert (CFG.start, CFG.max_usd) == (date(2021, 11, 1), Decimal(100))
     assert (CFG.schema, CFG.stype_in) == ("ohlcv-1m", "continuous")
 
 
@@ -127,9 +123,10 @@ def test_the_repository_config_maps_the_four_futures() -> None:
     [
         ('max_usd = "100"', "max_usd = 100"),
         ('max_usd = "100"', 'max_usd = "-1"'),
-        ('symbol = "ES.v.0"', 'symbol = "ESZ6"'),
+        ('symbol = "ES.c.0"', 'symbol = "ESZ6"'),
         ('instrument_id = "US30"', 'instrument_id = "US500"'),
-        ('start = "2021-11-01"', 'start = "2024-01-01"'),
+        ('start = "2021-11-01"', 'start = "1/11/2021"'),
+        ('start = "2021-11-01"', 'start = "2021-11-01"\nmin_start = "2023-08-01"'),
         ('schema = "ohlcv-1m"', 'schema = "trades"'),
         ("min_session_hours = 20", "min_session_hours = 25"),
         ("max_gap_minutes = 5", "max_gap_minutes = 0"),
@@ -158,12 +155,12 @@ def test_estimate_uses_only_free_metadata_and_respects_dataset_starts() -> None:
         1000,
         None,
     )
-    # Eurex (sintético) empieza en 2023-03-28: antes del mínimo, así que se baja desde ahí.
-    assert est[3].start == date(2023, 3, 28)
+    # Eurex empieza después de `start`: se baja desde el inicio que da get_dataset_range.
+    assert (est[3].start, est[3].skipped) == (date(2025, 3, 10), None)
     kw = next(k for n, k in c.metadata.calls if n == "get_cost")
     assert kw == {
         "dataset": "GLBX.MDP3",
-        "symbols": ["ES.v.0"],
+        "symbols": ["ES.c.0"],
         "schema": "ohlcv-1m",
         "stype_in": "continuous",
         "start": "2021-11-01",
@@ -172,18 +169,21 @@ def test_estimate_uses_only_free_metadata_and_respects_dataset_starts() -> None:
     assert check_budget(est, CFG.max_usd) == Decimal("5.00")
 
 
-def test_a_dataset_that_starts_after_the_minimum_is_skipped() -> None:
+def test_the_dataset_start_comes_from_metadata_not_from_the_code() -> None:
     c = FakeClient()
-    c.metadata.ranges = {**c.metadata.ranges, "XEUR.EOBI": {"start": "2024-01-02T00:00:00Z"}}
+    c.metadata.ranges = {**c.metadata.ranges, "XEUR.EOBI": {"start": "2025-06-02T00:00:00Z"}}
     est = estimate(c, CFG, date(2026, 11, 23), {})
-    assert est[3].skipped is not None and "2024-01-02" in est[3].skipped
-    assert est[3].cost_usd == 0
+    assert est[3].start == date(2025, 6, 2)
+    # Sin el esquema en el dataset, no se adivina.
+    c.metadata.ranges = {**c.metadata.ranges, "XEUR.EOBI": {"schema": {"trades": {}}}}
+    with pytest.raises(DatabentoError):
+        estimate(c, CFG, date(2026, 11, 23), {})
 
 
 def test_estimate_continues_from_what_is_already_stored() -> None:
     loaded = {
-        ("GLBX.MDP3", "ES.v.0"): date(2026, 11, 23),
-        ("GLBX.MDP3", "NQ.v.0"): date(2025, 1, 1),
+        ("GLBX.MDP3", "ES.c.0"): date(2026, 11, 23),
+        ("GLBX.MDP3", "NQ.c.0"): date(2025, 1, 1),
     }
     est = estimate(FakeClient(), CFG, date(2026, 11, 23), loaded)
     assert est[0].skipped == "ya está todo guardado"
@@ -264,7 +264,7 @@ def test_fetch_checks_order_and_period() -> None:
     c = FakeClient(records=good)
     bars = fetch_bars(c, CFG, ES, DAY, date(2026, 11, 19))
     assert len(bars) == 2
-    assert c.timeseries.calls[0]["symbols"] == ["ES.v.0"]
+    assert c.timeseries.calls[0]["symbols"] == ["ES.c.0"]
     for wrong in [list(reversed(good)), [good[0], good[0]], [rec("2026-11-19T00:00:00")]]:
         with pytest.raises(DatabentoError):
             fetch_bars(FakeClient(records=wrong), CFG, ES, DAY, date(2026, 11, 19))

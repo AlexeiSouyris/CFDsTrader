@@ -31,7 +31,7 @@ def conn() -> psycopg.Connection:
 
 
 def sym() -> SymbolConfig:
-    return SymbolConfig(f"T{uuid.uuid4().int % 10**12}.TEST", "ES.v.0", "US500", 22)
+    return SymbolConfig(f"T{uuid.uuid4().int % 10**12}.TEST", "ES.c.0", "US500", 22)
 
 
 def bars(s: SymbolConfig, n: int) -> list[Bar]:
