@@ -27,7 +27,7 @@ pub use daily_drawdown::DailyDrawdown;
 pub use daily_indicator::DailyIndicator;
 pub use daily_vol_tercile::{DailyVolTercile, VolTercile};
 pub use economic_event::{EconomicEvent, Impact};
-pub use futures_bar::FuturesBar;
+pub use futures_bar::{FuturesBar, FuturesCandle};
 pub use imbalance::{Imbalance, ImbalanceLabel};
 pub use instrument::{AssetClass, Instrument, InstrumentId};
 pub use liquidity_level::{

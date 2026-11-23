@@ -39,6 +39,17 @@ impl FuturesBar {
     }
 }
 
+/// Vela de 15m o 1h armada desde barras de 1 minuto de un futuro (#259), con su fuente y el
+/// contrato del que salen todas sus barras. La arma `cfds_market_data::futures_candles` y la
+/// guarda `PgStore::insert_futures_candles` en `futures_candles`, aparte de las velas de IG. Es
+/// solo de Rust: los demás lenguajes ven velas `candle.v1` o la vista de liquidez.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FuturesCandle {
+    /// La vela, con el instrumento (CFD) al que corresponde el futuro.
+    pub candle: crate::Candle,
+    pub contract_id: u64,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Raw {

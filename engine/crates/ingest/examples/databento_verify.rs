@@ -10,7 +10,7 @@
 //! contrato. También cuenta las velas de 15m y 1h que se arman y las que mezclarían contratos.
 
 use cfds_core::Timeframe;
-use cfds_market_data::{aggregate_bars, compare_daily};
+use cfds_market_data::{compare_daily, futures_candles};
 use cfds_storage::PgStore;
 use chrono::{NaiveDate, Utc};
 
@@ -52,13 +52,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("sin barras del futuro: bajarlas con `python -m cfds_intel.databento --run`");
         return Ok(());
     }
-    for tf in [Timeframe::M15, Timeframe::H1] {
-        let a = aggregate_bars(&bars, &id, tf, now);
-        println!(
-            "velas de {tf}: {} armadas, {} no (mezclarían dos contratos)",
-            a.candles.len(),
-            a.mixed_contracts
-        );
+    let f = futures_candles(&bars, &id, now)?;
+    for (tf, n) in [(Timeframe::M15, f.m15.len()), (Timeframe::H1, f.h1.len())] {
+        let mixed = f.mixed.iter().filter(|(t, _)| *t == tf).count();
+        println!("velas de {tf}: {n} armadas, {mixed} no (mezclarían dos contratos)");
     }
     let r = compare_daily(&ig, &bars);
     let rolled = r.days.iter().filter(|d| d.rolled).count();
