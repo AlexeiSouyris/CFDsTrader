@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/walk_forward_report.v1.schema.json",
   "title": "Walk-forward report v1",
-  "description": "Evaluación de la Fase 5 (ROADMAP, #298) de un instrumento: cada ventana walk-forward de config/data_split.toml (entrenamiento y prueba, con los parámetros de config), el resumen de las pruebas, la sensibilidad de parámetros (solo con el entrenamiento) y su estabilidad, y el tramo fuera de muestra aparte. Cada tramo va con comprar y mantener con costos y financiación. La escribe el motor (Rust); la lee Python. Métricas y retornos en la moneda de la cuenta; los montos de comprar y mantener, en la del instrumento. Decimales como texto; null cuando algo no está definido (nunca se inventa un número).",
+  "description": "Evaluación de la Fase 5 (ROADMAP, #298) de un instrumento: cada ventana walk-forward de config/data_split.toml (entrenamiento y prueba, con los parámetros de config), el resumen de las pruebas, la sensibilidad de parámetros (solo con el entrenamiento) y su estabilidad, y el tramo fuera de muestra aparte. Cada tramo va con comprar y mantener con costos y financiación. La escribe el motor (Rust); la leen Python y la UI: el bloque \"Walk-forward / fuera de muestra\" del detalle de una corrida (#304) muestra el último reporte del mismo instrument_id y candle_source tal cual llega (cada tramo ya trae sus métricas y comprar y mantener, sin nada que calcular). Métricas y retornos en la moneda de la cuenta; los montos de comprar y mantener, en la del instrumento. Decimales como texto; null cuando algo no está definido (nunca se inventa un número).",
   "type": "object",
   "additionalProperties": false,
   "required": [
