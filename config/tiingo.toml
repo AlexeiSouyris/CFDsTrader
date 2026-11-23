@@ -1,0 +1,58 @@
+# Tiingo, plan gratis "Starter", solo para verificación transitoria (ADR 0009, aceptado con la
+# opción B el 23-11-2026; implementación #206). Se valida al arrancar (`cfds_tiingo::TiingoConfig`).
+#
+# Los términos del plan prohíben guardar datos de Tiingo y sus productos derivados (§1.6(a) y
+# (c)): se compara en memoria y solo se guarda el veredicto (coincide, no coincide o sin dato).
+# El token va en el .env (TIINGO_API_KEY), nunca acá.
+
+[api]
+# Documentación oficial (tiingo.com/documentation/end-of-day y /general/connecting, leídas el
+# 23-11-2026): GET /tiingo/daily/<ticker>/prices?startDate=...&endDate=..., con el encabezado
+# "Authorization: Token <token>".
+base_url = "https://api.tiingo.com"
+timeout_secs = 30
+# Tope de bytes por respuesta: un pedido de un mes de diarias de un ETF pesa unos pocos KB. Si
+# una respuesta pasa de esto, se corta (kill switch). También es lo que se reserva del tope
+# mensual de bytes antes de cada pedido.
+max_bytes_per_request = 262144
+
+# Límites del plan, tal como los publica Tiingo (tiingo.com/about/pricing, 23-11-2026). El panel
+# del dueño dice 2 GB por mes: se toma el menor. Solo sirven para validar que los topes de
+# [budget] queden por debajo.
+[plan]
+requests_per_hour = 50
+requests_per_day = 1000
+symbols_per_month = 500
+bytes_per_month = 1000000000
+
+# Topes propios, con margen (ADR 0009 §3). Se cuentan con ventanas MÓVILES sobre el registro
+# `tiingo_usage_log`: últimos 60 minutos, últimas 24 horas y últimos 31 días. Una ventana móvil
+# nunca cuenta menos que una de calendario, así que respeta los límites del plan aunque no esté
+# claro si su medianoche "EST" cambia con el horario de verano.
+[budget]
+requests_per_hour = 40
+requests_per_day = 800
+symbols_per_31_days = 20
+bytes_per_31_days = 800000000
+
+# Nuestro instrumento → ETF que sigue el mismo índice. DE40 no tiene equivalente: no se verifica.
+[pairs]
+US500 = "SPY"
+US100 = "QQQ"
+US30 = "DIA"
+
+[verify]
+# Hora de cierre del ETF (sesión regular de Nueva York). La comparación preferida usa nuestra
+# vela de 15m que termina a esta hora.
+timezone = "America/New_York"
+reference_close = "16:00"
+# Diferencia máxima, en puntos porcentuales, entre la variación diaria nuestra y la del ETF
+# (con el dividendo del día sumado) para que el veredicto sea "coincide".
+# PROVISORIAS: se calibran con `tiingo_verify --calibrate`, que muestra solo cuántos días
+# coinciden con cada tolerancia candidata, y las aprueba el dueño (ADR 0009 §1).
+tolerance_m15_pp = "0.10"
+# Con la vela diaria (de medianoche a medianoche) el CFD sigue cotizando después de las 16:00:
+# la tolerancia es más ancha.
+tolerance_daily_pp = "0.75"
+# Días como máximo en una corrida (un pedido por ETF).
+max_days = 93
