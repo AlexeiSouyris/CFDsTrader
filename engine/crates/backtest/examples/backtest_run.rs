@@ -4,7 +4,7 @@
 //! ```text
 //! DATABASE_URL=... cargo run -p cfds-backtest --example backtest_run -- \
 //!     <INSTRUMENTO> <desde UTC> <hasta UTC> <capital inicial> <tamaño comprar y mantener> \
-//!     [<run_id>]
+//!     [<run_id>] [--sin-noticias]
 //! ```
 //! Con `run_id`, además guarda cada operación en el diario (`proposals` y `outcomes`, de forma
 //! idempotente) y, al terminar, la corrida en `backtest_runs` (`backtest_run.v1`, #200): período,
@@ -23,6 +23,10 @@
 //! de corte del modelo (ADR 0008 §5), y las pasa al ajuste del puntaje: en cada vela cuenta lo
 //! interpretado hasta su cierre. Si hay interpretaciones de otro modelo, no corre. Si no hay
 //! ninguna, corre sin ajuste de noticias y lo dice.
+//!
+//! Con `--sin-noticias` no carga ninguna interpretación y la corrida queda con `news: null` en
+//! `backtest_runs`: es la variante "capa apagada" del reporte de la fase 4b (#221), para medir
+//! el ajuste de noticias contra no usarlo con todo lo demás igual.
 
 use std::path::PathBuf;
 
@@ -69,13 +73,20 @@ const CONFIG_FILES: [(&str, &str); 14] = [
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let started_at = chrono::Utc::now();
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let all: Vec<String> = std::env::args().skip(1).collect();
+    let without_news = all.iter().any(|a| a == "--sin-noticias");
+    let args: Vec<&str> = all
+        .iter()
+        .map(String::as_str)
+        .filter(|a| *a != "--sin-noticias")
+        .collect();
     let (instrument, from, to, equity, size, run_id) = match args.as_slice() {
         [i, f, t, e, s] => (i, f, t, e, s, None),
-        [i, f, t, e, s, r] => (i, f, t, e, s, Some(r.as_str())),
+        [i, f, t, e, s, r] => (i, f, t, e, s, Some(*r)),
         _ => {
             return Err(
-                "uso: <INSTRUMENTO> <desde UTC> <hasta UTC> <capital> <tamaño B&H> [<run_id>]"
+                "uso: <INSTRUMENTO> <desde UTC> <hasta UTC> <capital> <tamaño B&H> [<run_id>] \
+                 [--sin-noticias]"
                     .into(),
             );
         }
@@ -171,15 +182,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cutoff = InterpreterCutoff::from_toml(cfg!("news_interpreter.toml"))?;
     let published_from = cutoff.backtest_published_from();
     let window = setup.strategy.strategy.news.window;
-    let news = store
-        .news_interpretations(
-            &interpreter.name,
-            &interpreter.version,
-            from - window - chrono::TimeDelta::seconds(1),
-            to,
-            Some(published_from),
-        )
-        .await?;
+    let news = if without_news {
+        Vec::new()
+    } else {
+        store
+            .news_interpretations(
+                &interpreter.name,
+                &interpreter.version,
+                from - window - chrono::TimeDelta::seconds(1),
+                to,
+                Some(published_from),
+            )
+            .await?
+    };
     let foreign = interpreter.other_models(&news);
     if let Some(n) = foreign.first() {
         return Err(format!(
@@ -203,8 +218,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         interpreter.model,
         cutoff.training_cutoff
     );
-    println!("{news_summary}");
-    if news.is_empty() {
+    if without_news {
+        println!("noticias: APAGADAS (--sin-noticias): el puntaje no tiene ajuste de noticias");
+    } else {
+        println!("{news_summary}");
+    }
+    if news.is_empty() && !without_news {
         println!(
             "⚠️  sin interpretaciones en el período: el backtest corre SIN ajuste de noticias \
              del puntaje (spec §9)"
@@ -243,12 +262,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(run_id) = run_id {
         journal_and_probability(&store, run_id, &id, &report.trades, &m15).await?;
         record_ml_features(&store, run_id, &id, &report.trades, &m15, session, from, to).await?;
-        let news_used = cfds_journal::RunNews {
-            interpreter_name: interpreter.name.clone(),
-            interpreter_version: interpreter.version.clone(),
-            interpreter_model: Some(interpreter.model.clone()),
-            published_from,
-            interpretations: u64::try_from(news.len())?,
+        let news_used = if without_news {
+            None
+        } else {
+            Some(cfds_journal::RunNews {
+                interpreter_name: interpreter.name.clone(),
+                interpreter_version: interpreter.version.clone(),
+                interpreter_model: Some(interpreter.model.clone()),
+                published_from,
+                interpretations: u64::try_from(news.len())?,
+            })
         };
         let run = run_record(
             run_id,
@@ -288,7 +311,7 @@ fn run_record(
     setup: &cfds_backtest::Setup,
     report: &cfds_backtest::Report,
     m15: &[cfds_core::Candle],
-    news: cfds_journal::RunNews,
+    news: Option<cfds_journal::RunNews>,
     started_at: chrono::DateTime<chrono::Utc>,
 ) -> Result<cfds_journal::BacktestRun, Box<dyn std::error::Error>> {
     let net: Vec<Decimal> = report
@@ -328,7 +351,7 @@ fn run_record(
         config_sha256: cfds_journal::config_sha256(&CONFIG_FILES),
         initial_equity: setup.initial_equity,
         costs: cfds_journal::RunCosts::new(&setup.backtest.costs, &[(id.clone(), setup.costs)]),
-        news: Some(news),
+        news,
         metrics: cfds_journal::RunMetrics::new(report.final_equity, &metrics),
         started_at,
         finished_at: chrono::Utc::now(),
