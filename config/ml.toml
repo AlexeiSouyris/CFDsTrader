@@ -6,6 +6,12 @@
 # Decisión 4 de la spec §11: se empieza solo con US500. Sumar otros pide otra aprobación.
 instruments = ["US500"]
 
+[features]
+# Variables que arma el motor (Rust) para `ml_features.v1` (spec §3). Tercios de la volatilidad
+# realizada diaria frente a su propia historia de estos años (la misma definición que el contexto
+# de los análogos, spec §13: config/analogs.toml `vol_history_years`).
+vol_history_years = 3
+
 [training]
 # Mínimo por ventana de entrenamiento (spec §6, decisión 3): con menos, la ventana no entrena.
 min_examples = 300

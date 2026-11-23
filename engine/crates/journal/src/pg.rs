@@ -8,6 +8,7 @@ use rust_decimal::Decimal;
 use sqlx::postgres::{PgPool, PgRow};
 use sqlx::{Postgres, Row, Transaction};
 
+use crate::ml_features::MlFeatures;
 use crate::{BacktestRun, Outcome, OutcomeKind, Proposal, RunInvalid};
 
 #[derive(Debug, thiserror::Error)]
@@ -215,6 +216,56 @@ impl PgJournal {
         let run = select_run(&mut tx, run_id).await?;
         tx.commit().await?;
         Ok(run)
+    }
+}
+
+impl PgJournal {
+    /// Guarda las variables de ML de una propuesta ya guardada (`ml_features.v1`, #158). La
+    /// tabla es de solo agregar: volver a guardar las mismas no hace nada, y otras distintas
+    /// para la misma propuesta son `Conflict` (spec §8: sin repintado).
+    pub async fn record_ml_features(&self, f: &MlFeatures) -> Result<Recorded, JournalError> {
+        let done = sqlx::query(
+            "INSERT INTO ml_features (proposal_id, as_of, atr14_m15, realized_vol_tercile,
+               session_band)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (proposal_id) DO NOTHING",
+        )
+        .bind(&f.proposal_id)
+        .bind(f.as_of)
+        .bind(f.atr14_m15)
+        .bind(name(&f.realized_vol_tercile)?)
+        .bind(name(&f.session_band)?)
+        .execute(&self.pool)
+        .await?;
+        if done.rows_affected() == 1 {
+            return Ok(Recorded::Inserted);
+        }
+        if self.ml_features(&f.proposal_id).await?.as_ref() != Some(f) {
+            return Err(JournalError::Conflict {
+                id: f.proposal_id.clone(),
+            });
+        }
+        Ok(Recorded::Unchanged)
+    }
+
+    pub async fn ml_features(&self, proposal_id: &str) -> Result<Option<MlFeatures>, JournalError> {
+        let Some(r) = sqlx::query(
+            "SELECT proposal_id, as_of, atr14_m15, realized_vol_tercile, session_band
+             FROM ml_features WHERE proposal_id = $1",
+        )
+        .bind(proposal_id)
+        .fetch_optional(&self.pool)
+        .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(MlFeatures {
+            proposal_id: r.try_get("proposal_id")?,
+            as_of: r.try_get("as_of")?,
+            atr14_m15: r.try_get::<Decimal, _>("atr14_m15")?.normalize(),
+            realized_vol_tercile: parse_name(r.try_get::<&str, _>("realized_vol_tercile")?)?,
+            session_band: parse_name(r.try_get::<&str, _>("session_band")?)?,
+        }))
     }
 }
 
