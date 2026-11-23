@@ -259,20 +259,22 @@ impl PgSource {
             let first = candles.first().map_or(as_of, |c| c.start);
             return Ok(Some((Bars::Intraday(candles), as_of, first)));
         }
-        let today = now.date_naive();
-        let from = (now - w.candles).date_naive();
-        let daily: Vec<DailyCandle> = self
-            .store
-            .daily_candles(id, from, today + TimeDelta::days(1))
-            .await?
-            .into_iter()
-            .filter(|d| d.end <= now)
-            .collect();
-        let Some(last) = daily.last() else {
+        // 1d: `as_of` es el fin de la última diaria **terminada** de `daily_candles`, aunque sea
+        // vieja, y la ventana se mide desde ahí (no desde ahora).
+        let Some(as_of) = self.store.last_daily_end(id, now).await? else {
             return Ok(None);
         };
-        let as_of = last.end;
-        let first = daily[0].start;
+        let from = (as_of - w.candles).date_naive();
+        let daily: Vec<DailyCandle> = self
+            .store
+            .daily_candles(id, from, as_of.date_naive() + TimeDelta::days(1))
+            .await?
+            .into_iter()
+            .filter(|d| d.end <= as_of)
+            .collect();
+        let Some(first) = daily.first().map(|d| d.start) else {
+            return Ok(None);
+        };
         Ok(Some((Bars::Daily(daily), as_of, first)))
     }
 }
@@ -296,12 +298,15 @@ impl LiquiditySource for PgSource {
             .fvg_events(id, tf, as_of - w.fvgs, as_of, &self.reaction_bars)
             .await?;
         let imbalance = s.imbalances(id, tf, first, as_of).await?;
-        // Los agregados del timeframe (en 1d, también los de los gaps de apertura).
+        // Los agregados del timeframe (en 1d, también los de los gaps de apertura), de la última
+        // corrida hecha hasta ahora. Se busca por `computed_at` (la hora de la corrida, que es
+        // posterior a los datos), así que se compara con `now` y no con `as_of`; cada documento
+        // trae su propio `as_of`, que nunca pasa de la última vela guardada.
         let stats = s
-            .latest_liquidity_stats(id, as_of)
+            .latest_liquidity_stats(id, now)
             .await?
             .into_iter()
-            .filter(|g| g.timeframe == tf)
+            .filter(|g| g.timeframe == tf && g.as_of <= as_of)
             .collect();
         Ok(LiquidityView {
             instrument_id: id.clone(),
