@@ -2,15 +2,16 @@
 
 use std::collections::BTreeMap;
 
-use cfds_backtest::{Commission, CostConfig, ExitConfig, InstrumentCosts};
+use cfds_backtest::{Commission, CostConfig, ExitConfig, FundingRates, InstrumentCosts};
 use cfds_broker::{
-    Broker, BrokerConfig, MarketSetup, Mismatch, PaperBroker, reconcile, restore_and_reconcile,
+    Broker, BrokerConfig, FundingSetup, MarketSetup, Mismatch, PaperBroker, reconcile,
+    restore_and_reconcile,
 };
 use cfds_core::{
     Candle, InstrumentId, KillSwitch, Order, OrderSide, PaperMode, Position, Timeframe,
 };
 use cfds_risk::{InstrumentLimits, RiskConfig};
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, NaiveTime, TimeDelta, Utc};
 use rust_decimal::{Decimal, dec};
 
 const RISK: &str = include_str!("../../../../config/risk.toml");
@@ -68,6 +69,11 @@ fn setup(close: Decimal) -> (BrokerConfig, BTreeMap<InstrumentId, MarketSetup>) 
                     },
                     account_to_instrument: Decimal::ONE,
                     candles: flat(id, close),
+                    funding: FundingSetup {
+                        cutoff: NaiveTime::from_hms_opt(23, 0, 0).unwrap(),
+                        tz: chrono_tz::Europe::Madrid,
+                        rates: FundingRates::Constant(dec!(2)),
+                    },
                 },
             )
         })

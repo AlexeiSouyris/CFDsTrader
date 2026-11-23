@@ -186,6 +186,63 @@ describe('terminal con 1, 2 o 4 gráficos (#286)', () => {
     expect(charts()).toHaveLength(2)
   })
 
+  it('la herramienta de medición (#281) anda en cada gráfico de la grilla, por separado', () => {
+    const us100 = { instrument: 'US100', timeframe: '15m' }
+    localStorage.setItem(
+      'cfdstrader.terminal.charts',
+      JSON.stringify({ layout: '4', slots: [us100, us100, us100, us100] }),
+    )
+    // jsdom no tiene layout: cada SVG mide lo que dibuja (720 × 300 con 4 gráficos)
+    vi.spyOn(SVGElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      top: 0,
+      x: 0,
+      y: 0,
+      width: 720,
+      height: 300,
+      right: 720,
+      bottom: 300,
+      toJSON: () => ({}),
+    } as DOMRect)
+    render(<TerminalView member={CURRENT_MEMBER} />)
+    const svgs = charts()
+    expect(svgs).toHaveLength(4)
+    const measureOf = (svg: Element) => svg.querySelector('[data-measure]')
+
+    svgs.forEach((svg, i) => {
+      const [y0, y1] = i % 2 === 0 ? [220, 60] : [60, 220]
+      fireEvent.pointerDown(svg, { clientX: 200, clientY: y0, button: 0, pointerId: i + 1 })
+      fireEvent.pointerMove(svg, { clientX: 400, clientY: y1, pointerId: i + 1 })
+      fireEvent.pointerUp(svg, { clientX: 400, clientY: y1, pointerId: i + 1 })
+    })
+    // cada gráfico tiene su propia medición: subida en 1 y 3, bajada en 2 y 4
+    expect(svgs.map((s) => measureOf(s)?.getAttribute('data-measure'))).toEqual([
+      'up',
+      'down',
+      'up',
+      'down',
+    ])
+    expect(measureOf(svgs[0])!.querySelector('[data-measure-box]')).toHaveAttribute(
+      'fill',
+      'var(--chart-up)',
+    )
+    expect(measureOf(svgs[1])!.querySelector('[data-measure-box]')).toHaveAttribute(
+      'fill',
+      'var(--chart-down)',
+    )
+    expect(measureOf(svgs[0])!.textContent).toMatch(/\(\+\d+,\d{2} %\)/)
+    expect(measureOf(svgs[1])!.textContent).toMatch(/\(−\d+,\d{2} %\)/)
+
+    // un clic en el gráfico 2 borra solo la suya
+    fireEvent.pointerDown(svgs[1], { clientX: 300, clientY: 150, button: 0, pointerId: 9 })
+    fireEvent.pointerUp(svgs[1], { clientX: 300, clientY: 150, pointerId: 9 })
+    expect(svgs.map((s) => measureOf(s) !== null)).toEqual([true, false, true, true])
+
+    // Esc borra las que quedan
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(svgs.every((s) => measureOf(s) === null)).toBe(true)
+  })
+
   it('recuerda la disposición en localStorage', () => {
     const { unmount } = render(<TerminalView member={CURRENT_MEMBER} />)
     fireEvent.click(within(layout()).getByRole('button', { name: '2' }))

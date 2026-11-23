@@ -9,15 +9,21 @@
 //!     drawdown, kill switch, posiciones, mínimo del broker): **el único que da el tamaño**
 //!   → fill a la apertura con medio spread + slippage, y comisión (cfds-backtest)
 //! cada posición se valúa con cfds_backtest::simulate (stop, TP1, trailing, tiempo, gaps)
+//! y paga la financiación nocturna (swap) de cada corte en que siguió abierta, con la tasa de
+//! referencia vigente en ese corte (cfds_backtest::funding_cutoffs y funding_over, #79)
 //! ```
 //! Funciones del tiempo: `positions(now)` y `account(now)` usan solo velas cerradas en `now`.
 //! Sin ejecuciones parciales (la spec §12 las prevé solo para el registro real).
-//! Pendiente (#278): la financiación nocturna (swap) de las posiciones abiertas.
+//! Si en algún corte no hay tasa de referencia publicada, no se inventa: ese corte no se cobra y
+//! se activa el kill switch por error de datos (spec §12).
 
 use std::collections::BTreeMap;
 
+use std::cell::Cell;
+
 use cfds_backtest::{
-    CostConfig, Execution, ExitConfig, InstrumentCosts, Trade, commission, fill_price, simulate,
+    CostConfig, Execution, ExitConfig, FundingRates, InstrumentCosts, Trade, commission,
+    fill_price, funding_cutoffs, funding_over, simulate,
 };
 use cfds_core::{
     AccountCurrency, Candle, ClientId, InstrumentId, KillSwitch, Order, OrderRejection,
@@ -26,7 +32,7 @@ use cfds_core::{
 use cfds_indicators::wilder_atr;
 use cfds_risk::{Account, InstrumentLimits, Rejection, Request, RiskConfig, Sizing, check};
 use cfds_strategy::Side;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveTime, Utc};
 use chrono_tz::Tz;
 use rust_decimal::Decimal;
 use serde::Deserialize;
@@ -92,6 +98,17 @@ pub struct MarketSetup {
     /// Moneda del instrumento por 1 unidad de la moneda de la cuenta (1 si son iguales).
     pub account_to_instrument: Decimal,
     pub candles: Vec<Candle>,
+    /// Financiación nocturna: corte del catálogo y tasa de referencia (€STR guardado o constante).
+    pub funding: FundingSetup,
+}
+
+/// Lo que hace falta para la financiación nocturna (el mismo cálculo que el backtest).
+#[derive(Debug, Clone)]
+pub struct FundingSetup {
+    /// Hora del corte (`funding_cutoff` del catálogo), en `tz`.
+    pub cutoff: NaiveTime,
+    pub tz: Tz,
+    pub rates: FundingRates,
 }
 
 #[derive(Debug, Clone)]
@@ -125,6 +142,8 @@ pub struct PaperBroker {
     trades: Vec<OpenTrade>,
     kill_switch: Option<(String, DateTime<Utc>)>,
     peak_equity: Decimal,
+    /// Primer corte sin tasa de referencia que encontró una valuación (error de datos).
+    missing_rate: Cell<Option<DateTime<Utc>>>,
 }
 
 fn strategy_side(s: OrderSide) -> Side {
@@ -188,6 +207,7 @@ impl PaperBroker {
             trades: Vec::new(),
             kill_switch: None,
             peak_equity: peak,
+            missing_rate: Cell::new(None),
         }
     }
 
@@ -214,6 +234,38 @@ impl PaperBroker {
 
     pub fn kill_switch_active(&self) -> bool {
         self.kill_switch.is_some()
+    }
+
+    /// Si una valuación encontró un corte sin tasa de referencia, activa el kill switch.
+    fn flag_missing_rate(&mut self) {
+        if let Some(at) = self.missing_rate.take() {
+            self.activate_kill_switch(
+                format!(
+                    "Falta la tasa de referencia de la financiación del corte {at} (spec §12)."
+                ),
+                at,
+            );
+        }
+    }
+
+    /// Financiación de `size` abierto en `(from, to]`, en moneda del instrumento (positivo es
+    /// un costo). Si falta la tasa de algún corte, cobra solo los anteriores y lo anota.
+    fn funding(&self, t: &OpenTrade, size: Decimal, to: DateTime<Utc>) -> Decimal {
+        let m = &self.markets[&t.instrument];
+        let f = &m.funding;
+        let cutoffs = funding_cutoffs(t.opened_at, to, f.cutoff, f.tz);
+        let side = strategy_side(t.side);
+        match funding_over(side, t.entry_mid, size, &cutoffs, &f.rates, &m.costs) {
+            Ok(v) => v,
+            Err(at) => {
+                if self.missing_rate.get().is_none_or(|prev| at < prev) {
+                    self.missing_rate.set(Some(at));
+                }
+                let known: Vec<_> = cutoffs.into_iter().take_while(|c| *c < at).collect();
+                funding_over(side, t.entry_mid, size, &known, &f.rates, &m.costs)
+                    .unwrap_or(Decimal::ZERO)
+            }
+        }
     }
 
     /// Las órdenes procesadas, en orden de llegada, con su informe.
@@ -261,16 +313,25 @@ impl PaperBroker {
                         &m.costs,
                         &self.cfg.costs,
                     );
-                    let pnl =
-                        size * (px - t.entry_fill) * sign(t.side) - commission(&m.costs, size, px);
+                    let exit_at = closed[f.index].end();
+                    let pnl = size * (px - t.entry_fill) * sign(t.side)
+                        - commission(&m.costs, size, px)
+                        - self.funding(t, size, exit_at);
                     v.realized_eur += pnl / fx;
-                    v.realized_events.push((closed[f.index].end(), pnl / fx));
+                    v.realized_events.push((exit_at, pnl / fx));
                 }
                 v.open_fraction = out.open_fraction;
             }
         }
         if let Some(last) = v.last {
-            v.unrealized = v.open_fraction * t.size * (last - t.entry_fill) * sign(t.side) / fx;
+            let open = v.open_fraction * t.size;
+            // El no realizado ya descuenta la financiación de las noches que lleva abierta.
+            let swap = if open > Decimal::ZERO {
+                self.funding(t, open, now)
+            } else {
+                Decimal::ZERO
+            };
+            v.unrealized = (open * (last - t.entry_fill) * sign(t.side) - swap) / fx;
         }
         v
     }
@@ -361,6 +422,8 @@ impl PaperBroker {
         self.peak_equity = self.peak_equity.max(equity);
         let day_start = self.day_start(as_of);
         let (day_start_equity, _, _) = self.equity_at(day_start);
+        // Un corte sin tasa de referencia es un error de datos: kill switch antes de decidir.
+        self.flag_missing_rate();
         let account = Account {
             equity,
             peak_equity: self.peak_equity,
@@ -529,6 +592,7 @@ impl crate::Broker for PaperBroker {
                 as_of,
             });
         }
+        self.flag_missing_rate();
         out
     }
 
@@ -562,6 +626,7 @@ impl crate::Broker for PaperBroker {
             .map(|p| p.size * p.last / self.markets[&p.instrument_id].account_to_instrument)
             .sum();
         let open = self.open_instruments(now).len();
+        self.flag_missing_rate();
         PaperAccount {
             mode: PaperMode::Paper,
             currency: AccountCurrency::Eur,

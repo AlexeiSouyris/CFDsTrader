@@ -6,9 +6,13 @@
  * Diferencia clave con el original: **no calcula indicadores**. RSI, MACD, señal e histograma
  * llegan en los datos, como los envía el motor (CLAUDE.md §1). Los textos se muestran tal cual
  * vienen; `Number()` se usa solo para ubicar cada cosa en pantalla.
+ *
+ * Lleva la herramienta de medición en el panel de precio (#281, `chart-measure.tsx`): una
+ * medición visual del usuario sobre la escala del eje Y, no lógica de trading.
  */
 import { useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 
+import { useChartMeasure } from '@/components/ui/chart-measure'
 import { dateTimeUtc, dateUtc, decimal } from '@/lib/format'
 import { useElementWidth } from '@/lib/use-element-width'
 import { Segmented } from '@/components/ui/segmented'
@@ -73,6 +77,8 @@ export function TradingChart({
   const hi = Math.max(...highs)
   const pad = (hi - lo) * 0.08 || 1
   const yP = (v: number) => top.price + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * h.price
+  // la inversa de `yP`: el precio a una altura, solo para la herramienta de medición
+  const priceAt = (y: number) => lo - pad + (1 - (y - top.price) / h.price) * (hi - lo + 2 * pad)
   const maxVol = Math.max(...view.map((b) => Number(b.volume)), 1)
   const yR = (v: number) => top.rsi + (1 - v / 100) * h.rsi
   const macdAbs = Math.max(
@@ -95,6 +101,20 @@ export function TradingChart({
   const active = view[hover ?? count - 1]
   const first = view[0]
   const up = active ? Number(active.close) >= Number(active.open) : true
+
+  const last = view[count - 1]
+  const measure = useChartMeasure(svgRef, {
+    width,
+    height,
+    plotW,
+    top: top.price,
+    bottom: top.price + h.price,
+    slot,
+    starts: view.map((b) => b.start),
+    priceAt,
+    yOf: yP,
+    digits: (last?.close.split('.')[1] ?? '').length,
+  })
 
   const onPointer = (e: PointerEvent<SVGSVGElement>) => {
     const r = svgRef.current?.getBoundingClientRect()
@@ -166,9 +186,17 @@ export function TradingChart({
           role="img"
           tabIndex={0}
           aria-label={`${instrument}, ${count} velas de 1 hora desde ${first ? dateUtc(first.start) : ''}. Flechas izquierda y derecha para leer cada vela.`}
-          className="block w-full touch-pan-y select-none focus-visible:outline-2 focus-visible:outline-ring"
-          onPointerMove={onPointer}
-          onPointerDown={onPointer}
+          className="block w-full touch-none select-none focus-visible:outline-2 focus-visible:outline-ring"
+          onPointerMove={(e) => {
+            onPointer(e)
+            measure.handlers.onPointerMove(e)
+          }}
+          onPointerDown={(e) => {
+            onPointer(e)
+            measure.handlers.onPointerDown(e)
+          }}
+          onPointerUp={measure.handlers.onPointerUp}
+          onPointerCancel={measure.handlers.onPointerCancel}
           onPointerLeave={() => setHover(null)}
           onKeyDown={onKey}
         >
@@ -351,6 +379,8 @@ export function TradingChart({
               </text>
             </g>
           )}
+
+          {measure.overlay}
         </svg>
       </div>
     </div>

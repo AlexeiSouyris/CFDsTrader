@@ -4,16 +4,16 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use cfds_backtest::{Commission, CostConfig, ExitConfig, InstrumentCosts};
+use cfds_backtest::{Commission, CostConfig, ExitConfig, FundingRates, InstrumentCosts};
 use cfds_broker::{
-    Broker, BrokerConfig, LiveBroker, MarketSetup, PaperBroker, live_trading_status,
+    Broker, BrokerConfig, FundingSetup, LiveBroker, MarketSetup, PaperBroker, live_trading_status,
 };
 use cfds_core::{
     Candle, InstrumentId, KillSwitch, Mode, Order, OrderRejection, OrderSide, OrderStatus,
     PaperMode, Timeframe,
 };
 use cfds_risk::{InstrumentLimits, RiskConfig};
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, NaiveTime, TimeDelta, Utc};
 use rust_decimal::{Decimal, dec};
 use serde_json::Value;
 
@@ -84,6 +84,16 @@ fn market(candles: Vec<Candle>, limits: InstrumentLimits) -> MarketSetup {
         costs: costs(),
         account_to_instrument: Decimal::ONE,
         candles,
+        funding: funding(FundingRates::Constant(dec!(2))),
+    }
+}
+
+/// Corte de las 23:00 de Madrid, como el del catálogo.
+fn funding(rates: FundingRates) -> FundingSetup {
+    FundingSetup {
+        cutoff: NaiveTime::from_hms_opt(23, 0, 0).unwrap(),
+        tz: chrono_tz::Europe::Madrid,
+        rates,
     }
 }
 
