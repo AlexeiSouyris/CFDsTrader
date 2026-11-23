@@ -1,10 +1,11 @@
 # 0012 – Rendimientos del Tesoro de EE. UU. y VIX como contexto macro
 
-- **Estado:** aceptada **para el Tesoro**. **El VIX queda fuera**, como dice el ADR 0004, hasta que el dueño decida (ver §2).
+- **Estado:** aceptada, para el Tesoro y para el VIX. El VIX entra **por decisión expresa del dueño**, contra los términos de Cboe (ver §2).
 - **Fecha:** 2026-11-23
-- **Aprobada por:** el dueño (modo de un solo constructor, `CLAUDE.md`), el 23-11-2026, con las palabras "Si, hace todo", sobre el plan de los "8 pilares" (pilares 3, 6 y 8). La aprobación la informó el agente coordinador. La parte del VIX contradice el [ADR 0004](0004-fuentes-de-sentimiento.md), y por eso necesita una decisión propia del dueño.
+- **Aprobada por:** el dueño (modo de un solo constructor, `CLAUDE.md`), el 23-11-2026, con las palabras "Si, hace todo", sobre el plan de los "8 pilares" (pilares 3, 6 y 8). La aprobación la informó el agente coordinador. Para el VIX, que contradice el [ADR 0004](0004-fuentes-de-sentimiento.md), el dueño decidió aparte el mismo día, con estas palabras: "ni hace falta que leas los términos de nada porque es un proyecto solo para mí" y "no me importan los terminos que ponen". También la informó el agente coordinador.
 - **Issue:** #260
-- **Relacionados:** ADR 0003 §C (capas de contexto), ADR 0004 (fuentes de sentimiento; VIX fuera de v1), #79 (€STR, `cfds_intel.rates`)
+- **Reemplaza:** la parte del [ADR 0004](0004-fuentes-de-sentimiento.md) que dejó el VIX fuera de v1 (decisión 4), **solo para los cierres diarios del VIX**. El ratio put/call de Cboe y el resto del ADR 0004 siguen igual.
+- **Relacionados:** ADR 0003 §C (capas de contexto), #79 (€STR, `cfds_intel.rates`)
 
 ## Contexto
 
@@ -44,26 +45,34 @@ Lo que se comprobó el 23-11-2026:
 5. **Comando idempotente:** `uv run python -m cfds_intel.treasury [desde_año]` (`config/treasury.toml`). Carga desde 2019.
 6. **Uso:** contexto. La pendiente 2–10 años, por ejemplo, se calcula después en el lenguaje que corresponda según `CLAUDE.md` §1, con su propia definición en la spec antes de mirar los datos. Este ADR solo trae el dato.
 
-### 2. VIX: sigue fuera de v1 (lo decide el dueño)
+### 2. VIX: se ingesta por decisión del dueño
 
-Los términos vigentes de Cboe **no permiten** guardar el VIX en una base de datos ("store … in an electronic retrieval system") sin consentimiento escrito, y una autorización exige una licencia. Es el mismo motivo por el que el ADR 0004 lo dejó fuera. El pedido de este plan no cambia los términos, así que **no se descarga ni se guarda ninguna serie de Cboe**. Opciones para el dueño:
+**Los términos de Cboe no lo permiten.** Los vigentes (actualizados el 16-11-2022) dejan ver, imprimir y "download one copy of the Materials for your personal non-commercial use". Sin consentimiento escrito prohíben "store either in hard copy or in an electronic retrieval system", crear obras derivadas y redistribuir. Guardar el VIX en PostgreSQL es guardarlo en un sistema de recuperación electrónica.
 
-1. **Pedir permiso a Cboe** (`permissions@cboe.com`) para un uso personal, no comercial y en simulación. Si lo dan por escrito, se agrega en un PR aparte con un contrato `vix_close.v1`, con las mismas reglas que el Tesoro.
-2. **Seguir sin VIX** y usar la volatilidad realizada, que ya existe (ADR 0004, spec §9.1). Es otra medida, pero sale de nuestros propios precios.
-3. **Una fuente con licencia que lo permita**, si aparece, en su propio ADR.
+**El dueño decidió incluirlo igual** (citas arriba). **La decisión y el riesgo son suyos**, no del proyecto ni de los agentes. Reglas para acotar el uso:
 
-Hasta esa decisión, el VIX queda como estaba en el ADR 0004.
+1. **Uso solo personal**, en simulación, sin fines comerciales.
+2. **Sin redistribución:** los datos del VIX viven **solo en la base del Mac mini**. Nunca van al repo (ni en tests, ni en mocks, ni en ejemplos), ni a otra persona, ni a un servicio externo. Los tests usan números inventados.
+3. **Solo el CSV oficial** de cboe.com (`https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv`, que redirige a `cdn-api.cboe.com`), con un `User-Agent` que dice qué es. **Sin esquivar nada:** si responde 403 o un desafío anti-bots, el comando se frena con error y no reintenta.
+4. **Una lectura por día hábil**, el mínimo necesario.
+5. **Si el dueño cambia de opinión o Cboe lo pide**, se borran los datos (los términos dicen "you must destroy promptly all Materials obtained from the Website") y se deja de leer.
+
+**Ingesta** (PR aparte, apilado sobre el del Tesoro):
+- **Contrato propio `vix_daily.v1`** (`ref_date`, `published_at`, `open`, `high`, `low`, `close`). No reusa `treasury_yield.v1`: el VIX es el nivel de un índice con apertura, máximo, mínimo y cierre, no un rendimiento por plazo.
+- **Tabla de solo agregar**, como la del Tesoro.
+- **`published_at` = el cierre del día más una holgura documentada.** El VIX cierra a las 16:15 ET, y Cboe no documenta a qué hora actualiza el CSV. En el histórico, cada valor vale recién desde el **día hábil siguiente de la serie a las 09:30 ET**, la misma regla que el Tesoro. El último valor de cada lectura vale desde que se leyó. Nunca antes de las 16:15 ET del día del valor.
 
 ## Alternativas consideradas
 
 - **Reusar `reference_rate.v1` para el Tesoro:** descartado, por lo explicado en §1.2.
 - **Usar el valor del Tesoro el mismo día a las 18:00 ET:** más fiel cuando el Tesoro cumple su horario, pero con riesgo de mirar el futuro los días en que se atrasa. Se eligió el día hábil siguiente a las 09:30 ET para el histórico.
 - **El feed XML del Tesoro:** tiene los mismos datos. El CSV es más simple y es el formato de descarga que ofrece la página.
-- **VIX desde terceros** (sitios o repositorios que lo redistribuyen): descartado. Lo descarta también el ADR 0004.
+- **VIX desde terceros** (sitios o repositorios que lo redistribuyen): descartado. Si se usa, es de la fuente oficial.
+- **Pedir permiso a Cboe** (`permissions@cboe.com`) o **seguir sin VIX** con la volatilidad realizada: eran las opciones de la primera versión de este ADR. El dueño eligió incluirlo sin pedir permiso.
 
 ## Consecuencias
 
 - Hay curva del Tesoro diaria desde 2019, sin costo y con fuente oficial.
 - En el histórico, cada valor llega con un día hábil de atraso respecto de la publicación habitual. Es el costo de no mirar el futuro.
 - Si el Tesoro agrega una columna (como pasó con 1,5 meses en 2025), el comando **falla a propósito** hasta que se agregue el plazo al código y al contrato. Nunca se ignora en silencio.
-- El VIX no está. Si el dueño elige la opción 1 y Cboe autoriza, entra en un PR aparte.
+- Hay VIX diario desde 1990, **solo en la base del Mac**. El uso va contra los términos de Cboe, por decisión y bajo responsabilidad del dueño. Si Cboe bloquea la descarga, se frena y se avisa.
