@@ -118,6 +118,7 @@ fn a_backtest_trade_becomes_its_proposal_and_outcome() {
                 },
             ],
             triggers: vec![Signal::Sweep],
+            shown: None,
         }
     );
     assert_eq!(

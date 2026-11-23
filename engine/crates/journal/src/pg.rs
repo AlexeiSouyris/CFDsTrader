@@ -78,6 +78,10 @@ fn row_to_proposal(r: &PgRow) -> Result<Proposal, JournalError> {
         score: r.try_get("score")?,
         breakdown: serde_json::from_str(r.try_get("breakdown")?)?,
         triggers: serde_json::from_str(r.try_get("triggers")?)?,
+        shown: r
+            .try_get::<Option<&str>, _>("shown")?
+            .map(serde_json::from_str)
+            .transpose()?,
     })
 }
 
@@ -104,7 +108,8 @@ macro_rules! select_proposal {
     () => {
         concat!(
             "SELECT id, source, run_id, instrument_id, side, signal_at, reference, stop, tp1, ",
-            "size, leverage, score, breakdown::text AS breakdown, triggers::text AS triggers ",
+            "size, leverage, score, breakdown::text AS breakdown, triggers::text AS triggers, ",
+            "shown::text AS shown ",
             "FROM proposals WHERE id = $1"
         )
     };
@@ -340,7 +345,8 @@ async fn select_trades(
 ) -> Result<Vec<RunTrade>, JournalError> {
     let rows = sqlx::query(concat!(
         "SELECT id, source, run_id, instrument_id, side, signal_at, reference, stop, tp1, ",
-        "size, leverage, score, breakdown::text AS breakdown, triggers::text AS triggers ",
+        "size, leverage, score, breakdown::text AS breakdown, triggers::text AS triggers, ",
+        "shown::text AS shown ",
         "FROM proposals WHERE run_id = $1 ORDER BY signal_at, id"
     ))
     .bind(run_id)
@@ -465,8 +471,9 @@ async fn insert_proposal(
 ) -> Result<bool, JournalError> {
     let done = sqlx::query(
         "INSERT INTO proposals (id, source, run_id, instrument_id, side, signal_at, reference,
-           stop, tp1, size, leverage, score, breakdown, triggers)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb)
+           stop, tp1, size, leverage, score, breakdown, triggers, shown)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb,
+           $15::jsonb)
          ON CONFLICT (id) DO NOTHING",
     )
     .bind(&p.id)
@@ -483,6 +490,7 @@ async fn insert_proposal(
     .bind(p.score)
     .bind(serde_json::to_string(&p.breakdown)?)
     .bind(serde_json::to_string(&p.triggers)?)
+    .bind(p.shown.map(|v| serde_json::to_string(&v)).transpose()?)
     .execute(&mut **tx)
     .await?;
     if done.rows_affected() == 1 {
@@ -766,7 +774,8 @@ impl PgJournal {
         let mut tx = self.pool.begin().await?;
         let rows = sqlx::query(concat!(
             "SELECT id, source, run_id, instrument_id, side, signal_at, reference, stop, tp1, ",
-            "size, leverage, score, breakdown::text AS breakdown, triggers::text AS triggers ",
+            "size, leverage, score, breakdown::text AS breakdown, triggers::text AS triggers, ",
+            "shown::text AS shown ",
             "FROM proposals WHERE source = $1 AND signal_at >= $2 AND signal_at < $3 ",
             "ORDER BY signal_at, id"
         ))

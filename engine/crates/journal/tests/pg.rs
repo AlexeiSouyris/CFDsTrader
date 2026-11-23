@@ -340,3 +340,44 @@ async fn the_run_detail_joins_the_run_its_curve_and_its_trades() {
         );
     }
 }
+
+/// #333: la probabilidad mostrada se guarda con la propuesta y vuelve igual; otra distinta para
+/// la misma propuesta es repintado.
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn the_shown_probability_is_stored_with_the_proposal() {
+    use cfds_journal::{ShownProbability, Source};
+    let j = journal("it-journal-shown").await;
+    let (mut p, o) = entry("it-journal-shown");
+    p.source = Source::Paper;
+    p.shown = Some(ShownProbability::Estimate {
+        probability: dec!(0.55),
+        low: dec!(0.4),
+        high: dec!(0.69),
+        hits: 22,
+        cases: 40,
+    });
+    assert_eq!(j.record(&p, None).await.unwrap(), Recorded::Inserted);
+    assert_eq!(j.proposal(&p.id).await.unwrap(), Some(p.clone()));
+    // El resultado llega después, sin tocar la propuesta.
+    assert_eq!(j.record(&p, Some(&o)).await.unwrap(), Recorded::Inserted);
+    // Y la lectura por período (#330) la trae con su probabilidad.
+    let around = chrono::Duration::minutes(1);
+    let pairs = j
+        .pairs(Source::Paper, p.signal_at - around, p.signal_at + around)
+        .await
+        .unwrap();
+    assert!(pairs.iter().any(|(q, _)| q == &p), "{pairs:?}");
+    let mut other = p.clone();
+    other.shown = Some(ShownProbability::Insufficient {
+        cases: 12,
+        needed: 30,
+    });
+    assert!(matches!(
+        j.record(&other, None).await,
+        Err(JournalError::Conflict { .. })
+    ));
+    // Las del backtest siguen sin el campo.
+    let (bt, _) = entry("it-journal-shown-bt");
+    assert_eq!(bt.shown, None);
+}

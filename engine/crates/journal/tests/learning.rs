@@ -68,6 +68,7 @@ fn pair(
         score: 5,
         breakdown,
         triggers: vec![trigger],
+        shown: None,
     };
     let o = Outcome {
         proposal_id: id,
@@ -356,4 +357,43 @@ fn the_report_is_pure() {
         build(&reversed),
         "el orden de entrada no cambia el informe"
     );
+}
+
+#[test]
+fn the_probability_stored_with_the_proposal_wins_over_the_table() {
+    use cfds_journal::ShownProbability;
+    // La tabla dice 50 % para vela; la propuesta guardó 72 % al mostrarse (#333).
+    let pairs: Vec<_> = (0..3)
+        .map(|i| {
+            let (mut p, o) = pair(
+                Source::Paper,
+                i,
+                cutoff(),
+                Signal::CandlePattern,
+                &[],
+                true,
+                dec!(1),
+            );
+            p.shown = Some(ShownProbability::Estimate {
+                probability: dec!(0.72),
+                low: dec!(0.6),
+                high: dec!(0.8),
+                hits: 36,
+                cases: 50,
+            });
+            (p, o)
+        })
+        .collect();
+    let r = build(&pairs);
+    assert_contract(&r);
+    assert_eq!(r.calibration.rows[7].cases, 3);
+    assert_eq!(r.calibration.rows[5].cases, 0);
+    assert!(r.calibration.sample.iter().all(|s| s.shown == dec!(0.72)));
+    // "Datos insuficientes" guardado: sin probabilidad, aunque la tabla tenga una.
+    let mut one = pairs[0].clone();
+    one.0.shown = Some(ShownProbability::Insufficient {
+        cases: 3,
+        needed: 30,
+    });
+    assert_eq!(build(&[one]).calibration.without_probability, 1);
 }

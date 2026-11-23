@@ -56,9 +56,38 @@
       "type": "array",
       "minItems": 1,
       "items": { "enum": ["candle_pattern", "double_break", "level_rejection", "sweep"] }
+    },
+    "shown": {
+      "description": "Opcional (#333): la probabilidad mostrada (spec §13) tal como se mostró al proponer. 'estimate': frecuencia de TP1 antes que el stop en su grupo, con su intervalo de Wilson, de 0 a 1. 'insufficient': menos de 'needed' casos (datos insuficientes). Las propuestas del backtest no lo traen.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "probability", "low", "high", "hits", "cases"],
+          "properties": {
+            "status": { "const": "estimate" },
+            "probability": { "$ref": "#/$defs/fraction" },
+            "low": { "$ref": "#/$defs/fraction" },
+            "high": { "$ref": "#/$defs/fraction" },
+            "hits": { "type": "integer", "minimum": 0 },
+            "cases": { "type": "integer", "minimum": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "cases", "needed"],
+          "properties": {
+            "status": { "const": "insufficient" },
+            "cases": { "type": "integer", "minimum": 0 },
+            "needed": { "type": "integer", "minimum": 1 }
+          }
+        }
+      ]
     }
   },
   "$defs": {
+    "fraction": { "type": "string", "pattern": "^(0(\\.\\d+)?|1(\\.0+)?)$" },
     "decimal": {
       "description": "Número decimal exacto como string, nunca como número JSON.",
       "type": "string",

@@ -191,6 +191,8 @@ pub struct PaperExit {
     pub fraction: Decimal,
     /// Seguía abierta: se cierra al último cierre (como `EndOfData` en el backtest).
     pub end_of_data: bool,
+    /// Motivo de la salida; `None` si `end_of_data` (#333).
+    pub reason: Option<ExitReason>,
 }
 
 /// Una operación del broker simulado, valuada (ver [`PaperBroker::trade_outcomes`]). Montos en la
@@ -436,6 +438,7 @@ impl PaperBroker {
                 price: exit_px(f.price),
                 fraction: f.fraction,
                 end_of_data: false,
+                reason: Some(f.reason),
             })
             .collect();
         if open > Decimal::ZERO
@@ -447,6 +450,7 @@ impl PaperBroker {
                 price: exit_px(last.close),
                 fraction: open,
                 end_of_data: true,
+                reason: None,
             });
         }
         let (mut commission_total, mut funding, mut gross) =

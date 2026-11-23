@@ -454,6 +454,7 @@ dependencies = [
  "cfds-broker",
  "cfds-core",
  "cfds-indicators",
+ "cfds-journal",
  "cfds-liquidity",
  "cfds-market-data",
  "cfds-obs",
