@@ -119,12 +119,17 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 
 | Contrato | Dónde | Contenido |
 |---|---|---|
-| `liquidity_level.v1` | todavía en ningún lado (ver abajo) | Un nivel del mapa de liquidez: `instrument_id`, `kind` (`eqh`, `eql`, `pdh`, `pdl`, `pwh`, `pwl`, `session_high`, `session_low`), `session` (`asia`, `london` o `ny` en los de sesión; `null` en los demás), `price` (string decimal), `exists_from` (UTC), `state` (`intact`, `swept` o `broken`) y `state_changed_at` (cierre de la vela que lo barrió o rompió; `null` si está intacto). |
+| `liquidity_level.v1` | tablas `liquidity_levels` y `liquidity_level_events` | Un nivel del mapa de liquidez: `instrument_id`, `kind` (`eqh`, `eql`, `pdh`, `pdl`, `pwh`, `pwl`, `session_high`, `session_low`), `session` (`asia`, `london` o `ny` en los de sesión; `null` en los demás), `price` (string decimal), `exists_from` (UTC), `state` (`intact`, `swept` o `broken`) y `state_changed_at` (cierre de la vela que lo barrió o rompió; `null` si está intacto) y, opcional, `expired_at` (cierre de la vela número `max_age_bars` si llegó intacto hasta ahí: desde ese momento ya no está activo). |
 
 - **Solo informativo** en v1: no suma al puntaje de §6.
 - Lo calcula **Rust** (`cfds_liquidity::liquidity_levels`) con velas cerradas de 15m, los pivotes de `config/patterns.toml`, el calendario de `config/sessions.toml` y los parámetros de `config/liquidity.toml`. Nadie lo recalcula; la UI solo lo muestra.
 - Un nivel no existe antes de `exists_from`. Su estado cambia a lo sumo una vez y nunca se reescribe (sin repintado). Rust exige además `state_changed_at > exists_from`.
-- **Guardado pendiente:** la tabla de PostgreSQL y el comando que la llena van en otro PR de #231.
+- `expired_at` se agregó a v1 como campo **opcional** (cambio compatible): un documento sin él sigue siendo válido. Hace falta porque saber si un nivel intacto venció exige contar velas, y ese cálculo vive solo en Rust.
+- **Tablas** (`infra/migrations/0020_liquidity_levels.sql`), las dos de **solo agregar** (trigger):
+  - `liquidity_levels`: el nivel, con las columnas del contrato (sin el estado) y un `id`. Clave natural `(instrument_id, kind, session, price, exists_from)`, con `NULLS NOT DISTINCT`: el mismo nivel no se repite.
+  - `liquidity_level_events`: a lo sumo **un evento por nivel** (`level_id` es la clave): `swept` o `broken` (`state` y `state_changed_at`) o `expired` (`expired_at`), con su hora `at`, siempre posterior a `exists_from`. Un nivel sin evento está intacto y activo. El estado nunca se reescribe: no hay `UPDATE`.
+- Lo escribe el motor con `cargo run -p cfds-ingest --example liquidity_levels` (`PgStore::insert_liquidity_levels`): idempotente, y si un nivel ya guardado diera otro estado es repintado, error y no se guarda nada de ese instrumento.
+- Se lee con `PgStore::liquidity_levels(instrumento, desde, as_of)`: los niveles **tal como se conocían en `as_of`** (un evento posterior no se ve), para no mirar el futuro. Python y la UI leen las mismas tablas con el mismo criterio (`at <= as_of`).
 
 ### Estadísticas de FVG y gaps de apertura (#231, spec §5.4.1)
 

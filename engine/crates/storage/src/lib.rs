@@ -6,13 +6,17 @@
 //!   con el JSON del contrato `candle.v1`.
 //! - [`NewsInterpretationConsumer`]: lee las interpretaciones de noticias que publica Python en
 //!   `news_interpretations.v1`, sin perder ni repetir entradas entre reinicios (#197).
+//! - Mapa de liquidez (`liquidity_level.v1`, #231): [`PgStore::insert_liquidity_levels`] y
+//!   [`PgStore::liquidity_levels`], de solo agregar y sin repintado.
 //!
 //! Las migraciones viven en `infra/migrations/` y se aplican con [`PgStore::migrate`].
 
+mod liquidity_levels;
 mod news_stream;
 mod pg;
 mod stream;
 
+pub use liquidity_levels::LevelsReport;
 pub use news_stream::{
     Delivery, NEWS_INTERPRETATIONS_STREAM, NewsBatch, NewsInterpretationConsumer, Rejected, StartAt,
 };
@@ -63,6 +67,14 @@ pub enum StorageError {
         instrument: String,
         timeframe: String,
         start: DateTime<Utc>,
+    },
+    #[error(
+        "el nivel de liquidez {kind} de {instrument} que existe desde {exists_from} ya está guardado con otro estado: sería repintado (revisar el cálculo o las velas)"
+    )]
+    LiquidityLevelConflict {
+        instrument: String,
+        kind: String,
+        exists_from: DateTime<Utc>,
     },
     #[error("fila inválida en la base: {0}")]
     CorruptRow(String),

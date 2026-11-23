@@ -3,7 +3,11 @@
 //!
 //! Lo calcula el motor (`cfds-liquidity`, `levels`) y nadie más lo recalcula (CLAUDE.md §1).
 //! Acepta exactamente los mismos documentos que el contrato y además exige
-//! `state_changed_at > exists_from`, que el JSON Schema no puede expresar.
+//! `state_changed_at > exists_from` y `expired_at > exists_from`, que el JSON Schema no puede
+//! expresar.
+//!
+//! `expired_at` es un campo **opcional** agregado a v1 sin romperlo (#231): un documento sin él
+//! sigue siendo válido y se lee como "no venció".
 
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
@@ -69,6 +73,9 @@ pub struct LiquidityLevel {
     pub state: LiquidityLevelState,
     /// Cierre de la vela que barrió o rompió el nivel; `None` si está intacto.
     pub state_changed_at: Option<DateTime<Utc>>,
+    /// Cierre de la vela número `max_age_bars` desde que existe, si llegó intacto hasta ahí:
+    /// desde ese momento ya no está activo. `None` si no venció (o si se barrió o rompió antes).
+    pub expired_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -86,6 +93,13 @@ struct Raw {
     state: LiquidityLevelState,
     #[serde(with = "optional_utc_z")]
     state_changed_at: Option<DateTime<Utc>>,
+    // Opcional: puede faltar (documentos anteriores) y no se escribe cuando es `None`.
+    #[serde(
+        default,
+        with = "optional_utc_z",
+        skip_serializing_if = "Option::is_none"
+    )]
+    expired_at: Option<DateTime<Utc>>,
 }
 
 /// `utc_z` para un campo obligatorio que puede ser `null`.
@@ -125,6 +139,15 @@ impl TryFrom<Raw> for LiquidityLevel {
             }
             _ => {}
         }
+        match r.expired_at {
+            Some(_) if r.state != LiquidityLevelState::Intact => {
+                return Err("solo un nivel intacto puede vencer".into());
+            }
+            Some(t) if t <= r.exists_from => {
+                return Err("expired_at tiene que ser posterior a exists_from".into());
+            }
+            _ => {}
+        }
         Ok(Self {
             instrument_id: r.instrument_id,
             kind: r.kind,
@@ -133,6 +156,7 @@ impl TryFrom<Raw> for LiquidityLevel {
             exists_from: r.exists_from,
             state: r.state,
             state_changed_at: r.state_changed_at,
+            expired_at: r.expired_at,
         })
     }
 }
@@ -147,6 +171,7 @@ impl From<LiquidityLevel> for Raw {
             exists_from: l.exists_from,
             state: l.state,
             state_changed_at: l.state_changed_at,
+            expired_at: l.expired_at,
         }
     }
 }

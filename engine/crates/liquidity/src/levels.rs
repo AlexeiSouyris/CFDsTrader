@@ -13,7 +13,8 @@
 //!
 //! Estado de un alto, vela por vela desde que existe (las primeras max_age_bars velas):
 //!   la primera vela con H > nivel: C ≤ nivel → barrido (swept); C > nivel → roto (broken).
-//!   Si ninguna lo supera, queda intacto. El estado no cambia nunca más.
+//!   Si ninguna lo supera, queda intacto; si llega intacto a max_age_bars velas, vence
+//!   (`expired_at` = cierre de la última). El estado no cambia nunca más.
 //! ```
 //!
 //! Reglas:
@@ -178,15 +179,13 @@ pub fn liquidity_levels(
         }
         let repeated = matches!(c.kind, Kind::Eqh | Kind::Eql)
             && out.iter().any(|o| {
-                o.kind == c.kind
-                    && o.price == c.price
-                    && is_active_at(o, candles, born, cfg.max_age_bars)
+                o.kind == c.kind && o.price == c.price && is_active_at(o, candles[born].end())
             });
         if repeated {
             continue;
         }
         let from = candles.partition_point(|k| k.start < c.exists_from);
-        let (state, state_changed_at) = evaluate(
+        let (state, state_changed_at, expired_at) = evaluate(
             c.kind.is_high(),
             c.price,
             &candles[from..],
@@ -200,36 +199,28 @@ pub fn liquidity_levels(
             exists_from: c.exists_from,
             state,
             state_changed_at,
+            expired_at,
         });
     }
     out
 }
 
-/// `true` si al cierre de la vela `t` el nivel ya existe, no se barrió ni se rompió y todavía
-/// no pasaron `max_age_bars` velas desde que existe.
-pub fn is_active_at(
-    level: &LiquidityLevel,
-    candles: &[Candle],
-    t: usize,
-    max_age_bars: usize,
-) -> bool {
-    let Some(now) = candles.get(t).map(Candle::end) else {
-        return false;
-    };
-    if level.exists_from > now || level.state_changed_at.is_some_and(|x| x <= now) {
-        return false;
-    }
-    let from = candles.partition_point(|k| k.start < level.exists_from);
-    (t + 1).saturating_sub(from) < max_age_bars
+/// `true` si en el instante `now` (el cierre de una vela) el nivel ya existe, no se barrió ni se
+/// rompió y todavía no venció.
+pub fn is_active_at(level: &LiquidityLevel, now: DateTime<Utc>) -> bool {
+    level.exists_from <= now
+        && level.state_changed_at.is_none_or(|t| t > now)
+        && level.expired_at.is_none_or(|t| t > now)
 }
 
-/// Estado de un nivel evaluado sobre las velas posteriores a su nacimiento.
+/// Estado de un nivel evaluado sobre las velas posteriores a su nacimiento: el estado, la vela
+/// que lo cambió y, si llegó intacto a `max_age_bars` velas, el cierre de la última (vencido).
 fn evaluate(
     high: bool,
     price: Decimal,
     after: &[Candle],
     max_age_bars: usize,
-) -> (State, Option<DateTime<Utc>>) {
+) -> (State, Option<DateTime<Utc>>, Option<DateTime<Utc>>) {
     for c in after.iter().take(max_age_bars) {
         let (crossed, back_inside) = if high {
             (c.high > price, c.close <= price)
@@ -242,10 +233,14 @@ fn evaluate(
             } else {
                 State::Broken
             };
-            return (state, Some(c.end()));
+            return (state, Some(c.end()), None);
         }
     }
-    (State::Intact, None)
+    let expired_at = max_age_bars
+        .checked_sub(1)
+        .and_then(|i| after.get(i))
+        .map(Candle::end);
+    (State::Intact, None, expired_at)
 }
 
 fn equal_candidates(
@@ -266,9 +261,11 @@ fn equal_candidates(
                 continue;
             };
             let oldest = t + 1 - cfg.equal_lookback_bars;
-            let mut prices: Vec<Decimal> = same
+            // `same` está ordenado por índice (y por confirmación, que es índice + N).
+            let from = same.partition_point(|q| q.index < oldest);
+            let mut prices: Vec<Decimal> = same[from..]
                 .iter()
-                .filter(|q| q.index >= oldest && q.confirmed_at <= t)
+                .take_while(|q| q.confirmed_at <= t)
                 .map(|q| q.price)
                 .collect();
             prices.sort();
