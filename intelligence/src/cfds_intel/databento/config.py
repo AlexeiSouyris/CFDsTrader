@@ -22,6 +22,9 @@ class SymbolConfig:
     symbol: str
     instrument_id: str
     min_session_hours: int
+    # Publisher del libro central (el único que se guarda) y su id numérico.
+    publisher: str
+    publisher_id: int
 
 
 @dataclass(frozen=True)
@@ -47,6 +50,21 @@ def _date(v: object, name: str) -> date:
         return date.fromisoformat(v)
     except ValueError as e:
         raise ConfigError(f"{name}: {v!r} no es AAAA-MM-DD") from e
+
+
+def _publisher_id(name: object, dataset: str, sym: str) -> int:
+    """Id numérico del publisher según la lista del SDK oficial (`databento.Publisher`)."""
+    import databento
+
+    if not isinstance(name, str):
+        raise ConfigError(f"{sym}: falta publisher")
+    try:
+        p = databento.Publisher(name)
+    except ValueError as e:
+        raise ConfigError(f"{sym}: publisher desconocido {name!r}") from e
+    if str(p.dataset) != dataset:
+        raise ConfigError(f"{sym}: el publisher {name} no es del dataset {dataset}")
+    return int(p.to_int())
 
 
 def load_config(text: str) -> DatabentoConfig:
@@ -81,9 +99,11 @@ def load_config(text: str) -> DatabentoConfig:
         hours = _positive_int(x.get("min_session_hours"), f"{sym}: min_session_hours")
         if hours > 24:
             raise ConfigError(f"{sym}: min_session_hours no puede pasar de 24")
-        if set(x) - {"dataset", "symbol", "instrument_id", "min_session_hours"}:
+        if set(x) - {"dataset", "symbol", "instrument_id", "min_session_hours", "publisher"}:
             raise ConfigError(f"{sym}: claves desconocidas")
-        symbols.append(SymbolConfig(ds, sym, inst, hours))
+        pub = x.get("publisher")
+        pub_id = _publisher_id(pub, ds, sym)
+        symbols.append(SymbolConfig(ds, sym, inst, hours, str(pub), pub_id))
     if not symbols:
         raise ConfigError("no hay símbolos configurados")
     if len({(x.dataset, x.symbol) for x in symbols}) != len(symbols):

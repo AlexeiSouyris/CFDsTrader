@@ -74,15 +74,19 @@ Los **USD 125 de crédito gratis cubren el total**, y queda margen para repetir 
 5. **Agrupación en Rust:**
    - Las barras de 1m se agrupan en velas de 15m y 1h (y diarias para verificar) **en Rust**, con la misma regla de velas cerradas que las de IG.
    - Python solo baja y guarda las barras de 1m tal como llegan, como hace con otras fuentes crudas (COT, €STR). Así ningún cálculo sobre el precio vive en dos lugares.
-6. **Guardado:**
+6. **Solo el libro central:**
+   - En Eurex, OHLCV trae **dos registros para el mismo minuto** cuando hubo operaciones dentro y fuera del libro: "two OHLCV messages will be published for that instrument on that interval, one with `XEUR.EOBI.XEUR` as the `publisher_id` and one with `XEUR.EOBI.XOFF`" ([XEUR.EOBI](https://databento.com/docs/datasets/xeur-eobi)).
+   - Las operaciones fuera de libro (TES, "Trades reported in `TES Trade Report` EOBI message are considered off-market") se pactan a precios que no son del mercado.
+   - Se guarda solo el publisher del libro central, que se configura por símbolo (`publisher` en `config/databento.toml`): `XEUR.EOBI.XEUR` (101) en Eurex y `GLBX.MDP3.GLBX` (1) en CME, que tiene un solo publisher. El resto se descarta y se cuenta (#254, agregado el 23-11-2026).
+7. **Guardado:**
    - Las barras van en una tabla **nueva**, de solo agregar (`futures_bars_1m`, migración 0023), con su fuente, dataset, símbolo continuo, contrato y la hora en UTC.
    - **No se tocan las velas de IG** (`candles` no distingue fuentes).
-7. **Costo:**
+8. **Costo:**
    - Antes de bajar nada, `--estimate` pide `metadata.get_cost` y `metadata.get_record_count` (gratis según la doc: "Access to metadata ... is free") por símbolo.
    - **Frena** si el total pasa `max_usd` de `config/databento.toml` (100, por debajo de los 125 de crédito).
    - `--run` vuelve a estimar y frena igual.
-8. **Datos solo en el Mac:** las barras viven solo en la base local de la máquina de datos (`CFDS_DATA_MACHINE=1`). **Nunca en el repo**: ni precios ni archivos DBN, y los tests usan respuestas sintéticas.
-9. **Key:** sale de `DATABENTO_API_KEY` (`.env`, con un valor falso en `.env.example`) y nunca se imprime.
+9. **Datos solo en el Mac:** las barras viven solo en la base local de la máquina de datos (`CFDS_DATA_MACHINE=1`). **Nunca en el repo**: ni precios ni archivos DBN, y los tests usan respuestas sintéticas.
+10. **Key:** sale de `DATABENTO_API_KEY` (`.env`, con un valor falso en `.env.example`) y nunca se imprime.
 
 ## Preguntas abiertas (antes de aceptar)
 

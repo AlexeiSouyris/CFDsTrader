@@ -4,6 +4,8 @@
 uv run python -m cfds_intel.databento --estimate              # gratis: costo por símbolo y total
 uv run python -m cfds_intel.databento --sample [AAAA-MM-DD]    # baja un día por símbolo y valida
 CFDS_DATA_MACHINE=1 DATABASE_URL=... uv run python -m cfds_intel.databento --run
+uv run python -m cfds_intel.databento --check-month AAAA-MM   # baja un mes, cuenta y no guarda
+uv run python -m cfds_intel.databento --run --only FDAX.c.0   # cualquier modo, un solo símbolo
 ```
 - La key sale de `DATABENTO_API_KEY` (la lee el SDK oficial) y nunca se imprime.
 - `--estimate` solo usa metadata (gratis). Si el total pasa `budget.max_usd`
@@ -26,6 +28,7 @@ from cfds_intel.databento.bars import (
     Client,
     DatabentoError,
     Estimate,
+    Fetched,
     check_budget,
     chunk_cost,
     estimate,
@@ -33,11 +36,15 @@ from cfds_intel.databento.bars import (
     months,
     validate_day,
 )
-from cfds_intel.databento.config import DatabentoConfig, load_config
+from cfds_intel.databento.config import DatabentoConfig, SymbolConfig, load_config
 
 CONFIG = Path(__file__).resolve().parents[4] / "config" / "databento.toml"
 KEY_ENV = "DATABENTO_API_KEY"
-USAGE = "uso: python -m cfds_intel.databento (--estimate | --sample [AAAA-MM-DD] | --run)"
+USAGE = (
+    "uso: python -m cfds_intel.databento (--estimate | --sample [AAAA-MM-DD] | --run"
+    " | --check-month AAAA-MM) [--only SÍMBOLO]"
+)
+MODES = {"--estimate", "--sample", "--run", "--check-month"}
 
 
 def client() -> Client:
@@ -76,6 +83,28 @@ def guarded_estimate(
     return est
 
 
+def describe_dropped(f: Fetched, sym: SymbolConfig) -> str:
+    """Cuántos registros de otros publishers se descartaron (en Eurex, los fuera de libro)."""
+    if not f.dropped:
+        return f"solo {sym.publisher}: nada descartado"
+    detail = ", ".join(f"publisher {p}: {n}" for p, n in sorted(f.dropped.items()))
+    return (
+        f"se guarda solo {sym.publisher}; descartados {detail}; "
+        f"{f.shared_minutes} minutos tenían registro de los dos"
+    )
+
+
+def check_month(c: Client, cfg: DatabentoConfig, month: str) -> int:
+    """Baja un mes (con el mismo tope de gasto), cuenta los duplicados y no guarda nada."""
+    first = date.fromisoformat(f"{month}-01")
+    end = months(first, first + timedelta(days=32))[0][1]
+    guarded_estimate(c, replace(cfg, start=first), end, {})
+    for sym in cfg.symbols:
+        f = fetch_bars(c, cfg, sym, first, end)
+        print(f"{sym.symbol} {month}: {len(f.bars)} barras; {describe_dropped(f, sym)}")
+    return 0
+
+
 def last_weekday_before(d: date) -> date:
     d -= timedelta(days=1)
     while d.weekday() >= 5:
@@ -89,13 +118,14 @@ def sample(c: Client, cfg: DatabentoConfig, day: date) -> int:
     est = guarded_estimate(c, sample_cfg, end, {})
     failed = 0
     for sym in (e.symbol for e in est if not e.skipped):
-        bars = fetch_bars(c, cfg, sym, day, end)
-        r = validate_day(bars, sym, day, cfg.max_gap_minutes)
+        f = fetch_bars(c, cfg, sym, day, end)
+        r = validate_day(f.bars, sym, day, cfg.max_gap_minutes)
         span = f"{r.first:%H:%M}-{r.last:%H:%M} UTC" if r.first and r.last else "sin barras"
         print(
             f"{sym.symbol} {day}: {r.bars} barras ({r.hours:.1f} h, {span}), pausa más larga "
             f"{r.longest_gap_minutes} min, contratos {r.contracts}"
         )
+        print(f"  {describe_dropped(f, sym)}")
         for p in r.problems:
             failed += 1
             print(f"  ⚠️  {p}", file=sys.stderr)
@@ -118,21 +148,35 @@ def run(c: Client, cfg: DatabentoConfig) -> int:
                 continue
             for a, b in months(e.start, e.end):
                 req_cost = chunk_cost(c, cfg, e.symbol, a, b)
-                bars = fetch_bars(c, cfg, e.symbol, a, b)
-                r = insert_chunk(conn, e.symbol, a, b, bars, req_cost)
+                f = fetch_bars(c, cfg, e.symbol, a, b)
+                r = insert_chunk(conn, e.symbol, a, b, f.bars, req_cost)
                 print(
                     f"{e.symbol.symbol} {a} → {b}: {r.inserted} nuevas, {r.unchanged} ya estaban "
-                    f"(USD {req_cost:.2f})"
+                    f"(USD {req_cost:.2f}); {describe_dropped(f, e.symbol)}"
                 )
     return 0
 
 
 def main(argv: list[str]) -> int:
     args = argv[1:]
-    if not args or args[0] not in {"--estimate", "--sample", "--run"}:
+    only = None
+    if "--only" in args:
+        i = args.index("--only")
+        if i + 1 >= len(args):
+            print(USAGE, file=sys.stderr)
+            return 2
+        only = args[i + 1]
+        args = args[:i] + args[i + 2 :]
+    if not args or args[0] not in MODES or (args[0] == "--check-month" and len(args) < 2):
         print(USAGE, file=sys.stderr)
         return 2
     cfg = load_config(CONFIG.read_text())
+    if only is not None:
+        symbols = tuple(s for s in cfg.symbols if s.symbol == only)
+        if not symbols:
+            print(f"⚠️  {only} no está en config/databento.toml", file=sys.stderr)
+            return 2
+        cfg = replace(cfg, symbols=symbols)
     try:
         c = client()
         if args[0] == "--estimate":
@@ -149,6 +193,8 @@ def main(argv: list[str]) -> int:
         if args[0] == "--sample":
             day = date.fromisoformat(args[1]) if len(args) > 1 else last_weekday_before(today_utc())
             return sample(c, cfg, day)
+        if args[0] == "--check-month":
+            return check_month(c, cfg, args[1])
         return run(c, cfg)
     except BudgetError as e:
         print(f"⛔ {e}: no se baja nada", file=sys.stderr)

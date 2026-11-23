@@ -28,21 +28,31 @@ max_gap_minutes = 5
 
 # Futuro → instrumento (CFD de IG). `min_session_hours`: horas mínimas con barras en un día UTC
 # hábil (CME opera unas 23 h; Eurex, unas 21 h).
+#
+# `publisher`: el único publisher cuyas barras se guardan. En Eurex, OHLCV trae DOS registros
+# para el mismo minuto si hubo operaciones dentro y fuera del libro: "one with XEUR.EOBI.XEUR as
+# the publisher_id and one with XEUR.EOBI.XOFF" (docs: datasets/xeur-eobi). Las fuera de libro
+# (TES: bloques, EFP) se pactan a precios que no son del mercado, así que solo se guarda el libro
+# central (XEUR.EOBI.XEUR). CME tiene un solo publisher (GLBX.MDP3.GLBX). Los nombres se validan
+# contra la lista del SDK oficial (databento.Publisher).
 [[symbols]]
 dataset = "GLBX.MDP3"
 symbol = "ES.c.0"
+publisher = "GLBX.MDP3.GLBX"
 instrument_id = "US500"
 min_session_hours = 22
 
 [[symbols]]
 dataset = "GLBX.MDP3"
 symbol = "NQ.c.0"
+publisher = "GLBX.MDP3.GLBX"
 instrument_id = "US100"
 min_session_hours = 22
 
 [[symbols]]
 dataset = "GLBX.MDP3"
 symbol = "YM.c.0"
+publisher = "GLBX.MDP3.GLBX"
 instrument_id = "US30"
 min_session_hours = 22
 
@@ -50,5 +60,6 @@ min_session_hours = 22
 [[symbols]]
 dataset = "XEUR.EOBI"
 symbol = "FDAX.c.0"
+publisher = "XEUR.EOBI.XEUR"
 instrument_id = "DE40"
 min_session_hours = 20

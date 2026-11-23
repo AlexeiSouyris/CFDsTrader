@@ -48,6 +48,7 @@ def rec(t: str, o: int = 5_000_250_000_000, contract: int = 42, **over: Any) -> 
         "low": o - 250_000_000,
         "close": o + 250_000_000,
         "volume": 17,
+        "publisher_id": 1,  # GLBX.MDP3.GLBX
     }
     return SimpleNamespace(**{**base, **over})
 
@@ -262,7 +263,7 @@ def test_bad_records_fail(bad: SimpleNamespace) -> None:
 def test_fetch_checks_order_and_period() -> None:
     good = [rec("2026-11-18T14:31:00"), rec("2026-11-18T14:32:00")]
     c = FakeClient(records=good)
-    bars = fetch_bars(c, CFG, ES, DAY, date(2026, 11, 19))
+    bars = fetch_bars(c, CFG, ES, DAY, date(2026, 11, 19)).bars
     assert len(bars) == 2
     assert c.timeseries.calls[0]["symbols"] == ["ES.c.0"]
     for wrong in [list(reversed(good)), [good[0], good[0]], [rec("2026-11-19T00:00:00")]]:
@@ -282,7 +283,7 @@ def day_of_cme(skip: set[str] = frozenset()) -> list[SimpleNamespace]:  # type: 
 
 
 def test_a_full_cme_day_passes_the_sample_validation() -> None:
-    bars = fetch_bars(FakeClient(records=day_of_cme()), CFG, ES, DAY, date(2026, 11, 19))
+    bars = fetch_bars(FakeClient(records=day_of_cme()), CFG, ES, DAY, date(2026, 11, 19)).bars
     r = validate_day(bars, ES, DAY, CFG.max_gap_minutes)
     assert r.problems == []
     assert (r.bars, r.hours, r.longest_gap_minutes, r.contracts) == (1380, Decimal(23), 60, [42])
@@ -290,7 +291,7 @@ def test_a_full_cme_day_passes_the_sample_validation() -> None:
 
 def test_the_sample_validation_reports_gaps_and_short_sessions() -> None:
     hole = {f"2026-11-18T10:{m:02d}:00" for m in range(10)}  # 10 min sin barras
-    bars = fetch_bars(FakeClient(records=day_of_cme(hole)), CFG, ES, DAY, date(2026, 11, 19))
+    bars = fetch_bars(FakeClient(records=day_of_cme(hole)), CFG, ES, DAY, date(2026, 11, 19)).bars
     r = validate_day(bars, ES, DAY, CFG.max_gap_minutes)
     assert r.gaps == [(datetime(2026, 11, 18, 9, 59, tzinfo=UTC), 10)]
     assert any("huecos" in p for p in r.problems)
@@ -305,3 +306,99 @@ def test_months_split_the_period_for_resumable_loads() -> None:
         (date(2022, 1, 1), date(2022, 1, 15)),
     ]
     assert months(date(2022, 1, 1), date(2022, 1, 1)) == []
+
+
+FDAX = CFG.symbols[3]
+NOV20 = date(2026, 11, 20)
+
+
+def test_the_config_keeps_only_the_central_order_book_publisher() -> None:
+    assert [(x.symbol, x.publisher, x.publisher_id) for x in CFG.symbols] == [
+        ("ES.c.0", "GLBX.MDP3.GLBX", 1),
+        ("NQ.c.0", "GLBX.MDP3.GLBX", 1),
+        ("YM.c.0", "GLBX.MDP3.GLBX", 1),
+        ("FDAX.c.0", "XEUR.EOBI.XEUR", 101),
+    ]
+    for old, new in [
+        ('publisher = "XEUR.EOBI.XEUR"', 'publisher = "XEUR.EOBI.XLIBRO"'),  # no existe
+        ('publisher = "XEUR.EOBI.XEUR"', 'publisher = "GLBX.MDP3.GLBX"'),  # otro dataset
+        ('publisher = "XEUR.EOBI.XEUR"\n', ""),  # falta
+    ]:
+        assert old in TEXT
+        with pytest.raises(ConfigError):
+            load_config(TEXT.replace(old, new, 1))
+
+
+def fdax_minute() -> list[SimpleNamespace]:
+    """El caso real del 2026-11-20 09:35 UTC (contrato 667): una barra del libro central y un
+    print fuera de libro a 54 puntos del mercado, en el mismo minuto."""
+    t = "2026-11-20T09:35:00"
+    px = 1_000_000_000
+    return [
+        rec("2026-11-20T09:34:00", o=25060 * px, contract=667, publisher_id=101),
+        rec(
+            t,
+            contract=667,
+            publisher_id=101,
+            open=25062 * px,
+            high=25062 * px,
+            low=25041 * px,
+            close=25046 * px,
+            volume=68,
+        ),
+        rec(
+            t,
+            contract=667,
+            publisher_id=103,
+            open=25100 * px,
+            high=25100 * px,
+            low=25100 * px,
+            close=25100 * px,
+            volume=41,
+        ),
+        rec("2026-11-20T09:36:00", o=25046 * px, contract=667, publisher_id=101),
+    ]
+
+
+def test_an_off_book_print_in_the_same_minute_is_dropped_not_mixed() -> None:
+    f = fetch_bars(FakeClient(records=fdax_minute()), CFG, FDAX, NOV20, date(2026, 11, 21))
+    assert [b.start.strftime("%H:%M") for b in f.bars] == ["09:34", "09:35", "09:36"]
+    b = f.bars[1]
+    assert (b.open, b.high, b.low, b.close, b.volume) == (
+        Decimal(25062),
+        Decimal(25062),
+        Decimal(25041),
+        Decimal(25046),
+        68,
+    )
+    assert max(x.high for x in f.bars) < Decimal(25100), "el print fuera de libro no entra"
+    assert (f.dropped, f.shared_minutes) == ({103: 1}, 1)
+    assert "publisher 103: 1" in cli.describe_dropped(f, FDAX)
+
+
+def test_two_records_of_the_same_publisher_in_one_minute_are_an_error() -> None:
+    twice = fdax_minute()
+    twice[2].publisher_id = 101
+    with pytest.raises(DatabentoError, match="mismo publisher"):
+        fetch_bars(FakeClient(records=twice), CFG, FDAX, NOV20, date(2026, 11, 21))
+    no_pub = [rec("2026-11-20T09:35:00", publisher_id=None)]
+    with pytest.raises(DatabentoError):
+        fetch_bars(FakeClient(records=no_pub), CFG, FDAX, NOV20, date(2026, 11, 21))
+
+
+def test_check_month_counts_duplicates_without_storing_and_only_filters_symbols(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("DATABENTO_API_KEY", "db-" + "k" * 29)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    c = FakeClient(cost=0.55, records=fdax_minute())
+    monkeypatch.setattr(cli, "client", lambda: c)
+    assert cli.main(["x", "--check-month", "2026-11", "--only", "FDAX.c.0"]) == 0
+    out = capsys.readouterr().out
+    assert "FDAX.c.0 2026-11: 3 barras" in out
+    assert "publisher 103: 1; 1 minutos" in out
+    assert "ES.c.0" not in out
+    req = c.timeseries.calls[0]
+    assert (req["symbols"], req["start"], req["end"]) == (["FDAX.c.0"], "2026-11-01", "2026-12-01")
+    assert cli.main(["x", "--run", "--only", "XX.c.0"]) == 2
+    assert cli.main(["x", "--check-month"]) == 2

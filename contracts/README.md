@@ -122,6 +122,7 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 
 - La escribe Python (`python -m cfds_intel.databento --run`, solo con `CFDS_DATA_MACHINE=1`). La agrupa y verifica Rust (#248).
 - Tabla de **solo agregar** (`infra/migrations/0023_futures_bars.sql`, trigger), con clave `(source, dataset, symbol, start_at)`. La misma barra otra vez no cambia nada, y otra con la misma clave es un conflicto: no se guarda nada del tramo. `futures_bar_loads` registra cada tramo bajado y su costo estimado, para no volver a pagarlo.
+- Solo barras del **libro central**: en Eurex, OHLCV trae un registro aparte por publisher cuando en el minuto hubo operaciones fuera de libro (`XEUR.EOBI.XOFF`). Esas se descartan y se cuentan (`publisher` en `config/databento.toml`, #254).
 - Precios **sin ajustar** por vencimientos. No se mezcla con `candles` (IG): el spread y los costos siguen siendo los de IG.
 - Los datos viven solo en la base local de la máquina de datos, **nunca en el repo**.
 

@@ -8,6 +8,10 @@ Reglas:
 - Los precios llegan como enteros con escala 1e-9: se pasan a `Decimal` exacto, nunca a float.
 - Un minuto sin operaciones no trae barra (docs: schemas-and-data-formats/ohlcv). Por eso un
   hueco no es un error de la fuente, pero `--sample` lo informa.
+- Solo se guardan las barras del publisher del libro central (`publisher` en la config). En
+  Eurex, un minuto con operaciones dentro y fuera del libro trae dos registros, uno por publisher
+  (`XEUR.EOBI.XEUR` y `XEUR.EOBI.XOFF`, docs: datasets/xeur-eobi): el de fuera del libro se
+  descarta y se cuenta. Dos registros del mismo minuto y del mismo publisher son un error.
 - Cualquier barra que no cumple las reglas hace fallar el pedido entero: no se guarda nada.
 """
 
@@ -121,15 +125,44 @@ def to_bar(record: Any, sym: SymbolConfig) -> Bar:
     )
 
 
-def to_bars(records: Iterable[Any], sym: SymbolConfig, start: datetime, end: datetime) -> list[Bar]:
-    """Barras de `[start, end)`, en orden estricto y sin repetir."""
-    bars = [to_bar(r, sym) for r in records]
+@dataclass(frozen=True)
+class Fetched:
+    """Barras del libro central y lo descartado de otros publishers."""
+
+    bars: list[Bar]
+    # Registros descartados por publisher_id (por ejemplo 103 = XEUR.EOBI.XOFF).
+    dropped: dict[int, int]
+    # Minutos en los que hubo un registro del libro central y otro de otro publisher.
+    shared_minutes: int
+
+
+def to_bars(records: Iterable[Any], sym: SymbolConfig, start: datetime, end: datetime) -> Fetched:
+    """Barras de `[start, end)` del publisher `sym.publisher_id`, en orden estricto y sin
+    repetir. Los registros de otros publishers se descartan y se cuentan."""
+    kept: list[Any] = []
+    dropped: dict[int, int] = {}
+    other_minutes: set[int] = set()
+    for r in records:
+        pub = getattr(r, "publisher_id", None)
+        if not isinstance(pub, int):
+            raise DatabentoError(f"{sym.symbol}: registro sin publisher_id")
+        if pub == sym.publisher_id:
+            kept.append(r)
+        else:
+            dropped[pub] = dropped.get(pub, 0) + 1
+            other_minutes.add(getattr(r, "ts_event", -1))
+    bars = [to_bar(r, sym) for r in kept]
     for prev, cur in pairwise(bars):
-        if cur.start <= prev.start:
+        if cur.start == prev.start:
+            raise DatabentoError(
+                f"{sym.symbol}: dos barras del mismo publisher en {cur.start}: no se elige a ojo"
+            )
+        if cur.start < prev.start:
             raise DatabentoError(f"{sym.symbol}: barras fuera de orden en {cur.start}")
     if bars and (bars[0].start < start or bars[-1].start >= end):
         raise DatabentoError(f"{sym.symbol}: barras fuera del período pedido")
-    return bars
+    shared = len(other_minutes & {r.ts_event for r in kept})
+    return Fetched(bars, dropped, shared)
 
 
 def _midnight(d: date) -> datetime:
@@ -228,7 +261,7 @@ def months(start: date, end: date) -> list[tuple[date, date]]:
 
 def fetch_bars(
     client: Client, cfg: DatabentoConfig, sym: SymbolConfig, start: date, end: date
-) -> list[Bar]:
+) -> Fetched:
     """Baja las barras de `[start, end)` (esto **sí** consume crédito)."""
     records = client.timeseries.get_range(**_request(cfg, sym, start, end))
     return to_bars(records, sym, _midnight(start), _midnight(end))
