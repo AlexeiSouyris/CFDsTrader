@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { LearningReportView } from '@/components/ui/learning-report'
-import type { LearningReport, PaperComparison } from '@/lib/learning-api'
+import type { ChangeVoteStatus, LearningReport, PaperComparison } from '@/lib/learning-api'
 import { LearningSection, PaperVsBacktestSection } from '@/views/phase8'
 
 /** Documentos de ejemplo con la forma de `paper_comparison.v1` y `learning_report.v1`. */
@@ -129,12 +129,17 @@ const REPORT: LearningReport = {
   ],
 }
 
-function gateway(comparisons: PaperComparison[] | null, report: LearningReport | null) {
+function gateway(
+  comparisons: PaperComparison[] | null,
+  report: LearningReport | null,
+  votes: ChangeVoteStatus[] | null = null,
+) {
   const fetch = vi.fn(async (input: string | URL | Request) => {
     const url = String(input)
     const json = (b: unknown) => new Response(JSON.stringify(b), { status: 200 })
     if (url === '/api/v1/paper_comparisons' && comparisons) return json(comparisons)
     if (url === '/api/v1/learning_report' && comparisons) return json(report)
+    if (url === '/api/v1/learning_report/votes' && votes) return json(votes)
     return new Response('', { status: 502 })
   })
   vi.stubGlobal('fetch', fetch)
@@ -253,5 +258,33 @@ describe('aprendizaje (fase 8b, #331)', () => {
     expect(
       await screen.findByText('Todavía no hay un informe de aprendizaje guardado.'),
     ).toBeInTheDocument()
+  })
+
+  it('muestra el estado del voto que cuenta el motor, sin controles para votar', async () => {
+    const fetch = gateway([], REPORT, [
+      {
+        change_id: 'learning:x:recalibrate:0',
+        status: 'aprobada',
+        in_favor: 4,
+        against: 1,
+      },
+    ])
+    render(<LearningSection />)
+    const list = await screen.findByRole('list', { name: 'Propuestas de cambio' })
+    expect(await within(list).findByText('aprobada')).toBeInTheDocument()
+    expect(list).toHaveTextContent('4 a favor, 1 en contra')
+    expect(list).not.toHaveTextContent('pendiente de voto')
+    expect(fetch).toHaveBeenCalledWith('/api/v1/learning_report/votes', expect.anything())
+    expect(screen.queryAllByRole('button')).toHaveLength(0)
+    // Solo lectura: ningún pedido que no sea GET.
+    for (const [, init] of fetch.mock.calls as unknown as [unknown, RequestInit | undefined][])
+      expect(init?.method ?? 'GET').toBe('GET')
+  })
+
+  it('sin el estado del voto, la propuesta sigue "pendiente de voto"', async () => {
+    gateway([], REPORT)
+    render(<LearningSection />)
+    const list = await screen.findByRole('list', { name: 'Propuestas de cambio' })
+    expect(list).toHaveTextContent('pendiente de voto')
   })
 })

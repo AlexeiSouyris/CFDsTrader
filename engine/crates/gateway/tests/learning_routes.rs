@@ -4,8 +4,10 @@
 use std::path::PathBuf;
 
 use cfds_gateway::learning::{
-    ComparisonSource, LearningSource, NoStoredReports, is_learning_route, respond_learning,
+    ComparisonSource, LearningSource, is_learning_route, respond_learning,
 };
+use cfds_journal::votes::{ChangeStatus, StoredChange, Vote, VoteRules, tally};
+use chrono::{DateTime, TimeDelta, Utc};
 use serde_json::{Value, json};
 
 fn validator(name: &str) -> jsonschema::Validator {
@@ -118,11 +120,68 @@ impl ComparisonSource for Fake {
     }
 }
 
-struct Stored(Value);
+/// Sin informes guardados todavía.
+struct Empty;
+
+impl LearningSource for Empty {
+    async fn latest(&self) -> Result<Option<Value>, String> {
+        Ok(None)
+    }
+    async fn statuses(&self, _: &str, _: DateTime<Utc>) -> Result<Vec<ChangeStatus>, String> {
+        Ok(vec![])
+    }
+}
+
+/// Un informe guardado con sus votos. El estado lo cuenta `tally`, la misma función que usa el
+/// diario en producción, con las reglas reales de `config/votes.toml`.
+struct Stored {
+    report: Value,
+    votes: Vec<Vote>,
+}
+
+fn rules() -> VoteRules {
+    VoteRules::from_toml(include_str!("../../../../config/votes.toml")).unwrap()
+}
 
 impl LearningSource for Stored {
     async fn latest(&self) -> Result<Option<Value>, String> {
-        Ok(Some(self.0.clone()))
+        Ok(Some(self.report.clone()))
+    }
+    async fn statuses(
+        &self,
+        report_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Vec<ChangeStatus>, String> {
+        assert_eq!(self.report["report_id"], report_id);
+        let created_at: DateTime<Utc> =
+            self.report["created_at"].as_str().unwrap().parse().unwrap();
+        Ok(self.report["change_proposals"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| {
+                let change: StoredChange = serde_json::from_value(json!({
+                    "change_id": c["change_id"], "report_id": report_id, "kind": c["kind"],
+                    "text": c["text"], "evidence": c["evidence"], "status": c["status"],
+                    "created_at": created_at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                }))
+                .unwrap();
+                ChangeStatus {
+                    status: tally(&change, &self.votes, &rules(), now),
+                    change_id: change.change_id,
+                }
+            })
+            .collect())
+    }
+}
+
+fn vote(member: &str, in_favor: bool, at: DateTime<Utc>) -> Vote {
+    Vote {
+        vote_id: format!("vote:{member}"),
+        change_id: "learning:x:recalibrate:0".into(),
+        member_id: member.into(),
+        in_favor,
+        voted_at: at,
     }
 }
 
@@ -135,8 +194,12 @@ fn fake() -> Fake {
     }
 }
 
+fn now() -> DateTime<Utc> {
+    "2026-11-24T10:00:00Z".parse().unwrap()
+}
+
 async fn get<L: LearningSource>(c: &Fake, l: &L, method: &str, path: &str) -> (u16, Value) {
-    let r = respond_learning(c, l, method, path).await;
+    let r = respond_learning(c, l, method, path, now()).await;
     (
         r.status,
         serde_json::from_str(&r.body).unwrap_or(Value::Null),
@@ -146,7 +209,7 @@ async fn get<L: LearningSource>(c: &Fake, l: &L, method: &str, path: &str) -> (u
 #[tokio::test]
 async fn comparisons_latest_and_by_id_as_stored() {
     let c = fake();
-    let (status, body) = get(&c, &NoStoredReports, "GET", "/api/v1/paper_comparisons").await;
+    let (status, body) = get(&c, &Empty, "GET", "/api/v1/paper_comparisons").await;
     assert_eq!(status, 200);
     let rows = body.as_array().unwrap();
     assert_eq!(rows.len(), 2);
@@ -155,7 +218,7 @@ async fn comparisons_latest_and_by_id_as_stored() {
     }
     let (status, one) = get(
         &c,
-        &NoStoredReports,
+        &Empty,
         "GET",
         "/api/v1/paper_comparisons/paper-vs-backtest:US500.FUT:1",
     )
@@ -164,74 +227,127 @@ async fn comparisons_latest_and_by_id_as_stored() {
     assert_eq!(one["instrument_id"], "US500.FUT");
     // Tal cual: el gateway no recalcula las causas.
     assert_eq!(one["causes"]["missing_in_paper"], "-20");
-    let (status, _) = get(
-        &c,
-        &NoStoredReports,
-        "GET",
-        "/api/v1/paper_comparisons/nope",
-    )
-    .await;
-    assert_eq!(status, 404);
-    let (status, _) = get(&c, &NoStoredReports, "GET", "/api/v1/paper_comparisons/a/b").await;
-    assert_eq!(status, 400);
-    let (status, _) = get(&c, &NoStoredReports, "GET", "/api/v1/paper_comparisons/..").await;
-    assert_eq!(status, 400);
+    assert_eq!(
+        get(&c, &Empty, "GET", "/api/v1/paper_comparisons/nope")
+            .await
+            .0,
+        404
+    );
+    assert_eq!(
+        get(&c, &Empty, "GET", "/api/v1/paper_comparisons/a/b")
+            .await
+            .0,
+        400
+    );
+    assert_eq!(
+        get(&c, &Empty, "GET", "/api/v1/paper_comparisons/..")
+            .await
+            .0,
+        400
+    );
 }
 
 #[tokio::test]
 async fn learning_report_as_stored_or_null_until_there_is_one() {
     let c = fake();
-    let (status, none) = get(&c, &NoStoredReports, "GET", "/api/v1/learning_report").await;
+    let (status, none) = get(&c, &Empty, "GET", "/api/v1/learning_report").await;
     assert_eq!(status, 200);
     assert_eq!(none, Value::Null);
     let report = learning();
     assert_valid("learning_report.v1.schema.json", &report);
-    let (status, body) = get(
-        &c,
-        &Stored(report.clone()),
-        "GET",
-        "/api/v1/learning_report",
-    )
-    .await;
+    let stored = Stored {
+        report: report.clone(),
+        votes: vec![],
+    };
+    let (status, body) = get(&c, &stored, "GET", "/api/v1/learning_report").await;
     assert_eq!(status, 200);
     assert_eq!(body, report);
     assert_eq!(body["change_proposals"][0]["status"], "pendiente_de_voto");
 }
 
 #[tokio::test]
-async fn read_only_no_vote_route_and_no_db_errors_leak() {
+async fn vote_status_of_each_proposal_counted_by_the_engine() {
+    let c = fake();
+    // Sin informe: lista vacía.
+    let (status, empty) = get(&c, &Empty, "GET", "/api/v1/learning_report/votes").await;
+    assert_eq!(status, 200);
+    assert_eq!(empty, json!([]));
+
+    let created: DateTime<Utc> = "2026-11-23T10:00:00Z".parse().unwrap();
+    let at = |h| created + TimeDelta::hours(h);
+    // Dos a favor y uno en contra, dentro del plazo: pendiente (hacen falta 4 de 6).
+    let pending = Stored {
+        report: learning(),
+        votes: vec![
+            vote("m1", true, at(1)),
+            vote("m2", true, at(2)),
+            vote("m3", false, at(3)),
+        ],
+    };
+    let (_, body) = get(&c, &pending, "GET", "/api/v1/learning_report/votes").await;
+    let rows = body.as_array().unwrap();
+    assert_eq!(rows.len(), 1);
+    for r in rows {
+        assert_valid("change_vote_status.v1.schema.json", r);
+    }
+    assert_eq!(
+        rows[0],
+        json!({ "change_id": "learning:x:recalibrate:0", "status": "pendiente_de_voto",
+                "in_favor": 2, "against": 1 })
+    );
+    // Cuatro a favor (y un voto repetido de m1 que no cuenta dos veces): aprobada.
+    let approved = Stored {
+        report: learning(),
+        votes: vec![
+            vote("m1", true, at(1)),
+            vote("m1", true, at(2)),
+            vote("m2", true, at(2)),
+            vote("m3", true, at(3)),
+            vote("m4", true, at(4)),
+        ],
+    };
+    let (_, body) = get(&c, &approved, "GET", "/api/v1/learning_report/votes").await;
+    assert_eq!(body[0]["status"], "aprobada");
+    assert_eq!(body[0]["in_favor"], 4);
+    // Un voto fuera del plazo no cuenta.
+    let late = Stored {
+        report: learning(),
+        votes: vec![vote("m1", true, at(49))],
+    };
+    let (_, body) = get(&c, &late, "GET", "/api/v1/learning_report/votes").await;
+    assert_eq!(body[0]["in_favor"], 0);
+}
+
+#[tokio::test]
+async fn read_only_no_vote_writes_and_no_db_errors_leak() {
     let c = fake();
     for path in [
         "/api/v1/paper_comparisons",
         "/api/v1/paper_comparisons/paper-vs-backtest:US100.FUT:1",
         "/api/v1/learning_report",
+        "/api/v1/learning_report/votes",
     ] {
         assert!(is_learning_route(path));
-        for method in ["POST", "PUT", "DELETE"] {
+        for method in ["POST", "PUT", "DELETE", "PATCH"] {
             assert_eq!(
-                get(&c, &NoStoredReports, method, path).await.0,
+                get(&c, &Empty, method, path).await.0,
                 405,
                 "{method} {path}"
             );
         }
     }
+    // Nada para registrar votos.
     for path in [
-        "/api/v1/learning_report/votes",
         "/api/v1/votes",
         "/api/v1/change_votes",
+        "/api/v1/learning_report/vote",
     ] {
         assert!(!is_learning_route(path), "{path}");
     }
     let broken = Fake {
         comparisons: Err("sin base: postgres://u:clave@h/db".into()),
     };
-    let r = respond_learning(
-        &broken,
-        &NoStoredReports,
-        "GET",
-        "/api/v1/paper_comparisons",
-    )
-    .await;
+    let r = respond_learning(&broken, &Empty, "GET", "/api/v1/paper_comparisons", now()).await;
     assert_eq!(r.status, 500);
     assert!(!r.body.contains("clave"));
 }

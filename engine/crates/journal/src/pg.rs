@@ -12,7 +12,7 @@ use sqlx::{Postgres, Row, Transaction};
 use crate::curve::{CurveInvalid, RunCurve, RunDetail, RunTrade};
 use crate::learning::LearningReport;
 use crate::ml_features::MlFeatures;
-use crate::votes::{StoredChange, Vote, changes_of};
+use crate::votes::{ChangeStatus, StoredChange, Vote, VoteRules, changes_of, tally};
 use crate::walk_forward::WalkForwardReport;
 use crate::{BacktestRun, Outcome, OutcomeKind, Proposal, RunInvalid, Source};
 
@@ -902,5 +902,37 @@ impl PgJournal {
             .iter()
             .map(|t| serde_json::from_str(t).map_err(JournalError::from))
             .collect()
+    }
+
+    /// El último informe de aprendizaje guardado (`learning_report.v1`, #331): el creado más
+    /// tarde. `None` si todavía no hay ninguno. Solo lectura.
+    pub async fn latest_learning_report(&self) -> Result<Option<serde_json::Value>, JournalError> {
+        let text: Option<String> = sqlx::query_scalar(
+            "SELECT report::text FROM learning_reports
+             ORDER BY created_at DESC, period_to DESC, report_id DESC LIMIT 1",
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(text.map(|t| serde_json::from_str(&t)).transpose()?)
+    }
+
+    /// El estado de cada propuesta de cambio de un informe en `now`, contando sus votos con
+    /// [`tally`] (`change_vote_status.v1`, #331). En el orden en que se guardaron. Solo lectura:
+    /// no aplica ningún cambio ni registra votos.
+    pub async fn change_statuses(
+        &self,
+        report_id: &str,
+        rules: &VoteRules,
+        now: DateTime<Utc>,
+    ) -> Result<Vec<ChangeStatus>, JournalError> {
+        let mut out = Vec::new();
+        for change in self.change_proposals(report_id).await? {
+            let votes = self.votes(&change.change_id).await?;
+            out.push(ChangeStatus {
+                status: tally(&change, &votes, rules, now),
+                change_id: change.change_id,
+            });
+        }
+        Ok(out)
     }
 }

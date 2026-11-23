@@ -148,3 +148,12 @@ pub fn tally(
         VoteStatus::PendienteDeVoto { in_favor, against }
     }
 }
+
+/// `change_vote_status.v1` (#331): el estado de una propuesta en un momento, para mostrarlo.
+/// Solo lectura: sale de [`tally`] y no aplica nada.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ChangeStatus {
+    pub change_id: String,
+    #[serde(flatten)]
+    pub status: VoteStatus,
+}

@@ -299,7 +299,11 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - **Votos** (spec §1.2, `config/votes.toml`): cambios de reglas o parámetros, 4 de 6 a favor dentro de 48 h; si no se llega en el plazo, o ya no se puede llegar, queda rechazada. El estado se calcula con los votos (`cfds_journal::votes::tally`); **contar votos no aplica nada**: el cambio se hace a mano en `config/` con el voto registrado.
 - **Guardado** (`infra/migrations/0034_learning_votes.sql`, solo agregar con triggers): `learning_reports`, `change_proposals` (siempre `pendiente_de_voto`, lo impone un CHECK) y `change_votes` (único por miembro y propuesta). Lo escribe Rust (`PgJournal::record_learning_report` y `record_vote`). Se arma con el ejemplo `learning_report` de `cfds-journal`.
 - La probabilidad mostrada es la guardada en la propuesta (`proposal.v1` `shown`, #333) cuando existe; si no (backtest), se recalcula con la tabla de entrenamiento (`cfds_journal::probability`). Umbrales en `config/learning.toml` y `config/probability.toml`.
-- **UI (#331):** el gateway sirve la última `paper_comparison.v1` de cada instrumento (`GET /api/v1/paper_comparisons`), una por id (`/api/v1/paper_comparisons/{id}`) y el último `learning_report.v1` (`GET /api/v1/learning_report`, `null` mientras no haya ninguno guardado). Performance los muestra tal cual. Votar no se hace desde la UI (cuentas y 2FA, decisión aparte).
+- **UI (#331):** el gateway sirve la última `paper_comparison.v1` de cada instrumento (`GET /api/v1/paper_comparisons`), una por id (`/api/v1/paper_comparisons/{id}`), el último `learning_report.v1` guardado (`GET /api/v1/learning_report`, `PgJournal::latest_learning_report`; `null` si no hay ninguno) y el estado de cada una de sus propuestas (`GET /api/v1/learning_report/votes`, `change_vote_status.v1[]`). Performance los muestra tal cual. Votar no se hace desde la UI (cuentas y 2FA, decisión aparte).
+
+| Contrato | Contenido |
+|---|---|
+| `change_vote_status.v1` | (respuesta del gateway) El estado de una propuesta de cambio en un momento: `change_id`, `status` (`pendiente_de_voto`, `aprobada` o `rechazada`) y los votos válidos `in_favor` y `against`. Lo cuenta el motor (`cfds_journal::votes::tally` con `config/votes.toml`, vía `PgJournal::change_statuses`). Solo lectura: contar votos nunca aplica un cambio. |
 
 ### Fondo del grupo (#179)
 

@@ -287,6 +287,34 @@ async fn the_report_its_proposals_and_votes_are_stored_once() {
         tally(&stored[0], &votes, &rules(), to + Duration::hours(2)),
         VoteStatus::PendienteDeVoto { in_favor: 1, .. }
     ));
+    // Lo que lee el gateway (#331): el último informe y el estado de sus propuestas.
+    let latest = j.latest_learning_report().await.unwrap().unwrap();
+    let latest_at: DateTime<Utc> = latest["created_at"].as_str().unwrap().parse().unwrap();
+    assert!(
+        latest_at >= r.created_at,
+        "el último es el creado más tarde"
+    );
+    if latest["report_id"] == r.report_id.as_str() {
+        assert_eq!(latest, serde_json::to_value(&r).unwrap());
+    }
+    let statuses = j
+        .change_statuses(&r.report_id, &rules(), to + Duration::hours(2))
+        .await
+        .unwrap();
+    assert_eq!(statuses.len(), 1);
+    assert_eq!(statuses[0].change_id, id);
+    assert_eq!(
+        statuses[0].status,
+        VoteStatus::PendienteDeVoto {
+            in_favor: 1,
+            against: 0
+        }
+    );
+    let doc = serde_json::to_value(&statuses[0]).unwrap();
+    assert!(
+        validator("change_vote_status.v1.schema.json").is_valid(&doc),
+        "{doc}"
+    );
     for (sql, key) in [
         (
             "UPDATE learning_reports SET period_to = period_to WHERE report_id = $1",
