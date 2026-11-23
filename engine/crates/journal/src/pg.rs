@@ -585,6 +585,22 @@ impl PgJournal {
         tx.commit().await?;
         Ok(r)
     }
+
+    /// El último reporte de `instrument_id` (por `computed_at`; con empate, el de mayor
+    /// `report_id`), para el detalle de una corrida en la UI (#316).
+    pub async fn latest_walk_forward(
+        &self,
+        instrument_id: &str,
+    ) -> Result<Option<WalkForwardReport>, JournalError> {
+        let text: Option<String> = sqlx::query_scalar(
+            "SELECT report::text FROM walk_forward_reports WHERE instrument_id = $1
+             ORDER BY computed_at DESC, report_id DESC LIMIT 1",
+        )
+        .bind(instrument_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(text.map(|t| serde_json::from_str(&t)).transpose()?)
+    }
 }
 
 async fn select_walk_forward(

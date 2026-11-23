@@ -34,6 +34,7 @@ use cfds_gateway::paper_runner::RunnerDeps;
 use cfds_gateway::status::{
     Feed, FeedWriter, StatusConfig, StatusDeps, is_status_route, respond_status,
 };
+use cfds_gateway::walk_forward::{is_walk_forward_route, respond_walk_forward};
 use cfds_gateway::{GatewayConfig, PgSource, Reply, read_only_url, respond};
 use cfds_liquidity::StatsConfig;
 use cfds_market_data::{CandleSources, Catalog};
@@ -82,6 +83,8 @@ struct State {
     feed: Arc<Feed>,
     daily_loss_limit_pct: rust_decimal::Decimal,
     log: Arc<Logger>,
+    /// Reportes de walk-forward (#316): solo lectura del diario.
+    walk_forward: cfds_journal::pg::PgJournal,
 }
 
 fn header<'a>(req: &'a Request<Incoming>, name: &str) -> Option<&'a str> {
@@ -150,6 +153,14 @@ async fn handle(
             &state.fund_cfg,
             req.method().as_str(),
             req.uri().path(),
+        )
+        .await
+    } else if is_walk_forward_route(req.uri().path()) {
+        respond_walk_forward(
+            &state.walk_forward,
+            req.method().as_str(),
+            req.uri().path(),
+            req.uri().query(),
         )
         .await
     } else if is_context_route(req.uri().path()) {
@@ -329,6 +340,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         feed,
         daily_loss_limit_pct: risk.max_daily_loss_pct,
         log: log.clone(),
+        walk_forward: cfds_journal::pg::PgJournal::new(store.pool().clone()),
         fund,
         fund_cfg,
         paper,
