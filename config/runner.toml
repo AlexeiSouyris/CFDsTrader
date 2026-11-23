@@ -1,0 +1,19 @@
+# Runner de paper trading (fase 8, #305). Solo paper: manda las órdenes al broker simulado
+# (config/broker.toml); no existe un broker real activable (CLAUDE.md §5, fase 11).
+# Lee solo velas cerradas ya guardadas en la base: nunca llama a IG ni gasta cupo.
+# La estrategia, el riesgo, los costos y las salidas usan su propia config sin cambios.
+
+[runner]
+# Apagado por defecto: el gateway lo corre solo si esto está en true.
+enabled = false
+# Cada cuántos segundos mira si hay una vela nueva cerrada en la base.
+poll_secs = 30
+# Días de velas de 15m y 1h que lee hacia atrás (tienen que alcanzar para el calentamiento de
+# config/strategy.toml: min_m15_candles y min_h1_candles).
+lookback_days = 15
+# Si durante la sesión (según el calendario) pasan estos minutos sin una vela nueva, es un hueco
+# en los datos en vivo: kill switch y alerta. Con datos más viejos que esto tampoco decide.
+stale_after_minutes = 45
+# Prefijo de los ids de orden: <prefijo>:<instrumento>:<cierre de la vela de la decisión>.
+# El mismo id para la misma decisión hace que un reinicio no duplique órdenes.
+order_prefix = "run"
