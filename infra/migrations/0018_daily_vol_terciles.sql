@@ -1,3 +1,4 @@
+-- Va como 0018 porque 0017 es del índice de sentimiento (#217).
 -- Tercio de la volatilidad realizada diaria frente a su propia historia (spec §13, spec ML §3,
 -- #158). Columnas = contracts/daily_vol_tercile.v1. La escribe el motor (cfds-ingest); la leen
 -- los análogos (Python) y las variables de ML (Rust), y nadie la recalcula (CLAUDE.md §1).
