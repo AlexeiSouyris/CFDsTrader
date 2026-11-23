@@ -26,6 +26,13 @@ struct Raw {
     equal: RawEqual,
     levels: RawLevels,
     sessions_utc: RawSessionsUtc,
+    // Estadísticas de §5.4.1 (#231): las lee y valida `stats::StatsConfig`.
+    #[serde(rename = "fvg_stats")]
+    _fvg_stats: toml::Table,
+    #[serde(rename = "gaps")]
+    _gaps: toml::Table,
+    #[serde(rename = "stats")]
+    _stats: toml::Table,
 }
 
 #[derive(Deserialize)]
@@ -59,6 +66,7 @@ impl LiquidityConfig {
         {
             return Err("todos los parámetros de liquidez tienen que ser mayores que 0".into());
         }
+        crate::stats::StatsConfig::from_toml(text)?;
         Ok(Self {
             fvg_lookback_bars: raw.fvg.lookback_bars,
             min_impulse_body_atr: body,

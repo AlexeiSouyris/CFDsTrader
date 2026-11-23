@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/fvg_event.v1.schema.json",
+  "title": "FVG event v1",
+  "description": "Un fair value gap (definición de la spec §5.4) con su creación, toque, mitad, llenado, vencimiento y reacción, evaluado con velas cerradas hasta as_of (spec §5.4.1, #231). Solo informativo: no suma al puntaje de §6. Lo calcula solo Rust (cfds-liquidity, módulo stats). Un evento ya registrado (toque, mitad, llenado, vencimiento o reacción no nula) no cambia al llegar velas nuevas (sin repintado).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instrument_id", "timeframe", "direction", "created_at", "bottom", "top", "atr", "size_atr", "touch", "mid", "fill", "expiry", "reactions", "status", "as_of"],
+  "properties": {
+    "instrument_id": {
+      "description": "Instrumento (ver instrument.v1).",
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$"
+    },
+    "timeframe": { "description": "Timeframe de las velas.", "enum": ["15m", "1h", "1d"] },
+    "direction": { "description": "bullish: L[i] > H[i−2], zona [H[i−2], L[i]]; bearish: el espejo.", "enum": ["bullish", "bearish"] },
+    "created_at": { "description": "Cierre de la vela i que crea el FVG, en UTC: el FVG existe desde ahí.", "$ref": "#/$defs/utc" },
+    "bottom": { "description": "Borde inferior de la zona.", "$ref": "#/$defs/decimal" },
+    "top": { "description": "Borde superior de la zona (> bottom).", "$ref": "#/$defs/decimal" },
+    "atr": { "description": "ATR de Wilder (período de [order_blocks] atr_period) de la vela de creación, en su timeframe.", "$ref": "#/$defs/decimal" },
+    "size_atr": { "description": "(top − bottom) / atr.", "$ref": "#/$defs/decimal" },
+    "touch": { "description": "Primera vela posterior que entra a la zona (alcista: L ≤ top). null si todavía no pasó.", "$ref": "#/$defs/point_or_null" },
+    "mid": { "description": "Primera vela posterior que llega a la mitad (alcista: L ≤ (bottom + top) / 2).", "$ref": "#/$defs/point_or_null" },
+    "fill": { "description": "Primera vela posterior que llena el FVG como en §5.4 (alcista: cierre < bottom).", "$ref": "#/$defs/point_or_null" },
+    "expiry": { "description": "Vela en la que vence sin llenarse: max_age_bars velas después de la creación ([fvg_stats] de config/liquidity.toml).", "$ref": "#/$defs/point_or_null" },
+    "reactions": {
+      "description": "Una por cada horizonte de [fvg_stats] reaction_bars, en ese orden.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["bars", "return_atr"],
+        "properties": {
+          "bars": { "type": "integer", "minimum": 1 },
+          "return_atr": {
+            "description": "(C[toque + bars] − C[toque]) / atr, con signo a favor de la dirección (positivo = el precio se movió hacia el lado del FVG). null sin toque o si todavía no cerraron esas velas.",
+            "oneOf": [{ "$ref": "#/$defs/signed_decimal" }, { "type": "null" }]
+          }
+        }
+      }
+    },
+    "status": { "description": "open (sin llenar ni vencer), filled o expired.", "enum": ["open", "filled", "expired"] },
+    "as_of": { "description": "Cierre de la última vela usada, en UTC.", "$ref": "#/$defs/utc" }
+  },
+  "$defs": {
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" },
+    "decimal": { "description": "Número decimal exacto como string, nunca como número JSON.", "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "signed_decimal": { "description": "Decimal exacto con signo, como string.", "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" },
+    "point_or_null": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["at", "bars"],
+          "properties": {
+            "at": { "description": "Cierre de la vela del evento, en UTC.", "$ref": "#/$defs/utc" },
+            "bars": { "description": "Velas desde la creación (la siguiente a la de creación es 1). Se cuentan las velas presentes: las faltantes no se rellenan.", "type": "integer", "minimum": 1 }
+          }
+        },
+        { "type": "null" }
+      ]
+    }
+  }
+}

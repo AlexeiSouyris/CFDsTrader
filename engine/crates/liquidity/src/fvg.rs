@@ -9,6 +9,7 @@
 //! Solo cuentan los FVG creados antes de `t` y dentro de las últimas `lookback` velas.
 
 use cfds_core::Candle;
+use cfds_indicators::Hlc;
 use rust_decimal::Decimal;
 
 use crate::{LiquidityConfig, Side};
@@ -21,43 +22,49 @@ pub struct Fvg {
     pub top: Decimal,
 }
 
-fn filled(f: &Fvg, c: &Candle) -> bool {
+/// `true` si la vela `c` llena el FVG `f` (§5.4: cierra más allá del borde lejano). Es la única
+/// definición de llenado: la usan el contexto de §5.4 y las estadísticas de §5.4.1.
+pub fn is_filled_by<T: Hlc>(f: &Fvg, c: &T) -> bool {
     match f.side {
-        Side::Long => c.close < f.bottom,
-        Side::Short => c.close > f.top,
+        Side::Long => c.close() < f.bottom,
+        Side::Short => c.close() > f.top,
+    }
+}
+
+/// FVG que crea la vela `i` junto con la `i − 2`, si lo hay (§5.4). Sirve para velas de
+/// cualquier timeframe, también las diarias.
+pub fn fvg_created_at<T: Hlc>(candles: &[T], i: usize) -> Option<Fvg> {
+    let (a, c) = (candles.get(i.checked_sub(2)?)?, candles.get(i)?);
+    if c.low() > a.high() {
+        Some(Fvg {
+            side: Side::Long,
+            created_at: i,
+            bottom: a.high(),
+            top: c.low(),
+        })
+    } else if c.high() < a.low() {
+        Some(Fvg {
+            side: Side::Short,
+            created_at: i,
+            bottom: c.high(),
+            top: a.low(),
+        })
+    } else {
+        None
     }
 }
 
 /// FVG creados hasta la vela `t` (inclusive) que siguen sin llenarse al cierre de `t`.
-pub fn fvgs_up_to(candles: &[Candle], t: usize) -> Vec<Fvg> {
+pub fn fvgs_up_to<T: Hlc>(candles: &[T], t: usize) -> Vec<Fvg> {
     let end = t.min(candles.len().saturating_sub(1));
-    let mut out = Vec::new();
-    for i in 2..=end {
-        let (a, c) = (&candles[i - 2], &candles[i]);
-        let created = if c.low > a.high {
-            Some(Fvg {
-                side: Side::Long,
-                created_at: i,
-                bottom: a.high,
-                top: c.low,
-            })
-        } else if c.high < a.low {
-            Some(Fvg {
-                side: Side::Short,
-                created_at: i,
-                bottom: c.high,
-                top: a.low,
-            })
-        } else {
-            None
-        };
-        if let Some(f) = created
-            && !candles[i + 1..=end].iter().any(|later| filled(&f, later))
-        {
-            out.push(f);
-        }
-    }
-    out
+    (2..=end)
+        .filter_map(|i| fvg_created_at(candles, i))
+        .filter(|f| {
+            !candles[f.created_at + 1..=end]
+                .iter()
+                .any(|later| is_filled_by(f, later))
+        })
+        .collect()
 }
 
 /// FVG vigentes que la vela `t` toca (creados antes de `t`, en las últimas `lookback` velas).

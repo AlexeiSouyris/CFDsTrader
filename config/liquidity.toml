@@ -32,3 +32,23 @@ max_age_bars = 500
 asia = { start = "00:00", end = "07:00" }
 london = { start = "07:00", end = "13:30" }
 ny = { start = "13:30", end = "20:00" }
+
+# --- Estadísticas de FVG y gaps de apertura (spec §5.4.1, #231). Solo informativas. ---
+
+[fvg_stats]
+# Reacción después del primer toque: retorno del cierre a estas velas, en ATR (de menor a mayor).
+reaction_bars = [4, 8]
+# Un FVG vence sin llenarse después de estas velas desde su creación.
+max_age_bars = 500
+
+[gaps]
+# Hay gap de apertura si |apertura − cierre anterior| ≥ min_atr × ATR14 diario.
+min_atr = "0.25"
+# Un gap vence sin llenarse después de estas sesiones desde la del gap.
+max_sessions = 20
+
+[stats]
+# Con menos casos que esto, "datos insuficientes" en vez de la tasa (spec §5.4.1).
+min_cases = 30
+# Intervalo de Wilson: z de la normal. 1.96 = 95 % (igual que config/probability.toml).
+z = "1.96"

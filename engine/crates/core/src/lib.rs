@@ -12,6 +12,7 @@ pub mod decimal_str;
 pub mod economic_event;
 pub mod instrument;
 pub mod liquidity_level;
+pub mod liquidity_stats;
 pub mod money;
 pub mod news;
 pub mod rate;
@@ -27,6 +28,11 @@ pub use economic_event::{EconomicEvent, Impact};
 pub use instrument::{AssetClass, Instrument, InstrumentId};
 pub use liquidity_level::{
     LiquidityLevel, LiquidityLevelKind, LiquidityLevelState, LiquiditySession,
+};
+pub use liquidity_stats::{
+    Direction, DistMetric, DistStat, FvgEvent, FvgEventPoint, FvgReaction, GapSession,
+    LiquidityStats, OpeningGap, RateMetric, RateStat, SizeBucket, SizeCuts, StatsSubject,
+    StatsTimeframe, ZoneStatus,
 };
 pub use money::{Currency, Money, MoneyError};
 pub use news::{Interpreter, NewsImpact, NewsInterpretation};

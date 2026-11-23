@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/opening_gap.v1.schema.json",
+  "title": "Opening gap v1",
+  "description": "Un gap de apertura diario (spec §5.4.1, #231): |apertura − cierre de la sesión anterior| ≥ [gaps] min_atr × ATR diario de la sesión anterior. Se llena cuando el precio toca el cierre anterior. Evaluado con velas diarias cerradas hasta as_of. Solo informativo; lo calcula solo Rust (cfds-liquidity, módulo stats). Solo hay velas de días con sesión: el gap del lunes se mide contra el viernes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instrument_id", "day", "direction", "prev_close", "open", "atr", "size_atr", "fill", "same_session", "expiry", "status", "as_of"],
+  "properties": {
+    "instrument_id": { "description": "Instrumento (ver instrument.v1).", "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" },
+    "day": { "description": "Sesión que abre con gap (ver daily_candle.v1), AAAA-MM-DD.", "$ref": "#/$defs/day" },
+    "direction": { "description": "bullish: abre por encima del cierre anterior; bearish: por debajo.", "enum": ["bullish", "bearish"] },
+    "prev_close": { "description": "Cierre de la sesión anterior: el nivel que llena el gap.", "$ref": "#/$defs/decimal" },
+    "open": { "$ref": "#/$defs/decimal" },
+    "atr": { "description": "ATR diario de la sesión anterior (lo conocido antes de la apertura).", "$ref": "#/$defs/decimal" },
+    "size_atr": { "description": "|open − prev_close| / atr.", "$ref": "#/$defs/decimal" },
+    "fill": { "description": "Sesión en la que el precio tocó el cierre anterior (alcista: L ≤ prev_close). null si todavía no.", "$ref": "#/$defs/session_or_null" },
+    "same_session": { "description": "true si se llenó en la misma sesión del gap (fill.sessions = 0).", "type": "boolean" },
+    "expiry": { "description": "Sesión en la que vence sin llenarse: [gaps] max_sessions sesiones después de la del gap.", "$ref": "#/$defs/session_or_null" },
+    "status": { "enum": ["open", "filled", "expired"] },
+    "as_of": { "description": "Fin de la última vela diaria usada, en UTC.", "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" }
+  },
+  "$defs": {
+    "day": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "decimal": { "description": "Número decimal exacto como string, nunca como número JSON.", "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "session_or_null": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["day", "sessions"],
+          "properties": {
+            "day": { "$ref": "#/$defs/day" },
+            "sessions": { "description": "Sesiones desde la del gap (0 = la misma).", "type": "integer", "minimum": 0 }
+          }
+        },
+        { "type": "null" }
+      ]
+    }
+  }
+}

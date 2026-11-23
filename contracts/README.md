@@ -126,6 +126,20 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Un nivel no existe antes de `exists_from`. Su estado cambia a lo sumo una vez y nunca se reescribe (sin repintado). Rust exige además `state_changed_at > exists_from`.
 - **Guardado pendiente:** la tabla de PostgreSQL y el comando que la llena van en otro PR de #231.
 
+### Estadísticas de FVG y gaps de apertura (#231, spec §5.4.1)
+
+| Contrato | Contenido |
+|---|---|
+| `fvg_event.v1` | Un FVG (definición de §5.4) en 15m, 1h o 1d: creación, dirección, zona, ATR y tamaño en ATR; primera vela que toca, que llega a la mitad, que lo llena y en la que vence, cada una con las velas desde la creación; reacción a `reaction_bars` velas del primer toque (en ATR, con signo a favor del FVG); estado (`open`, `filled` o `expired`) y `as_of`. |
+| `opening_gap.v1` | Un gap de apertura diario: sesión, dirección, cierre anterior, apertura, ATR diario de la sesión anterior y tamaño en ATR; sesión en la que se llenó (y si fue en la misma), sesión en la que venció, estado y `as_of`. |
+| `liquidity_stats.v1` | Agregados de un grupo (instrumento, `fvg` u `opening_gap`, timeframe, dirección y tercil de tamaño, o `all`): tasas con IC 95 % de Wilson y su `n`, medianas, cuartiles y rango intercuartílico. Con menos de `min_cases` casos, `insufficient = true` y los valores en `null` ("datos insuficientes"). |
+
+- **Solo informativos** en v1: no suman al puntaje de §6 hasta validarse en la fase 5.
+- Los calcula **solo Rust** (`cfds_liquidity::stats`, `config/liquidity.toml` `[fvg_stats]`, `[gaps]` y `[stats]`) con velas cerradas. La UI y Python los leen y no los recalculan.
+- Sin repintado: un evento ya registrado (toque, mitad, llenado, vencimiento o una reacción no nula) no cambia con velas nuevas. Un caso abierto cuenta para "tocado", pero no para "llenado" ni "vencido".
+- Los gaps son un contrato aparte de los FVG porque se miden en sesiones y se llenan al **tocar** el cierre anterior, no al cerrar más allá del borde.
+- **Todavía no se guardan ni se publican:** la tabla de PostgreSQL y el comando van en otro PR de #231.
+
 ### Fondo del grupo (#179)
 
 | Contrato | Tabla | Contenido |
