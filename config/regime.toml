@@ -1,0 +1,12 @@
+# Régimen de mercado (ADR 0003 §A, planeado) y estados emocionales que salen del precio
+# (spec §9.1, #220). Valores iniciales; se validan al arrancar (`cfds_regime::EmotionConfig`).
+
+# FOMO de precio y pánico o clímax de venta, en velas de 1h cerradas:
+#   FOMO:   (cierre − EMA) / ATR ≥ atr_multiple  y  cierre = el más alto de las últimas `lookback`
+#   clímax: (EMA − cierre) / ATR ≥ atr_multiple  y  cierre = el más bajo de las últimas `lookback`
+# EMA de `ema_period` sembrada con la SMA (spec §4); ATR de Wilder de `atr_period` (spec §4).
+[emotions]
+ema_period = 20
+atr_period = 14
+atr_multiple = "3"
+lookback = 20

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/backtest","crates/core", "crates/ig", "crates/indicators", "crates/ingest", "crates/fund", "crates/journal", "crates/liquidity", "crates/market-data", "crates/patterns", "crates/risk", "crates/storage", "crates/strategy", "crates/tiingo"]
+members = ["crates/backtest","crates/core", "crates/ig", "crates/indicators", "crates/ingest", "crates/fund", "crates/journal", "crates/liquidity", "crates/market-data", "crates/patterns", "crates/regime", "crates/risk", "crates/storage", "crates/strategy", "crates/tiingo"]
 
 [workspace.package]
 edition = "2024"
