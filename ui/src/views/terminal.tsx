@@ -1,10 +1,12 @@
 /**
- * Terminal de trading (fase 10, prototipo, #275). **Solo simulación (paper)** y datos de ejemplo:
- * no hay broker ni se envía ninguna orden. Solo ubica componentes y les pasa lo que mandaría el
- * motor; no calcula riesgo, P/L, margen ni probabilidades (CLAUDE.md §1).
+ * Terminal de trading (fase 10, #275). **Solo simulación (paper)**: no se envía ninguna orden
+ * real. Solo ubica componentes y les pasa lo que manda el motor; no calcula riesgo, P/L, margen
+ * ni probabilidades (CLAUDE.md §1).
  *
- * TODO(#275): conectar al motor (gateway) cuando existan los contratos de cuenta, posición y
- * validación de orden. Hoy: `mocks/terminal.ts` y `PROPOSALS` (`proposal.v1`).
+ * Broker simulado del gateway (#292): la cuenta (`paper_account.v1`), las posiciones
+ * (`position.v1`), la validación del ticket (`ticket_verdict.v1`) y el envío (`order.v1` →
+ * `order_report.v1`). Si el gateway no responde, se ven los datos de ejemplo de
+ * `mocks/terminal.ts` y no se envía nada. Las propuestas siguen siendo de ejemplo (`proposal.v1`).
  *
  * Gráficos (#286): una grilla de 1, 2 o 4 (2×2) `LiquidityChart`, cada uno con su instrumento y
  * timeframe. Las velas llegan del gateway (`liquidity_view.v1`, como la vista de liquidez); sin
@@ -24,11 +26,12 @@ import {
 import { useInstruments, useLiquidityView } from '@/lib/liquidity-api'
 import { chartBars } from '@/lib/liquidity-bars'
 import type { LiquidityViewData, ViewTimeframe } from '@/lib/liquidity-contracts'
+import { previewOrder, submitOrder, usePaperAccount, usePaperPositions } from '@/lib/paper-api'
 import { cn } from '@/lib/utils'
 import {
   CHART_SIGNALS,
   LIQUIDITY_US100,
-  mockEngineVerdict,
+  mockPreview,
   PAPER_ACCOUNT,
   PAPER_ACCOUNT_HALTED,
   PAPER_POSITIONS,
@@ -172,7 +175,21 @@ function ChartSlot({
 
 export function TerminalView({ member }: { member: Member }) {
   const [scenario, setScenario] = useState<(typeof SCENARIOS)[number]>('Normal')
-  const account = scenario === 'Normal' ? PAPER_ACCOUNT : PAPER_ACCOUNT_HALTED
+  const [refresh, setRefresh] = useState(0)
+  const remoteAccount = usePaperAccount(refresh)
+  const remotePositions = usePaperPositions(refresh)
+  // con gateway, todo sale del broker simulado; sin gateway, los datos de ejemplo
+  const live = remoteAccount.status === 'ok'
+  const account = live
+    ? remoteAccount.data
+    : scenario === 'Normal'
+      ? PAPER_ACCOUNT
+      : PAPER_ACCOUNT_HALTED
+  const openPositions = live
+    ? remotePositions.status === 'ok'
+      ? remotePositions.data
+      : []
+    : PAPER_POSITIONS
   const locked = account.kill_switch.active
     ? 'Kill switch activo: no se puede operar ni aprobar.'
     : undefined
@@ -207,27 +224,50 @@ export function TerminalView({ member }: { member: Member }) {
     </div>
   )
   const ticket = (
-    <Panel title="Ticket" aside="simulación">
+    <Panel title="Ticket" aside={live ? 'simulación · broker simulado' : 'simulación · ejemplo'}>
       <OrderTicket
-        instruments={TERMINAL_INSTRUMENTS}
+        key={live ? 'live' : 'mock'}
+        instruments={live ? instruments : TERMINAL_INSTRUMENTS}
         initial={TICKET_EXAMPLES[0].draft}
-        examples={TICKET_EXAMPLES}
-        verdictFor={mockEngineVerdict}
+        examples={live ? [] : TICKET_EXAMPLES}
+        preview={live ? previewOrder : mockPreview}
+        submit={live ? submitOrder : undefined}
+        onFilled={() => setRefresh((n) => n + 1)}
         locked={locked}
       />
     </Panel>
   )
   const positions = (
-    <Panel title={`Posiciones abiertas (${PAPER_POSITIONS.length})`} aside="P/L del motor">
-      <PositionsTable positions={PAPER_POSITIONS} />
+    <Panel
+      title={`Posiciones abiertas (${openPositions.length})`}
+      aside={live ? 'P/L del motor, en simulación' : 'datos de ejemplo'}
+    >
+      {live && remotePositions.status === 'error' ? (
+        <p role="alert" className="text-[13px]">
+          No se pudieron leer las posiciones ({remotePositions.message}).
+        </p>
+      ) : (
+        <PositionsTable positions={openPositions} />
+      )}
     </Panel>
   )
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-2xl text-[13px] text-muted-foreground">
-          Prototipo con datos de ejemplo. El motor propone y valida; la persona decide. Son
-          frecuencias del pasado y reglas de riesgo, no promesas.
+          {live ? (
+            <>
+              <strong className="text-foreground">Simulación (paper)</strong> con el broker simulado
+              del motor: no se envía ninguna orden real.
+            </>
+          ) : (
+            <>
+              Prototipo con <strong className="text-foreground">datos de ejemplo</strong>: el
+              gateway no respondió y no se envía nada.
+            </>
+          )}{' '}
+          El motor propone y valida; la persona decide. Son frecuencias del pasado y reglas de
+          riesgo, no promesas.
         </p>
         <div className="flex flex-wrap gap-2">
           <Segmented
@@ -236,12 +276,14 @@ export function TerminalView({ member }: { member: Member }) {
             value={saved.layout}
             onChange={(v) => setSaved((prev) => ({ ...prev, layout: v as Layout }))}
           />
-          <Segmented
-            label="Escenario de ejemplo"
-            options={SCENARIOS}
-            value={scenario}
-            onChange={(v) => setScenario(v as typeof scenario)}
-          />
+          {!live && (
+            <Segmented
+              label="Escenario de ejemplo"
+              options={SCENARIOS}
+              value={scenario}
+              onChange={(v) => setScenario(v as typeof scenario)}
+            />
+          )}
         </div>
       </div>
 

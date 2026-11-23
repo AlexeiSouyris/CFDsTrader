@@ -44,12 +44,13 @@ export type Remote<T> =
 
 /**
  * Pide `load` al montar y, si `every` está, cada `every` ms. Un error no borra lo último que
- * llegó. Cambiar `key` vuelve a empezar.
+ * llegó. Cambiar `key` vuelve a empezar; cambiar `nonce` vuelve a pedir sin borrar lo que hay.
  */
-function useRemote<T>(
+export function useRemote<T>(
   key: string | null,
   load: (signal: AbortSignal) => Promise<T>,
   every?: number,
+  nonce = 0,
 ): Remote<T> {
   const [state, setState] = useState<{ key: string | null; value: Remote<T> }>({
     key,
@@ -83,7 +84,7 @@ function useRemote<T>(
     }
     // `load` depende solo de `key`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, every])
+  }, [key, every, nonce])
   return state.key === key ? state.value : { status: 'loading' }
 }
 

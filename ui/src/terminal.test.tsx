@@ -38,7 +38,7 @@ describe('terminal de trading (fase 10, #275)', () => {
     expect(container.querySelectorAll('[data-signal]')).toHaveLength(CHART_SIGNALS.length)
   })
 
-  it('el ticket exige stop y muestra la validación del motor, sin calcularla', () => {
+  it('el ticket exige stop y muestra la validación del motor, sin calcularla', async () => {
     render(<TerminalView member={CURRENT_MEMBER} />)
     const form = ticket()
     const stop = within(form).getByLabelText(/Stop/)
@@ -48,24 +48,29 @@ describe('terminal de trading (fase 10, #275)', () => {
 
     fireEvent.change(stop, { target: { value: '28150,2' } })
     fireEvent.click(within(form).getByRole('button', { name: /Validar con el motor/ }))
-    const verdict = within(form).getByRole('region', { name: 'Validación de riesgo del motor' })
+    const verdict = await within(form).findByRole('region', {
+      name: 'Validación de riesgo del motor',
+    })
     expect(verdict).toHaveTextContent('El motor la acepta')
+    // el tamaño lo decide el riesgo del motor: la UI lo muestra tal cual
+    expect(verdict).toHaveTextContent('0,19 €/pt')
     fireEvent.click(within(form).getByRole('button', { name: 'Comprar en simulación' }))
     expect(within(form).getByRole('status')).toHaveTextContent('no se envió nada')
   })
 
-  it('un ticket que el motor rechaza lo dice, y uno sin respuesta no se inventa', () => {
+  it('un ticket que el motor rechaza lo dice, y uno sin respuesta no se inventa', async () => {
     render(<TerminalView member={CURRENT_MEMBER} />)
     const form = ticket()
     const stop = within(form).getByLabelText(/Stop/)
     fireEvent.change(stop, { target: { value: '28195.0' } })
     fireEvent.click(within(form).getByRole('button', { name: /Validar con el motor/ }))
-    expect(within(form).getByText('El motor la rechaza')).toBeInTheDocument()
+    expect(await within(form).findByText('El motor la rechaza')).toBeInTheDocument()
+    expect(within(form).getByText('El stop está demasiado cerca.')).toBeInTheDocument()
     expect(within(form).queryByRole('button', { name: /en simulación/ })).not.toBeInTheDocument()
 
     fireEvent.change(stop, { target: { value: '27000' } })
     fireEvent.click(within(form).getByRole('button', { name: /Validar con el motor/ }))
-    expect(within(form).getByRole('status')).toHaveTextContent('Sin respuesta del motor')
+    expect(await within(form).findByRole('status')).toHaveTextContent('Sin respuesta del motor')
   })
 
   it('con el kill switch activo avisa y no deja operar ni aprobar', () => {
