@@ -12,3 +12,52 @@ atr_period = 14
 [structure]
 # Un CHoCH "reciente" es uno de las últimas `choch_recent_bars` velas (incluida la actual).
 choch_recent_bars = 12
+
+# --- Mapa de liquidez (spec §5.4.1, #231). Solo informativo: no suma al puntaje. ---
+
+[equal]
+# Máximos/mínimos iguales (EQH/EQL): al menos `min_touches` pivotes de 15m (los de
+# config/patterns.toml) de las últimas `lookback_bars` velas, cuya diferencia máxima es
+# ≤ `tolerance_atr` × ATR de 15m (`order_blocks.atr_period`) en la vela que confirma el último.
+min_touches = 2
+lookback_bars = 200
+tolerance_atr = "0.10"
+
+[levels]
+# Un nivel deja de estar activo cuando se barre o se rompe, o después de estas velas de 15m.
+max_age_bars = 500
+
+[sessions_utc]
+# Ventanas en UTC (HH:MM; inicio incluido, fin excluido) del máximo y el mínimo de cada sesión.
+asia = { start = "00:00", end = "07:00" }
+london = { start = "07:00", end = "13:30" }
+ny = { start = "13:30", end = "20:00" }
+
+# --- Estadísticas de FVG y gaps de apertura (spec §5.4.1, #231). Solo informativas. ---
+
+[fvg_stats]
+# Reacción después del primer toque: retorno del cierre a estas velas, en ATR (de menor a mayor).
+reaction_bars = [4, 8]
+# Un FVG vence sin llenarse después de estas velas desde su creación.
+max_age_bars = 500
+
+[gaps]
+# Hay gap de apertura si |apertura − cierre anterior| ≥ min_atr × ATR14 diario.
+min_atr = "0.25"
+# Un gap vence sin llenarse después de estas sesiones desde la del gap.
+max_sessions = 20
+
+[stats]
+# Con menos casos que esto, "datos insuficientes" en vez de la tasa (spec §5.4.1).
+min_cases = 30
+# Intervalo de Wilson: z de la normal. 1.96 = 95 % (igual que config/probability.toml).
+z = "1.96"
+
+# --- Desequilibrio aproximado desde el precio (spec §5.4.1, #231). No es flujo de órdenes. ---
+
+[imbalance]
+# Vela de desplazamiento: |C − O| ≥ displacement_body_atr × ATR14 y |C − O| / (H − L) ≥ min_body_ratio.
+displacement_body_atr = "1.5"
+min_body_ratio = "0.7"
+# Velas cerradas de la ventana del índice (la última es la actual).
+window_bars = 20

@@ -1,21 +1,22 @@
 # Interfaz de CFDsTrader: prototipo integrado
 
-**Maqueta con datos de ejemplo** (Issues #30, #164 y #171). No se conecta al motor ni a IG, y **no calcula nada**: la UI solo muestra lo que envía el motor (CLAUDE.md §1). La app real es la fase 10.
+**Maqueta con datos de ejemplo** (Issues #30, #164 y #171), salvo la vista de liquidez, que lee al motor (#231). No se conecta a IG, y **no calcula nada**: la UI solo muestra lo que envía el motor (CLAUDE.md §1). La app real es la fase 10.
 
 ## Qué hay
 
-Una sola app (no una galería de piezas sueltas): carga → ingreso (email, contraseña y código 2FA) → armazón de vidrio con ocho vistas y una página 404.
+Una sola app (no una galería de piezas sueltas): carga → ingreso (email, contraseña y código 2FA) → armazón de vidrio con nueve vistas y una página 404.
 
-| Vista (`#hash`)            | Qué muestra                                                                                                                                                    |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Panel (`#panel`)           | KPIs del fondo, comparación de índices con mini curvas, mapa de mercado, últimas operaciones y la tabla de la competencia                                      |
-| Gráficos (`#graficos`)     | Velas o línea con volumen, RSI 14 y MACD 12·26·9 en paneles, y la profundidad del mercado                                                                      |
-| Propuestas (`#propuestas`) | Las propuestas del motor (campos de `proposal.v1`), con su desglose, la probabilidad de §13, cuándo vencen y aprobar o rechazar (maqueta, solo el responsable) |
-| Noticias (`#noticias`)     | Una carpeta por miembro: todos ven todas, cada uno agrega solo en la suya                                                                                      |
-| Diario (`#operaciones`)    | Diario de operaciones simuladas, con filtro por período                                                                                                        |
-| Fondo (`#fondo`)           | Valor de la unidad, y unidades, aportes, valor y P&L de cada miembro, tal como llegan                                                                          |
-| Trofeos (`#competencia`)   | Trofeo del día (plata) y de la semana (oro), y la tabla del grupo                                                                                              |
-| Glosario (`#glosario`)     | Buscador de todos los términos de `docs/GLOSARIO.md`                                                                                                           |
+| Vista (`#hash`)            | Qué muestra                                                                                                                                                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Panel (`#panel`)           | KPIs del fondo, comparación de índices con mini curvas, mapa de mercado, últimas operaciones y la tabla de la competencia                                                                                                             |
+| Gráficos (`#graficos`)     | Velas o línea con volumen, RSI 14 y MACD 12·26·9 en paneles, y la profundidad del mercado                                                                                                                                             |
+| Liquidez (`#liquidez`)     | Velas de 15m con los niveles de liquidez (EQH/EQL, PDH/PDL, PWH/PWL y sesiones) y su estado, los FVG abiertos y llenos, las estadísticas con IC 95 % y el índice de desequilibrio ("aproximación desde el precio"). Spec §5.4.1, #231 |
+| Propuestas (`#propuestas`) | Las propuestas del motor (campos de `proposal.v1`), con su desglose, la probabilidad de §13, cuándo vencen y aprobar o rechazar (maqueta, solo el responsable)                                                                        |
+| Noticias (`#noticias`)     | Una carpeta por miembro: todos ven todas, cada uno agrega solo en la suya                                                                                                                                                             |
+| Diario (`#operaciones`)    | Diario de operaciones simuladas, con filtro por período                                                                                                                                                                               |
+| Fondo (`#fondo`)           | Valor de la unidad, y unidades, aportes, valor y P&L de cada miembro, tal como llegan                                                                                                                                                 |
+| Trofeos (`#competencia`)   | Trofeo del día (plata) y de la semana (oro), y la tabla del grupo                                                                                                                                                                     |
+| Glosario (`#glosario`)     | Buscador de todos los términos de `docs/GLOSARIO.md`                                                                                                                                                                                  |
 
 El fondo es un flujo en semitono gris grafito y plata (WebGL, lento, quieto con `prefers-reduced-motion`). El vidrio se ajusta desde la barra superior (desenfoque y opacidad), y hay tema claro y oscuro.
 
@@ -27,7 +28,7 @@ Los términos subrayados con puntos (`<Term id="...">`) muestran su definición 
 
 - `src/components/ui/`: los componentes. Cada uno dice en su encabezado de qué original de 21st.dev o AnimateIcons se inspira y qué se cambió.
 - `src/views/`: las vistas, que solo ubican componentes y les pasan datos.
-- `src/mocks/`: los datos de ejemplo, con la forma de los contratos (precios como texto decimal, horas en UTC). El RSI y el MACD de `us100-1h.json` vienen **precalculados** en el archivo: la UI no los calcula.
+- `src/mocks/`: los datos de ejemplo, con la forma de los contratos (precios como texto decimal, horas en UTC). Los de liquidez (`liquidity.ts`) los usan solo los tests: la vista lee al gateway. Siguen exactamente `candle.v1`, `liquidity_level.v1`, `fvg_event.v1`, `liquidity_stats.v1` e `imbalance.v1`, y un test de `engine/crates/core/tests/ui_mocks.rs` valida el JSON contra esos schemas. El RSI y el MACD de `us100-1h.json` vienen **precalculados** en el archivo: la UI no los calcula.
 - `src/lib/`: formato en español (`format.ts`), el reparto del mapa de mercado (`squarify.ts`, geometría de dibujo) y un hook de ancho.
 
 ## Repetidos que se unificaron
@@ -49,6 +50,16 @@ Los términos subrayados con puntos (`<Term id="...">`) muestran su definición 
 - Íconos animados: AnimateIcons, de Avijit Dey, MIT. Íconos: `lucide-react`, ISC.
 - Fuente Manrope (`@fontsource-variable/manrope`), SIL OFL 1.1. Se sirve local, sin CDN.
 - `motion`, MIT.
+
+## Liquidez en vivo (#231)
+
+La vista `#liquidez` pide al gateway del motor los instrumentos y timeframes (`GET /api/v1/instruments`, `contracts/gateway_instruments.v1`) y la vista elegida (`GET /api/v1/liquidity?instrument=<id>&timeframe=<tf>`, `contracts/liquidity_view.v1`), que vuelve a pedir cada minuto. En desarrollo, Vite manda `/api` a la dirección de `config/gateway.toml`. Para levantar todo (gateway de solo lectura + UI, abriendo directo en `#liquidez`):
+
+```bash
+infra/scripts/ui_liquidez.sh
+```
+
+Sin velas guardadas muestra "Sin datos todavía"; si el gateway no responde, lo dice y reintenta. `VITE_SKIP_SIGNIN=1` (lo pone el script) saltea la pantalla de ingreso de la maqueta, solo en desarrollo.
 
 ## Comandos
 

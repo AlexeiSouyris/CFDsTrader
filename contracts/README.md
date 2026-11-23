@@ -103,6 +103,29 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - **Lo lee el motor** con `cfds_storage::NewsInterpretationConsumer` (#197): consumer group de Redis (`XREADGROUP` + `XACK`), así una entrada entregada y no confirmada se vuelve a entregar después de un reinicio. Deduplica por `interpretation_id` con el set `<stream>.seen.<grupo>`, que se actualiza junto con el `XACK` en una transacción. Una entrada que no cumple el contrato se informa, se confirma y no vuelve. Todavía no está conectado a la estrategia en vivo.
 - La lee Rust con `cfds_core::NewsInterpretation`, que acepta lo mismo que el contrato y además exige `interpreted_at >= published_at`. El ajuste del puntaje (`cfds_strategy::news_adjustment`, #130) usa solo las interpretaciones con `interpreted_at` ≤ el cierre de la vela.
 
+### Calendario económico (#91, #239, ADR 0006 y ADR 0010)
+
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `economic_event.v1` | `economic_events` | Un evento del calendario: `source`, `event`, `country` (ISO 3166-1 alfa-2, `EU` = zona euro) o `instrument_id`, `impact` (`low`/`medium`/`high`), `scheduled_at` y `published_at`, en UTC. |
+
+- Hoy la fuente es el feed JSON oficial de Forex Factory (`source = 'forex_factory'`, ADR 0010). Lo lee y guarda Python con `python -m cfds_intel.calendar`. La moneda del feed pasa a país con `config/calendar.toml`, y los feriados (`Holiday`) no se guardan.
+- **`published_at` es la primera vez que se vio el evento** (anti look-ahead, ADR 0006 §3). No hay histórico: el calendario se acumula desde que empieza la ingesta.
+- Tabla de **solo agregar** (`infra/migrations/0022_economic_events.sql`, trigger), con clave natural `(source, event, country, instrument_id, impact, scheduled_at)` y `NULLS NOT DISTINCT`. Leer otra vez el mismo evento no lo repite y conserva su primer `published_at`. Si la fuente cambia la hora o el impacto, es **otra fila** con su propio `published_at`; la anterior queda.
+- Para leerla sin mirar el futuro: `published_at <= as_of` (`cfds_intel.calendar.store.events_known_at`). La lee el motor (`PgStore::economic_events` y `PgStore::economic_event_sightings`, #243) para el filtro §7.2 de `backtest_run` y `chart_export` (`cfds_market_data::NewsFilter`): un evento cuenta en una vela solo si `published_at ≤` su cierre, y una vela sin una lectura de la ingesta en los `calendar_stale_after_days` anteriores (`config/news_filter.toml`) se informa como "sin calendario".
+
+### Histórico de futuros (#247, ADR 0011 en propuesta)
+
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `futures_bar.v1` | `futures_bars_1m` | Una barra de 1 minuto de un futuro, tal como la publica la fuente: `source` (`databento`), `dataset`, `symbol` (contrato continuo, por ejemplo `ES.c.0`), `instrument_id` (nuestro CFD: US500, US100, US30, DE40), `contract_id` (el contrato real: si cambia, hubo vencimiento), `start` (inicio en UTC, justo en un minuto), OHLC como string decimal y `volume`. |
+
+- La escribe Python (`python -m cfds_intel.databento --run`, solo con `CFDS_DATA_MACHINE=1`). La lee Rust con `cfds_core::FuturesBar` (`PgStore::futures_bars`), que acepta lo mismo que el contrato, y la agrupa y verifica `cfds_market_data::futures` (#248).
+- Tabla de **solo agregar** (`infra/migrations/0023_futures_bars.sql`, trigger), con clave `(source, dataset, symbol, start_at)`. La misma barra otra vez no cambia nada, y otra con la misma clave es un conflicto: no se guarda nada del tramo. `futures_bar_loads` registra cada tramo bajado y su costo estimado, para no volver a pagarlo.
+- Solo barras del **libro central**: en Eurex, OHLCV trae un registro aparte por publisher cuando en el minuto hubo operaciones fuera de libro (`XEUR.EOBI.XOFF`). Esas se descartan y se cuentan (`publisher` en `config/databento.toml`, #254).
+- Precios **sin ajustar** por vencimientos. No se mezcla con `candles` (IG): el spread y los costos siguen siendo los de IG.
+- Los datos viven solo en la base local de la máquina de datos, **nunca en el repo**.
+
 ### Indicadores diarios (#148, #213, #218)
 
 | Contrato | Tabla | Contenido |
@@ -114,6 +137,61 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Los calcula y escribe **Rust** (`cfds-indicators` + `cargo run -p cfds-ingest --example daily_indicators`). Python los **lee** para los análogos (spec §13) y el índice de sentimiento, y no los recalcula (CLAUDE.md §1). El tercio de la volatilidad se calcula solo en Rust (`cfds_indicators::vol_terciles`).
 - Solo días con sesión de la bolsa del instrumento.
 - Tabla de **solo agregar**. Recalcular y obtener otro valor es un error (sería repintado), y no se guarda nada.
+
+### Mapa de liquidez (#231, spec §5.4.1)
+
+| Contrato | Dónde | Contenido |
+|---|---|---|
+| `liquidity_level.v1` | tablas `liquidity_levels` y `liquidity_level_events` | Un nivel del mapa de liquidez: `instrument_id`, `kind` (`eqh`, `eql`, `pdh`, `pdl`, `pwh`, `pwl`, `session_high`, `session_low`), `session` (`asia`, `london` o `ny` en los de sesión; `null` en los demás), `price` (string decimal), `exists_from` (UTC), `state` (`intact`, `swept` o `broken`) y `state_changed_at` (cierre de la vela que lo barrió o rompió; `null` si está intacto) y, opcional, `expired_at` (cierre de la vela número `max_age_bars` si llegó intacto hasta ahí: desde ese momento ya no está activo). |
+
+- **Solo informativo** en v1: no suma al puntaje de §6.
+- Lo calcula **Rust** (`cfds_liquidity::liquidity_levels`) con velas cerradas de 15m, los pivotes de `config/patterns.toml`, el calendario de `config/sessions.toml` y los parámetros de `config/liquidity.toml`. Nadie lo recalcula; la UI solo lo muestra.
+- Un nivel no existe antes de `exists_from`. Su estado cambia a lo sumo una vez y nunca se reescribe (sin repintado). Rust exige además `state_changed_at > exists_from`.
+- `expired_at` se agregó a v1 como campo **opcional** (cambio compatible): un documento sin él sigue siendo válido. Hace falta porque saber si un nivel intacto venció exige contar velas, y ese cálculo vive solo en Rust.
+- **Tablas** (`infra/migrations/0020_liquidity_levels.sql`), las dos de **solo agregar** (trigger):
+  - `liquidity_levels`: el nivel, con las columnas del contrato (sin el estado) y un `id`. Clave natural `(instrument_id, kind, session, price, exists_from)`, con `NULLS NOT DISTINCT`: el mismo nivel no se repite.
+  - `liquidity_level_events`: a lo sumo **un evento por nivel** (`level_id` es la clave): `swept` o `broken` (`state` y `state_changed_at`) o `expired` (`expired_at`), con su hora `at`, siempre posterior a `exists_from`. Un nivel sin evento está intacto y activo. El estado nunca se reescribe: no hay `UPDATE`.
+- Lo escribe el motor con `cargo run -p cfds-ingest --example liquidity_levels` (`PgStore::insert_liquidity_levels`): idempotente, y si un nivel ya guardado diera otro estado es repintado, error y no se guarda nada de ese instrumento.
+- Se lee con `PgStore::liquidity_levels(instrumento, desde, as_of)`: los niveles **tal como se conocían en `as_of`** (un evento posterior no se ve), para no mirar el futuro. Python y la UI leen las mismas tablas con el mismo criterio (`at <= as_of`).
+
+### Estadísticas de FVG y gaps de apertura (#231, spec §5.4.1)
+
+| Contrato | Contenido |
+|---|---|
+| `fvg_event.v1` | Un FVG (definición de §5.4) en 15m, 1h o 1d: creación, dirección, zona, ATR y tamaño en ATR; primera vela que toca, que llega a la mitad, que lo llena y en la que vence, cada una con las velas desde la creación; reacción a `reaction_bars` velas del primer toque (en ATR, con signo a favor del FVG); estado (`open`, `filled` o `expired`) y `as_of`. |
+| `opening_gap.v1` | Un gap de apertura diario: sesión, dirección, cierre anterior, apertura, ATR diario de la sesión anterior y tamaño en ATR; sesión en la que se llenó (y si fue en la misma), sesión en la que venció, estado y `as_of`. |
+| `liquidity_stats.v1` | Agregados de un grupo (instrumento, `fvg` u `opening_gap`, timeframe, dirección y tercil de tamaño, o `all`): tasas con IC 95 % de Wilson y su `n`, medianas, cuartiles y rango intercuartílico. Con menos de `min_cases` casos, `insufficient = true` y los valores en `null` ("datos insuficientes"). |
+
+- **Solo informativos** en v1: no suman al puntaje de §6 hasta validarse en la fase 5.
+- Los calcula **solo Rust** (`cfds_liquidity::stats`, `config/liquidity.toml` `[fvg_stats]`, `[gaps]` y `[stats]`) con velas cerradas. La UI y Python los leen y no los recalculan.
+- Sin repintado: un evento ya registrado (toque, mitad, llenado, vencimiento o una reacción no nula) no cambia con velas nuevas. Un caso abierto cuenta para "tocado", pero no para "llenado" ni "vencido".
+- Los gaps son un contrato aparte de los FVG porque se miden en sesiones y se llenan al **tocar** el cierre anterior, no al cerrar más allá del borde.
+- **Guardado** (`infra/migrations/0021_liquidity_stats.sql`, todas de solo agregar con trigger): `fvg_zones` + `fvg_zone_events` (cada toque, mitad, llenado, vencimiento y reacción, una vez y con su hora), `opening_gaps` + `opening_gap_events` y `liquidity_stats` (una fila por grupo y corrida, `computed_at`, con el documento entero en `document` JSONB; una corrida igual a la última no se guarda otra vez). Lo escribe el motor con `cargo run -p cfds-ingest --example liquidity_stats` y se lee tal como se conocía en `as_of` (`cfds_storage::PgStore`). Otro valor para algo ya guardado es repintado: error y no se guarda nada del lote.
+- Campo opcional `at` (agregado para el guardado, compatible): la hora desde la que se conoce cada reacción (`fvg_event.v1`) y cada llenado o vencimiento de un gap (`opening_gap.v1`). El motor siempre lo llena.
+
+### Desequilibrio aproximado desde el precio (#231, spec §5.4.1)
+
+| Contrato | Contenido |
+|---|---|
+| `imbalance.v1` | Al cierre de cada vela (15m, 1h o 1d): si es de desplazamiento y en qué dirección, las sumas de cuerpos de desplazamiento alcistas y bajistas y de rangos de la ventana de `window_bars` velas, el índice de −1 a +1 (0 si los rangos suman 0) y el rótulo fijo `"aproximación desde el precio"`. |
+
+- **No es flujo de órdenes** (IG no da volumen ni libro de órdenes): el rótulo viaja en el contrato para que la UI lo muestre siempre.
+- Contrato **aparte** de `liquidity_stats.v1`: es una serie, un valor por vela cerrada para el gráfico, y no un agregado de casos.
+- Lo calcula **solo Rust** (`cfds_liquidity::imbalance`, `[imbalance]` de `config/liquidity.toml`). Un valor emitido no cambia. Solo informativo.
+- Se guarda en `imbalances` (migración 0021, solo agregar, clave instrumento + timeframe + vela + ventana) con el mismo comando `liquidity_stats`. Todavía no se publica en Redis.
+
+### Vista de liquidez del gateway (#231)
+
+| Contrato | Contenido |
+|---|---|
+| `liquidity_view.v1` | Respuesta de `GET /api/v1/liquidity?instrument=<id>[&timeframe=15m\|1h\|1d]` del gateway: `instrument_id`, `timeframe` (opcional, agregado sin romper v1; ausente = 15m), `generated_at`, `as_of` (cierre de la última vela cerrada guardada de ese timeframe, o `null` si no hay velas) y las listas `candles` (`candle.v1` en 15m y 1h, `daily_candle.v1` en 1d), `levels` (`liquidity_level.v1`), `fvgs` (`fvg_event.v1`), `imbalance` (`imbalance.v1`) y `stats` (`liquidity_stats.v1`), cada elemento con su contrato sin cambios (`$ref`). |
+
+| `gateway_instruments.v1` | Respuesta de `GET /api/v1/instruments`: los instrumentos del catálogo (`instrument.v1`), los timeframes que acepta la vista y lo que abre primero (`[view]` de `config/gateway.toml`). |
+
+- Es un **sobre**: no agrega cálculos. El gateway (`engine/crates/gateway`) lo arma con las lecturas de `cfds_storage::PgStore`, todas tal como se conocían en `as_of`, y la ventana de cada timeframe de `config/gateway.toml`. Los FVG, el desequilibrio y los agregados son los del timeframe pedido (en 1d, también los agregados de los gaps de apertura); los niveles son los del mapa de liquidez (15m), tal como se conocían en `as_of`.
+- Sin velas guardadas, `as_of` es `null` y las listas van vacías: la UI muestra "sin datos todavía".
+- Los errores HTTP (400, 404, 405, 500) van como texto plano, sin datos.
+- El gateway abre la sesión de PostgreSQL en **solo lectura** (`default_transaction_read_only`).
 
 ### Fondo del grupo (#179)
 

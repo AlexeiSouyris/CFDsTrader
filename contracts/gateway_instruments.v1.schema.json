@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/gateway_instruments.v1.schema.json",
+  "title": "Gateway instruments v1",
+  "description": "Respuesta de GET /api/v1/instruments del gateway (#231): los instrumentos del catálogo (config/instruments.toml), los timeframes de la vista de liquidez y lo que abre primero (config/gateway.toml [view]). Así la UI no repite el catálogo.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "default_instrument",
+    "default_timeframe",
+    "timeframes",
+    "instruments"
+  ],
+  "properties": {
+    "default_instrument": {
+      "description": "Instrumento que la vista abre primero; está en instruments.",
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$"
+    },
+    "default_timeframe": {
+      "description": "Timeframe que la vista abre primero.",
+      "enum": [
+        "15m",
+        "1h",
+        "1d"
+      ]
+    },
+    "timeframes": {
+      "description": "Timeframes que acepta GET /api/v1/liquidity, en orden.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "15m",
+          "1h",
+          "1d"
+        ]
+      }
+    },
+    "instruments": {
+      "description": "Los instrumentos del catálogo.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "instrument.v1.schema.json"
+      }
+    }
+  }
+}

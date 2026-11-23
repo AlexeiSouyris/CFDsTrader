@@ -1,0 +1,8 @@
+[
+  {"title": "Evento de prueba de empleo", "country": "USD", "date": "2026-11-27T08:30:00-05:00", "impact": "High", "forecast": "150K", "previous": "140K"},
+  {"title": "Evento de prueba de tipos", "country": "EUR", "date": "2026-11-26T13:15:00+00:00", "impact": "Medium", "forecast": "", "previous": ""},
+  {"title": "Evento de prueba menor", "country": "GBP", "date": "2026-11-24T07:00:00+00:00", "impact": "Low", "forecast": "0.1%", "previous": "0.2%"},
+  {"title": "Feriado bancario de prueba", "country": "JPY", "date": "2026-11-23T00:00:00+09:00", "impact": "Holiday", "forecast": "", "previous": ""},
+  {"title": "Reunión de prueba sin moneda", "country": "All", "date": "2026-11-25T12:00:00+00:00", "impact": "Medium", "forecast": "", "previous": ""},
+  {"title": "Evento de prueba de empleo", "country": "USD", "date": "2026-11-27T08:30:00-05:00", "impact": "High", "forecast": "150K", "previous": "140K"}
+]

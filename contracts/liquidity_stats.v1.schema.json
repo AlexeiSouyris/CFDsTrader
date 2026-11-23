@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/liquidity_stats.v1.schema.json",
+  "title": "Liquidity stats v1",
+  "description": "Agregados de FVG (fvg_event.v1) o de gaps de apertura (opening_gap.v1) de un grupo: instrumento, tipo, timeframe, dirección y tercil de tamaño en ATR (spec §5.4.1, #231). Tasas con IC 95 % de Wilson; con menos de min_cases casos, 'datos insuficientes': insufficient = true y los valores en null. Solo informativo; lo calcula solo Rust (cfds-liquidity, módulo stats).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instrument_id", "subject", "timeframe", "direction", "size_tercile", "size_cuts_atr", "min_cases", "n", "rates", "distributions", "as_of"],
+  "properties": {
+    "instrument_id": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" },
+    "subject": { "enum": ["fvg", "opening_gap"] },
+    "timeframe": { "description": "Los gaps de apertura son siempre 1d.", "enum": ["15m", "1h", "1d"] },
+    "direction": { "enum": ["bullish", "bearish"] },
+    "size_tercile": { "description": "Tercil del tamaño en ATR; all = todos los tamaños.", "enum": ["low", "mid", "high", "all"] },
+    "size_cuts_atr": {
+      "description": "Cortes de los terciles, calculados con todos los casos del instrumento, tipo y timeframe (las dos direcciones): low si size_atr ≤ low_max, mid si ≤ mid_max, si no high. Cuantiles 1/3 y 2/3 con interpolación lineal.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["low_max", "mid_max"],
+      "properties": { "low_max": { "$ref": "#/$defs/decimal" }, "mid_max": { "$ref": "#/$defs/decimal" } }
+    },
+    "min_cases": { "description": "[stats] min_cases de config/liquidity.toml.", "type": "integer", "minimum": 1 },
+    "n": { "description": "Casos del grupo (abiertos y cerrados).", "type": "integer", "minimum": 0 },
+    "rates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["metric", "successes", "n", "insufficient", "rate", "ci_low", "ci_high"],
+        "properties": {
+          "metric": { "description": "touch y mid: sobre todos los casos (uno abierto cuenta si ya se tocó). fill: sobre los casos cerrados (llenos o vencidos). same_session_fill: gaps llenados en su sesión, sobre todos los gaps.", "enum": ["touch", "mid", "fill", "same_session_fill"] },
+          "successes": { "type": "integer", "minimum": 0 },
+          "n": { "description": "Denominador de la tasa.", "type": "integer", "minimum": 0 },
+          "insufficient": { "description": "true si n < min_cases ('datos insuficientes').", "type": "boolean" },
+          "rate": { "$ref": "#/$defs/decimal_or_null" },
+          "ci_low": { "description": "IC 95 % de Wilson, z = 1,959963984540054.", "$ref": "#/$defs/decimal_or_null" },
+          "ci_high": { "$ref": "#/$defs/decimal_or_null" }
+        }
+      }
+    },
+    "distributions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["metric", "horizon_bars", "n", "insufficient", "median", "p25", "p75", "iqr"],
+        "properties": {
+          "metric": { "description": "Velas (o sesiones) hasta cada evento, sobre los casos que lo tuvieron; reaction: retorno en ATR a horizon_bars velas del primer toque.", "enum": ["bars_to_touch", "bars_to_mid", "bars_to_fill", "sessions_to_fill", "reaction"] },
+          "horizon_bars": { "description": "Solo para reaction.", "oneOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }] },
+          "n": { "type": "integer", "minimum": 0 },
+          "insufficient": { "description": "true si n < min_cases.", "type": "boolean" },
+          "median": { "$ref": "#/$defs/signed_decimal_or_null" },
+          "p25": { "description": "Cuartiles con interpolación lineal entre los valores ordenados.", "$ref": "#/$defs/signed_decimal_or_null" },
+          "p75": { "$ref": "#/$defs/signed_decimal_or_null" },
+          "iqr": { "description": "Rango intercuartílico p75 − p25.", "$ref": "#/$defs/decimal_or_null" }
+        }
+      }
+    },
+    "as_of": { "description": "El as_of más reciente de los casos del instrumento, tipo y timeframe, en UTC.", "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" }
+  },
+  "$defs": {
+    "decimal": { "description": "Número decimal exacto como string, nunca como número JSON.", "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "decimal_or_null": { "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+    "signed_decimal_or_null": { "oneOf": [{ "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" }, { "type": "null" }] }
+  }
+}

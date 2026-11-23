@@ -12,6 +12,7 @@ from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 
 from cfds_intel.models.dataset import Example
 
@@ -21,7 +22,7 @@ def week_of(t: datetime) -> tuple[int, int]:
     return iso.year, iso.week
 
 
-def percentile(sorted_values: Sequence[float], pct: float) -> float:
+def percentile[N: (float, Decimal)](sorted_values: Sequence[N], pct: float) -> N:
     """Percentil por rango más cercano (determinista): el valor en la posición ⌈pct/100 · n⌉."""
     if not sorted_values:
         raise ValueError("sin valores")
@@ -35,6 +36,29 @@ def weekly_blocks(examples: Sequence[Example]) -> list[list[int]]:
     for i, e in enumerate(examples):
         blocks[week_of(e.signal_at)].append(i)
     return [blocks[w] for w in sorted(blocks)]
+
+
+def block_interval[N: (float, Decimal)](
+    sums: Sequence[N], sizes: Sequence[int], resamples: int, confidence: float, seed: int
+) -> tuple[N, N]:
+    """Intervalo bootstrap por bloques de la media `Σ sums / Σ sizes`: se remuestrean bloques
+    enteros (con reposición, tantos como hay) y se toman los percentiles de `(1 - confidence)/2`
+    y su complemento. Reproducible con la misma semilla. Es el único bootstrap de la regla de
+    mejora: lo usan ML (§6) y el reporte de la fase 4b. `N`: log loss (float) o P/L (Decimal,
+    dinero); nunca se mezclan."""
+    if not sums or len(sums) != len(sizes) or min(sizes) < 1:
+        raise ValueError("hace falta al menos un bloque, cada uno con su tamaño ≥ 1")
+    rnd = random.Random(seed)  # noqa: S311 (remuestreo reproducible, no criptografía)
+    means: list[N] = []
+    for _ in range(resamples):
+        pick = [rnd.randrange(len(sums)) for _ in sums]
+        total = sums[pick[0]]
+        for k in pick[1:]:
+            total += sums[k]
+        means.append(total / sum(sizes[k] for k in pick))
+    means.sort()
+    tail = (1 - confidence) / 2 * 100
+    return percentile(means, tail), percentile(means, 100 - tail)
 
 
 @dataclass(frozen=True)
@@ -65,17 +89,5 @@ def compare(
     d = [a - b for a, b in zip(loss_m1, loss_b1, strict=True)]
     blocks = weekly_blocks(examples)
     sums = [sum(d[i] for i in b) for b in blocks]
-    sizes = [len(b) for b in blocks]
-    rnd = random.Random(seed)  # noqa: S311 (remuestreo reproducible, no criptografía)
-    means = []
-    for _ in range(resamples):
-        pick = [rnd.randrange(len(blocks)) for _ in blocks]
-        means.append(sum(sums[k] for k in pick) / sum(sizes[k] for k in pick))
-    means.sort()
-    tail = (1 - confidence) / 2 * 100
-    return Comparison(
-        difference=sum(d) / len(d),
-        low=percentile(means, tail),
-        high=percentile(means, 100 - tail),
-        blocks=len(blocks),
-    )
+    low, high = block_interval(sums, [len(b) for b in blocks], resamples, confidence, seed)
+    return Comparison(difference=sum(d) / len(d), low=low, high=high, blocks=len(blocks))

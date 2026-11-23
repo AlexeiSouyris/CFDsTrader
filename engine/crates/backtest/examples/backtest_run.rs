@@ -4,7 +4,7 @@
 //! ```text
 //! DATABASE_URL=... cargo run -p cfds-backtest --example backtest_run -- \
 //!     <INSTRUMENTO> <desde UTC> <hasta UTC> <capital inicial> <tamaño comprar y mantener> \
-//!     [<run_id>]
+//!     [<run_id>] [--sin-noticias]
 //! ```
 //! Con `run_id`, además guarda cada operación en el diario (`proposals` y `outcomes`, de forma
 //! idempotente) y, al terminar, la corrida en `backtest_runs` (`backtest_run.v1`, #200): período,
@@ -23,6 +23,18 @@
 //! de corte del modelo (ADR 0008 §5), y las pasa al ajuste del puntaje: en cada vela cuenta lo
 //! interpretado hasta su cierre. Si hay interpretaciones de otro modelo, no corre. Si no hay
 //! ninguna, corre sin ajuste de noticias y lo dice.
+//!
+//! Filtro de noticias de alto impacto (spec §7.2, #243): usa los eventos del calendario guardado
+//! (`economic_events`), cada uno desde que se vio, y avisa qué tramos del período no tienen
+//! calendario (ahí no descuenta nada). `--sin-noticias` no lo apaga: solo apaga el ajuste del
+//! puntaje.
+//!
+//! Con `--sin-noticias` no carga ninguna interpretación y la corrida queda con `news: null` en
+//! `backtest_runs`: es la variante "capa apagada" del reporte de la fase 4b (#221), para medir
+//! el ajuste de noticias contra no usarlo con todo lo demás igual.
+
+#[path = "common/news_filter.rs"]
+mod news_filter;
 
 use std::path::PathBuf;
 
@@ -33,8 +45,8 @@ use cfds_core::Timeframe;
 use cfds_indicators::TrendConfig;
 use cfds_liquidity::LiquidityConfig;
 use cfds_market_data::{
-    Catalog, ExchangeCalendar, SpreadFilterConfig, TradingWindowConfig, ValidationConfig,
-    check_series, spread_flags, trading_window,
+    Catalog, ExchangeCalendar, NewsFilterConfig, SpreadFilterConfig, TradingWindowConfig,
+    ValidationConfig, check_series, spread_flags, trading_window,
 };
 use cfds_patterns::PatternsConfig;
 use cfds_risk::RiskConfig;
@@ -49,13 +61,14 @@ macro_rules! cfg {
 }
 
 /// Archivos de `config/` que lee la corrida, para el hash de `backtest_run.v1` (#200).
-const CONFIG_FILES: [(&str, &str); 14] = [
+const CONFIG_FILES: [(&str, &str); 15] = [
     ("backtest.toml", cfg!("backtest.toml")),
     ("data_split.toml", cfg!("data_split.toml")),
     ("data_validation.toml", cfg!("data_validation.toml")),
     ("indicators.toml", cfg!("indicators.toml")),
     ("instruments.toml", cfg!("instruments.toml")),
     ("liquidity.toml", cfg!("liquidity.toml")),
+    ("news_filter.toml", cfg!("news_filter.toml")),
     ("news_interpreter.toml", cfg!("news_interpreter.toml")),
     ("patterns.toml", cfg!("patterns.toml")),
     ("probability.toml", cfg!("probability.toml")),
@@ -69,13 +82,20 @@ const CONFIG_FILES: [(&str, &str); 14] = [
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let started_at = chrono::Utc::now();
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let all: Vec<String> = std::env::args().skip(1).collect();
+    let without_news = all.iter().any(|a| a == "--sin-noticias");
+    let args: Vec<&str> = all
+        .iter()
+        .map(String::as_str)
+        .filter(|a| *a != "--sin-noticias")
+        .collect();
     let (instrument, from, to, equity, size, run_id) = match args.as_slice() {
         [i, f, t, e, s] => (i, f, t, e, s, None),
-        [i, f, t, e, s, r] => (i, f, t, e, s, Some(r.as_str())),
+        [i, f, t, e, s, r] => (i, f, t, e, s, Some(*r)),
         _ => {
             return Err(
-                "uso: <INSTRUMENTO> <desde UTC> <hasta UTC> <capital> <tamaño B&H> [<run_id>]"
+                "uso: <INSTRUMENTO> <desde UTC> <hasta UTC> <capital> <tamaño B&H> [<run_id>] \
+                 [--sin-noticias]"
                     .into(),
             );
         }
@@ -152,12 +172,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .zip(&spread_ok)
         .map(|(e, s)| *e && *s)
         .collect();
-    // Filtro de noticias (spec §7.2, `cfds_market_data::news_flags`): la fuente del calendario
-    // económico es de la fase 4b y necesita su ADR (spec §9). Sin eventos no se aplica: avisarlo.
-    eprintln!(
-        "⚠️  filtro de noticias de alto impacto (§7.2) SIN DATOS: falta la fuente del calendario \
-         (fase 4b). El resultado no lo descuenta."
-    );
+    // Filtro de noticias (spec §7.2): eventos del calendario guardado (`economic_events`, #243),
+    // cada uno solo desde que se vio. Avisa qué tramos no tienen calendario.
+    let news_cfg = NewsFilterConfig::from_toml(cfg!("news_filter.toml"))?;
+    let entries = news_filter::apply(&store, &m15, &entries, &news_cfg).await?;
     println!(
         "{id}: {} velas de 15m y {} de 1h, del {from} al {to}",
         m15.len(),
@@ -171,15 +189,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cutoff = InterpreterCutoff::from_toml(cfg!("news_interpreter.toml"))?;
     let published_from = cutoff.backtest_published_from();
     let window = setup.strategy.strategy.news.window;
-    let news = store
-        .news_interpretations(
-            &interpreter.name,
-            &interpreter.version,
-            from - window - chrono::TimeDelta::seconds(1),
-            to,
-            Some(published_from),
-        )
-        .await?;
+    let news = if without_news {
+        Vec::new()
+    } else {
+        store
+            .news_interpretations(
+                &interpreter.name,
+                &interpreter.version,
+                from - window - chrono::TimeDelta::seconds(1),
+                to,
+                Some(published_from),
+            )
+            .await?
+    };
     let foreign = interpreter.other_models(&news);
     if let Some(n) = foreign.first() {
         return Err(format!(
@@ -203,8 +225,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         interpreter.model,
         cutoff.training_cutoff
     );
-    println!("{news_summary}");
-    if news.is_empty() {
+    if without_news {
+        println!("noticias: APAGADAS (--sin-noticias): el puntaje no tiene ajuste de noticias");
+    } else {
+        println!("{news_summary}");
+    }
+    if news.is_empty() && !without_news {
         println!(
             "⚠️  sin interpretaciones en el período: el backtest corre SIN ajuste de noticias \
              del puntaje (spec §9)"
@@ -243,12 +269,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(run_id) = run_id {
         journal_and_probability(&store, run_id, &id, &report.trades, &m15).await?;
         record_ml_features(&store, run_id, &id, &report.trades, &m15, session, from, to).await?;
-        let news_used = cfds_journal::RunNews {
-            interpreter_name: interpreter.name.clone(),
-            interpreter_version: interpreter.version.clone(),
-            interpreter_model: Some(interpreter.model.clone()),
-            published_from,
-            interpretations: u64::try_from(news.len())?,
+        let news_used = if without_news {
+            None
+        } else {
+            Some(cfds_journal::RunNews {
+                interpreter_name: interpreter.name.clone(),
+                interpreter_version: interpreter.version.clone(),
+                interpreter_model: Some(interpreter.model.clone()),
+                published_from,
+                interpretations: u64::try_from(news.len())?,
+            })
         };
         let run = run_record(
             run_id,
@@ -288,7 +318,7 @@ fn run_record(
     setup: &cfds_backtest::Setup,
     report: &cfds_backtest::Report,
     m15: &[cfds_core::Candle],
-    news: cfds_journal::RunNews,
+    news: Option<cfds_journal::RunNews>,
     started_at: chrono::DateTime<chrono::Utc>,
 ) -> Result<cfds_journal::BacktestRun, Box<dyn std::error::Error>> {
     let net: Vec<Decimal> = report
@@ -328,7 +358,7 @@ fn run_record(
         config_sha256: cfds_journal::config_sha256(&CONFIG_FILES),
         initial_equity: setup.initial_equity,
         costs: cfds_journal::RunCosts::new(&setup.backtest.costs, &[(id.clone(), setup.costs)]),
-        news: Some(news),
+        news,
         metrics: cfds_journal::RunMetrics::new(report.final_equity, &metrics),
         started_at,
         finished_at: chrono::Utc::now(),

@@ -8,13 +8,12 @@ publish.workspace = true
 [dependencies]
 cfds-core = { version = "0.1.0", path = "../core" }
 cfds-indicators = { version = "0.1.0", path = "../indicators" }
+cfds-market-data = { version = "0.1.0", path = "../market-data" }
 cfds-patterns = { version = "0.1.0", path = "../patterns" }
+chrono = { version = "0.4.45", default-features = false, features = ["std"] }
 rust_decimal = { version = "1.43.0", features = ["macros"] }
 serde = { version = "1.0.229", features = ["derive"] }
 toml = "0.9"
 
 [lints]
 workspace = true
-
-[dev-dependencies]
-chrono = { version = "0.4.45", default-features = false, features = ["std"] }
