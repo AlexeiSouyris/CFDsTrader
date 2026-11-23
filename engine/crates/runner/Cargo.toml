@@ -1,0 +1,30 @@
+[package]
+name = "cfds-runner"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+cfds-backtest = { version = "0.1.0", path = "../backtest" }
+cfds-broker = { version = "0.1.0", path = "../broker" }
+cfds-core = { version = "0.1.0", path = "../core" }
+cfds-liquidity = { version = "0.1.0", path = "../liquidity" }
+cfds-market-data = { version = "0.1.0", path = "../market-data" }
+cfds-obs = { version = "0.1.0", path = "../obs" }
+cfds-strategy = { version = "0.1.0", path = "../strategy" }
+chrono = { version = "0.4.45", default-features = false, features = ["std"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+toml = "0.9"
+
+[dev-dependencies]
+cfds-indicators = { version = "0.1.0", path = "../indicators" }
+cfds-patterns = { version = "0.1.0", path = "../patterns" }
+cfds-risk = { version = "0.1.0", path = "../risk" }
+chrono-tz = "0.10.4"
+rust_decimal = { version = "1.43.0", features = ["macros"] }
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true
