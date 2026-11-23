@@ -1,0 +1,9 @@
+# Broker simulado (fase 7, #278). Solo modo paper: no existe un broker real activable
+# (CLAUDE.md §5, fase 11). Decimales como texto (nunca float). Los límites de riesgo salen de
+# config/risk.toml; los costos y las salidas, de config/backtest.toml y del catálogo.
+
+[paper]
+# Capital inicial de la cuenta simulada, en EUR (spec: capital de 1.000 €).
+initial_equity = "1000"
+# Período del ATR de Wilder que usa el riesgo para la distancia al stop (spec §4 y §7.7).
+atr_period = 14
