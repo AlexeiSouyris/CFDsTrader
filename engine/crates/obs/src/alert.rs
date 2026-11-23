@@ -269,7 +269,8 @@ impl<T: HttpPost> Alerter<T> {
         }
         let alert = Alert {
             kind,
-            message: message.to_owned(),
+            // El mensaje sale del proceso (Telegram): sin secretos.
+            message: self.logger.scrub(message),
             at,
         };
         let _ = self.log_sink.send(&alert).await;

@@ -9,6 +9,10 @@
 //! broker simulado, en una transacción que se declara de escritura (`insert_paper_order`). La
 //! escritura exige el token local de `[paper] token_env`; sin él queda apagada. La UI llega con el
 //! proxy de Vite (`/api` → este servidor).
+//!
+//! Fase 9 (#297): logs en líneas JSON por la salida de errores (sin secretos: el token y la
+//! contraseña de la base se registran para taparlos), alertas de `config/alerts.toml` y parada
+//! segura con SIGTERM o Ctrl-C (deja de aceptar órdenes, guarda el registro, verifica).
 
 use std::convert::Infallible;
 use std::sync::Arc;
@@ -17,10 +21,12 @@ use cfds_backtest::BacktestConfig;
 use cfds_broker::BrokerConfig;
 use cfds_core::Instrument;
 use cfds_gateway::context::{ContextConfig, is_context_route, respond_context};
-use cfds_gateway::paper::{HttpIn, PaperConfig, PgPaper, is_paper_route, respond_paper};
+use cfds_gateway::ops::url_password;
+use cfds_gateway::paper::{HttpIn, Ops, PaperConfig, PgPaper, is_paper_route, respond_paper};
 use cfds_gateway::{GatewayConfig, PgSource, Reply, read_only_url, respond};
 use cfds_liquidity::StatsConfig;
 use cfds_market_data::{CandleSources, Catalog};
+use cfds_obs::{AlertConfig, AlertKind, Alerter, Level, Logger, ReqwestPost, TelegramSink};
 use cfds_risk::RiskConfig;
 use cfds_storage::PgStore;
 use http_body_util::{BodyExt, Full, Limited};
@@ -29,6 +35,7 @@ use hyper::header::{CACHE_CONTROL, CONTENT_TYPE};
 use hyper::service::service_fn;
 use hyper::{Request, Response};
 use hyper_util::rt::TokioIo;
+use serde_json::json;
 use tokio::net::TcpListener;
 
 const GATEWAY: &str = include_str!("../../../../config/gateway.toml");
@@ -38,6 +45,7 @@ const SOURCES: &str = include_str!("../../../../config/candle_sources.toml");
 const RISK: &str = include_str!("../../../../config/risk.toml");
 const BACKTEST: &str = include_str!("../../../../config/backtest.toml");
 const BROKER: &str = include_str!("../../../../config/broker.toml");
+const ALERTS: &str = include_str!("../../../../config/alerts.toml");
 
 struct State {
     source: PgSource,
@@ -136,15 +144,73 @@ async fn liquidity_reply(state: &State, req: &Request<Incoming>) -> Reply {
     .await
 }
 
+/// Espera SIGTERM (o Ctrl-C).
+async fn shutdown_signal() {
+    let term = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut s) => {
+                s.recv().await;
+            }
+            Err(_) => std::future::pending::<()>().await,
+        }
+    };
+    tokio::select! {
+        () = term => {}
+        _ = tokio::signal::ctrl_c() => {}
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Toda la configuración se valida al arrancar (CLAUDE.md §5b).
     let cfg = GatewayConfig::from_toml(GATEWAY)?;
     let catalog = Catalog::from_toml(CATALOG)?;
     let stats = StatsConfig::from_toml(LIQUIDITY)?;
-    // La sesión de PostgreSQL se abre en solo lectura: aunque hubiera un error, no puede escribir.
-    let store = PgStore::connect(&read_only_url(&std::env::var("DATABASE_URL")?)).await?;
     let paper_cfg = PaperConfig::from_toml(GATEWAY)?;
+    let alert_cfg = AlertConfig::from_toml(ALERTS)?;
+    // Logs sin secretos: el token local y la base se registran antes del primer log.
+    let log = Arc::new(Logger::stderr());
+    let database_url = std::env::var("DATABASE_URL")?;
+    log.register_secret(&database_url);
+    if let Some(pass) = url_password(&database_url) {
+        log.register_secret(pass);
+    }
+    let token = std::env::var(&paper_cfg.token_env)
+        .ok()
+        .filter(|t| t.len() >= 16);
+    if let Some(t) = &token {
+        log.register_secret(t);
+    }
+    let telegram = TelegramSink::from_env(
+        &alert_cfg,
+        ReqwestPost::new(alert_cfg.telegram_timeout)?,
+        |name| std::env::var(name).ok(),
+    );
+    let alerts = Alerter::new(alert_cfg, log.clone(), telegram);
+    log.log(
+        Level::Info,
+        "gateway",
+        "alerts",
+        json!({ "telegram": alerts.telegram_enabled() }),
+    );
+    let ops = Arc::new(Ops {
+        log: log.clone(),
+        alerts,
+    });
+    // La sesión de PostgreSQL se abre en solo lectura: aunque hubiera un error, no puede escribir.
+    let store = match PgStore::connect(&read_only_url(&database_url)).await {
+        Ok(s) => s,
+        Err(e) => {
+            ops.alerts
+                .raise(
+                    AlertKind::Disconnect,
+                    &format!("sin base al arrancar: {e}"),
+                    chrono::Utc::now(),
+                )
+                .await;
+            return Err(log.scrub(&e.to_string()).into());
+        }
+    };
     let backtest = BacktestConfig::from_toml(BACKTEST)?;
     let broker_cfg = BrokerConfig::from_toml(
         BROKER,
@@ -153,33 +219,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         backtest.exits,
         backtest.day_tz,
     )?;
-    let token = std::env::var(&paper_cfg.token_env)
-        .ok()
-        .filter(|t| t.len() >= 16);
     let paper = match PgPaper::start(
         store.clone(),
         &catalog,
         broker_cfg,
         &paper_cfg,
+        ops.clone(),
         chrono::Utc::now(),
     )
     .await
     {
         Ok((p, skipped)) => {
             for s in skipped {
-                println!("broker simulado: {s} (no se opera)");
+                log.log(
+                    Level::Warn,
+                    "gateway",
+                    "instrument_skipped",
+                    json!({ "detail": s }),
+                );
             }
             Some(p)
         }
         Err(e) => {
-            eprintln!("broker simulado: no arrancó ({e}); las rutas /api/v1/paper responden 503");
+            // Las rutas /api/v1/paper responden 503.
+            ops.alerts
+                .raise(
+                    AlertKind::Disconnect,
+                    &format!("el broker simulado no arrancó: {e}"),
+                    chrono::Utc::now(),
+                )
+                .await;
             None
         }
     };
     if token.is_none() {
-        println!(
-            "broker simulado: sin {} (16 caracteres o más), la escritura queda apagada",
-            paper_cfg.token_env
+        log.log(
+            Level::Warn,
+            "gateway",
+            "writes_disabled",
+            json!({ "missing_env": paper_cfg.token_env }),
         );
     }
     let state = Arc::new(State {
@@ -200,21 +278,55 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .collect(),
     });
     let listener = TcpListener::bind(cfg.bind).await?;
-    println!(
-        "gateway escuchando en http://{} (lectura; broker simulado solo paper)",
-        cfg.bind
+    log.log(
+        Level::Info,
+        "gateway",
+        "listening",
+        json!({ "bind": cfg.bind.to_string(), "mode": "paper" }),
     );
+    let stop = shutdown_signal();
+    tokio::pin!(stop);
     loop {
-        let (stream, _) = listener.accept().await?;
+        let (stream, _) = tokio::select! {
+            accepted = listener.accept() => match accepted {
+                Ok(a) => a,
+                Err(e) => {
+                    ops.alerts
+                        .raise(
+                            AlertKind::Disconnect,
+                            &format!("el gateway no acepta conexiones: {e}"),
+                            chrono::Utc::now(),
+                        )
+                        .await;
+                    continue;
+                }
+            },
+            () = &mut stop => break,
+        };
         let state = state.clone();
+        let log = log.clone();
         tokio::spawn(async move {
             let service = service_fn(move |req| handle(state.clone(), req));
             if let Err(e) = hyper::server::conn::http1::Builder::new()
                 .serve_connection(TokioIo::new(stream), service)
                 .await
             {
-                eprintln!("gateway: conexión: {e}");
+                log.log(
+                    Level::Warn,
+                    "gateway",
+                    "connection_error",
+                    json!({ "error": e.to_string() }),
+                );
             }
         });
     }
+    // Parada segura: sin órdenes nuevas, registro guardado y verificado.
+    log.log(Level::Info, "gateway", "shutdown_requested", json!({}));
+    if let Some(paper) = &state.paper {
+        let flush = paper.shutdown(chrono::Utc::now()).await?;
+        if !flush.is_clean() {
+            return Err(format!("{} órdenes sin guardar al apagar", flush.orphans.len()).into());
+        }
+    }
+    Ok(())
 }

@@ -12,6 +12,7 @@ use cfds_core::{
     TicketVerdict, Timeframe,
 };
 use cfds_gateway::Reply;
+use cfds_gateway::ops::{Gate, GateState};
 use cfds_gateway::paper::{HttpIn, PaperConfig, PaperService, respond_paper};
 use cfds_journal::{BacktestRun, RunDetail};
 use cfds_risk::{InstrumentLimits, RiskConfig};
@@ -31,7 +32,7 @@ fn at(i: i64) -> DateTime<Utc> {
 }
 
 /// El broker simulado real, en memoria (sin registro en la base).
-struct MemPaper(Mutex<PaperBroker>);
+struct MemPaper(Mutex<PaperBroker>, Gate);
 
 impl PaperService for MemPaper {
     async fn preview(&self, order: Order, now: DateTime<Utc>) -> Result<TicketVerdict, String> {
@@ -48,6 +49,9 @@ impl PaperService for MemPaper {
     }
     async fn runs(&self, _limit: u32) -> Result<Vec<BacktestRun>, String> {
         Ok(Vec::new())
+    }
+    fn gate(&self) -> GateState {
+        self.1.state()
     }
     /// El detalle de ejemplo de la UI (`ui/src/mocks/backtest-run-detail.json`, #299): el mismo
     /// documento que dibuja Performance sin gateway.
@@ -111,7 +115,9 @@ fn paper() -> MemPaper {
     .unwrap();
     let markets: BTreeMap<InstrumentId, MarketSetup> =
         [("US100".parse().unwrap(), market)].into_iter().collect();
-    MemPaper(Mutex::new(PaperBroker::new(cfg, markets)))
+    let gate = Gate::default();
+    gate.set(GateState::Ready);
+    MemPaper(Mutex::new(PaperBroker::new(cfg, markets)), gate)
 }
 
 fn cfg() -> PaperConfig {
@@ -231,6 +237,38 @@ async fn preview_answers_without_effects_and_submit_is_idempotent() {
     let account = get(&p, "/api/v1/paper/account").await;
     assert_valid("paper_account.v1.schema.json", &account.body);
     assert_eq!(get(&p, "/api/v1/backtest_runs").await.body, "[]");
+}
+
+/// Fase 9 (#297): sin la reconciliación al arrancar limpia, o apagándose, no entra ninguna orden.
+#[tokio::test]
+async fn orders_wait_for_a_clean_start_and_stop_at_shutdown() {
+    let p = paper();
+    p.1.set(GateState::Starting);
+    let r = post(&p, "/api/v1/paper/orders", &order("o1", dec!(98))).await;
+    assert_eq!(r.status, 503, "{}", r.body);
+    assert!(r.body.contains("reconciliación"));
+    // La vista previa (sin efectos) y la lectura siguen.
+    assert_eq!(
+        post(&p, "/api/v1/paper/preview", &order("o1", dec!(98)))
+            .await
+            .status,
+        200
+    );
+    assert_eq!(get(&p, "/api/v1/paper/account").await.status, 200);
+
+    p.1.set(GateState::Ready);
+    let ok = post(&p, "/api/v1/paper/orders", &order("o1", dec!(98))).await;
+    assert_eq!(ok.status, 200, "{}", ok.body);
+
+    p.1.set(GateState::Stopping);
+    let r = post(&p, "/api/v1/paper/orders", &order("o2", dec!(98))).await;
+    assert_eq!(r.status, 503);
+    assert!(r.body.contains("apagando"));
+    // Desde la parada no se vuelve atrás.
+    p.1.set(GateState::Ready);
+    assert_eq!(p.1.state(), GateState::Stopping);
+    // Ninguna orden rechazada por la compuerta llegó al broker.
+    assert_eq!(p.0.lock().await.journal().len(), 1);
 }
 
 #[tokio::test]

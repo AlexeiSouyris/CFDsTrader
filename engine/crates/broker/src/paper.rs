@@ -35,7 +35,7 @@ use cfds_strategy::Side;
 use chrono::{DateTime, NaiveTime, Utc};
 use chrono_tz::Tz;
 use rust_decimal::Decimal;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Configuración del broker simulado. Todo sale de `config/` (broker, risk, backtest).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -142,6 +142,40 @@ struct OpenTrade {
     opened_at: DateTime<Utc>,
 }
 
+/// Lo que pasó en el broker, para los logs estructurados y las alertas (fase 9, #297). Quien
+/// usa el broker los saca con [`PaperBroker::take_events`]; el broker no escribe logs.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "event", rename_all = "snake_case")]
+pub enum BrokerEvent {
+    /// Llegó una orden nueva (las repetidas por `order_id` no cuentan).
+    OrderReceived {
+        order_id: ClientId,
+        instrument_id: InstrumentId,
+        side: OrderSide,
+        created_at: DateTime<Utc>,
+    },
+    /// Una orden repetida: se devolvió el informe guardado.
+    OrderDuplicate {
+        order_id: ClientId,
+    },
+    /// La decisión del riesgo (o el motivo del broker) sobre una orden enviada.
+    RiskDecision {
+        order_id: ClientId,
+        accepted: bool,
+        rejection: Option<OrderRejection>,
+        size: Option<Decimal>,
+        as_of: DateTime<Utc>,
+    },
+    OrderReport {
+        report: OrderReport,
+    },
+    /// El kill switch se activó (no se desactiva desde el broker).
+    KillSwitch {
+        reason: String,
+        at: DateTime<Utc>,
+    },
+}
+
 /// El broker simulado. Solo modo paper.
 #[derive(Debug, Clone)]
 pub struct PaperBroker {
@@ -151,6 +185,7 @@ pub struct PaperBroker {
     /// Las órdenes procesadas, en el orden en que llegaron, con su informe: lo que se guarda
     /// para reconstruir el broker al arrancar (ver `crate::reconcile`).
     journal: Vec<(Order, OrderReport)>,
+    events: Vec<BrokerEvent>,
     trades: Vec<OpenTrade>,
     kill_switch: Option<(String, DateTime<Utc>)>,
     peak_equity: Decimal,
@@ -216,6 +251,7 @@ impl PaperBroker {
             markets,
             reports: BTreeMap::new(),
             journal: Vec::new(),
+            events: Vec::new(),
             trades: Vec::new(),
             kill_switch: None,
             peak_equity: peak,
@@ -240,8 +276,18 @@ impl PaperBroker {
     /// No se desactiva desde acá: reactivar el sistema pide la votación de la spec §1.2.
     pub fn activate_kill_switch(&mut self, reason: impl Into<String>, at: DateTime<Utc>) {
         if self.kill_switch.is_none() {
-            self.kill_switch = Some((reason.into(), at));
+            let reason = reason.into();
+            self.events.push(BrokerEvent::KillSwitch {
+                reason: reason.clone(),
+                at,
+            });
+            self.kill_switch = Some((reason, at));
         }
+    }
+
+    /// Los eventos desde la última vez (y los vacía).
+    pub fn take_events(&mut self) -> Vec<BrokerEvent> {
+        std::mem::take(&mut self.events)
     }
 
     /// Los mercados con sus velas (para reconstruir aparte, por ejemplo al reconciliar).
@@ -520,9 +566,26 @@ impl crate::Broker for PaperBroker {
 
     fn submit(&mut self, order: &Order) -> OrderReport {
         if let Some(r) = self.reports.get(&order.order_id) {
-            return r.clone();
+            let r = r.clone();
+            self.events.push(BrokerEvent::OrderDuplicate {
+                order_id: order.order_id.clone(),
+            });
+            return r;
         }
+        self.events.push(BrokerEvent::OrderReceived {
+            order_id: order.order_id.clone(),
+            instrument_id: order.instrument_id.clone(),
+            side: order.side,
+            created_at: order.created_at,
+        });
         let a = self.assess(order);
+        self.events.push(BrokerEvent::RiskDecision {
+            order_id: order.order_id.clone(),
+            accepted: a.result.is_ok(),
+            rejection: a.result.as_ref().err().copied(),
+            size: a.result.as_ref().ok().map(|s| s.size),
+            as_of: a.as_of,
+        });
         let report = match (a.result, a.fill_index) {
             (Ok(s), Some(i)) => {
                 let m = &self.markets[&order.instrument_id];
@@ -575,6 +638,9 @@ impl crate::Broker for PaperBroker {
         };
         self.reports.insert(order.order_id.clone(), report.clone());
         self.journal.push((order.clone(), report.clone()));
+        self.events.push(BrokerEvent::OrderReport {
+            report: report.clone(),
+        });
         report
     }
 

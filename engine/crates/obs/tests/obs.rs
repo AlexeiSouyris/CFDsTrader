@@ -215,6 +215,28 @@ async fn a_failing_telegram_is_logged_without_the_url() {
 }
 
 #[tokio::test]
+async fn an_alert_message_never_carries_a_secret_to_telegram() {
+    let http = FakePost {
+        status: 200,
+        ..Default::default()
+    };
+    let (log, _) = logger();
+    log.register_secret(FAKE_GATEWAY);
+    let tg = TelegramSink::from_env(&cfg(), &http, env_with(Some(FAKE_TOKEN), Some("42")));
+    let alerter = Alerter::new(cfg(), log, tg);
+    alerter
+        .raise(
+            AlertKind::Disconnect,
+            &format!("sin base {FAKE_DB} con {FAKE_GATEWAY}"),
+            at("2026-11-23T10:00:00Z"),
+        )
+        .await;
+    let body = http.sent.lock().unwrap()[0].1.clone();
+    assert!(!body.contains("fake-db-password"));
+    assert!(!body.contains(FAKE_GATEWAY));
+}
+
+#[tokio::test]
 async fn each_kind_is_sent_at_most_once_per_interval() {
     let (log, _) = logger();
     let alerter = Alerter::<&FakePost>::new(cfg(), log, None);
