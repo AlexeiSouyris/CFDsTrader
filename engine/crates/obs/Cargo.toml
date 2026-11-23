@@ -1,0 +1,19 @@
+[package]
+name = "cfds-obs"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+chrono = { version = "0.4.45", default-features = false, features = ["std", "clock"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-native-roots"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+toml = "0.9"
+
+[dev-dependencies]
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true
