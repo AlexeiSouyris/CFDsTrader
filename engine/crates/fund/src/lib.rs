@@ -9,9 +9,13 @@
 //!
 //! Funciones puras y decimales exactos. Cada liquidación devuelve el registro de cada
 //! movimiento para el historial auditable (`fund_movement.v1`, #179), y las cuentas se
-//! reconstruyen siempre desde ese historial (`Fund::replay`). `pg` lo guarda en PostgreSQL.
+//! reconstruyen siempre desde ese historial (`Fund::replay`). `pg` lo guarda en PostgreSQL y
+//! `summary` arma el resumen para la UI (`fund_summary.v1`, #312).
 
 pub mod pg;
+pub mod summary;
+
+pub use summary::{Basis, MemberSummary, Summary, summary};
 
 use std::collections::BTreeMap;
 
@@ -22,7 +26,7 @@ use rust_decimal::{Decimal, RoundingStrategy};
 use serde::{Deserialize, Serialize};
 
 /// Decimales del dinero (céntimos).
-const CENTS: u32 = 2;
+pub(crate) const CENTS: u32 = 2;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum FundError {

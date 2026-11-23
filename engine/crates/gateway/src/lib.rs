@@ -12,6 +12,7 @@
 //! No calcula nada nuevo, no envía órdenes ni escribe en la base.
 
 pub mod context;
+pub mod fund;
 pub mod ops;
 pub mod paper;
 

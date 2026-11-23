@@ -273,6 +273,7 @@ dependencies = [
  "cfds-backtest",
  "cfds-broker",
  "cfds-core",
+ "cfds-fund",
  "cfds-journal",
  "cfds-liquidity",
  "cfds-market-data",

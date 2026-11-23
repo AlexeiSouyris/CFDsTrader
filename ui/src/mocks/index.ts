@@ -7,6 +7,8 @@
  * - Las series de comparación y el resto se generan con un PRNG fijo, para que la maqueta
  *   sea siempre igual. Generar datos de ejemplo no es lógica de trading.
  */
+import type { FundMovement, FundSummary } from '@/lib/fund-api'
+
 import us100 from './us100-1h.json'
 
 export type PriceBar = {
@@ -478,17 +480,8 @@ export type FundMove = {
   at: string
 }
 
-/** Un movimiento ya liquidado, con los campos de `contracts/fund_movement.v1.schema.json`. */
-export type FundMovement = {
-  id: string
-  settled_at: string
-  member_id: string
-  kind: 'contribution' | 'withdrawal'
-  amount: string
-  units: string
-  nav: string
-  currency: string
-}
+/** Un movimiento ya liquidado: `contracts/fund_movement.v1` (el tipo vive en `lib/fund-api`). */
+export type { FundMovement }
 
 const opening = (member: Member, n: number, amount: string): FundMovement => ({
   id: `fund:2026-10-05:${n}`,
@@ -582,6 +575,29 @@ export const FUND = {
     },
   ] satisfies FundMove[],
 }
+
+/**
+ * El fondo de ejemplo con la forma de `fund_summary.v1`, para cuando el gateway no responde.
+ * Es `FUND` copiado campo por campo (sin cuentas): los números los escribió una persona.
+ */
+export const FUND_EXAMPLE: FundSummary = {
+  currency: FUND.currency,
+  basis: 'last_settlement',
+  valued_at: FUND.navAt,
+  nav: FUND.nav,
+  total_value: FUND.total,
+  total_units: FUND.units,
+  members: FUND.members.map((m) => ({
+    member_id: m.member.id,
+    units: m.units,
+    value: m.value,
+    net_contributions: m.netContributions,
+    pnl: m.pnl,
+  })),
+}
+
+/** El historial de ejemplo (`fund_movement.v1[]`). */
+export const FUND_HISTORY_EXAMPLE: FundMovement[] = FUND.history
 
 export * from './backtest'
 
