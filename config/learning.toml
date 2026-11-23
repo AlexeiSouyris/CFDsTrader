@@ -1,0 +1,15 @@
+# Informe de aprendizaje continuo (fase 8b, spec §15b, #327). Solo informa y PROPONE: ningún
+# valor de acá cambia parámetros del sistema. Cada propuesta de cambio queda "pendiente de voto"
+# (spec §1.2: cambios de reglas o parámetros, 4 de 6 en 48 h).
+# La probabilidad mostrada y sus intervalos usan config/probability.toml (min_cases y z).
+
+[calibration]
+# Límites de los rangos de probabilidad mostrada, en fracción de 0 a 1, estrictamente crecientes.
+# Cada rango es [límite, siguiente límite); el último incluye el 1.
+buckets = ["0", "0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1"]
+# Cuántas propuestas de cada rango se listan para verificar el cálculo a mano.
+sample_per_bucket = 5
+
+[signals]
+# Con menos casos con o sin la señal, el aporte se marca como muestra chica y no genera propuesta.
+min_cases = 30

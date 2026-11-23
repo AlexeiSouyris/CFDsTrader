@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/learning_report.v1.schema.json",
+  "title": "Learning report v1",
+  "description": "Informe de aprendizaje continuo (fase 8b, spec §15b, #327), armado solo con el diario (proposal.v1 + outcome.v1) de un período: calibración de la probabilidad mostrada (§13) con su intervalo de Wilson y una muestra para verificarla a mano, aporte de cada señal (en R) con y sin ella, y propuestas de cambio en texto que citan la evidencia. El sistema nunca se cambia solo: cada propuesta nace 'pendiente_de_voto' (spec §1.2). Fracciones de 0 a 1 y decimales como texto.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["report_id", "created_at", "from", "to", "sources", "proposals", "calibration", "signals", "change_proposals"],
+  "properties": {
+    "report_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,200}$" },
+    "created_at": { "$ref": "#/$defs/utc" },
+    "from": { "$ref": "#/$defs/utc" },
+    "to": { "$ref": "#/$defs/utc" },
+    "sources": { "type": "array", "items": { "enum": ["backtest", "paper", "live"] }, "uniqueItems": true },
+    "proposals": { "description": "Propuestas con resultado evaluadas.", "type": "integer", "minimum": 0 },
+    "calibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rows", "without_probability", "sample"],
+      "properties": {
+        "rows": {
+          "description": "Tabla de confiabilidad: un rango [from, to) de probabilidad mostrada por fila (el último incluye el 1).",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["from", "to", "cases", "hits", "mean_shown", "frequency", "low", "high", "insufficient"],
+            "properties": {
+              "from": { "$ref": "#/$defs/fraction" },
+              "to": { "$ref": "#/$defs/fraction" },
+              "cases": { "type": "integer", "minimum": 0 },
+              "hits": { "type": "integer", "minimum": 0 },
+              "mean_shown": { "$ref": "#/$defs/fraction_or_null" },
+              "frequency": { "description": "Frecuencia real de tocar TP1 antes que el stop.", "$ref": "#/$defs/fraction_or_null" },
+              "low": { "description": "Intervalo de Wilson (z de config/probability.toml).", "$ref": "#/$defs/fraction_or_null" },
+              "high": { "$ref": "#/$defs/fraction_or_null" },
+              "insufficient": { "description": "Menos de min_cases casos: datos insuficientes.", "type": "boolean" }
+            }
+          }
+        },
+        "without_probability": { "description": "Propuestas sin probabilidad mostrada (su grupo tenía datos insuficientes).", "type": "integer", "minimum": 0 },
+        "sample": {
+          "description": "Hasta sample_per_bucket propuestas por rango, las primeras en el tiempo, para verificar la tabla a mano.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["proposal_id", "signal_at", "shown", "hit_tp1", "bucket"],
+            "properties": {
+              "proposal_id": { "type": "string", "minLength": 1 },
+              "signal_at": { "$ref": "#/$defs/utc" },
+              "shown": { "$ref": "#/$defs/fraction" },
+              "hit_tp1": { "type": "boolean" },
+              "bucket": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "signals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["signal", "with", "without", "difference_r", "small_sample"],
+        "properties": {
+          "signal": { "enum": ["trend", "sma_side", "candle_pattern", "double_break", "level_rejection", "sweep", "fvg_or_order_block", "recent_choch", "news"] },
+          "with": { "$ref": "#/$defs/stats" },
+          "without": { "$ref": "#/$defs/stats" },
+          "difference_r": { "description": "R medio con la señal − sin ella.", "$ref": "#/$defs/signed_or_null" },
+          "small_sample": { "type": "boolean" }
+        }
+      }
+    },
+    "change_proposals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["change_id", "kind", "text", "evidence", "status"],
+        "properties": {
+          "change_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,200}$" },
+          "kind": { "enum": ["recalibrate", "review_signal_weight"] },
+          "text": { "type": "string", "minLength": 1 },
+          "evidence": { "description": "Dónde está la evidencia en este informe.", "type": "string", "pattern": "^(calibration\\.rows|signals)\\[\\d+\\]$" },
+          "status": { "const": "pendiente_de_voto" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" },
+    "fraction": { "type": "string", "pattern": "^(0(\\.\\d+)?|1(\\.0+)?)$" },
+    "fraction_or_null": { "oneOf": [{ "$ref": "#/$defs/fraction" }, { "type": "null" }] },
+    "signed_or_null": { "oneOf": [{ "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" }, { "type": "null" }] },
+    "stats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cases", "hits", "hit_rate", "mean_r"],
+      "properties": {
+        "cases": { "type": "integer", "minimum": 0 },
+        "hits": { "type": "integer", "minimum": 0 },
+        "hit_rate": { "$ref": "#/$defs/fraction_or_null" },
+        "mean_r": { "description": "P/L neto en R (R = |referencia − stop| × tamaño), promedio.", "$ref": "#/$defs/signed_or_null" }
+      }
+    }
+  }
+}
