@@ -310,7 +310,7 @@ pub struct PgPaper {
     pub(crate) state: Mutex<(PaperBroker, ReconcileSchedule)>,
     /// Sesión de solo lectura salvo la transacción del registro (`insert_paper_order`).
     pub(crate) store: PgStore,
-    journal: PgJournal,
+    pub(crate) journal: PgJournal,
     pub(crate) gate: Gate,
     pub(crate) ops: Arc<Ops>,
     /// La última reconciliación (al arrancar o periódica), para `GET /api/v1/ops/status` (#314).

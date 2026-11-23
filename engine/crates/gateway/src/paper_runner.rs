@@ -12,16 +12,20 @@
 //! Nunca llama a IG: solo lee lo que la ingesta ya guardó. Con la compuerta fuera de `Ready`
 //! (arrancando o apagándose) no propone; el kill switch lo respeta el runner y el broker.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 
-use cfds_broker::submit_and_record;
-use cfds_core::{Candle, InstrumentId, NewsInterpretation, Timeframe};
+use cfds_broker::{Broker, submit_and_record};
+use cfds_core::{Candle, InstrumentId, NewsInterpretation, OrderStatus, Timeframe};
+use cfds_journal::ShownProbability;
+use cfds_journal::pg::PgJournal;
+use cfds_journal::probability::{ProbabilityConfig, ProbabilityTable};
 use cfds_market_data::{
     Catalog, ExchangeCalendar, NewsFilter, NewsFilterConfig, Session, SpreadFilterConfig,
     TradingWindowConfig, ValidationConfig, spread_flags, trading_window,
 };
 use cfds_obs::{AlertKind, Level};
+use cfds_runner::journal::{paper_outcome, paper_proposal};
 use cfds_runner::{Feed, Runner, RunnerConfig, publish, strategy_from_toml};
 use cfds_strategy::{BacktestInterpreter, Configs, InterpreterCutoff, news_adjustment};
 use chrono::{DateTime, Utc};
@@ -43,6 +47,13 @@ pub struct RunnerDeps {
     pub interpreter: BacktestInterpreter,
     /// Solo noticias publicadas desde acá (corte del modelo intérprete, ADR 0008 §5).
     pub news_published_from: DateTime<Utc>,
+    /// La tabla de la probabilidad mostrada (§13), si `[runner] probability_run_id` está
+    /// configurada ([`RunnerDeps::load_probability`]); sin ella, "datos insuficientes".
+    pub probability: Option<ProbabilityTable>,
+    pub probability_cfg: ProbabilityConfig,
+    /// Propuestas de paper con el resultado ya en el diario (en memoria; tras reiniciar se
+    /// vuelven a mirar y el diario no duplica nada).
+    pub outcomes_done: Mutex<BTreeSet<String>>,
 }
 
 macro_rules! cfg {
@@ -77,7 +88,48 @@ impl RunnerDeps {
             interpreter: BacktestInterpreter::from_toml(cfg!("news_interpreter.toml"))?,
             news_published_from: InterpreterCutoff::from_toml(cfg!("news_interpreter.toml"))?
                 .backtest_published_from(),
+            probability: None,
+            probability_cfg: ProbabilityConfig::from_toml(cfg!("probability.toml"))
+                .map_err(|x| e(&x))?,
+            outcomes_done: Mutex::new(BTreeSet::new()),
         })
+    }
+
+    /// Arma la tabla de la probabilidad mostrada con la corrida de backtest de la config, solo
+    /// con resultados terminados hasta `probability_until` (#333). Sin corrida configurada, no
+    /// hace nada.
+    pub async fn load_probability(&mut self, journal: &PgJournal) -> Result<(), String> {
+        let Some((run, until)) = self.runner.lock().await.config().probability.clone() else {
+            return Ok(());
+        };
+        let pairs: Vec<_> = journal
+            .run_trades(&run)
+            .await
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .filter_map(|t| Some((t.proposal, t.outcome?)))
+            .collect();
+        if pairs.is_empty() {
+            return Err(format!(
+                "la corrida {run} no tiene propuestas con resultado"
+            ));
+        }
+        self.probability = Some(
+            ProbabilityTable::build(&pairs, until, &self.probability_cfg)
+                .map_err(|e| e.to_string())?,
+        );
+        Ok(())
+    }
+
+    /// La probabilidad que se muestra para una propuesta.
+    pub fn shown(&self, p: &cfds_journal::Proposal) -> ShownProbability {
+        match &self.probability {
+            Some(t) => t.shown(p).into(),
+            None => ShownProbability::Insufficient {
+                cases: 0,
+                needed: self.probability_cfg.min_cases,
+            },
+        }
     }
 }
 
@@ -229,20 +281,96 @@ impl PgPaper {
                 now,
             );
             publish(&self.ops.log, &self.ops.alerts, &step.notices, now).await;
-            if let Some(order) = &step.order
-                && let Err(e) = submit_and_record(broker, &self.store, order).await
-            {
-                // El informe quedó en el broker: la parada segura lo guarda si la base vuelve.
-                self.fail(
-                    AlertKind::Disconnect,
-                    "journal_write_failed",
-                    &e.to_string(),
-                    now,
-                )
-                .await;
+            if let (Some(order), Some(signal)) = (&step.order, &step.signal) {
+                // El apalancamiento que decide el riesgo, antes de enviar (la vista previa no
+                // cambia nada).
+                let verdict = broker.preview(order, order.created_at);
+                match submit_and_record(broker, &self.store, order).await {
+                    Ok(report) if report.status == OrderStatus::Filled => {
+                        let (Some(size), Some(leverage)) = (report.size, verdict.leverage) else {
+                            continue;
+                        };
+                        let run_id = runner.config().order_prefix.clone();
+                        let tp1_r = broker.config().exits.tp1_r;
+                        let mut p =
+                            paper_proposal(&run_id, order, signal, tp1_r, size, leverage, None);
+                        p.shown = Some(deps.shown(&p));
+                        if let Err(e) = self.journal.record(&p, None).await {
+                            self.fail(
+                                AlertKind::Disconnect,
+                                "proposal_write_failed",
+                                &e.to_string(),
+                                now,
+                            )
+                            .await;
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        // El informe quedó en el broker: la parada segura lo guarda si la base
+                        // vuelve.
+                        self.fail(
+                            AlertKind::Disconnect,
+                            "journal_write_failed",
+                            &e.to_string(),
+                            now,
+                        )
+                        .await;
+                    }
+                }
             }
             self.drain(broker, now).await;
         }
+        self.record_outcomes(broker, deps, now).await;
         Ok(())
+    }
+
+    /// Los resultados de las operaciones de paper que ya terminaron, al diario (#333). Solo
+    /// cuando la vela de la última salida cerró (`paper_outcome`), y una sola vez.
+    async fn record_outcomes(
+        &self,
+        broker: &mut cfds_broker::PaperBroker,
+        deps: &RunnerDeps,
+        now: DateTime<Utc>,
+    ) {
+        let mut done = deps.outcomes_done.lock().await;
+        let proposals: HashMap<String, String> = broker
+            .journal()
+            .iter()
+            .filter_map(|(o, _)| {
+                Some((o.order_id.to_string(), o.proposal_id.as_ref()?.to_string()))
+            })
+            .collect();
+        for t in broker.trade_outcomes(now) {
+            let Some(pid) = proposals.get(t.order_id.as_str()) else {
+                continue;
+            };
+            if done.contains(pid) {
+                continue;
+            }
+            let Some(outcome) = paper_outcome(pid, &t) else {
+                continue;
+            };
+            let written = match self.journal.proposal(pid).await {
+                Ok(Some(p)) => self.journal.record(&p, Some(&outcome)).await.map(|_| ()),
+                // Sin propuesta en el diario (por ejemplo, una orden del ticket manual): nada.
+                Ok(None) => Ok(()),
+                Err(e) => Err(e),
+            };
+            match written {
+                Ok(()) => {
+                    done.insert(pid.clone());
+                }
+                Err(e) => {
+                    self.fail(
+                        AlertKind::Disconnect,
+                        "outcome_write_failed",
+                        &e.to_string(),
+                        now,
+                    )
+                    .await;
+                }
+            }
+        }
     }
 }

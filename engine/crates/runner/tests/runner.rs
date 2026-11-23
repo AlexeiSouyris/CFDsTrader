@@ -210,12 +210,35 @@ fn first_proposal(m15: &[Candle]) -> usize {
 fn the_repo_config_is_valid_and_off_by_default() {
     let c = RunnerConfig::from_toml(cfg!("runner.toml")).unwrap();
     assert!(!c.enabled, "el runner arranca apagado");
+    assert_eq!(c.probability, None, "sin corrida: datos insuficientes");
+    let with = cfg!("runner.toml").replacen(
+        "enabled = false",
+        "enabled = false\nprobability_run_id = \"bt-1\"\nprobability_until = \"2025-11-01T00:00:00Z\"",
+        1,
+    );
+    assert_eq!(
+        RunnerConfig::from_toml(&with).unwrap().probability,
+        Some(("bt-1".into(), utc("2025-11-01T00:00:00Z")))
+    );
     for (old, new) in [
         ("poll_secs = 30", "poll_secs = 0"),
         ("lookback_days = 15", "lookback_days = 0"),
         ("stale_after_minutes = 45", "stale_after_minutes = 5"),
         ("order_prefix = \"run\"", "order_prefix = \"a b\""),
         ("enabled = false", "enabled = false\nlive = true"),
+        // #333: la corrida de la probabilidad y su fecha van juntas y bien formadas.
+        (
+            "enabled = false",
+            "enabled = false\nprobability_run_id = \"bt-1\"",
+        ),
+        (
+            "enabled = false",
+            "enabled = false\nprobability_run_id = \"a b\"\nprobability_until = \"2025-11-01T00:00:00Z\"",
+        ),
+        (
+            "enabled = false",
+            "enabled = false\nprobability_run_id = \"bt-1\"\nprobability_until = \"ayer\"",
+        ),
     ] {
         let bad = cfg!("runner.toml").replacen(old, new, 1);
         assert_ne!(bad, cfg!("runner.toml"));

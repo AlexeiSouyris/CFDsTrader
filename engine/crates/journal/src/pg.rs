@@ -137,6 +137,11 @@ impl PgJournal {
         outcome: Option<&Outcome>,
     ) -> Result<Recorded, JournalError> {
         let mut tx = self.pool.begin().await?;
+        // El gateway abre la sesión en solo lectura: el diario del runner de paper (#333) es una
+        // de sus escrituras declaradas. Con una sesión normal no cambia nada.
+        sqlx::query("SET TRANSACTION READ WRITE")
+            .execute(&mut *tx)
+            .await?;
         let mut inserted = insert_proposal(&mut tx, proposal).await?;
         if let Some(o) = outcome {
             if o.proposal_id != proposal.id {
