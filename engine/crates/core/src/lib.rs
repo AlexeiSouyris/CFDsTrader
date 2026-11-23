@@ -11,6 +11,7 @@ pub mod daily_indicator;
 pub mod daily_vol_tercile;
 pub mod decimal_str;
 pub mod economic_event;
+pub mod emotional_state;
 pub mod futures_bar;
 pub mod imbalance;
 pub mod instrument;
@@ -33,6 +34,9 @@ pub use daily_drawdown::DailyDrawdown;
 pub use daily_indicator::DailyIndicator;
 pub use daily_vol_tercile::{DailyVolTercile, VolTercile};
 pub use economic_event::{EconomicEvent, Impact};
+pub use emotional_state::{
+    ActiveEmotion, EmotionBasis, EmotionKind, EmotionSource, EmotionalState,
+};
 pub use futures_bar::{FuturesBar, FuturesCandle};
 pub use imbalance::{Imbalance, ImbalanceLabel};
 pub use instrument::{AssetClass, Instrument, InstrumentId};

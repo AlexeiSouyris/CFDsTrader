@@ -27,6 +27,7 @@ use cfds_core::Instrument;
 use cfds_fund::FundConfig;
 use cfds_fund::pg::PgFund;
 use cfds_gateway::context::{ContextConfig, is_context_route, respond_context};
+use cfds_gateway::emotions::{is_emotions_route, respond_emotions};
 use cfds_gateway::fund::{is_fund_route, respond_fund};
 use cfds_gateway::ops::url_password;
 use cfds_gateway::paper::{HttpIn, Ops, PaperConfig, PgPaper, is_paper_route, respond_paper};
@@ -161,6 +162,15 @@ async fn handle(
             req.method().as_str(),
             req.uri().path(),
             req.uri().query(),
+        )
+        .await
+    } else if is_emotions_route(req.uri().path()) {
+        respond_emotions(
+            &state.source.store,
+            req.method().as_str(),
+            req.uri().path(),
+            req.uri().query(),
+            chrono::Utc::now(),
         )
         .await
     } else if is_context_route(req.uri().path()) {

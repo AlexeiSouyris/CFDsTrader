@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AnalogDistribution, SentimentGauge } from '@/components/ui/market-context'
-import type { AnalogReport, SentimentIndex } from '@/lib/context-contracts'
+import type { AnalogReport, EmotionalState, SentimentIndex } from '@/lib/context-contracts'
 import { signedPercent } from '@/lib/format'
 import { MarketContextView } from '@/views/market-context'
 
@@ -59,13 +59,14 @@ const report = (id: string, count: number): AnalogReport => {
   }
 }
 
-/** Un gateway falso con las tres lecturas del contexto. */
-function gateway(analogs: AnalogReport[]) {
+/** Un gateway falso con las lecturas del contexto. */
+function gateway(analogs: AnalogReport[], emotions: EmotionalState[] = []) {
   return vi.fn(async (input: string | URL | Request) => {
     const url = new URL(String(input), 'http://ui.test')
     const inst = url.searchParams.get('instrument')
     let body: unknown
     if (url.pathname === '/api/v1/analogs') body = analogs
+    else if (url.pathname === '/api/v1/emotions') body = emotions
     else if (inst)
       body = [
         sentiment(inst, '-0.1', '18'),
@@ -127,6 +128,87 @@ describe('contexto de mercado del Panel (#294)', () => {
     expect(container.textContent).not.toMatch(
       /ganancia (segura|garantizada)|garantiz|asegurad|va a subir|va a bajar|comprá|vendé/i,
     )
+  })
+
+  it('los estados emocionales van al lado del índice, con los valores de su regla (#220)', async () => {
+    // Datos sintéticos con la forma de emotional_state.v1, tal como los calcularía el motor.
+    const emotions: EmotionalState[] = [
+      {
+        instrument_id: 'US500.FUT',
+        source: 'price',
+        basis: '1h',
+        as_of: '2026-11-20T21:00:00Z',
+        states: [
+          {
+            state: 'selling_climax',
+            values: {
+              close: '5810.5',
+              ema: '5902.25',
+              atr: '28.4',
+              stretch: '-3.2306',
+              atr_multiple: '3',
+              lookback: '20',
+            },
+          },
+          { state: 'rejection', values: { side: 'long', via: 'level,sweep' } },
+        ],
+      },
+      {
+        instrument_id: 'US500.FUT',
+        source: 'price',
+        basis: '15m',
+        as_of: '2026-11-20T21:15:00Z',
+        states: [],
+      },
+      {
+        instrument_id: 'US500.FUT',
+        source: 'sentiment',
+        basis: 'sentiment_index',
+        as_of: '2026-11-20T23:00:00Z',
+        states: [{ state: 'extreme_fear', values: { index: '-0.72', threshold: '-0.6' } }],
+      },
+      {
+        instrument_id: 'US100.FUT',
+        source: 'price',
+        basis: '1h',
+        as_of: '2026-11-20T21:00:00Z',
+        states: [],
+      },
+    ]
+    const fetch = gateway([], emotions)
+    vi.stubGlobal('fetch', fetch)
+    render(<MarketContextView />)
+    // Primero US100.FUT: sin estados activos.
+    const list = await screen.findByLabelText('Estados emocionales')
+    expect(list).toHaveTextContent('Ninguno activo.')
+    fireEvent.click(screen.getByRole('button', { name: 'US500.FUT' }))
+    await screen.findByText('Miedo extremo')
+    const all = screen.getByLabelText('Estados emocionales')
+    // El índice primero, después 1h y 15m.
+    expect(
+      [...all.querySelectorAll('[data-basis]')].map((s) => s.getAttribute('data-basis')),
+    ).toEqual(['sentiment_index', '1h', '15m'])
+    expect(all.querySelector('[data-state="extreme_fear"]')).toHaveTextContent(
+      'índice −0,72 ≤ −0,6',
+    )
+    const climax = all.querySelector('[data-state="selling_climax"]')!
+    // Los valores tal como llegan, solo con coma: la UI no los recalcula.
+    expect(climax).toHaveTextContent('(cierre − EMA) / ATR = −3,2306 (umbral 3)')
+    expect(climax).toHaveTextContent('cierre 5.810,5, EMA 5.902,25, ATR 28,4')
+    expect(climax).toHaveTextContent('mínimo de 20 velas')
+    expect(all.querySelector('[data-state="rejection"]')).toHaveTextContent(
+      'alcista · por soporte o resistencia, sweep',
+    )
+    expect(screen.getByText(/no un pronóstico/)).toBeInTheDocument()
+    expect(fetch).toHaveBeenCalledWith('/api/v1/emotions', expect.anything())
+  })
+
+  it('sin estados guardados lo dice', async () => {
+    vi.stubGlobal('fetch', gateway([]))
+    render(<MarketContextView />)
+    expect(
+      await screen.findByText('Sin estados guardados para este instrumento.'),
+    ).toBeInTheDocument()
   })
 
   it('el porcentaje con signo mueve la coma en el texto', () => {

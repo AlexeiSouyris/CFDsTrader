@@ -11,9 +11,14 @@ cfds-core = { version = "0.1.0", path = "../core" }
 cfds-indicators = { version = "0.1.0", path = "../indicators" }
 cfds-liquidity = { version = "0.1.0", path = "../liquidity" }
 cfds-patterns = { version = "0.1.0", path = "../patterns" }
+cfds-regime = { version = "0.1.0", path = "../regime" }
 rust_decimal = { version = "1.43.0", features = ["macros"] }
 serde = { version = "1.0.229", features = ["derive"] }
 toml = "0.9"
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+jsonschema = { version = "0.61.2", default-features = false }
+serde_json = "1.0.154"

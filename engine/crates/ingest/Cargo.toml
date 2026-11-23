@@ -19,6 +19,8 @@ workspace = true
 [dev-dependencies]
 cfds-liquidity = { version = "0.1.0", path = "../liquidity" }
 cfds-patterns = { version = "0.1.0", path = "../patterns" }
+cfds-regime = { version = "0.1.0", path = "../regime" }
+cfds-strategy = { version = "0.1.0", path = "../strategy" }
 redis = { version = "1.8.2", default-features = false, features = ["tokio-comp", "aio"] }
 rust_decimal = { version = "1.43.0", features = ["macros"] }
 sqlx = { version = "0.9.1", default-features = false, features = ["runtime-tokio", "postgres"] }

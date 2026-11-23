@@ -5,6 +5,7 @@
 //! se prueba sola. `evidence` arma esa evidencia desde las velas cerradas de 15m y 1h.
 
 pub mod config;
+pub mod emotions;
 pub mod evidence;
 pub mod mtf;
 pub mod news;
@@ -13,6 +14,7 @@ pub mod stop;
 
 pub use cfds_liquidity::Side;
 pub use config::{EvidenceConfig, NewsConfig, ScoreConfig, StopConfig, StrategyConfig};
+pub use emotions::{h1_rejections, price_emotional_states};
 pub use evidence::{Analysis, Configs, Signal};
 pub use mtf::align_closed;
 pub use news::{
