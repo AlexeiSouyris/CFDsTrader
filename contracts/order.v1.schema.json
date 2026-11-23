@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/order.v1.schema.json",
+  "title": "Order v1",
+  "description": "Una orden de mercado para el broker (fase 7, #278). Hoy solo existe el broker simulado (paper): no hay forma de enviar una orden real (CLAUDE.md §5, fase 11). Se ejecuta en la apertura de la vela siguiente a created_at (spec §6). No lleva tamaño: el tamaño lo calcula solo el módulo de riesgo (cfds-risk `check`), sin otro camino (spec §8). El stop es obligatorio.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["order_id", "mode", "instrument_id", "side", "stop", "tp1", "proposal_id", "created_at"],
+  "properties": {
+    "order_id": {
+      "description": "Id propio e idempotente: mandar dos veces el mismo order_id nunca abre dos posiciones (el broker devuelve el informe de la primera).",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,200}$"
+    },
+    "mode": {
+      "description": "Solo 'paper'. El modo real no existe en v1.",
+      "const": "paper"
+    },
+    "instrument_id": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" },
+    "side": { "enum": ["long", "short"] },
+    "stop": { "description": "Stop obligatorio, en precio del instrumento.", "$ref": "#/$defs/decimal" },
+    "tp1": { "description": "Primer objetivo (spec §8), o null.", "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+    "proposal_id": {
+      "description": "La propuesta (proposal.v1) que la originó, o null si es un ticket manual.",
+      "oneOf": [{ "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,200}$" }, { "type": "null" }]
+    },
+    "created_at": { "description": "Cuándo se creó la orden, en UTC.", "$ref": "#/$defs/utc" }
+  },
+  "$defs": {
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" },
+    "decimal": { "description": "Decimal exacto como string, nunca número JSON.", "type": "string", "pattern": "^\\d+(\\.\\d+)?$" }
+  }
+}

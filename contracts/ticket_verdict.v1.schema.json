@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/ticket_verdict.v1.schema.json",
+  "title": "Ticket verdict v1",
+  "description": "Lo que respondería el módulo de riesgo a una orden (order.v1) **sin enviarla** (fase 7, #278): si la acepta, con qué tamaño, riesgo, apalancamiento y margen, o por qué la rechaza. La UI lo muestra y no calcula nada (CLAUDE.md §1). Lo arma el motor con cfds-risk `check` sobre el último cierre; la ejecución real se hace después en la apertura siguiente. Montos de riesgo en la moneda de la cuenta (EUR); precio y margen, en la del instrumento.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["order_id", "accepted", "rejection", "reference", "size", "risk", "risk_pct", "leverage", "margin", "leverage_capped", "as_of"],
+  "properties": {
+    "order_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,200}$" },
+    "accepted": { "type": "boolean" },
+    "rejection": {
+      "description": "Motivo del rechazo, o null si se acepta. Los mismos códigos que order_report.v1 (un test comprueba que las dos listas sean iguales).",
+      "oneOf": [{ "$ref": "#/$defs/rejection" }, { "type": "null" }]
+    },
+    "reference": { "description": "Precio de referencia usado (el último cierre), o null si no había.", "$ref": "#/$defs/decimal_or_null" },
+    "size": { "description": "Tamaño aprobado (moneda del instrumento por punto), o null.", "$ref": "#/$defs/decimal_or_null" },
+    "risk": { "description": "Pérdida si salta el stop (sin gaps ni costos), en la moneda de la cuenta, o null.", "$ref": "#/$defs/decimal_or_null" },
+    "risk_pct": { "description": "risk / capital, en %, o null.", "$ref": "#/$defs/decimal_or_null" },
+    "leverage": { "description": "Nocional / capital, ya con el tope aplicado, o null.", "$ref": "#/$defs/decimal_or_null" },
+    "margin": { "$ref": "#/$defs/decimal_or_null" },
+    "leverage_capped": { "description": "true si el tope de apalancamiento redujo el tamaño.", "type": "boolean" },
+    "as_of": { "description": "Cierre de la vela usada, en UTC.", "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "accepted": { "const": true } } },
+      "then": { "properties": { "rejection": { "type": "null" }, "size": { "type": "string" }, "risk": { "type": "string" }, "risk_pct": { "type": "string" }, "leverage": { "type": "string" }, "margin": { "type": "string" } } },
+      "else": { "properties": { "rejection": { "type": "string" }, "size": { "type": "null" }, "risk": { "type": "null" }, "risk_pct": { "type": "null" }, "leverage": { "type": "null" }, "margin": { "type": "null" } } }
+    }
+  ],
+  "$defs": {
+    "decimal_or_null": { "oneOf": [{ "type": "string", "pattern": "^\\d+(\\.\\d+)?$" }, { "type": "null" }] },
+    "rejection": {
+      "enum": [
+        "invalid_input", "kill_switch_active", "drawdown_limit", "daily_loss_limit", "max_open_positions",
+        "instrument_already_open", "stop_too_close", "stop_too_far", "insufficient_margin",
+        "below_min_deal_size", "min_deal_size_unknown", "no_price", "unknown_instrument", "stop_wrong_side"
+      ]
+    }
+  }
+}

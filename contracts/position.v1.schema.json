@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/position.v1.schema.json",
+  "title": "Position v1",
+  "description": "Una posición abierta del broker simulado (fase 7, #278), valuada al cierre de la última vela (as_of). La calcula el motor; la UI la muestra sin calcular nada. Precios y P/L en la moneda del instrumento; el P/L ya descuenta la comisión de entrada.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["position_id", "order_id", "instrument_id", "side", "size", "entry", "stop", "tp1", "opened_at", "last", "unrealized_pl", "unrealized_r", "margin", "as_of"],
+  "properties": {
+    "position_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,200}$" },
+    "order_id": { "description": "La orden (order.v1) que la abrió.", "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,200}$" },
+    "instrument_id": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" },
+    "side": { "enum": ["long", "short"] },
+    "size": { "description": "Moneda del instrumento por punto.", "$ref": "#/$defs/decimal" },
+    "entry": { "description": "Precio de ejecución (con spread y slippage).", "$ref": "#/$defs/decimal" },
+    "stop": { "$ref": "#/$defs/decimal" },
+    "tp1": { "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+    "opened_at": { "$ref": "#/$defs/utc" },
+    "last": { "description": "Cierre de la última vela (precio medio).", "$ref": "#/$defs/decimal" },
+    "unrealized_pl": { "description": "P/L no realizado, con signo.", "$ref": "#/$defs/signed_decimal" },
+    "unrealized_r": { "description": "P/L no realizado en múltiplos de R (distancia entrada–stop), con signo.", "$ref": "#/$defs/signed_decimal" },
+    "margin": { "$ref": "#/$defs/decimal" },
+    "as_of": { "description": "Cierre de la vela con la que se valuó.", "$ref": "#/$defs/utc" }
+  },
+  "$defs": {
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" },
+    "decimal": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "signed_decimal": { "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" }
+  }
+}
