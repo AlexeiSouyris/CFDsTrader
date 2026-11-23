@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/vix_daily.v1.schema.json",
+  "title": "VIX daily v1",
+  "description": "Un día del Cboe Volatility Index (VIX): apertura, máximo, mínimo y cierre, tal como los publica Cboe en su CSV histórico oficial (ADR 0012 §2). Se usa por decisión del dueño, solo en la base del Mac: nunca va al repo ni se redistribuye. Solo se agrega, nunca se modifica: una corrección de Cboe es otro registro con otra published_at. Lo escribe Python (intelligence/, cfds_intel.vix); es contexto, no entra al puntaje.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ref_date", "published_at", "open", "high", "low", "close"],
+  "properties": {
+    "ref_date": {
+      "description": "Día de operación de Cboe al que corresponde el valor, AAAA-MM-DD.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "published_at": {
+      "description": "Desde cuándo el valor estuvo disponible para el sistema, en UTC (ADR 0012): el día hábil siguiente de la serie a las 09:30 ET, o la hora en que se leyó si es el último valor. Nunca antes del cierre del VIX (16:15 ET) de ref_date. Nada lo puede usar antes (CLAUDE.md §5b).",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "open": { "$ref": "#/$defs/level" },
+    "high": { "$ref": "#/$defs/level" },
+    "low": { "$ref": "#/$defs/level" },
+    "close": { "$ref": "#/$defs/level" }
+  },
+  "$defs": {
+    "level": {
+      "description": "Nivel del índice como string decimal exacto, nunca número JSON.",
+      "type": "string",
+      "pattern": "^\\d+(\\.\\d+)?$"
+    }
+  }
+}

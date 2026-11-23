@@ -24,6 +24,7 @@ from decimal import Decimal, InvalidOperation
 from itertools import pairwise
 from zoneinfo import ZoneInfo
 
+from cfds_intel.daily_publication import PublicationError, published_times
 from cfds_intel.net import https_get
 
 #: Columna del CSV del Tesoro → plazo de `treasury_yield.v1`. Una columna nueva rechaza todo:
@@ -156,21 +157,22 @@ def parse_csv(text: str) -> list[Row]:
 
 def to_yields(rows: list[Row], cfg: TreasuryConfig, retrieved_at: datetime) -> list[TreasuryYield]:
     """Filas en orden → registros con su hora de publicación, sin adelantarla nunca."""
-    if retrieved_at.tzinfo is None:
-        raise TreasuryError("retrieved_at tiene que tener zona horaria")
-    read = retrieved_at.astimezone(UTC)
-    out: list[TreasuryYield] = []
-    for i, (day, values) in enumerate(rows):
-        if i + 1 < len(rows):
-            nxt = datetime.combine(rows[i + 1][0], cfg.publication_time, cfg.publication_tz)
-            published = nxt.astimezone(UTC)
-        else:
-            published = read
-        inputs = datetime.combine(day, INPUTS_AT, NEW_YORK).astimezone(UTC)
-        if published < inputs:
-            raise TreasuryError(f"{day}: leído antes de que el Tesoro tomara los precios")
-        out.extend(TreasuryYield(t, day, published, v) for t, v in sorted(values.items()))
-    return out
+    try:
+        times = published_times(
+            [day for day, _ in rows],
+            cfg.publication_time,
+            cfg.publication_tz,
+            retrieved_at,
+            INPUTS_AT,
+            NEW_YORK,
+        )
+    except PublicationError as e:
+        raise TreasuryError(str(e)) from e
+    return [
+        TreasuryYield(t, day, published, v)
+        for (day, values), published in zip(rows, times, strict=True)
+        for t, v in sorted(values.items())
+    ]
 
 
 Opener = Callable[[urllib.request.Request, int], bytes]

@@ -1,0 +1,21 @@
+# VIX diario de Cboe (ADR 0012 §2). Se usa por decisión del dueño, contra los términos de Cboe
+# ("store … in an electronic retrieval system" requiere consentimiento escrito): uso solo
+# personal, datos solo en la base del Mac, nunca en el repo ni redistribuidos.
+
+[api]
+# El CSV oficial de la página "VIX historical data" de cboe.com (redirige a cdn-api.cboe.com).
+# Si responde 403 o un desafío anti-bots, el comando se frena: no se esquiva nada.
+csv_url = "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv"
+user_agent = "cfds-intel/0.1 (automated data reader)"
+timeout_secs = 60
+
+[load]
+# Se guardan los días desde esta fecha (el CSV trae desde 1990).
+start = "2019-01-01"
+
+[publication]
+# El VIX cierra a las 16:15 ET y Cboe no documenta a qué hora actualiza el CSV. Holgura: en el
+# histórico, cada valor vale recién desde el día hábil siguiente de la serie a esta hora (antes
+# de la apertura de Nueva York). El último valor publicado vale desde que el sistema lo leyó.
+time = "09:30"
+timezone = "America/New_York"
