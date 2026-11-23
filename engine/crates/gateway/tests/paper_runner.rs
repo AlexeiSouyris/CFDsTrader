@@ -114,3 +114,80 @@ fn only_interpretations_of_the_pinned_model_count() {
         Some(interpreter.model.as_str())
     );
 }
+
+/// #333: la propuesta de paper guarda la probabilidad que se mostró; sin la corrida configurada,
+/// "datos insuficientes" con 0 casos.
+#[test]
+fn the_shown_probability_comes_from_the_configured_table() {
+    use cfds_journal::probability::ProbabilityTable;
+    use cfds_journal::{
+        BreakdownItem, Direction, Exit, Outcome, OutcomeKind, Proposal, Reason, ShownProbability,
+        Signal, Source,
+    };
+    let at = |i: i64| {
+        "2025-01-06T15:00:00Z".parse::<DateTime<Utc>>().unwrap() + chrono::Duration::minutes(15 * i)
+    };
+    let pair = |i: i64, source: Source, hit: bool| {
+        let p = Proposal {
+            id: format!("x:US100:{i}:long"),
+            source,
+            run_id: "x".into(),
+            instrument_id: "US100".parse().unwrap(),
+            side: Direction::Long,
+            signal_at: at(i),
+            reference: dec!(100),
+            stop: dec!(99),
+            tp1: dec!(102),
+            size: dec!(1),
+            leverage: dec!(1),
+            score: 5,
+            breakdown: vec![BreakdownItem {
+                component: Signal::Trend,
+                points: 2,
+            }],
+            triggers: vec![Signal::CandlePattern],
+            shown: None,
+        };
+        let o = Outcome {
+            proposal_id: p.id.clone(),
+            kind: OutcomeKind::Simulated,
+            entry_at: at(i),
+            entry_price: dec!(100),
+            exits: vec![Exit {
+                at: at(i + 1),
+                price: dec!(100),
+                fraction: dec!(1),
+                reason: Reason::Stop,
+            }],
+            commission: dec!(0),
+            funding: dec!(0),
+            gross_pnl: dec!(0),
+            net_pnl: dec!(0),
+            hit_tp1: hit,
+            hit_stop: !hit,
+            exit_reason: Reason::Stop,
+        };
+        (p, o)
+    };
+    let mut d = deps();
+    let (paper, _) = pair(1000, Source::Paper, true);
+    assert_eq!(
+        d.shown(&paper),
+        ShownProbability::Insufficient {
+            cases: 0,
+            needed: d.probability_cfg.min_cases
+        }
+    );
+    let train: Vec<_> = (0..40)
+        .map(|i| pair(i, Source::Backtest, i % 2 == 0))
+        .collect();
+    d.probability = Some(ProbabilityTable::build(&train, at(10_000), &d.probability_cfg).unwrap());
+    assert!(matches!(
+        d.shown(&paper),
+        ShownProbability::Estimate {
+            cases: 40,
+            hits: 20,
+            ..
+        }
+    ));
+}

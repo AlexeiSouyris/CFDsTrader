@@ -17,3 +17,9 @@ stale_after_minutes = 45
 # Prefijo de los ids de orden: <prefijo>:<instrumento>:<cierre de la vela de la decisión>.
 # El mismo id para la misma decisión hace que un reinicio no duplique órdenes.
 order_prefix = "run"
+# Probabilidad mostrada (spec §13) que se guarda con cada propuesta de paper (#333): la tabla se
+# arma con una corrida de backtest guardada, solo con los resultados terminados hasta
+# probability_until (el inicio del fuera de muestra de config/data_split.toml). Van las dos
+# juntas. Sin ellas, cada propuesta guarda "datos insuficientes" (0 casos). Ejemplo:
+# probability_run_id = "bt-de40-2025"
+# probability_until = "2025-11-01T00:00:00Z"

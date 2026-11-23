@@ -38,6 +38,9 @@ pub struct RunnerConfig {
     pub lookback: TimeDelta,
     pub stale_after: TimeDelta,
     pub order_prefix: String,
+    /// Corrida de backtest con la que se arma la probabilidad mostrada (§13) de las propuestas
+    /// de paper, y hasta cuándo cuentan sus resultados (#333). `None`: "datos insuficientes".
+    pub probability: Option<(String, DateTime<Utc>)>,
 }
 
 impl RunnerConfig {
@@ -54,6 +57,10 @@ impl RunnerConfig {
             lookback_days: u32,
             stale_after_minutes: u32,
             order_prefix: String,
+            #[serde(default)]
+            probability_run_id: Option<String>,
+            #[serde(default)]
+            probability_until: Option<String>,
         }
         let r = toml::from_str::<Raw>(text)
             .map_err(|e| e.to_string())?
@@ -74,12 +81,34 @@ impl RunnerConfig {
         if !prefix_ok {
             return Err("runner.order_prefix: de 1 a 20 letras, números, '.', '_' o '-'".into());
         }
+        let probability = match (r.probability_run_id, r.probability_until) {
+            (None, None) => None,
+            (Some(run), Some(until)) => {
+                let ok = (1..=100).contains(&run.len())
+                    && run
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'));
+                if !ok {
+                    return Err("runner.probability_run_id: un run_id válido".into());
+                }
+                let until = until
+                    .parse::<DateTime<Utc>>()
+                    .map_err(|_| "runner.probability_until: fecha UTC".to_string())?;
+                Some((run, until))
+            }
+            _ => {
+                return Err(
+                    "runner.probability_run_id y probability_until van juntos (o ninguno)".into(),
+                );
+            }
+        };
         Ok(Self {
             enabled: r.enabled,
             poll: std::time::Duration::from_secs(r.poll_secs),
             lookback: TimeDelta::days(i64::from(r.lookback_days)),
             stale_after: TimeDelta::minutes(i64::from(r.stale_after_minutes)),
             order_prefix: r.order_prefix,
+            probability,
         })
     }
 }

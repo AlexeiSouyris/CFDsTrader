@@ -531,3 +531,57 @@ async fn the_run_detail_route_reads_one_run_with_its_curve_and_trades() {
         "/api/v1/backtest_runs/x"
     ));
 }
+
+/// #333: el diario del runner de paper se escribe desde la sesión de solo lectura del gateway
+/// (su transacción se declara de escritura), y nada más se puede escribir.
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn the_read_only_session_can_write_the_paper_journal() {
+    use cfds_journal::pg::{PgJournal, Recorded};
+    use cfds_journal::{BreakdownItem, Direction, Proposal, Signal, Source};
+    let url = std::env::var("DATABASE_URL").expect("necesita PostgreSQL: DATABASE_URL");
+    let rw = cfds_storage::PgStore::connect(&url).await.unwrap();
+    rw.migrate().await.unwrap();
+    rw.upsert_instrument(&cfds_core::Instrument {
+        id: "US100".parse().unwrap(),
+        name: "US Tech 100".into(),
+        asset_class: cfds_core::AssetClass::Index,
+        currency: cfds_core::Currency::USD,
+        exchange_timezone: "America/New_York".into(),
+    })
+    .await
+    .unwrap();
+    let ro = cfds_storage::PgStore::connect(&cfds_gateway::read_only_url(&url))
+        .await
+        .unwrap();
+    let tag = format!("ro{}", Utc::now().timestamp_nanos_opt().unwrap());
+    let p = Proposal {
+        id: format!("{tag}:US100:2026-01-05T10:00:00Z:long"),
+        source: Source::Paper,
+        run_id: tag.clone(),
+        instrument_id: "US100".parse().unwrap(),
+        side: Direction::Long,
+        signal_at: "2026-01-05T10:00:00Z".parse().unwrap(),
+        reference: dec!(100),
+        stop: dec!(99),
+        tp1: dec!(102),
+        size: dec!(1),
+        leverage: dec!(1),
+        score: 5,
+        breakdown: vec![BreakdownItem {
+            component: Signal::Trend,
+            points: 2,
+        }],
+        triggers: vec![Signal::CandlePattern],
+        shown: None,
+    };
+    let j = PgJournal::new(ro.pool().clone());
+    assert_eq!(j.record(&p, None).await.unwrap(), Recorded::Inserted);
+    assert!(
+        sqlx::query("UPDATE instruments SET name = name WHERE id = 'US100'")
+            .execute(ro.pool())
+            .await
+            .is_err(),
+        "la sesión sigue siendo de solo lectura"
+    );
+}

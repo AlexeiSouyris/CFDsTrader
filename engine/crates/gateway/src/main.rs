@@ -408,6 +408,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|s| s.instrument.clone())
             .collect(),
     });
+    // La probabilidad mostrada de las propuestas de paper (§13, #333), si está configurada.
+    let runner = match runner {
+        Some(mut deps) => {
+            let journal = cfds_journal::pg::PgJournal::new(state.source.store.pool().clone());
+            match deps.load_probability(&journal).await {
+                Ok(()) => Some(deps),
+                Err(e) => {
+                    log.log(
+                        Level::Error,
+                        "runner",
+                        "not_started",
+                        json!({ "reason": format!("probabilidad mostrada: {e}") }),
+                    );
+                    None
+                }
+            }
+        }
+        None => None,
+    };
     match (runner, &state.paper) {
         (Some(deps), Some(_)) => {
             log.log(
