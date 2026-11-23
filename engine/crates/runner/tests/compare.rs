@@ -499,3 +499,55 @@ fn assert_contract(c: &Comparison) {
     let errors: Vec<String> = v.iter_errors(&doc).map(|e| e.to_string()).collect();
     assert!(errors.is_empty(), "{errors:?}");
 }
+
+/// El broker simulado real aplica el mismo cierre de fin de semana que el backtest (#334): con
+/// las mismas marcas de la sesión, cruzando fines de semana, la causa `weekend_close` da cero.
+#[test]
+fn the_real_paper_broker_closes_on_weekends_like_the_backtest() {
+    use cfds_market_data::{Catalog, ExchangeCalendar, TradingWindowConfig, trading_window};
+    let (m15, h1) = walk();
+    let catalog = Catalog::from_toml(cfg!("instruments.toml")).unwrap();
+    let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../config");
+    let calendar = ExchangeCalendar::load(&dir, catalog.exchange_map()).unwrap();
+    let session = calendar.session_for(&id()).unwrap();
+    let window = TradingWindowConfig::from_toml(cfg!("trading_window.toml")).unwrap();
+    let (_, force) = trading_window::flags(session, &m15, &window).unwrap();
+    let report = run_checked(&m15, &h1, &[], &force, &[], &setup(dec!(2))).unwrap();
+    let forced = report
+        .trades
+        .iter()
+        .filter(|t| {
+            t.exits
+                .iter()
+                .any(|e| e.reason == CloseReason::Exit(cfds_backtest::ExitReason::Forced))
+        })
+        .count();
+    assert!(
+        forced > 0,
+        "la serie tiene que cruzar un cierre de semana con una posición"
+    );
+    let markets = broker(&m15, dec!(2)).markets().clone();
+    let cfg = broker_cfg().with_calendar(&calendar, [&id()]).unwrap();
+    let mut b = PaperBroker::new(cfg, markets);
+    for (k, t) in report.trades.iter().enumerate() {
+        b.submit(&Order {
+            order_id: format!("bt:{k}").parse().unwrap(),
+            mode: PaperMode::Paper,
+            instrument_id: id(),
+            side: side(t.side),
+            stop: t.stop,
+            tp1: None,
+            proposal_id: None,
+            created_at: t.signal_at,
+        });
+    }
+    let c = run_compare(&m15, &report, &b);
+    assert_explained(&c);
+    assert_eq!(c.matched.len(), report.trades.len());
+    assert_eq!(c.causes.weekend_close, Decimal::ZERO, "{:#?}", c.causes);
+    assert_eq!(c.difference, Decimal::ZERO);
+    for m in &c.matched {
+        assert_eq!(m.paper.exit_time, m.backtest.exit_time);
+        assert_eq!(m.difference.net_pnl, Decimal::ZERO);
+    }
+}

@@ -296,13 +296,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
     let backtest = BacktestConfig::from_toml(BACKTEST)?;
+    // Con la sesión de cada instrumento: el cierre de fin de semana de la spec §8 (#334).
+    let calendar = cfds_market_data::ExchangeCalendar::load(&config_dir(), catalog.exchange_map())?;
     let broker_cfg = BrokerConfig::from_toml(
         BROKER,
         risk,
         backtest.costs,
         backtest.exits,
         backtest.day_tz,
-    )?;
+    )?
+    .with_calendar(&calendar, catalog.instruments.keys())?;
     let paper = match PgPaper::start(
         store.clone(),
         &catalog,

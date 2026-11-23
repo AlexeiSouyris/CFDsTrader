@@ -8,7 +8,8 @@
 //!   emparejadas → diferencias de entrada, salida, tamaño y P/L
 //!   faltan en paper (el backtest operó) · sobran en paper (el backtest no operó)
 //! diferencia total = P/L paper − P/L backtest, repartida por causa (la suma da exacto):
-//!   cierre de fin de semana (el backtest cerró por Forced: el broker simulado no lo hace, #278)
+//!   cierre de fin de semana (el backtest cerró por Forced y paper no: desde #334 el broker
+//!   aplica la misma regla, así que solo aparece si le falta la sesión del instrumento)
 //!   precio de ejecución · tamaño · comisión · swap (en las emparejadas)
 //!   rechazo del riesgo (un lado rechazó lo que el otro operó)
 //!   falta en paper / sobra en paper (sin un rechazo que lo explique)
