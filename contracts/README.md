@@ -263,6 +263,15 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - **UI** (#316): el gateway lo sirve con `GET /api/v1/walk_forward?instrument=<id>` (el último, o `null`) y `GET /api/v1/walk_forward/{report_id}`. El bloque "Walk-forward / fuera de muestra" del detalle de una corrida (#304, `data-walk-forward`) muestra el último reporte del mismo `instrument_id` y `candle_source` (índice `(instrument_id, computed_at)`) tal cual llega: cada tramo trae sus métricas y comprar y mantener, sin nada que calcular en la UI.
 - Lo escribe **solo Rust** (`PgJournal::record_walk_forward`, migración 0031, solo agregar con trigger). El mismo reporte (salvo `computed_at`) no guarda nada; con otro contenido es un error.
 
+### Comparación paper vs backtest (fase 8, #315)
+
+| Contrato | Contenido |
+|---|---|
+| `paper_comparison.v1` | Paper trading (registro del broker simulado) contra el backtest del mismo período, sobre las mismas velas cerradas y la misma config. Las operaciones se emparejan por la vela de la decisión. Trae las emparejadas (entrada, salida, tamaño, comisión, swap y P/L de cada lado, y su diferencia), las que faltan en paper, las que sobran, los rechazos de paper sin operación del backtest, y la diferencia total repartida por causa. |
+
+- **Causas:** precio de ejecución, tamaño, comisión, swap, cierre de fin de semana (el broker simulado no lo hace, #278), rechazo del riesgo, y lo que falta o sobra en paper sin un rechazo que lo explique. **La suma de las causas es exactamente la diferencia**: montos redondeados a 8 decimales, en la moneda del instrumento.
+- Es el criterio de aprobación de la fase 8 ("la diferencia está explicada"). Lo calcula solo Rust (`cfds_runner::compare`).
+
 ### Fondo del grupo (#179)
 
 | Contrato | Tabla | Contenido |

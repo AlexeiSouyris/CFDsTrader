@@ -17,7 +17,9 @@ use cfds_core::{Order, OrderReport, PaperAccount, Position, TicketVerdict};
 use chrono::{DateTime, Utc};
 
 pub use live::{LiveAuthorization, LiveBroker, live_trading_status};
-pub use paper::{BrokerConfig, BrokerEvent, FundingSetup, MarketSetup, PaperBroker};
+pub use paper::{
+    BrokerConfig, BrokerEvent, FundingSetup, MarketSetup, PaperBroker, PaperExit, PaperTrade,
+};
 pub use persist::{
     Flush, JournalStore, ReconcileSchedule, flush_journal, reconcile_periodically,
     restore_from_store, submit_and_record,
