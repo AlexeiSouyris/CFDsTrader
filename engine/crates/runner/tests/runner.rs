@@ -188,7 +188,7 @@ fn step_at(
         &AlwaysOpen,
         true,
         |_, _| true,
-        |_| 0,
+        |_, _| 0,
         now,
     )
 }
@@ -397,7 +397,7 @@ fn nothing_is_proposed_with_the_gate_closed_or_the_kill_switch_on() {
         &AlwaysOpen,
         false,
         |_, _| true,
-        |_| 0,
+        |_, _| 0,
         now,
     );
     assert!(closed.order.is_none());

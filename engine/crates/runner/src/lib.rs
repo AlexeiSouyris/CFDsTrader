@@ -186,7 +186,8 @@ impl Runner {
     /// - `ready`: la compuerta del broker (solo en `Ready` se proponen órdenes).
     /// - `entry_allowed(m15, t)`: los filtros de entrada del backtest (horario, spread, noticias)
     ///   para decidir al cierre de `m15[t]`.
-    /// - `news(side)`: el ajuste de noticias del puntaje al cierre de la vela (spec §9).
+    /// - `news(side, at)`: el ajuste de noticias del puntaje con lo interpretado hasta `at`, el
+    ///   cierre de la vela de la decisión (spec §9; `cfds_strategy::news_adjustment`).
     #[allow(clippy::too_many_arguments)]
     pub fn step(
         &mut self,
@@ -195,7 +196,7 @@ impl Runner {
         calendar: &impl SessionCalendar,
         ready: bool,
         entry_allowed: impl Fn(&[Candle], usize) -> bool,
-        news: impl Fn(Side) -> i32,
+        news: impl Fn(Side, DateTime<Utc>) -> i32,
         now: DateTime<Utc>,
     ) -> Step {
         let id = feed.instrument.clone();
@@ -337,7 +338,7 @@ impl Runner {
             .cloned()
             .collect();
         let analysis = Analysis::new(m15_t, &h1_t, self.strategy).with_data_errors(errors);
-        let signal = match choose(&analysis, t, news) {
+        let signal = match choose(&analysis, t, |side| news(side, decision_at)) {
             Ok(Some(s)) => s,
             Ok(None) | Err(_) => {
                 out.notices.push(Notice::NoSignal {
