@@ -1,6 +1,6 @@
 # 0011 – Histórico intradía de futuros desde Databento
 
-- **Estado:** propuesta
+- **Estado:** aceptada el 23-11-2026 por el dueño ("si si empeza a descargar los datos dale", en la sesión de su agente, después de ver el costo de USD 30,45 del crédito gratis)
 - **Fecha:** 2026-11-23
 - **Aprobada por:** pendiente (el dueño; modo de un solo constructor, `CLAUDE.md`)
 - **Issue:** #246 (importador: #247; verificación: #248; relacionado: ADR 0002, ADR 0005, ADR 0009, #132)
