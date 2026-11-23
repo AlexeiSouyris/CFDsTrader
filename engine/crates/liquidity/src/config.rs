@@ -5,12 +5,16 @@ use std::str::FromStr;
 use rust_decimal::Decimal;
 use serde::Deserialize;
 
+use crate::levels::{LevelsConfig, RawEqual, RawLevels, RawSessionsUtc};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LiquidityConfig {
     pub fvg_lookback_bars: usize,
     pub min_impulse_body_atr: Decimal,
     pub atr_period: usize,
     pub choch_recent_bars: usize,
+    /// Mapa de liquidez (spec §5.4.1).
+    pub levels: LevelsConfig,
 }
 
 #[derive(Deserialize)]
@@ -19,6 +23,9 @@ struct Raw {
     fvg: RawFvg,
     order_blocks: RawOb,
     structure: RawStructure,
+    equal: RawEqual,
+    levels: RawLevels,
+    sessions_utc: RawSessionsUtc,
 }
 
 #[derive(Deserialize)]
@@ -57,6 +64,7 @@ impl LiquidityConfig {
             min_impulse_body_atr: body,
             atr_period: raw.order_blocks.atr_period,
             choch_recent_bars: raw.structure.choch_recent_bars,
+            levels: LevelsConfig::from_raw(raw.equal, raw.levels, raw.sessions_utc)?,
         })
     }
 }
@@ -78,6 +86,7 @@ mod tests {
                 min_impulse_body_atr: dec!(1.5),
                 atr_period: 14,
                 choch_recent_bars: 12,
+                levels: c.levels,
             }
         );
     }

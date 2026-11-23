@@ -1,0 +1,487 @@
+//! Mapa de liquidez (spec §5.4.1, #231): precios donde probablemente hay stops. Solo
+//! informativo en v1 (no suma al puntaje). Contrato: `contracts/liquidity_level.v1.schema.json`.
+//!
+//! ```text
+//! EQH: ≥ min_touches pivotes altos de 15m confirmados en t, con índice en las últimas
+//!      lookback_bars velas, que incluyen el pivote que se confirma en t y cuya diferencia
+//!      máxima es ≤ tolerance_atr × ATR[t]. Nivel = el mayor. Existe desde el cierre de t.
+//! PDH: máximo de las velas de una sesión de bolsa (config/sessions.toml). Existe desde su cierre.
+//! PWH: máximo de las sesiones de una semana (lunes a viernes). Existe desde el cierre de la última.
+//! session_high: máximo de las velas dentro de una ventana UTC de [sessions_utc]. Existe desde
+//!      el fin de la ventana.
+//! Los bajos (EQL, PDL, PWL, session_low) son el espejo.
+//!
+//! Estado de un alto, vela por vela desde que existe (las primeras max_age_bars velas):
+//!   la primera vela con H > nivel: C ≤ nivel → barrido (swept); C > nivel → roto (broken).
+//!   Si ninguna lo supera, queda intacto. El estado no cambia nunca más.
+//! ```
+//!
+//! Reglas:
+//! - Solo velas cerradas: un período (sesión, semana o ventana) cuenta cuando la serie llega a
+//!   su cierre. Si la serie empieza después de su apertura, el período está incompleto y no
+//!   se usa (calentamiento).
+//! - Calentamiento: nada existe sin ATR válido en la vela en la que nace; EQH y EQL además
+//!   necesitan `lookback_bars` velas.
+//! - Velas faltantes: se usan las que hay; las edades se cuentan en velas de la serie.
+//! - Un día o una semana fuera de la cobertura del calendario de feriados no da nivel (nunca
+//!   se supone si la bolsa abrió).
+//! - EQH/EQL repetidos: si ya hay un nivel del mismo tipo y precio activo cuando nace otro,
+//!   el nuevo no se agrega (es la misma liquidez).
+
+use std::str::FromStr;
+
+use cfds_core::{
+    Candle, LiquidityLevel, LiquidityLevelKind as Kind, LiquidityLevelState as State,
+    LiquiditySession,
+};
+use cfds_market_data::Session;
+use cfds_patterns::{Pivot, PivotKind};
+use chrono::{DateTime, Datelike, Days, NaiveDate, NaiveTime, Utc};
+use rust_decimal::Decimal;
+use serde::Deserialize;
+
+/// Ventana UTC de una sesión (inicio incluido, fin excluido, dentro del mismo día UTC).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SessionWindow {
+    pub session: LiquiditySession,
+    pub start: NaiveTime,
+    pub end: NaiveTime,
+}
+
+/// Parámetros del mapa de liquidez (`config/liquidity.toml`: `[equal]`, `[levels]` y
+/// `[sessions_utc]`), validados al cargar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LevelsConfig {
+    pub equal_min_touches: usize,
+    pub equal_lookback_bars: usize,
+    pub equal_tolerance_atr: Decimal,
+    pub max_age_bars: usize,
+    pub sessions: [SessionWindow; 3],
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RawEqual {
+    min_touches: usize,
+    lookback_bars: usize,
+    tolerance_atr: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RawLevels {
+    max_age_bars: usize,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RawSessionsUtc {
+    asia: RawWindow,
+    london: RawWindow,
+    ny: RawWindow,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawWindow {
+    start: String,
+    end: String,
+}
+
+impl LevelsConfig {
+    pub(crate) fn from_raw(e: RawEqual, l: RawLevels, s: RawSessionsUtc) -> Result<Self, String> {
+        if e.min_touches < 2 {
+            return Err("equal.min_touches tiene que ser ≥ 2".into());
+        }
+        if e.lookback_bars == 0 || l.max_age_bars == 0 {
+            return Err("equal.lookback_bars y levels.max_age_bars tienen que ser > 0".into());
+        }
+        let tolerance = Decimal::from_str(&e.tolerance_atr)
+            .map_err(|err| format!("equal.tolerance_atr: {err}"))?;
+        if tolerance <= Decimal::ZERO {
+            return Err("equal.tolerance_atr tiene que ser mayor que 0".into());
+        }
+        let window = |session: LiquiditySession, w: RawWindow| {
+            let time = |t: &str| {
+                NaiveTime::parse_from_str(t, "%H:%M")
+                    .map_err(|_| format!("sessions_utc: {t:?} no es HH:MM"))
+            };
+            let (start, end) = (time(&w.start)?, time(&w.end)?);
+            if start >= end {
+                return Err(format!(
+                    "sessions_utc: {session:?} empieza después de terminar"
+                ));
+            }
+            Ok::<_, String>(SessionWindow {
+                session,
+                start,
+                end,
+            })
+        };
+        Ok(Self {
+            equal_min_touches: e.min_touches,
+            equal_lookback_bars: e.lookback_bars,
+            equal_tolerance_atr: tolerance,
+            max_age_bars: l.max_age_bars,
+            sessions: [
+                window(LiquiditySession::Asia, s.asia)?,
+                window(LiquiditySession::London, s.london)?,
+                window(LiquiditySession::Ny, s.ny)?,
+            ],
+        })
+    }
+}
+
+/// Un nivel antes de evaluar su estado.
+struct Candidate {
+    kind: Kind,
+    session: Option<LiquiditySession>,
+    price: Decimal,
+    exists_from: DateTime<Utc>,
+}
+
+/// Mapa de liquidez de una serie de velas **cerradas** de 15m de un instrumento, ordenada.
+///
+/// - `atr`: ATR de 15m alineado con `candles` (`order_blocks.atr_period`).
+/// - `pivots`: `cfds_patterns::confirmed_pivots(candles, pivots.strength)`.
+/// - `session`: sesión de bolsa del instrumento (`config/sessions.toml`).
+///
+/// Ordenado por `exists_from`. Función pura: con más velas, los niveles ya emitidos son los
+/// mismos (solo puede cambiar el estado de uno intacto, con una vela posterior).
+pub fn liquidity_levels(
+    candles: &[Candle],
+    atr: &[Option<Decimal>],
+    pivots: &[Pivot],
+    session: &Session,
+    cfg: &LevelsConfig,
+) -> Vec<LiquidityLevel> {
+    let (Some(first), Some(last)) = (candles.first(), candles.last()) else {
+        return Vec::new();
+    };
+    let mut candidates = equal_candidates(candles, atr, pivots, cfg);
+    exchange_candidates(candles, session, &mut candidates);
+    window_candidates(candles, cfg, &mut candidates);
+    candidates.sort_by_key(|c| (c.exists_from, c.kind, c.session, c.price));
+    debug_assert!(candidates.iter().all(|c| c.exists_from <= last.end()));
+
+    let mut out: Vec<LiquidityLevel> = Vec::new();
+    for c in candidates {
+        // Vela en la que nace: la última que cerró hasta `exists_from`.
+        let Some(born) = candles
+            .partition_point(|k| k.end() <= c.exists_from)
+            .checked_sub(1)
+        else {
+            continue;
+        };
+        if atr.get(born).copied().flatten().is_none() {
+            continue; // calentamiento
+        }
+        let repeated = matches!(c.kind, Kind::Eqh | Kind::Eql)
+            && out.iter().any(|o| {
+                o.kind == c.kind
+                    && o.price == c.price
+                    && is_active_at(o, candles, born, cfg.max_age_bars)
+            });
+        if repeated {
+            continue;
+        }
+        let from = candles.partition_point(|k| k.start < c.exists_from);
+        let (state, state_changed_at) = evaluate(
+            c.kind.is_high(),
+            c.price,
+            &candles[from..],
+            cfg.max_age_bars,
+        );
+        out.push(LiquidityLevel {
+            instrument_id: first.instrument_id.clone(),
+            kind: c.kind,
+            session: c.session,
+            price: c.price,
+            exists_from: c.exists_from,
+            state,
+            state_changed_at,
+        });
+    }
+    out
+}
+
+/// `true` si al cierre de la vela `t` el nivel ya existe, no se barrió ni se rompió y todavía
+/// no pasaron `max_age_bars` velas desde que existe.
+pub fn is_active_at(
+    level: &LiquidityLevel,
+    candles: &[Candle],
+    t: usize,
+    max_age_bars: usize,
+) -> bool {
+    let Some(now) = candles.get(t).map(Candle::end) else {
+        return false;
+    };
+    if level.exists_from > now || level.state_changed_at.is_some_and(|x| x <= now) {
+        return false;
+    }
+    let from = candles.partition_point(|k| k.start < level.exists_from);
+    (t + 1).saturating_sub(from) < max_age_bars
+}
+
+/// Estado de un nivel evaluado sobre las velas posteriores a su nacimiento.
+fn evaluate(
+    high: bool,
+    price: Decimal,
+    after: &[Candle],
+    max_age_bars: usize,
+) -> (State, Option<DateTime<Utc>>) {
+    for c in after.iter().take(max_age_bars) {
+        let (crossed, back_inside) = if high {
+            (c.high > price, c.close <= price)
+        } else {
+            (c.low < price, c.close >= price)
+        };
+        if crossed {
+            let state = if back_inside {
+                State::Swept
+            } else {
+                State::Broken
+            };
+            return (state, Some(c.end()));
+        }
+    }
+    (State::Intact, None)
+}
+
+fn equal_candidates(
+    candles: &[Candle],
+    atr: &[Option<Decimal>],
+    pivots: &[Pivot],
+    cfg: &LevelsConfig,
+) -> Vec<Candidate> {
+    let mut out = Vec::new();
+    for (kind, pivot_kind) in [(Kind::Eqh, PivotKind::High), (Kind::Eql, PivotKind::Low)] {
+        let same: Vec<&Pivot> = pivots.iter().filter(|p| p.kind == pivot_kind).collect();
+        for p in &same {
+            let t = p.confirmed_at;
+            if t >= candles.len() || t + 1 < cfg.equal_lookback_bars {
+                continue; // calentamiento: todavía no hay lookback_bars velas
+            }
+            let Some(atr_t) = atr.get(t).copied().flatten() else {
+                continue;
+            };
+            let oldest = t + 1 - cfg.equal_lookback_bars;
+            let mut prices: Vec<Decimal> = same
+                .iter()
+                .filter(|q| q.index >= oldest && q.confirmed_at <= t)
+                .map(|q| q.price)
+                .collect();
+            prices.sort();
+            let group = best_group(&prices, p.price, cfg.equal_tolerance_atr * atr_t);
+            if group.len() >= cfg.equal_min_touches {
+                let price = if kind.is_high() {
+                    group[group.len() - 1]
+                } else {
+                    group[0]
+                };
+                out.push(Candidate {
+                    kind,
+                    session: None,
+                    price,
+                    exists_from: candles[t].end(),
+                });
+            }
+        }
+    }
+    out
+}
+
+/// El grupo más grande de precios (ordenados) que contiene `anchor` y cuya diferencia máxima
+/// es ≤ `width`. Empate: el de menor diferencia; después, el de precios más bajos.
+fn best_group(sorted: &[Decimal], anchor: Decimal, width: Decimal) -> &[Decimal] {
+    let mut best: &[Decimal] = &[];
+    for (i, &low) in sorted.iter().enumerate() {
+        if low > anchor || anchor - low > width {
+            continue;
+        }
+        let end = i + sorted[i..].partition_point(|&x| x - low <= width);
+        let group = &sorted[i..end];
+        let spread = |g: &[Decimal]| g[g.len() - 1] - g[0];
+        if group.len() > best.len() || (group.len() == best.len() && spread(group) < spread(best)) {
+            best = group;
+        }
+    }
+    best
+}
+
+/// Máximo y mínimo de las velas que empiezan en `[from, to)` y cierran hasta `to`.
+fn extremes(
+    candles: &[Candle],
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> Option<(Decimal, Decimal)> {
+    let start = candles.partition_point(|c| c.start < from);
+    candles[start..]
+        .iter()
+        .take_while(|c| c.start < to)
+        .filter(|c| c.end() <= to)
+        .fold(None, |acc, c| match acc {
+            None => Some((c.high, c.low)),
+            Some((h, l)) => Some((h.max(c.high), l.min(c.low))),
+        })
+}
+
+fn push_pair(
+    out: &mut Vec<Candidate>,
+    (high, low): (Kind, Kind),
+    session: Option<LiquiditySession>,
+    (h, l): (Decimal, Decimal),
+    exists_from: DateTime<Utc>,
+) {
+    for (kind, price) in [(high, h), (low, l)] {
+        out.push(Candidate {
+            kind,
+            session,
+            price,
+            exists_from,
+        });
+    }
+}
+
+/// PDH/PDL de cada sesión de bolsa y PWH/PWL de cada semana, ya cerradas y completas.
+fn exchange_candidates(candles: &[Candle], session: &Session, out: &mut Vec<Candidate>) {
+    let (first_start, last_end) = (candles[0].start, candles[candles.len() - 1].end());
+    let local = |t: DateTime<Utc>| t.with_timezone(&session.tz).date_naive();
+    let (first_day, last_day) = (local(first_start), local(last_end));
+    let complete =
+        |open: DateTime<Utc>, close: DateTime<Utc>| open >= first_start && close <= last_end;
+    let mut monday: NaiveDate =
+        first_day - Days::new(first_day.weekday().num_days_from_monday().into());
+    while monday <= last_day {
+        let mut week: Vec<(DateTime<Utc>, DateTime<Utc>)> = Vec::new();
+        let mut covered = true;
+        for d in (0..5).filter_map(|k| monday.checked_add_days(Days::new(k))) {
+            match session.hours(d) {
+                None => covered = false,
+                Some(None) => {}
+                Some(Some((open, close))) => {
+                    week.push((open, close));
+                    if complete(open, close)
+                        && let Some(hl) = extremes(candles, open, close)
+                    {
+                        push_pair(out, (Kind::Pdh, Kind::Pdl), None, hl, close);
+                    }
+                }
+            }
+        }
+        if covered
+            && let (Some(&(open, _)), Some(&(_, close))) = (week.first(), week.last())
+            && complete(open, close)
+        {
+            let hl = week
+                .iter()
+                .filter_map(|&(o, c)| extremes(candles, o, c))
+                .reduce(|(h1, l1), (h2, l2)| (h1.max(h2), l1.min(l2)));
+            if let Some(hl) = hl {
+                push_pair(out, (Kind::Pwh, Kind::Pwl), None, hl, close);
+            }
+        }
+        let Some(next) = monday.checked_add_days(Days::new(7)) else {
+            break;
+        };
+        monday = next;
+    }
+}
+
+/// Máximo y mínimo de cada ventana UTC de `[sessions_utc]`, ya cerrada y completa.
+fn window_candidates(candles: &[Candle], cfg: &LevelsConfig, out: &mut Vec<Candidate>) {
+    let (first_start, last_end) = (candles[0].start, candles[candles.len() - 1].end());
+    let mut day = first_start.date_naive();
+    while day <= last_end.date_naive() {
+        for w in cfg.sessions {
+            let (from, to) = (
+                day.and_time(w.start).and_utc(),
+                day.and_time(w.end).and_utc(),
+            );
+            if from >= first_start
+                && to <= last_end
+                && let Some(hl) = extremes(candles, from, to)
+            {
+                push_pair(
+                    out,
+                    (Kind::SessionHigh, Kind::SessionLow),
+                    Some(w.session),
+                    hl,
+                    to,
+                );
+            }
+        }
+        let Some(next) = day.succ_opt() else { break };
+        day = next;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::LiquidityConfig;
+    use rust_decimal::dec;
+
+    const REAL: &str = include_str!("../../../../config/liquidity.toml");
+
+    fn hm(s: &str) -> NaiveTime {
+        NaiveTime::parse_from_str(s, "%H:%M").unwrap()
+    }
+
+    #[test]
+    fn the_repository_config_matches_the_spec() {
+        let c = LiquidityConfig::from_toml(REAL).unwrap().levels;
+        assert_eq!(
+            c,
+            LevelsConfig {
+                equal_min_touches: 2,
+                equal_lookback_bars: 200,
+                equal_tolerance_atr: dec!(0.10),
+                max_age_bars: 500,
+                sessions: [
+                    SessionWindow {
+                        session: LiquiditySession::Asia,
+                        start: hm("00:00"),
+                        end: hm("07:00"),
+                    },
+                    SessionWindow {
+                        session: LiquiditySession::London,
+                        start: hm("07:00"),
+                        end: hm("13:30"),
+                    },
+                    SessionWindow {
+                        session: LiquiditySession::Ny,
+                        start: hm("13:30"),
+                        end: hm("20:00"),
+                    },
+                ],
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_level_values() {
+        for bad in [
+            REAL.replace("min_touches = 2", "min_touches = 1"),
+            REAL.replace("lookback_bars = 200", "lookback_bars = 0"),
+            REAL.replace(r#""0.10""#, r#""0""#),
+            REAL.replace(r#""0.10""#, r#""diez""#),
+            REAL.replace("max_age_bars = 500", "max_age_bars = 0"),
+            REAL.replace(r#"end = "07:00""#, r#"end = "00:00""#),
+            REAL.replace(r#"start = "13:30""#, r#"start = "1:30pm""#),
+            REAL.replace("ny = ", "nyc = "),
+            REAL.replace("[sessions_utc]", "[sesiones_utc]"),
+        ] {
+            assert!(LiquidityConfig::from_toml(&bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn best_group_takes_the_largest_tightest_cluster_with_the_anchor() {
+        let p = [dec!(99), dec!(100), dec!(100.4), dec!(101), dec!(103)];
+        assert_eq!(best_group(&p, dec!(100.4), dec!(1)), &p[1..4]);
+        assert_eq!(best_group(&p, dec!(103), dec!(1)), &p[4..]);
+        // Con poca tolerancia, solo entra el vecino cercano.
+        assert_eq!(best_group(&p, dec!(100), dec!(0.5)), &p[1..3]);
+    }
+}

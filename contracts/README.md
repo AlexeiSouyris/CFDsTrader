@@ -115,6 +115,17 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Solo días con sesión de la bolsa del instrumento.
 - Tabla de **solo agregar**. Recalcular y obtener otro valor es un error (sería repintado), y no se guarda nada.
 
+### Mapa de liquidez (#231, spec §5.4.1)
+
+| Contrato | Dónde | Contenido |
+|---|---|---|
+| `liquidity_level.v1` | todavía en ningún lado (ver abajo) | Un nivel del mapa de liquidez: `instrument_id`, `kind` (`eqh`, `eql`, `pdh`, `pdl`, `pwh`, `pwl`, `session_high`, `session_low`), `session` (`asia`, `london` o `ny` en los de sesión; `null` en los demás), `price` (string decimal), `exists_from` (UTC), `state` (`intact`, `swept` o `broken`) y `state_changed_at` (cierre de la vela que lo barrió o rompió; `null` si está intacto). |
+
+- **Solo informativo** en v1: no suma al puntaje de §6.
+- Lo calcula **Rust** (`cfds_liquidity::liquidity_levels`) con velas cerradas de 15m, los pivotes de `config/patterns.toml`, el calendario de `config/sessions.toml` y los parámetros de `config/liquidity.toml`. Nadie lo recalcula; la UI solo lo muestra.
+- Un nivel no existe antes de `exists_from`. Su estado cambia a lo sumo una vez y nunca se reescribe (sin repintado). Rust exige además `state_changed_at > exists_from`.
+- **Guardado pendiente:** la tabla de PostgreSQL y el comando que la llena van en otro PR de #231.
+
 ### Fondo del grupo (#179)
 
 | Contrato | Tabla | Contenido |

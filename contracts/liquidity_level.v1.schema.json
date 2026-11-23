@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/liquidity_level.v1.schema.json",
+  "title": "Liquidity level v1",
+  "description": "Un nivel del mapa de liquidez (spec §5.4.1, #231): un precio donde probablemente hay stops. Solo informativo en v1: no suma al puntaje. Lo calcula Rust (cfds-liquidity, `levels`) con velas cerradas de 15m y config/liquidity.toml; nadie lo recalcula (CLAUDE.md §1). Existe desde `exists_from` y nunca antes. Su estado se evalúa vela por vela desde ahí y, cuando cambia, queda fijo con la vela que lo cambió (sin repintado).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instrument_id", "kind", "session", "price", "exists_from", "state", "state_changed_at"],
+  "properties": {
+    "instrument_id": {
+      "description": "Instrumento (ver instrument.v1).",
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$"
+    },
+    "kind": {
+      "description": "eqh/eql: máximos o mínimos iguales (pivotes de 15m). pdh/pdl: máximo o mínimo de una sesión de bolsa del instrumento (config/sessions.toml). pwh/pwl: máximo o mínimo de las sesiones de una semana (lunes a viernes). session_high/session_low: máximo o mínimo de una ventana UTC de [sessions_utc] (el nombre va en `session`).",
+      "enum": ["eqh", "eql", "pdh", "pdl", "pwh", "pwl", "session_high", "session_low"]
+    },
+    "session": {
+      "description": "Ventana UTC de config/liquidity.toml [sessions_utc] para session_high y session_low; null para los demás tipos.",
+      "oneOf": [
+        { "enum": ["asia", "london", "ny"] },
+        { "type": "null" }
+      ]
+    },
+    "price": {
+      "description": "Precio del nivel, decimal exacto como string.",
+      "type": "string",
+      "pattern": "^\\d+(\\.\\d+)?$"
+    },
+    "exists_from": {
+      "description": "Desde cuándo existe el nivel, en UTC: el cierre de la vela que confirma el último pivote (eqh/eql) o el cierre de la sesión, la semana o la ventana. Nada lo usa antes (CLAUDE.md §5b).",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "state": {
+      "description": "intact: ninguna vela cerrada lo superó. swept: la primera vela que lo superó (H > nivel en un alto, L < nivel en un bajo) cerró de vuelta del lado original (barrido con reversión, el sweep de §5.4). broken: esa vela cerró del otro lado (roto).",
+      "enum": ["intact", "swept", "broken"]
+    },
+    "state_changed_at": {
+      "description": "Cierre (UTC) de la vela que barrió o rompió el nivel; null si está intacto. Siempre posterior a `exists_from`.",
+      "oneOf": [
+        { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" },
+        { "type": "null" }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "enum": ["session_high", "session_low"] } } },
+      "then": { "properties": { "session": { "type": "string" } } },
+      "else": { "properties": { "session": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "state": { "const": "intact" } } },
+      "then": { "properties": { "state_changed_at": { "type": "null" } } },
+      "else": { "properties": { "state_changed_at": { "type": "string" } } }
+    }
+  ]
+}
