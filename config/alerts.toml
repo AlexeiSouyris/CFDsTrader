@@ -1,0 +1,17 @@
+# Alertas del motor (fase 9, #297). Solo paper: avisan, no operan.
+
+[alerts]
+# Órdenes rechazadas seguidas en el broker simulado que disparan la alerta (una vez por racha).
+rejected_streak = 5
+# Cada tipo de alerta (kill switch, error de datos, desconexión, racha) se manda como mucho una
+# vez en este lapso, para no inundar.
+min_interval_secs = 300
+
+[telegram]
+# Solo la Bot API oficial: POST {api_base}/bot<token>/sendMessage.
+api_base = "https://api.telegram.org"
+# Telegram queda APAGADO salvo que estén las dos variables (ver .env.example). El token va solo
+# en la URL del pedido: nunca se loguea ni se muestra.
+token_env = "TELEGRAM_BOT_TOKEN"
+chat_env = "TELEGRAM_CHAT_ID"
+timeout_secs = 10
