@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Capa de inteligencia de CFDsTrader: noticias, análogos históricos y modelos de ML."
 requires-python = ">=3.13"
 dependencies = [
+    "databento>=0.70",
     "defusedxml>=0.7.1",
     "nasdaq-100-ticker-history",
     "psycopg[binary]>=3.3.9",

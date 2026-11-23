@@ -114,6 +114,17 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Tabla de **solo agregar** (`infra/migrations/0022_economic_events.sql`, trigger), con clave natural `(source, event, country, instrument_id, impact, scheduled_at)` y `NULLS NOT DISTINCT`. Leer otra vez el mismo evento no lo repite y conserva su primer `published_at`. Si la fuente cambia la hora o el impacto, es **otra fila** con su propio `published_at`; la anterior queda.
 - Para leerla sin mirar el futuro: `published_at <= as_of` (`cfds_intel.calendar.store.events_known_at`). La lee el motor (`PgStore::economic_events` y `PgStore::economic_event_sightings`, #243) para el filtro §7.2 de `backtest_run` y `chart_export` (`cfds_market_data::NewsFilter`): un evento cuenta en una vela solo si `published_at ≤` su cierre, y una vela sin una lectura de la ingesta en los `calendar_stale_after_days` anteriores (`config/news_filter.toml`) se informa como "sin calendario".
 
+### Histórico de futuros (#247, ADR 0011 en propuesta)
+
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `futures_bar.v1` | `futures_bars_1m` | Una barra de 1 minuto de un futuro, tal como la publica la fuente: `source` (`databento`), `dataset`, `symbol` (contrato continuo, por ejemplo `ES.v.0`), `instrument_id` (nuestro CFD: US500, US100, US30, DE40), `contract_id` (el contrato real: si cambia, hubo vencimiento), `start` (inicio en UTC, justo en un minuto), OHLC como string decimal y `volume`. |
+
+- La escribe Python (`python -m cfds_intel.databento --run`, solo con `CFDS_DATA_MACHINE=1`). La agrupa y verifica Rust (#248).
+- Tabla de **solo agregar** (`infra/migrations/0023_futures_bars.sql`, trigger), con clave `(source, dataset, symbol, start_at)`. La misma barra otra vez no cambia nada, y otra con la misma clave es un conflicto: no se guarda nada del tramo. `futures_bar_loads` registra cada tramo bajado y su costo estimado, para no volver a pagarlo.
+- Precios **sin ajustar** por vencimientos. No se mezcla con `candles` (IG): el spread y los costos siguen siendo los de IG.
+- Los datos viven solo en la base local de la máquina de datos, **nunca en el repo**.
+
 ### Indicadores diarios (#148, #213, #218)
 
 | Contrato | Tabla | Contenido |

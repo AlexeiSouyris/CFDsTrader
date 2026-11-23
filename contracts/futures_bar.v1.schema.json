@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/futures_bar.v1.schema.json",
+  "title": "Futures bar v1",
+  "description": "Una barra de 1 minuto de un futuro, tal como la publica la fuente (ADR 0011, #247; hoy Databento, esquema ohlcv-1m). 'start' es el inicio de la barra; está cerrada (y recién ahí se puede usar) en start + 1 min. Precios sin ajustar por vencimientos: 'contract_id' dice de qué contrato es cada barra. La escribe Python y la agrupa Rust; no se mezcla con las velas de IG (candle.v1).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source", "dataset", "symbol", "instrument_id", "contract_id", "start", "open", "high", "low", "close", "volume"],
+  "properties": {
+    "source": { "description": "Fuente (hoy 'databento').", "type": "string", "pattern": "^[a-z][a-z0-9_]{0,31}$" },
+    "dataset": { "description": "Dataset de la fuente, por ejemplo GLBX.MDP3 (CME) o XEUR.EOBI (Eurex).", "type": "string", "pattern": "^[A-Z0-9]+\\.[A-Z0-9]+$" },
+    "symbol": { "description": "Contrato continuo pedido: RAÍZ.REGLA.RANGO, por ejemplo ES.v.0.", "type": "string", "pattern": "^[A-Z0-9]{1,10}\\.[cnv]\\.[0-9]{1,2}$" },
+    "instrument_id": { "description": "Nuestro instrumento (ver instrument.v1) al que corresponde el futuro (config/databento.toml).", "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" },
+    "contract_id": { "description": "Id del contrato real de la fuente (instrument_id de Databento). Si cambia, hubo un vencimiento.", "type": "integer", "minimum": 1 },
+    "start": { "description": "Inicio de la barra en UTC, justo en un minuto, ISO 8601 terminado en Z.", "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:00Z$" },
+    "open": { "$ref": "#/$defs/price" },
+    "high": { "$ref": "#/$defs/price" },
+    "low": { "$ref": "#/$defs/price" },
+    "close": { "$ref": "#/$defs/price" },
+    "volume": { "description": "Contratos operados en el minuto.", "type": "integer", "minimum": 0 }
+  },
+  "$defs": {
+    "price": { "description": "Decimal exacto como string, nunca número JSON.", "type": "string", "pattern": "^\\d+(\\.\\d+)?$" }
+  }
+}

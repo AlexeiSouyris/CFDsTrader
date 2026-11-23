@@ -1,0 +1,52 @@
+# Histórico intradía de futuros desde Databento (ADR 0011, en propuesta; importador #247).
+# Se valida al arrancar (`cfds_intel.databento.config`). La key va en el .env
+# (DATABENTO_API_KEY), nunca acá. Los datos se guardan solo en la base local de la máquina de
+# datos (CFDS_DATA_MACHINE=1), nunca en el repo.
+
+[download]
+# Esquema oficial de velas de 1 minuto (docs: schemas-and-data-formats/ohlcv).
+schema = "ohlcv-1m"
+# Contrato continuo: RAÍZ.REGLA.RANGO (docs: standards-and-conventions/symbology).
+stype_in = "continuous"
+# Desde cuándo se quiere el histórico, y el mínimo aceptable: si un dataset empieza después de
+# `min_start`, ese símbolo no se baja. El fin es siempre la medianoche UTC de hoy (exclusivo).
+start = "2021-11-01"
+min_start = "2023-08-01"
+
+[budget]
+# Tope de gasto total (USD) de una corrida, por debajo de los USD 125 de crédito gratis. Si la
+# estimación lo pasa, --estimate y --run frenan sin bajar nada.
+max_usd = "100"
+
+[sample]
+# Validación de --sample sobre un día UTC: huecos entre barras de más de estos minutos cuentan
+# como huecos, salvo el más largo (la pausa diaria del mercado).
+max_gap_minutes = 5
+
+# Futuro → instrumento (CFD de IG). `min_session_hours`: horas mínimas con barras en un día UTC
+# hábil (CME opera unas 23 h; Eurex, unas 21 h).
+[[symbols]]
+dataset = "GLBX.MDP3"
+symbol = "ES.v.0"
+instrument_id = "US500"
+min_session_hours = 22
+
+[[symbols]]
+dataset = "GLBX.MDP3"
+symbol = "NQ.v.0"
+instrument_id = "US100"
+min_session_hours = 22
+
+[[symbols]]
+dataset = "GLBX.MDP3"
+symbol = "YM.v.0"
+instrument_id = "US30"
+min_session_hours = 22
+
+# Pendiente (ADR 0011, pregunta 3): confirmar con --estimate que el símbolo es FDAX y que
+# XEUR.EOBI tiene ohlcv-1m.
+[[symbols]]
+dataset = "XEUR.EOBI"
+symbol = "FDAX.v.0"
+instrument_id = "DE40"
+min_session_hours = 20
