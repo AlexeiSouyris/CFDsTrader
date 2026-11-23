@@ -1,0 +1,8 @@
+# Evaluación de la Fase 5 (ROADMAP, #298): walk-forward, comprar y mantener por ventana y el
+# tramo fuera de muestra aparte. Las ventanas de entrenamiento y prueba
+# y el fuera de muestra salen de config/data_split.toml.
+
+[walk_forward]
+# Días corridos de velas anteriores a cada tramo que se recorren solo para calentar los
+# indicadores (spec: 200 velas de 15m y 60 de 1h como mínimo). En ellos no se abre nada.
+warmup_days = 30
