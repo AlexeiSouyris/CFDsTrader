@@ -286,6 +286,15 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Es el criterio de aprobación de la fase 8 ("la diferencia está explicada"). Lo calcula solo Rust (`cfds_runner::compare`).
 - **Guardado** (`infra/migrations/0032_paper_comparisons.sql`, solo agregar con trigger): `paper_comparisons`, con el documento entero y las columnas de búsqueda (instrumento y período). Lo escribe solo Rust (`PgJournal::record_paper_comparison`); la misma comparación otra vez no guarda nada y con otro contenido es un error. Se corre con el ejemplo `paper_vs_backtest` de `cfds-gateway` (`--guardar`).
 
+### Aprendizaje continuo (fase 8b, #327)
+
+| Contrato | Contenido |
+|---|---|
+| `learning_report.v1` | El informe periódico de la spec §15b, armado solo con el diario (`proposal.v1` + `outcome.v1`) de un período. Trae la **calibración** (tabla de confiabilidad por rango de probabilidad mostrada §13: casos, aciertos, promedio mostrado, frecuencia real e intervalo de Wilson, y "datos insuficientes" con menos de `min_cases`), una **muestra** por rango para verificarla a mano, el **aporte de cada señal** (R medio y % de TP1 con la señal y sin ella, con las muestras chicas marcadas) y las **propuestas de cambio** en texto, cada una con su evidencia. |
+
+- **El sistema nunca se cambia solo:** cada propuesta nace `pendiente_de_voto` (spec §1.2: cambios de reglas o parámetros, 4 de 6 en 48 h). El informe solo lee el diario; nada aplica un cambio.
+- La probabilidad mostrada se recalcula con la tabla de entrenamiento (`cfds_journal::probability`), porque `proposal.v1` no la guarda. Umbrales en `config/learning.toml` y `config/probability.toml`.
+
 ### Fondo del grupo (#179)
 
 | Contrato | Tabla | Contenido |
