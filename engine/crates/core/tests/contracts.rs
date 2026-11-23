@@ -1084,7 +1084,7 @@ fn sample_futures_bar() -> cfds_core::FuturesBar {
     cfds_core::FuturesBar {
         source: "databento".into(),
         dataset: "XEUR.EOBI".into(),
-        symbol: "FDAX.v.0".into(),
+        symbol: "FDAX.c.0".into(),
         instrument_id: "DE40".parse().unwrap(),
         contract_id: 42,
         start: "2026-11-18T14:31:00Z".parse().unwrap(),

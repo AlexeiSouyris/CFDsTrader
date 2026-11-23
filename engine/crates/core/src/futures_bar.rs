@@ -17,7 +17,7 @@ use crate::instrument::InstrumentId;
 pub struct FuturesBar {
     pub source: String,
     pub dataset: String,
-    /// Contrato continuo pedido (por ejemplo `ES.v.0`).
+    /// Contrato continuo pedido (por ejemplo `ES.c.0`).
     pub symbol: String,
     /// Nuestro instrumento (CFD) al que corresponde el futuro.
     pub instrument_id: InstrumentId,

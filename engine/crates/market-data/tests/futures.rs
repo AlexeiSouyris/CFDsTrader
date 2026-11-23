@@ -18,7 +18,7 @@ fn bar(start: DateTime<Utc>, contract: u64, close: Decimal) -> FuturesBar {
     FuturesBar {
         source: "databento".into(),
         dataset: "XEUR.EOBI".into(),
-        symbol: "FDAX.v.0".into(),
+        symbol: "FDAX.c.0".into(),
         instrument_id: de40(),
         contract_id: contract,
         start,

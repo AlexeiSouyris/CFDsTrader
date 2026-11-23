@@ -34,7 +34,7 @@ async fn bars_are_read_in_order_for_the_instrument_and_period() {
         sqlx::query(
             "INSERT INTO futures_bars_1m (source, dataset, symbol, contract_id, instrument_id,
                  start_at, open, high, low, close, volume)
-             VALUES ('databento', $1, 'FDAX.v.0', $2, $3, $4, $5::numeric, $5::numeric + 1,
+             VALUES ('databento', $1, 'FDAX.c.0', $2, $3, $4, $5::numeric, $5::numeric + 1,
                  $5::numeric - 1, $5::numeric, 12)",
         )
         .bind(&dataset)
@@ -58,7 +58,7 @@ async fn bars_are_read_in_order_for_the_instrument_and_period() {
     let expected = |start: &str, contract: u64, close| FuturesBar {
         source: "databento".into(),
         dataset: dataset.clone(),
-        symbol: "FDAX.v.0".into(),
+        symbol: "FDAX.c.0".into(),
         instrument_id: id.clone(),
         contract_id: contract,
         start: at(start),
