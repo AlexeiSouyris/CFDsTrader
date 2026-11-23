@@ -2,16 +2,19 @@
  * Vista de liquidez en vivo (#231, spec §5.4.1). Solo ubica componentes y les pasa lo que manda el
  * motor: la UI no calcula niveles, estados, FVG, tasas ni el desequilibrio (CLAUDE.md §1).
  *
- * Los datos llegan del gateway (`GET /api/v1/liquidity`, `contracts/liquidity_view.v1`) y se
- * vuelven a pedir cada minuto. Sin velas guardadas muestra "sin datos todavía".
+ * Los datos llegan del gateway: los instrumentos y timeframes de `GET /api/v1/instruments` y la
+ * vista de `GET /api/v1/liquidity` (`contracts/liquidity_view.v1`), que se vuelve a pedir cada
+ * minuto. Sin velas guardadas muestra "sin datos todavía".
  */
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 
 import { LiquidityChart } from '@/components/ui/liquidity-chart'
 import { FvgTable, ImbalanceGauge, LevelsTable, StatsPanel } from '@/components/ui/liquidity-panels'
+import { Segmented } from '@/components/ui/segmented'
 import { Term } from '@/components/ui/term'
-import { useLiquidityView } from '@/lib/liquidity-api'
-import type { LiquidityViewData } from '@/lib/liquidity-contracts'
+import { useInstruments, useLiquidityView } from '@/lib/liquidity-api'
+import { chartBars } from '@/lib/liquidity-bars'
+import type { LiquidityViewData, ViewTimeframe } from '@/lib/liquidity-contracts'
 import { dateTimeUtc } from '@/lib/format'
 
 function Card({ title, children }: { title?: ReactNode; children: ReactNode }) {
@@ -23,9 +26,6 @@ function Card({ title, children }: { title?: ReactNode; children: ReactNode }) {
   )
 }
 
-/** Instrumento que muestra la vista mientras no haya selector (el gateway valida el catálogo). */
-export const DEFAULT_INSTRUMENT = 'US100'
-
 const INTRO = (
   <p className="max-w-3xl text-[13px] text-muted-foreground">
     Dónde probablemente hay stops (<Term id="liquidez">liquidez</Term>) y qué pasó con cada nivel,
@@ -34,65 +34,123 @@ const INTRO = (
   </p>
 )
 
-/** La vista conectada al motor. */
-export function LiquidityView({ instrument = DEFAULT_INSTRUMENT }: { instrument?: string }) {
-  const state = useLiquidityView(instrument)
-  if (state.status === 'loading')
-    return (
-      <div className="grid gap-3">
+const TF_TEXT: Record<ViewTimeframe, [string, string]> = {
+  '15m': ['vela de 15 m', 'velas de 15 m'],
+  '1h': ['vela de 1 h', 'velas de 1 h'],
+  '1d': ['vela diaria', 'velas diarias'],
+}
+
+function Shell({ children, controls }: { children: ReactNode; controls?: ReactNode }) {
+  return (
+    <div className="grid gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         {INTRO}
-        <Card>
-          <p role="status" className="text-[13px]">
-            Pidiendo los datos al motor…
-          </p>
-        </Card>
+        {controls}
       </div>
-    )
-  if (state.status === 'error')
+      {children}
+    </div>
+  )
+}
+
+function Waiting() {
+  return (
+    <Card>
+      <p role="status" className="text-[13px]">
+        Pidiendo los datos al motor…
+      </p>
+    </Card>
+  )
+}
+
+function Unreachable({ message }: { message: string }) {
+  return (
+    <Card title="No se pudo leer al motor">
+      <p role="alert" className="text-[13px]">
+        El gateway no respondió ({message}). Para verlo en vivo hay que levantarlo con{' '}
+        <code>infra/scripts/ui_liquidez.sh</code>. Se vuelve a intentar cada minuto.
+      </p>
+    </Card>
+  )
+}
+
+/** La vista conectada al motor: instrumento y timeframe salen del gateway (catálogo y config). */
+export function LiquidityView() {
+  const catalog = useInstruments()
+  const [picked, setPicked] = useState<{ instrument: string; timeframe: ViewTimeframe } | null>(
+    null,
+  )
+  const sel =
+    picked ??
+    (catalog.status === 'ok'
+      ? { instrument: catalog.data.default_instrument, timeframe: catalog.data.default_timeframe }
+      : null)
+  const state = useLiquidityView(sel)
+  if (catalog.status === 'loading')
     return (
-      <div className="grid gap-3">
-        {INTRO}
-        <Card title="No se pudo leer al motor">
-          <p role="alert" className="text-[13px]">
-            El gateway no respondió ({state.message}). Para verlo en vivo hay que levantarlo con{' '}
-            <code>cargo run -p cfds-gateway</code>. Se vuelve a intentar cada minuto.
-          </p>
-        </Card>
-      </div>
+      <Shell>
+        <Waiting />
+      </Shell>
     )
-  return <LiquidityContent data={state.data} />
+  if (catalog.status === 'error')
+    return (
+      <Shell>
+        <Unreachable message={catalog.message} />
+      </Shell>
+    )
+  const controls = sel && (
+    <div className="flex flex-wrap gap-2">
+      <Segmented
+        label="Instrumento"
+        options={catalog.data.instruments.map((i) => i.id)}
+        value={sel.instrument}
+        onChange={(instrument) => setPicked({ ...sel, instrument })}
+      />
+      <Segmented
+        label="Timeframe"
+        options={catalog.data.timeframes}
+        value={sel.timeframe}
+        onChange={(tf) => setPicked({ ...sel, timeframe: tf as ViewTimeframe })}
+      />
+    </div>
+  )
+  return (
+    <Shell controls={controls}>
+      {state.status === 'loading' && <Waiting />}
+      {state.status === 'error' && <Unreachable message={state.message} />}
+      {state.status === 'ok' && <LiquidityContent data={state.data} />}
+    </Shell>
+  )
 }
 
 /** Lo que muestra la vista con una respuesta del gateway (también la usan los tests). */
 export function LiquidityContent({ data }: { data: LiquidityViewData }) {
+  const tf = data.timeframe ?? '15m'
   if (data.as_of === null || data.candles.length === 0)
     return (
-      <div className="grid gap-3">
-        {INTRO}
-        <Card title="Sin datos todavía">
-          <p className="text-[13px]">
-            El motor todavía no tiene velas de 15 m de {data.instrument_id} guardadas. La vista se
-            llena sola cuando lleguen.
-          </p>
-        </Card>
-      </div>
+      <Card title="Sin datos todavía">
+        <p className="text-[13px]">
+          El motor todavía no tiene {TF_TEXT[tf][1]} de {data.instrument_id} guardadas. La vista se
+          llena sola cuando lleguen.
+        </p>
+      </Card>
     )
   const open = data.fvgs.filter((f) => f.status === 'open')
   const closed = data.fvgs.filter((f) => f.status !== 'open')
   const current = data.imbalance.at(-1)
   return (
     <div className="grid gap-3">
-      {INTRO}
       <p className="text-[11.5px] text-muted-foreground">
         Datos del motor al {dateTimeUtc(data.as_of)} · {data.candles.length}{' '}
-        {data.candles.length === 1 ? 'vela' : 'velas'} de 15 m
+        {TF_TEXT[tf][data.candles.length === 1 ? 0 : 1]}
       </p>
 
       <div className="grid gap-3 xl:grid-cols-[1fr_320px]">
         <Card>
           <LiquidityChart
+            key={`${data.instrument_id}|${tf}`}
             instrument={data.instrument_id}
-            bars={data.candles}
+            timeframe={tf}
+            bars={chartBars(data)}
             levels={data.levels}
             fvgs={data.fvgs}
             imbalance={data.imbalance}

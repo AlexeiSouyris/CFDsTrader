@@ -1,6 +1,6 @@
 /**
- * Gráfico de liquidez en vivo (#231, spec §5.4.1): velas de 15m con los niveles de liquidez, los
- * FVG y las velas de desplazamiento que manda el motor.
+ * Gráfico de liquidez en vivo (#231, spec §5.4.1): velas de 15m, 1h o 1d con los niveles de
+ * liquidez, los FVG y las velas de desplazamiento que manda el motor.
  *
  * Sigue el estilo de `trading-chart.tsx` (SVG propio, sin librería de gráficos). **No calcula
  * nada:** ni niveles, ni estados, ni zonas. Solo los ubica en pantalla; `Number()` se usa para la
@@ -13,23 +13,42 @@ import { dateTimeUtc, dateUtc, decimal } from '@/lib/format'
 import { fvgKey, levelKey, levelName, levelShort, STATE_LABEL } from '@/lib/liquidity-labels'
 import { useElementWidth } from '@/lib/use-element-width'
 import { cn } from '@/lib/utils'
+import type { ChartBar } from '@/lib/liquidity-bars'
 import type {
   FvgEvent,
   Imbalance,
   LevelState,
-  LiquidityBar,
   LiquidityLevel,
+  ViewTimeframe,
 } from '@/lib/liquidity-contracts'
 
-const RANGES = [
-  { label: '1 día', bars: 96 },
-  { label: '2 días', bars: 192 },
-  { label: 'Todo', bars: Infinity },
-] as const
+type Range = { label: string; bars: number }
+/** Rangos de cada timeframe (en velas); el segundo es el que se abre. */
+const RANGES: Record<ViewTimeframe, Range[]> = {
+  '15m': [
+    { label: '1 día', bars: 96 },
+    { label: '2 días', bars: 192 },
+    { label: 'Todo', bars: Infinity },
+  ],
+  '1h': [
+    { label: '3 días', bars: 72 },
+    { label: '1 semana', bars: 120 },
+    { label: 'Todo', bars: Infinity },
+  ],
+  '1d': [
+    { label: '3 meses', bars: 63 },
+    { label: '6 meses', bars: 126 },
+    { label: 'Todo', bars: Infinity },
+  ],
+}
+const TF_LABEL: Record<ViewTimeframe, { short: string; long: [string, string] }> = {
+  '15m': { short: '15 m', long: ['vela de 15 minutos', 'velas de 15 minutos'] },
+  '1h': { short: '1 h', long: ['vela de 1 hora', 'velas de 1 hora'] },
+  '1d': { short: '1 d', long: ['vela diaria', 'velas diarias'] },
+}
 const FILTERS = ['Todos', 'Activos'] as const
 
 const AXIS_W = 70
-const SLOT_MS = 15 * 60_000
 
 const STATE_STYLE: Record<LevelState, { stroke: string; dash?: string; opacity: number }> = {
   intact: { stroke: 'var(--chart-accent)', opacity: 0.95 },
@@ -39,6 +58,7 @@ const STATE_STYLE: Record<LevelState, { stroke: string; dash?: string; opacity: 
 
 export function LiquidityChart({
   instrument,
+  timeframe = '15m',
   bars,
   levels,
   fvgs,
@@ -47,7 +67,9 @@ export function LiquidityChart({
   className,
 }: {
   instrument: string
-  bars: LiquidityBar[]
+  timeframe?: ViewTimeframe
+  /** velas con su inicio y su cierre (`end`), tal como llegan */
+  bars: ChartBar[]
   levels: LiquidityLevel[]
   fvgs: FvgEvent[]
   /** `imbalance.v1` por vela: la marca de desplazamiento la trae el motor */
@@ -55,11 +77,12 @@ export function LiquidityChart({
   height?: number
   className?: string
 }) {
-  const [range, setRange] = useState<(typeof RANGES)[number]['label']>('2 días')
+  const ranges = RANGES[timeframe]
+  const [range, setRange] = useState(ranges[1].label)
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('Todos')
   const [boxRef, width] = useElementWidth<HTMLDivElement>(720, 300)
 
-  const n = RANGES.find((r) => r.label === range)!.bars
+  const n = (ranges.find((r) => r.label === range) ?? ranges[1]).bars
   const view = useMemo(() => bars.slice(Math.max(0, bars.length - n)), [bars, n])
   const count = view.length
   const plotW = width - AXIS_W
@@ -74,14 +97,22 @@ export function LiquidityChart({
   const yP = (v: number) => top + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * plotH
   const inScale = (v: number) => v >= lo - pad && v <= hi + pad
 
-  // Ubica una hora (UTC) en el eje x: borde derecho de las velas que empezaron antes.
-  const firstMs = count ? Date.parse(view[0].start) : 0
+  // Ubica una hora (UTC) en el eje x: el borde derecho de las velas que ya cerraron a esa hora.
+  // Cuenta velas, no minutos, así que los huecos (noches, fines de semana) no dejan espacio.
+  const ends = useMemo(() => view.map((b) => Date.parse(b.end)), [view])
   const xAt = (iso: string | null) => {
     if (iso === null) return plotW
-    const k = Math.ceil((Date.parse(iso) - firstMs) / SLOT_MS)
-    return Math.max(0, Math.min(plotW, k * slot))
+    const t = Date.parse(iso)
+    let a = 0
+    let z = ends.length
+    while (a < z) {
+      const mid = (a + z) >> 1
+      if (ends[mid] <= t) a = mid + 1
+      else z = mid
+    }
+    return Math.min(plotW, a * slot)
   }
-  const lastClose = count ? new Date(Date.parse(view[count - 1].start) + SLOT_MS) : null
+  const lastClose = count ? new Date(ends[count - 1]) : null
 
   // Activo = intacto y sin vencer (`expired_at` de liquidity_level.v1). Los vencidos se dibujan
   // atenuados hasta la vela en que vencieron.
@@ -119,7 +150,7 @@ export function LiquidityChart({
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase">
-            {instrument} · 15 m · liquidez
+            {instrument} · {TF_LABEL[timeframe].short} · liquidez
           </p>
           {last && (
             <p className="mt-1 text-[26px] leading-none font-bold tracking-[-0.03em]">
@@ -141,9 +172,9 @@ export function LiquidityChart({
           />
           <Segmented
             label="Rango"
-            options={RANGES.map((r) => r.label)}
+            options={ranges.map((r) => r.label)}
             value={range}
-            onChange={(v) => setRange(v as typeof range)}
+            onChange={setRange}
           />
         </div>
       </div>
@@ -154,7 +185,7 @@ export function LiquidityChart({
           height={height}
           viewBox={`0 0 ${width} ${height}`}
           role="img"
-          aria-label={`${instrument}, ${count} ${count === 1 ? 'vela' : 'velas'} de 15 minutos con ${shownLevels.length} niveles de liquidez y ${shownFvgs.length} FVG.`}
+          aria-label={`${instrument}, ${count} ${TF_LABEL[timeframe].long[count === 1 ? 0 : 1]} con ${shownLevels.length} niveles de liquidez y ${shownFvgs.length} FVG.`}
           className="block w-full select-none"
         >
           {ticks.map((t) => (

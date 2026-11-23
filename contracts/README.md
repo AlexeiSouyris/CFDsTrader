@@ -172,11 +172,14 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 
 | Contrato | Contenido |
 |---|---|
-| `liquidity_view.v1` | Respuesta de `GET /api/v1/liquidity?instrument=<id>` del gateway: `instrument_id`, `generated_at`, `as_of` (cierre de la última vela de 15m cerrada guardada, o `null` si no hay velas) y las listas `candles` (`candle.v1`), `levels` (`liquidity_level.v1`), `fvgs` (`fvg_event.v1`), `imbalance` (`imbalance.v1`) y `stats` (`liquidity_stats.v1`), cada elemento con su contrato sin cambios (`$ref`). |
+| `liquidity_view.v1` | Respuesta de `GET /api/v1/liquidity?instrument=<id>[&timeframe=15m\|1h\|1d]` del gateway: `instrument_id`, `timeframe` (opcional, agregado sin romper v1; ausente = 15m), `generated_at`, `as_of` (cierre de la última vela cerrada guardada de ese timeframe, o `null` si no hay velas) y las listas `candles` (`candle.v1` en 15m y 1h, `daily_candle.v1` en 1d), `levels` (`liquidity_level.v1`), `fvgs` (`fvg_event.v1`), `imbalance` (`imbalance.v1`) y `stats` (`liquidity_stats.v1`), cada elemento con su contrato sin cambios (`$ref`). |
 
-- Es un **sobre**: no agrega cálculos. El gateway (`engine/crates/gateway`) lo arma con las lecturas de `cfds_storage::PgStore`, todas tal como se conocían en `as_of`, y la ventana de `config/gateway.toml`.
+| `gateway_instruments.v1` | Respuesta de `GET /api/v1/instruments`: los instrumentos del catálogo (`instrument.v1`), los timeframes que acepta la vista y lo que abre primero (`[view]` de `config/gateway.toml`). |
+
+- Es un **sobre**: no agrega cálculos. El gateway (`engine/crates/gateway`) lo arma con las lecturas de `cfds_storage::PgStore`, todas tal como se conocían en `as_of`, y la ventana de cada timeframe de `config/gateway.toml`. Los FVG, el desequilibrio y los agregados son los del timeframe pedido (en 1d, también los agregados de los gaps de apertura); los niveles son los del mapa de liquidez (15m), tal como se conocían en `as_of`.
 - Sin velas guardadas, `as_of` es `null` y las listas van vacías: la UI muestra "sin datos todavía".
 - Los errores HTTP (400, 404, 405, 500) van como texto plano, sin datos.
+- El gateway abre la sesión de PostgreSQL en **solo lectura** (`default_transaction_read_only`).
 
 ### Fondo del grupo (#179)
 

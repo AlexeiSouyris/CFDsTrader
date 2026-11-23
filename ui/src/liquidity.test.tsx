@@ -5,8 +5,9 @@ import App from '@/App'
 import { LiquidityChart } from '@/components/ui/liquidity-chart'
 import { ImbalanceGauge, LevelsTable, Rate } from '@/components/ui/liquidity-panels'
 import { decimal, percent, signed } from '@/lib/format'
+import { chartBars } from '@/lib/liquidity-bars'
 import { levelName, STATE_LABEL } from '@/lib/liquidity-labels'
-import { LIQUIDITY_US100 as DATA, type LiquiditySnapshot } from '@/mocks'
+import { LIQUIDITY_US100 as DATA } from '@/mocks'
 import { LiquidityContent, LiquidityView } from '@/views/liquidity'
 
 describe('vista de liquidez en vivo (#231)', () => {
@@ -15,8 +16,29 @@ describe('vista de liquidez en vivo (#231)', () => {
   const answer = (body: unknown, status = 200) =>
     vi.fn(async () => new Response(JSON.stringify(body), { status }))
 
+  const INSTRUMENTS = {
+    default_instrument: 'US100',
+    default_timeframe: '15m',
+    timeframes: ['15m', '1h', '1d'],
+    instruments: ['DE40', 'US100'].map((id) => ({
+      id,
+      name: id,
+      asset_class: 'index',
+      currency: 'EUR',
+      exchange_timezone: 'Europe/Berlin',
+    })),
+  }
+
+  /** Un gateway falso: `/api/v1/instruments` y `/api/v1/liquidity`, con la vista que se le pase. */
+  const gateway = (view: (url: URL) => unknown) =>
+    vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input), 'http://ui.test')
+      const body = url.pathname === '/api/v1/instruments' ? INSTRUMENTS : view(url)
+      return new Response(JSON.stringify(body), { status: 200 })
+    })
+
   it('se abre desde la navegación y pide los datos al gateway', async () => {
-    const fetch = answer(DATA)
+    const fetch = gateway(() => DATA)
     vi.stubGlobal('fetch', fetch)
     render(<App initialStage="app" />)
     const nav = screen.getByRole('navigation', { name: 'Vistas' })
@@ -26,7 +48,43 @@ describe('vista de liquidez en vivo (#231)', () => {
     expect(
       await screen.findByRole('img', { name: /US100, \d+ velas de 15 minutos/ }),
     ).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledWith('/api/v1/liquidity?instrument=US100', expect.anything())
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/liquidity?instrument=US100&timeframe=15m',
+      expect.anything(),
+    )
+  })
+
+  it('los selectores piden otro instrumento y timeframe, y el diario usa sus velas', async () => {
+    const daily = {
+      ...DATA,
+      instrument_id: 'DE40',
+      timeframe: '1d',
+      candles: [
+        { day: '2026-11-19', start: '2026-11-18T23:00:00Z', end: '2026-11-19T23:00:00Z' },
+        { day: '2026-11-20', start: '2026-11-19T23:00:00Z', end: '2026-11-20T23:00:00Z' },
+      ].map((d) => ({
+        instrument_id: 'DE40',
+        ...d,
+        open: '10.0',
+        high: '12.0',
+        low: '9.0',
+        close: '11.0',
+        volume: null,
+      })),
+      fvgs: [],
+      imbalance: [],
+    }
+    const fetch = gateway((url) => (url.searchParams.get('timeframe') === '1d' ? daily : DATA))
+    vi.stubGlobal('fetch', fetch)
+    render(<LiquidityView />)
+    await screen.findByRole('img', { name: /US100, \d+ velas de 15 minutos/ })
+    fireEvent.click(screen.getByRole('button', { name: 'DE40' }))
+    fireEvent.click(screen.getByRole('button', { name: '1d' }))
+    expect(await screen.findByRole('img', { name: /DE40, 2 velas diarias/ })).toBeInTheDocument()
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/liquidity?instrument=DE40&timeframe=1d',
+      expect.anything(),
+    )
   })
 
   it('con la base vacía muestra "sin datos todavía"', async () => {
@@ -40,7 +98,10 @@ describe('vista de liquidez en vivo (#231)', () => {
       imbalance: [],
       stats: [],
     }
-    vi.stubGlobal('fetch', answer(empty))
+    vi.stubGlobal(
+      'fetch',
+      gateway(() => empty),
+    )
     render(<LiquidityView />)
     expect(await screen.findByRole('heading', { name: 'Sin datos todavía' })).toBeInTheDocument()
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
@@ -168,7 +229,7 @@ describe('vista de liquidez en vivo (#231)', () => {
     const { container } = render(
       <LiquidityChart
         instrument="US100"
-        bars={DATA.candles}
+        bars={chartBars(DATA)}
         levels={[expired]}
         fvgs={[]}
         imbalance={[]}
@@ -181,12 +242,11 @@ describe('vista de liquidez en vivo (#231)', () => {
 
   it('no dibuja un nivel antes de que exista', () => {
     const level = DATA.levels.find((l) => l.kind === 'eqh')!
-    const before = DATA.candles.filter((b) => b.start < level.exists_from)
-    const data: LiquiditySnapshot = { ...DATA, candles: before.slice(0, -1) }
+    const before = chartBars(DATA).filter((b) => b.start < level.exists_from)
     const { container } = render(
       <LiquidityChart
         instrument="US100"
-        bars={data.candles}
+        bars={before.slice(0, -1)}
         levels={[level]}
         fvgs={[]}
         imbalance={[]}

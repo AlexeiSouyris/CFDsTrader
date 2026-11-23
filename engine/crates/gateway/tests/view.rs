@@ -5,8 +5,10 @@ use std::num::NonZeroU32;
 use std::path::PathBuf;
 
 use cfds_core::{
-    AssetClass, Candle, Currency, Instrument, InstrumentId, LiquidityLevel,
-    LiquidityLevelKind as K, LiquidityLevelState as S, Timeframe,
+    AssetClass, Candle, Currency, DailyCandle, Instrument, InstrumentId, LiquidityLevel,
+    LiquidityLevelKind as K, LiquidityLevelState as S,
+    StatsTimeframe::{D1, M15},
+    Timeframe,
 };
 use cfds_gateway::{GatewayConfig, LiquiditySource, PgSource};
 use cfds_storage::PgStore;
@@ -34,18 +36,22 @@ impl jsonschema::Retrieve for Local {
     }
 }
 
-fn assert_valid(doc: &Value) {
-    let text = std::fs::read_to_string(contracts().join("liquidity_view.v1.schema.json")).unwrap();
+fn assert_valid_against(schema_file: &str, doc: &Value) {
+    let text = std::fs::read_to_string(contracts().join(schema_file)).unwrap();
     let schema: Value = serde_json::from_str(&text).unwrap();
     let v = jsonschema::options()
         .with_retriever(Local)
         .build(&schema)
-        .expect("liquidity_view.v1 no es un schema válido");
+        .unwrap_or_else(|e| panic!("{schema_file} no es un schema válido: {e}"));
     let errors: Vec<String> = v.iter_errors(doc).map(|e| e.to_string()).collect();
     assert!(
         errors.is_empty(),
-        "no valida contra liquidity_view.v1: {errors:?}"
+        "no valida contra {schema_file}: {errors:?}"
     );
+}
+
+fn assert_valid(doc: &Value) {
+    assert_valid_against("liquidity_view.v1.schema.json", doc);
 }
 
 async fn source() -> PgSource {
@@ -54,7 +60,7 @@ async fn source() -> PgSource {
     store.migrate().await.unwrap();
     PgSource {
         store,
-        window: GatewayConfig::from_toml(CONFIG).unwrap().window,
+        config: GatewayConfig::from_toml(CONFIG).unwrap(),
         reaction_bars: vec![NonZeroU32::new(4).unwrap(), NonZeroU32::new(8).unwrap()],
     }
 }
@@ -96,7 +102,10 @@ fn candle(id: &InstrumentId, start: DateTime<Utc>) -> Candle {
 async fn empty_instrument_is_sin_datos() {
     let src = source().await;
     let id = fresh_instrument(&src.store).await;
-    let view = src.view(&id, at("2026-11-23T10:00:00Z")).await.unwrap();
+    let view = src
+        .view(&id, M15, at("2026-11-23T10:00:00Z"))
+        .await
+        .unwrap();
     assert_eq!(view.as_of, None);
     assert!(view.candles.is_empty() && view.levels.is_empty() && view.stats.is_empty());
     assert_valid(&serde_json::to_value(&view).unwrap());
@@ -126,7 +135,10 @@ async fn reads_closed_candles_and_levels_as_known_at_as_of() {
 
     // 14:50: la vela de 14:45 (la que barre, cierra a las 15:00) todavía no cerró: as_of = 14:45
     // y el barrido no se ve.
-    let view = src.view(&id, at("2026-11-20T14:50:00Z")).await.unwrap();
+    let view = src
+        .view(&id, M15, at("2026-11-20T14:50:00Z"))
+        .await
+        .unwrap();
     assert_eq!(view.as_of.as_deref(), Some("2026-11-20T14:45:00Z"));
     assert_eq!(view.candles.len(), 3);
     assert_eq!(view.levels.len(), 1);
@@ -134,11 +146,76 @@ async fn reads_closed_candles_and_levels_as_known_at_as_of() {
     assert_valid(&serde_json::to_value(&view).unwrap());
 
     // Con todas las velas cerradas, el nivel llega barrido.
-    let view = src.view(&id, at("2026-11-21T00:00:00Z")).await.unwrap();
+    let view = src
+        .view(&id, M15, at("2026-11-21T00:00:00Z"))
+        .await
+        .unwrap();
     assert_eq!(view.as_of.as_deref(), Some("2026-11-20T15:00:00Z"));
     assert_eq!(view.candles.len(), 4);
     assert_eq!(view.levels[0].state, S::Swept);
     assert_valid(&serde_json::to_value(&view).unwrap());
+}
+
+fn daily(id: &InstrumentId, day: &str) -> DailyCandle {
+    let d: chrono::NaiveDate = day.parse().unwrap();
+    // Día de medianoche a medianoche de Europa central (UTC+1 en noviembre).
+    let start = d.and_hms_opt(0, 0, 0).unwrap().and_utc() - TimeDelta::hours(1);
+    DailyCandle {
+        instrument_id: id.clone(),
+        day: d,
+        start,
+        end: start + TimeDelta::days(1),
+        open: dec!(100.0),
+        high: dec!(102.0),
+        low: dec!(99.0),
+        close: dec!(101.0),
+        volume: None,
+    }
+}
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn daily_view_uses_closed_daily_candles() {
+    let src = source().await;
+    let id = fresh_instrument(&src.store).await;
+    let days = ["2026-11-18", "2026-11-19", "2026-11-20"];
+    let rows: Vec<DailyCandle> = days.iter().map(|d| daily(&id, d)).collect();
+    src.store.insert_daily(&rows).await.unwrap();
+    // El 20 todavía no terminó a las 12:00 UTC: as_of es el fin del 19.
+    let view = src.view(&id, D1, at("2026-11-20T12:00:00Z")).await.unwrap();
+    assert_eq!(view.as_of.as_deref(), Some("2026-11-19T23:00:00Z"));
+    assert_eq!(view.candles.len(), 2);
+    let doc = serde_json::to_value(&view).unwrap();
+    assert_eq!(doc["timeframe"], "1d");
+    assert_eq!(doc["candles"][0]["day"], "2026-11-18");
+    assert_valid(&doc);
+    // Sin velas de 15m, la vista de 15m está vacía aunque haya diarias.
+    let m15 = src
+        .view(&id, M15, at("2026-11-21T12:00:00Z"))
+        .await
+        .unwrap();
+    assert_eq!(m15.as_of, None);
+}
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn the_gateway_session_cannot_write() {
+    let url = std::env::var("DATABASE_URL").expect("falta DATABASE_URL (necesita PostgreSQL)");
+    source().await; // deja las migraciones hechas
+    let ro = PgStore::connect(&cfds_gateway::read_only_url(&url))
+        .await
+        .unwrap();
+    let id: InstrumentId = "ITGWRO".parse().unwrap();
+    let write = ro
+        .upsert_instrument(&Instrument {
+            id,
+            name: "no se guarda".into(),
+            asset_class: AssetClass::Index,
+            currency: Currency::USD,
+            exchange_timezone: "America/New_York".into(),
+        })
+        .await;
+    assert!(write.is_err(), "la sesión de solo lectura escribió");
 }
 
 /// Los datos de ejemplo de la UI son una respuesta válida del gateway (más su nota).
@@ -154,7 +231,7 @@ fn ui_mock_is_a_valid_liquidity_view() {
 #[test]
 fn empty_view_follows_the_contract() {
     let id: InstrumentId = "US100".parse().unwrap();
-    let view = cfds_gateway::LiquidityView::empty(id, at("2026-11-23T10:00:00Z"));
+    let view = cfds_gateway::LiquidityView::empty(id, M15, at("2026-11-23T10:00:00Z"));
     assert_valid(&serde_json::to_value(&view).unwrap());
     // y el schema rechaza un campo inventado
     let mut doc = serde_json::to_value(&view).unwrap();
@@ -166,4 +243,45 @@ fn empty_view_follows_the_contract() {
         .build(&schema)
         .unwrap();
     assert!(!v.is_valid(&doc));
+}
+
+/// `/api/v1/instruments` con el catálogo y la configuración reales valida contra su contrato.
+#[tokio::test]
+async fn instruments_reply_follows_the_contract() {
+    let catalog =
+        cfds_market_data::Catalog::from_toml(include_str!("../../../../config/instruments.toml"))
+            .unwrap();
+    let instruments: Vec<Instrument> = catalog
+        .instruments
+        .values()
+        .map(|s| s.instrument.clone())
+        .collect();
+    let cfg = GatewayConfig::from_toml(CONFIG).unwrap();
+    assert!(instruments.iter().any(|i| i.id == cfg.default_instrument));
+    struct NoDb;
+    impl LiquiditySource for NoDb {
+        async fn view(
+            &self,
+            _: &InstrumentId,
+            _: cfds_core::StatsTimeframe,
+            _: DateTime<Utc>,
+        ) -> Result<cfds_gateway::LiquidityView, cfds_storage::StorageError> {
+            unreachable!()
+        }
+    }
+    let r = cfds_gateway::respond(
+        &NoDb,
+        &cfg,
+        &instruments,
+        "GET",
+        "/api/v1/instruments",
+        None,
+        at("2026-11-23T10:00:00Z"),
+    )
+    .await;
+    assert_eq!(r.status, 200);
+    assert_valid_against(
+        "gateway_instruments.v1.schema.json",
+        &serde_json::from_str(&r.body).unwrap(),
+    );
 }

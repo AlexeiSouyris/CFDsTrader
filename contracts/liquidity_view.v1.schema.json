@@ -2,51 +2,117 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/liquidity_view.v1.schema.json",
   "title": "Liquidity view v1",
-  "description": "Respuesta de GET /api/v1/liquidity?instrument=<id> del gateway (#231): lo que la vista de liquidez en vivo de la UI necesita de un instrumento, tal como está guardado en PostgreSQL al cierre de la última vela de 15m. No agrega cálculos: junta mensajes de otros contratos, cada uno sin cambios. La UI solo lo muestra (CLAUDE.md §1). Sin velas guardadas, as_of es null y las listas van vacías ('sin datos todavía').",
+  "description": "Respuesta de GET /api/v1/liquidity?instrument=<id>[&timeframe=15m|1h|1d] del gateway (#231): lo que la vista de liquidez de la UI necesita de un instrumento y timeframe, tal como está guardado en PostgreSQL al cierre de la última vela de ese timeframe. No agrega cálculos: junta mensajes de otros contratos, cada uno sin cambios. La UI solo lo muestra (CLAUDE.md §1). Sin velas guardadas, as_of es null y las listas van vacías ('sin datos todavía').",
   "type": "object",
   "additionalProperties": false,
-  "required": ["instrument_id", "generated_at", "as_of", "candles", "levels", "fvgs", "imbalance", "stats"],
+  "required": [
+    "instrument_id",
+    "generated_at",
+    "as_of",
+    "candles",
+    "levels",
+    "fvgs",
+    "imbalance",
+    "stats"
+  ],
   "properties": {
     "instrument_id": {
       "description": "Instrumento (ver instrument.v1).",
       "type": "string",
       "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$"
     },
+    "timeframe": {
+      "description": "Opcional (agregado sin romper v1, #231): timeframe de las velas, los FVG, el desequilibrio y los agregados. Ausente = 15m, como en la primera versión.",
+      "enum": [
+        "15m",
+        "1h",
+        "1d"
+      ]
+    },
     "generated_at": {
       "description": "Cuándo armó el gateway la respuesta, en UTC.",
       "$ref": "#/$defs/utc"
     },
     "as_of": {
-      "description": "Cierre (UTC) de la última vela de 15m cerrada guardada: todo lo demás se lee tal como se conocía en ese momento. null si no hay velas.",
-      "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }]
+      "description": "Cierre (UTC) de la última vela cerrada guardada de ese timeframe: todo lo demás se lee tal como se conocía en ese momento. null si no hay velas.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/utc"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "candles": {
-      "description": "Velas de 15m cerradas de la ventana de config/gateway.toml, en orden.",
-      "type": "array",
-      "items": { "$ref": "candle.v1.schema.json" }
+      "description": "Velas cerradas de la ventana de config/gateway.toml, en orden: candle.v1 en 15m y 1h, daily_candle.v1 en 1d.",
+      "type": "array"
     },
     "levels": {
       "description": "Niveles del mapa de liquidez de la ventana, tal como se conocían en as_of.",
       "type": "array",
-      "items": { "$ref": "liquidity_level.v1.schema.json" }
+      "items": {
+        "$ref": "liquidity_level.v1.schema.json"
+      }
     },
     "fvgs": {
-      "description": "FVG de 15m creados en la ventana, tal como se conocían en as_of.",
+      "description": "FVG del timeframe creados en la ventana, tal como se conocían en as_of.",
       "type": "array",
-      "items": { "$ref": "fvg_event.v1.schema.json" }
+      "items": {
+        "$ref": "fvg_event.v1.schema.json"
+      }
     },
     "imbalance": {
-      "description": "Desequilibrio de 15m, un valor por vela de la ventana, en orden; el último es el actual.",
+      "description": "Desequilibrio del timeframe, un valor por vela de la ventana, en orden; el último es el actual.",
       "type": "array",
-      "items": { "$ref": "imbalance.v1.schema.json" }
+      "items": {
+        "$ref": "imbalance.v1.schema.json"
+      }
     },
     "stats": {
-      "description": "Los agregados de la última corrida hecha hasta as_of, de cada tipo y timeframe.",
+      "description": "Los agregados del timeframe de la última corrida hecha hasta as_of (en 1d, también los de los gaps de apertura).",
       "type": "array",
-      "items": { "$ref": "liquidity_stats.v1.schema.json" }
+      "items": {
+        "$ref": "liquidity_stats.v1.schema.json"
+      }
     }
   },
   "$defs": {
-    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" }
-  }
+    "utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "timeframe"
+        ],
+        "properties": {
+          "timeframe": {
+            "const": "1d"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "candles": {
+            "items": {
+              "$ref": "daily_candle.v1.schema.json"
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "candles": {
+            "items": {
+              "$ref": "candle.v1.schema.json"
+            }
+          }
+        }
+      }
+    }
+  ]
 }

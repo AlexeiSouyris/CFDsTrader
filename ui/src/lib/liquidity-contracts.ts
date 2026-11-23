@@ -120,16 +120,52 @@ export type Imbalance = {
   label: 'aproximación desde el precio'
 }
 
-/** `liquidity_view.v1`: `GET /api/v1/liquidity?instrument=<id>` del gateway. */
+/** Los timeframes de la vista. */
+export type ViewTimeframe = '15m' | '1h' | '1d'
+
+/** `daily_candle.v1`: día local de medianoche a medianoche, con `start` y `end` explícitos. */
+export type DailyBar = {
+  instrument_id: string
+  day: string
+  start: Utc
+  end: Utc
+  open: Decimal
+  high: Decimal
+  low: Decimal
+  close: Decimal
+  volume: Decimal | null
+}
+
+/** `liquidity_view.v1`: `GET /api/v1/liquidity?instrument=<id>&timeframe=<tf>` del gateway. */
 export type LiquidityViewData = {
   instrument_id: string
+  /** opcional en el contrato; ausente = 15m */
+  timeframe?: ViewTimeframe
   generated_at: Utc
-  /** cierre de la última vela de 15m cerrada guardada; null si no hay velas ("sin datos todavía") */
+  /** cierre de la última vela cerrada guardada; null si no hay velas ("sin datos todavía") */
   as_of: Utc | null
-  candles: LiquidityBar[]
+  /** `candle.v1` en 15m y 1h; `daily_candle.v1` en 1d */
+  candles: LiquidityBar[] | DailyBar[]
   levels: LiquidityLevel[]
   fvgs: FvgEvent[]
   /** un valor por vela de la ventana; el último es el actual */
   imbalance: Imbalance[]
   stats: LiquidityStats[]
+}
+
+/** `instrument.v1` */
+export type InstrumentInfo = {
+  id: string
+  name: string
+  asset_class: string
+  currency: string
+  exchange_timezone: string
+}
+
+/** `gateway_instruments.v1`: `GET /api/v1/instruments` del gateway. */
+export type GatewayInstruments = {
+  default_instrument: string
+  default_timeframe: ViewTimeframe
+  timeframes: ViewTimeframe[]
+  instruments: InstrumentInfo[]
 }
