@@ -378,8 +378,7 @@ fn the_weekend_close_of_the_backtest_is_its_own_cause() {
     }
 }
 
-/// El broker simulado real, con las órdenes del backtest: las diferencias que quedan son de la
-/// ejecución del broker (ver el PR), y todas quedan repartidas por causa.
+/// El broker simulado real, con las órdenes del backtest: da lo mismo que el backtest (#319).
 #[test]
 fn the_real_paper_broker_against_the_backtest_is_explained() {
     let (m15, h1) = walk();
@@ -401,8 +400,15 @@ fn the_real_paper_broker_against_the_backtest_is_explained() {
     assert_explained(&c);
     // Misma decisión, misma vela y mismo precio de entrada en todas.
     assert_eq!(c.matched.len(), report.trades.len());
+    // #319: el broker simula las salidas igual que el backtest (desde el precio ejecutado).
+    assert_eq!(c.causes.fill_price, Decimal::ZERO, "{:#?}", c.causes);
+    assert_eq!(c.causes.size, Decimal::ZERO);
+    assert_eq!(c.difference, Decimal::ZERO);
     for m in &c.matched {
         assert_eq!(m.difference.entry_price, Decimal::ZERO);
+        assert_eq!(m.difference.exit_price, Decimal::ZERO);
+        assert_eq!(m.difference.size, Decimal::ZERO);
+        assert_eq!(m.paper.exit_time, m.backtest.exit_time);
     }
 }
 

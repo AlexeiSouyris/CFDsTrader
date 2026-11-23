@@ -548,3 +548,51 @@ async fn the_shutdown_flush_saves_what_was_missing_and_reports_orphans() {
     assert_eq!(flush.saved_now, ["o1"]);
     assert_eq!(flush.orphans, ["o2"]);
 }
+
+/// #319, spec §12: si la apertura de la entrada ya saltó el stop, la operación sale entera a esa
+/// apertura (como el backtest), no queda abierta.
+#[test]
+fn a_gap_through_the_stop_at_the_entry_exits_at_that_open() {
+    let mut candles = flat("US100");
+    // La vela 20 abre en 97, debajo del stop de 98 (el riesgo decidió con el cierre de 19 = 100).
+    candles[20] = bar("US100", 20, dec!(97), dec!(98.5), dec!(96.5), dec!(98));
+    let mut b = broker_with(|_| {}, vec![("US100", candles, limits())]);
+    let r = b.submit(&order("g", "US100", OrderSide::Long, dec!(98), 20));
+    assert_eq!(r.status, OrderStatus::Filled, "{r:?}");
+    // 97 + medio spread 0,5 + slippage 0,2 = 97,7: ya debajo del stop.
+    assert_eq!(r.fill_price, Some(dec!(97.7)));
+    let size = r.size.unwrap();
+    assert!(b.positions(at(25)).is_empty(), "no queda abierta");
+    let out = b.trade_outcomes(at(25));
+    assert_eq!(out.len(), 1);
+    let e = &out[0].exits;
+    assert_eq!(e.len(), 1);
+    assert_eq!(e[0].mid, dec!(97));
+    assert_eq!(e[0].price, dec!(96.3), "97 − 0,7");
+    assert_eq!(e[0].time, at(21), "fin de la vela de la entrada");
+    assert!(!e[0].end_of_data);
+    assert_eq!(out[0].gross_pnl, size * dec!(-1.4));
+}
+
+/// #319: TP1 se calcula desde el precio ejecutado, como en el backtest.
+#[test]
+fn tp1_is_measured_from_the_executed_entry() {
+    let mut candles = flat("US100");
+    // Fill en 100,7 con stop 98: R = 2,7 desde el ejecutado (2 desde el medio). Con TP1 a
+    // `tp1_r` R, la vela 22 llega justo al TP1 medido desde el medio, pero no desde el ejecutado.
+    let tp1_r = cfds_backtest::ExitConfig::from_toml(BACKTEST)
+        .unwrap()
+        .tp1_r;
+    let from_mid = dec!(100) + tp1_r * dec!(2);
+    let from_fill = dec!(100.7) + tp1_r * dec!(2.7);
+    candles[22] = bar("US100", 22, dec!(100), from_mid, dec!(99.5), dec!(100));
+    let mut b = broker_with(|_| {}, vec![("US100", candles, limits())]);
+    let r = b.submit(&order("t", "US100", OrderSide::Long, dec!(98), 20));
+    assert_eq!(r.fill_price, Some(dec!(100.7)));
+    let out = b.trade_outcomes(at(23));
+    assert!(
+        out[0].exits.iter().all(|e| e.end_of_data),
+        "no tocó el TP1 ({from_fill}): {:?}",
+        out[0].exits
+    );
+}
