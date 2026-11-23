@@ -20,6 +20,7 @@ mod futures_bars;
 mod futures_candles;
 mod liquidity_levels;
 mod liquidity_stats;
+mod market_context;
 mod news_stream;
 mod paper_orders;
 mod pg;

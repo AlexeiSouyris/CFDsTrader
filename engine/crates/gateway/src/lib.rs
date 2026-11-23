@@ -11,6 +11,7 @@
 //!
 //! No calcula nada nuevo, no envía órdenes ni escribe en la base.
 
+pub mod context;
 pub mod paper;
 
 use std::future::Future;
@@ -82,6 +83,9 @@ struct RawConfig {
     /// `[paper]`: lo lee [`paper::PaperConfig`].
     #[allow(dead_code)]
     paper: toml::Table,
+    /// `[context]`: lo lee [`context::ContextConfig`].
+    #[allow(dead_code)]
+    context: toml::Table,
 }
 
 #[derive(Deserialize)]
@@ -418,7 +422,7 @@ fn json<T: Serialize>(value: &T, what: &str) -> Reply {
     }
 }
 
-fn param<'q>(query: Option<&'q str>, name: &str) -> Option<&'q str> {
+pub(crate) fn param<'q>(query: Option<&'q str>, name: &str) -> Option<&'q str> {
     query?
         .split('&')
         .find_map(|kv| kv.strip_prefix(name)?.strip_prefix('='))

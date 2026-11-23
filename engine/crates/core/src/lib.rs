@@ -16,6 +16,7 @@ pub mod imbalance;
 pub mod instrument;
 pub mod liquidity_level;
 pub mod liquidity_stats;
+pub mod market_context;
 pub mod money;
 pub mod news;
 pub mod rate;
@@ -42,6 +43,11 @@ pub use liquidity_stats::{
     Direction, DistMetric, DistStat, FvgEvent, FvgEventPoint, FvgReaction, GapSession,
     LiquidityStats, OpeningGap, RateMetric, RateStat, SizeBucket, SizeCuts, StatsSubject,
     StatsTimeframe, ZoneStatus,
+};
+pub use market_context::{
+    AnalogContext, AnalogGroup, AnalogGroupKind, AnalogHits, AnalogHorizon, AnalogNeighbor,
+    AnalogPercentile, AnalogReport, AnalogSource, ComponentStatus, RatesTrend, SentimentComponent,
+    SentimentIndex, VolBand,
 };
 pub use money::{Currency, Money, MoneyError};
 pub use news::{Interpreter, NewsImpact, NewsInterpretation};

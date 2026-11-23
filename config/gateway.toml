@@ -40,3 +40,8 @@ max_order_age_secs = 60
 candles_days = 10
 # Corridas de backtest que devuelve /api/v1/backtest_runs (las más nuevas).
 runs_limit = 50
+
+# Contexto de mercado del Panel (#294): /api/v1/sentiment y /api/v1/analogs, solo lectura.
+[context]
+# Valores del índice de sentimiento que devuelve la historia de un instrumento (los últimos).
+sentiment_history = 400
