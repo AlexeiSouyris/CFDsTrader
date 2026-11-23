@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/paper_account.v1.schema.json",
+  "title": "Paper account v1",
+  "description": "Estado de la cuenta del broker simulado (fase 7, #278) al cierre de la última vela (as_of). Lo calcula el motor; la UI lo muestra sin calcular nada. Montos en la moneda de la cuenta. Solo existe el modo paper (CLAUDE.md §5).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mode", "currency", "as_of", "equity", "unrealized_pl", "realized_pl_today", "margin_used", "margin_free", "leverage", "daily_loss_used_pct", "open_positions", "max_positions", "kill_switch"],
+  "properties": {
+    "mode": { "const": "paper" },
+    "currency": { "description": "Moneda de la cuenta.", "const": "EUR" },
+    "as_of": { "$ref": "#/$defs/utc" },
+    "equity": { "description": "Capital realizado + no realizado.", "$ref": "#/$defs/signed_decimal" },
+    "unrealized_pl": { "$ref": "#/$defs/signed_decimal" },
+    "realized_pl_today": { "description": "P/L realizado desde las 00:00 de Madrid.", "$ref": "#/$defs/signed_decimal" },
+    "margin_used": { "$ref": "#/$defs/decimal" },
+    "margin_free": { "$ref": "#/$defs/signed_decimal" },
+    "leverage": { "description": "Nocional total / capital.", "$ref": "#/$defs/decimal" },
+    "daily_loss_used_pct": { "description": "Parte usada de la pérdida máxima diaria (spec §10), en %; 0 si el día va en ganancia.", "$ref": "#/$defs/decimal" },
+    "open_positions": { "type": "integer", "minimum": 0 },
+    "max_positions": { "type": "integer", "minimum": 1 },
+    "kill_switch": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["active"], "properties": { "active": { "const": false } } },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["active", "reason", "since"],
+          "properties": {
+            "active": { "const": true },
+            "reason": { "description": "Motivo legible (límite superado, error de datos, desconexión, reconciliación).", "type": "string", "minLength": 1, "maxLength": 300 },
+            "since": { "$ref": "#/$defs/utc" }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" },
+    "decimal": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "signed_decimal": { "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/order_report.v1.schema.json",
+  "title": "Order report v1",
+  "description": "Qué pasó con una orden (order.v1) en el broker simulado (fase 7, #278): el riesgo la rechazó, o se ejecutó entera en la apertura de la vela siguiente, con spread, slippage y comisión de config. No hay ejecuciones parciales en la simulación (la spec §12 solo las prevé en el registro real). Montos en la moneda del instrumento.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["order_id", "status", "rejection", "position_id", "size", "fill_price", "commission", "at"],
+  "properties": {
+    "order_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,200}$" },
+    "status": { "enum": ["rejected", "filled"] },
+    "rejection": {
+      "description": "Motivo del rechazo, o null si se ejecutó.",
+      "oneOf": [{ "$ref": "#/$defs/rejection" }, { "type": "null" }]
+    },
+    "position_id": {
+      "description": "La posición que abrió (position.v1), o null si se rechazó.",
+      "oneOf": [{ "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,200}$" }, { "type": "null" }]
+    },
+    "size": { "description": "Tamaño que aprobó el riesgo (moneda del instrumento por punto), o null.", "$ref": "#/$defs/decimal_or_null" },
+    "fill_price": { "description": "Precio de ejecución con medio spread y slippage, o null.", "$ref": "#/$defs/decimal_or_null" },
+    "commission": { "$ref": "#/$defs/decimal_or_null" },
+    "at": { "description": "Cuándo se resolvió la orden (la apertura de la vela del fill, o la hora del rechazo), en UTC.", "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "filled" } } },
+      "then": { "properties": { "rejection": { "type": "null" }, "position_id": { "type": "string" }, "size": { "type": "string" }, "fill_price": { "type": "string" }, "commission": { "type": "string" } } },
+      "else": { "properties": { "rejection": { "type": "string" }, "position_id": { "type": "null" }, "fill_price": { "type": "null" }, "commission": { "type": "null" } } }
+    }
+  ],
+  "$defs": {
+    "decimal_or_null": { "oneOf": [{ "type": "string", "pattern": "^\\d+(\\.\\d+)?$" }, { "type": "null" }] },
+    "rejection": {
+      "description": "Los motivos del módulo de riesgo (cfds-risk `Rejection`) más los del broker: no_price (no hay vela para ejecutar), unknown_instrument y stop_wrong_side.",
+      "enum": [
+        "invalid_input", "kill_switch_active", "drawdown_limit", "daily_loss_limit", "max_open_positions",
+        "instrument_already_open", "stop_too_close", "stop_too_far", "insufficient_margin",
+        "below_min_deal_size", "min_deal_size_unknown", "no_price", "unknown_instrument", "stop_wrong_side"
+      ]
+    }
+  }
+}

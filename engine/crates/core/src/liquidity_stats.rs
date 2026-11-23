@@ -15,7 +15,7 @@ use crate::candle::{Timeframe, utc_z};
 use crate::instrument::InstrumentId;
 
 /// `utc_z` para un campo opcional: `null` o ausente es `None`.
-mod utc_z_option {
+pub(crate) mod utc_z_option {
     use chrono::{DateTime, Utc};
     use serde::{Deserialize, Deserializer, Serializer};
 

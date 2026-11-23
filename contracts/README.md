@@ -219,6 +219,21 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Los errores HTTP (400, 404, 405, 500) van como texto plano, sin datos.
 - El gateway abre la sesión de PostgreSQL en **solo lectura** (`default_transaction_read_only`).
 
+### Broker simulado (fase 7, #278)
+
+| Contrato | Contenido |
+|---|---|
+| `order.v1` | Una orden de mercado: `order_id` propio e idempotente, `mode` (solo `paper`), instrumento, dirección, **stop obligatorio**, `tp1`, `proposal_id` y `created_at`. **Sin tamaño:** lo calcula solo el riesgo (spec §8). |
+| `order_report.v1` | Qué pasó con la orden: `rejected` (con el motivo) o `filled` (posición, tamaño, precio con spread y slippage, comisión), y cuándo. |
+| `ticket_verdict.v1` | La respuesta del riesgo a una orden **sin enviarla**: acepta o rechaza, con tamaño, riesgo, % de riesgo, apalancamiento y margen. La UI la muestra. |
+| `position.v1` | Una posición abierta valuada al cierre de `as_of`: entrada, stop, `tp1`, último precio, P/L no realizado (en moneda y en R) y margen. |
+| `paper_account.v1` | La cuenta simulada al cierre de `as_of`: capital, P/L, margen, apalancamiento, pérdida diaria usada, posiciones y kill switch. |
+
+- **Solo modo paper:** ninguno de estos mensajes puede describir una orden real (CLAUDE.md §5, fase 11).
+- **Una sola lista de motivos de rechazo**, compartida por `order_report.v1` y `ticket_verdict.v1`: los del módulo de riesgo más `no_price`, `unknown_instrument` y `stop_wrong_side`. Un test comprueba que las dos listas sean iguales.
+- **Sin ejecuciones parciales** en la simulación: la spec §12 las prevé solo para el registro real.
+- Los escribe el motor (`cfds-broker`, siguiente PR) y los lee la UI (terminal, #275), que hoy los tiene como mocks con `TODO(#275)`.
+
 ### Fondo del grupo (#179)
 
 | Contrato | Tabla | Contenido |
