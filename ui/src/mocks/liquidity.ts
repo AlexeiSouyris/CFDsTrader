@@ -46,8 +46,8 @@ export type LiquidityLevel = {
   /** cierre de la vela que barrió o rompió el nivel; null si está intacto */
   state_changed_at: Utc | null
   /**
-   * Opcional (PR #237, todavía sin mergear): cierre de la vela en que el nivel intacto venció
-   * (`max_age_bars`). Ausente o null si no venció.
+   * Opcional (#237): cierre de la vela en que el nivel, todavía intacto, venció (`max_age_bars`).
+   * Ausente o null si no venció.
    */
   expired_at?: Utc | null
 }

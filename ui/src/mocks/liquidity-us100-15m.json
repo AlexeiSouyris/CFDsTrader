@@ -3103,6 +3103,16 @@
     },
     {
       "instrument_id": "US100",
+      "kind": "eql",
+      "session": null,
+      "price": "19826.4",
+      "exists_from": "2026-11-13T16:15:00Z",
+      "state": "intact",
+      "state_changed_at": null,
+      "expired_at": "2026-11-19T09:00:00Z"
+    },
+    {
+      "instrument_id": "US100",
       "kind": "eqh",
       "session": null,
       "price": "19868.7",

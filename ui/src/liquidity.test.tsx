@@ -104,6 +104,18 @@ describe('vista de liquidez en vivo (#231)', () => {
     expect(screen.getByText('no es flujo de órdenes')).toBeInTheDocument()
   })
 
+  it('el ejemplo trae un nivel vencido y la tabla lo muestra atenuado', () => {
+    const expired = DATA.levels.filter((l) => l.expired_at)
+    expect(expired).toHaveLength(1)
+    render(<LiquidityView />)
+    const table = screen.getByRole('table', { name: 'Niveles de liquidez y su estado' })
+    const rows = within(table)
+      .getAllByRole('row')
+      .filter((r) => r.hasAttribute('data-expired'))
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toHaveTextContent(decimal(expired[0].price))
+  })
+
   it('un nivel vencido (expired_at) se muestra atenuado y fuera de los activos', () => {
     const base = DATA.levels.find((l) => l.state === 'intact')!
     const expired = { ...base, expired_at: DATA.as_of }
