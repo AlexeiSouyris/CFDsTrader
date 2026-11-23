@@ -1,3 +1,4 @@
+-- Número 0015: la 0014 es de la sesión de Tiingo (coordinado el 23-11-2026); se mergea después de ella.
 -- Registro de experimentos del modelo de ML v1 (docs/spec/ml-v1.md §7, ADR 0003 §D, #158).
 -- Columnas = contracts/ml_experiment.v1: los campos de arriba como columnas y el resto (variables,
 -- hiperparámetros, ventanas, métricas y resultado) como JSONB con la forma del contrato. Se
