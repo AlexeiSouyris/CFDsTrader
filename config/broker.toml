@@ -7,3 +7,8 @@
 initial_equity = "1000"
 # Período del ATR de Wilder que usa el riesgo para la distancia al stop (spec §4 y §7.7).
 atr_period = 14
+
+[reconcile]
+# Cada cuántos minutos se reconcilia el broker en marcha con el registro de órdenes guardado en
+# PostgreSQL (ROADMAP fase 7: "al arrancar y periódicamente"). Si algo no coincide: kill switch.
+every_minutes = 15

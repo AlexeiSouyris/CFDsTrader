@@ -28,6 +28,10 @@ pub enum Mismatch {
     UnknownInBroker(ClientId),
     /// Las dos la tienen, pero no coinciden instrumento, dirección, tamaño o stop.
     Different(ClientId),
+    /// El broker en marcha procesó esta orden y no está en el registro guardado.
+    UnsavedOrder(ClientId),
+    /// El registro guardado tiene esta orden y el broker en marcha no.
+    UnknownStoredOrder(ClientId),
 }
 
 /// Un informe reconstruido que no coincide con el guardado.

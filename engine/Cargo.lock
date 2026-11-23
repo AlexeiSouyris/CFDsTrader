@@ -224,6 +224,7 @@ dependencies = [
  "cfds-core",
  "cfds-indicators",
  "cfds-risk",
+ "cfds-storage",
  "cfds-strategy",
  "chrono",
  "chrono-tz",
@@ -231,6 +232,8 @@ dependencies = [
  "rust_decimal",
  "serde",
  "serde_json",
+ "sqlx",
+ "tokio",
  "toml",
 ]
 
