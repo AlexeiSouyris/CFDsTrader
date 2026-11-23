@@ -15,7 +15,7 @@ use cfds_core::{Order, OrderReport, PaperAccount, Position, TicketVerdict};
 use chrono::{DateTime, Utc};
 
 pub use live::{LiveAuthorization, LiveBroker, live_trading_status};
-pub use paper::{BrokerConfig, MarketSetup, PaperBroker};
+pub use paper::{BrokerConfig, FundingSetup, MarketSetup, PaperBroker};
 
 /// Lo que cualquier broker hace. Las órdenes son idempotentes por `order_id`.
 pub trait Broker {
