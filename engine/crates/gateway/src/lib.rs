@@ -17,6 +17,7 @@ pub mod ops;
 pub mod paper;
 pub mod paper_runner;
 pub mod status;
+pub mod walk_forward;
 
 use std::future::Future;
 use std::net::SocketAddr;

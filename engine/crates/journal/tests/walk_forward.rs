@@ -194,6 +194,14 @@ async fn a_report_is_stored_once_and_never_rewritten() {
         j.record_walk_forward(&other).await,
         Err(JournalError::Conflict { .. })
     ));
+    // El último del instrumento: el más nuevo por computed_at.
+    let newer_id = format!("{id}-b");
+    let mut newer = sample(&newer_id);
+    newer.computed_at = r.computed_at + chrono::TimeDelta::days(1);
+    j.record_walk_forward(&newer).await.unwrap();
+    let latest = j.latest_walk_forward("US100").await.unwrap().unwrap();
+    assert!(latest.computed_at >= newer.computed_at);
+    assert!(j.latest_walk_forward("ZZ99").await.unwrap().is_none());
     for sql in [
         "UPDATE walk_forward_reports SET candle_source = 'ig' WHERE report_id = $1",
         "DELETE FROM walk_forward_reports WHERE report_id = $1",

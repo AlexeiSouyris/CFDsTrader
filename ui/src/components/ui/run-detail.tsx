@@ -15,6 +15,8 @@ import { dayYear, numOrDash, pctOrDash, signedPct, tone } from '@/lib/run-format
 import { useElementWidth } from '@/lib/use-element-width'
 import { cn } from '@/lib/utils'
 
+import { WalkForwardLive } from './walk-forward'
+
 const EXIT_LABEL: Record<ExitReason, string> = {
   stop: 'Stop',
   tp1: 'TP1',
@@ -433,15 +435,23 @@ export function RunDetailView({
       </Block>
 
       {/*
-        TODO(fase 5): walk-forward y fuera de muestra. Los publica otro módulo con su propio
-        contrato, todavía no definido: acá no se inventa ningún campo. Cuando exista, este
-        bloque lo muestra tal cual llega.
+        Walk-forward y fuera de muestra (fase 5, #298 y #316): el último `walk_forward_report.v1`
+        de cada instrumento de la corrida, tal cual lo manda el motor. Con los datos de ejemplo no
+        se inventa ninguno.
       */}
       <Block title="Walk-forward / fuera de muestra" aside="fase 5">
-        <p data-walk-forward="pending" className="text-[12.5px] text-muted-foreground">
-          Todavía no hay resultados de walk-forward para esta corrida. Van a llegar con la fase 5,
-          desde su propio contrato.
-        </p>
+        {example ? (
+          <p data-walk-forward="pending" className="text-[12.5px] text-muted-foreground">
+            Los datos de ejemplo no tienen walk-forward: llega del motor con la fase 5, desde su
+            propio contrato.
+          </p>
+        ) : (
+          <div className="grid gap-4">
+            {r.instruments.map((id) => (
+              <WalkForwardLive key={id} instrument={id} />
+            ))}
+          </div>
+        )}
       </Block>
     </section>
   )
