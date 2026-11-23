@@ -417,7 +417,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         record_ml_features(
             &store,
             run_id,
-            (&out, &id),
+            // Tercios de la volatilidad de la misma fuente (#282): con futuros, los de las
+            // diarias del instrumento derivado.
+            (&out, &out),
             &report.trades,
             &m15,
             session,
@@ -623,9 +625,9 @@ async fn journal_and_probability(
 }
 
 /// Guarda las variables de ML de cada operación (`ml_features.v1`, #158). Los tercios de la
-/// volatilidad son los guardados (`daily_vol_terciles`, del ejemplo `daily_indicators`), siempre
-/// del CFD (`cfd`); las propuestas son las del instrumento con el que se guardó la corrida (`id`,
-/// el derivado con futuros, #267).
+/// volatilidad son los guardados (`daily_vol_terciles`, del ejemplo `daily_indicators`) del
+/// instrumento `cfd` (con futuros, el derivado: #282); las propuestas son las del instrumento con
+/// el que se guardó la corrida (`id`, el derivado con futuros, #267).
 #[allow(clippy::too_many_arguments)]
 async fn record_ml_features(
     store: &PgStore,

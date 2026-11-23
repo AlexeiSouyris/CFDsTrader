@@ -18,6 +18,9 @@ label = "IG CFD"
 source = "databento"
 label = "futuros CME/Eurex (base distinta al CFD)"
 id_suffix = ".FUT"
+# Diarias de los futuros (#282): de medianoche a medianoche en esta zona, igual que las diarias
+# de IG (config/ig.toml `prices_timezone`; un test controla que coincidan).
+daily_timezone = "Europe/Madrid"
 # Vencimientos (#269). El contrato continuo `c.0` es el del vencimiento más cercano (Databento:
 # "calendar", sin ajuste de precios). No se usa el `instrument_id` de Databento para saber cuándo
 # cambia el contrato: en Eurex (XEUR.EOBI) cambia de un día a otro y se reusa. Los índices de CME

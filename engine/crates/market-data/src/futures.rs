@@ -229,3 +229,71 @@ pub fn compare_daily(ig: &[DailyCandle], bars: &[FuturesBar]) -> DailyComparison
         missing,
     }
 }
+
+/// Velas diarias de un futuro (#282), con la misma ventana que las diarias de IG: de medianoche a
+/// medianoche en `tz` (`config/candle_sources.toml` `daily_timezone`, la misma zona que
+/// `config/ig.toml` `prices_timezone`).
+///
+/// ```text
+/// para cada día D con sesión en el calendario del CFD (`session`, con sus feriados):
+///   ventana = [medianoche de D, medianoche de D+1) en tz, cerrada hasta `until`
+///   velas = las de 15m de `m15` dentro de la ventana
+///   si un vencimiento R (calendario de #270) cae dentro de la ventana, solo las velas desde R:
+///     la diaria nunca mezcla dos contratos
+///   sin velas, no hay diaria (no se rellena)
+/// ```
+/// `instrument` es el id con el que se guarda (el derivado, por ejemplo `US500.FUT`).
+pub fn futures_daily(
+    m15: &[Candle],
+    instrument: &InstrumentId,
+    session: &crate::Session,
+    tz: chrono_tz::Tz,
+    rolls: &[DateTime<Utc>],
+    until: DateTime<Utc>,
+) -> Vec<DailyCandle> {
+    let (Some(first), Some(last)) = (m15.first(), m15.last()) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    let mut day = first.start.with_timezone(&tz).date_naive();
+    let end_day = last.start.with_timezone(&tz).date_naive();
+    while day <= end_day {
+        let next = day.succ_opt();
+        let open = matches!(session.hours(day), Some(Some(_)));
+        if let (true, Some((from, to))) = (open, crate::local_day_bounds(day, tz))
+            && to <= until
+        {
+            let from = rolls
+                .iter()
+                .copied()
+                .filter(|r| *r > from && *r < to)
+                .max()
+                .unwrap_or(from);
+            let i = m15.partition_point(|c| c.start < from);
+            let group: Vec<&Candle> = m15[i..]
+                .iter()
+                .take_while(|c| c.start < to)
+                .filter(|c| c.end() <= to)
+                .collect();
+            if let (Some(a), Some(b)) = (group.first(), group.last()) {
+                let (window_start, _) = crate::local_day_bounds(day, tz).unwrap_or((from, to));
+                out.push(DailyCandle {
+                    instrument_id: instrument.clone(),
+                    day,
+                    start: window_start,
+                    end: to,
+                    open: a.open,
+                    high: group.iter().map(|c| c.high).max().unwrap_or(a.high),
+                    low: group.iter().map(|c| c.low).min().unwrap_or(a.low),
+                    close: b.close,
+                    volume: group.iter().map(|c| c.volume).sum::<Option<Decimal>>(),
+                });
+            }
+        }
+        match next {
+            Some(n) => day = n,
+            None => break,
+        }
+    }
+    out
+}

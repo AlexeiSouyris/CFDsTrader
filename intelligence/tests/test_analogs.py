@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from cfds_intel.analogs.config import AnalogsConfigError, load_config
-from cfds_intel.analogs.data import benchmarks, daily_params
+from cfds_intel.analogs.data import benchmarks, daily_params, futures_suffix, select_source
 from cfds_intel.analogs.search import (
     Bar,
     Rate,
@@ -213,3 +213,16 @@ def test_analyze_reports_insufficient_data_and_empty_context_without_rates() -> 
     # Sin volatilidad ni tasas, la consulta no tiene contexto: el segundo grupo queda vacío.
     assert r.context.vol is None and r.context.rates is None
     assert r.same_context.count == 0
+
+
+def test_sources_are_never_mixed_and_futures_use_the_base_rates() -> None:
+    """#282: las diarias de IG y las de los futuros son el mismo mercado: nunca juntas."""
+    suffix = futures_suffix((ROOT / "config" / "candle_sources.toml").read_text())
+    s = {"US500": bars(["1", "2"]), "US500" + suffix: bars(["3", "4"]), "DE40": bars(["5"])}
+    r = {"US500": [Rate(date(2024, 1, 1), datetime(2024, 1, 2, tzinfo=UTC), Decimal("5"))]}
+    ig, ig_rates = select_source(s, r, None)
+    assert sorted(ig) == ["DE40", "US500"]
+    assert ig_rates == r
+    fut, fut_rates = select_source(s, r, suffix)
+    assert list(fut) == ["US500" + suffix]
+    assert fut_rates == {"US500" + suffix: r["US500"]}

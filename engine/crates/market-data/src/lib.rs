@@ -29,6 +29,7 @@ pub use config::{ConfigError, ValidationConfig};
 pub use daily::{DailyIssue, DailyIssueKind, daily_bounds, local_day_bounds, validate_daily};
 pub use futures::{
     ContractBasis, DailyComparison, DayPair, FuturesCandles, compare_daily, futures_candles,
+    futures_daily,
 };
 pub use instruments::{BrokerTerms, Catalog, CatalogError, InstrumentSpec, PendingField, Sourced};
 pub use news_filter::{NewsFilter, NewsFilterConfig, calendar_coverage, news_flags};

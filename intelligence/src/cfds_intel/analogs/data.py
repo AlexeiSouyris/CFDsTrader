@@ -5,6 +5,9 @@
   (`daily_vol_terciles`); sin fila, queda sin dato.
 - El tipo de referencia de cada instrumento sale de `config/instruments.toml`
   (`funding_benchmark`), y sus valores, de `reference_rates`.
+- Fuente de las diarias (#282): las de IG (ids del catálogo) o las de los futuros (ids derivados,
+  por ejemplo `US500.FUT`). Nunca se mezclan: serían el mismo mercado dos veces y cada ventana
+  tendría de vecino a su gemela.
 """
 
 import tomllib
@@ -23,6 +26,28 @@ def daily_params(indicators_toml: str) -> tuple[int, int, int]:
     if not (isinstance(atr, int) and isinstance(vol, int) and isinstance(years, int)):
         raise ValueError(f"config/indicators.toml: falta alguno de [daily] {', '.join(keys)}")
     return atr, vol, years
+
+
+def futures_suffix(candle_sources_toml: str) -> str:
+    """`[futures] id_suffix` de `config/candle_sources.toml` (por ejemplo `.FUT`)."""
+    suffix = tomllib.loads(candle_sources_toml).get("futures", {}).get("id_suffix")
+    if not isinstance(suffix, str) or not suffix:
+        raise ValueError("config/candle_sources.toml: falta [futures] id_suffix")
+    return suffix
+
+
+def select_source(
+    series: Mapping[str, list[Bar]],
+    rates: Mapping[str, list[Rate]],
+    suffix: str | None,
+) -> tuple[dict[str, list[Bar]], dict[str, list[Rate]]]:
+    """Solo las series de una fuente: las de IG (`suffix` None, ids sin sufijo) o las de los
+    futuros (ids que terminan en `suffix`). Los tipos de referencia son los del instrumento base."""
+    if suffix is None:
+        return {k: v for k, v in series.items() if "." not in k}, dict(rates)
+    chosen = {k: v for k, v in series.items() if k.endswith(suffix)}
+    by_id = {k: rates[k.removesuffix(suffix)] for k in chosen if k.removesuffix(suffix) in rates}
+    return chosen, by_id
 
 
 def benchmarks(instruments_toml: str) -> dict[str, str]:
