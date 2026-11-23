@@ -21,6 +21,7 @@ mod futures_candles;
 mod liquidity_levels;
 mod liquidity_stats;
 mod news_stream;
+mod paper_orders;
 mod pg;
 mod stream;
 
@@ -94,6 +95,10 @@ pub enum StorageError {
         instrument: String,
         at: DateTime<Utc>,
     },
+    #[error(
+        "la orden {order_id} del broker simulado ya está guardada con otro contenido o informe: no se pisa (sería repintado)"
+    )]
+    PaperOrderConflict { order_id: String },
     #[error("fila inválida en la base: {0}")]
     CorruptRow(String),
     #[error("la vela de {start} todavía no cerró a las {now}: no se publica")]

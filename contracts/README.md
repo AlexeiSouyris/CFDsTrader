@@ -232,7 +232,8 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - **Solo modo paper:** ninguno de estos mensajes puede describir una orden real (CLAUDE.md §5, fase 11).
 - **Una sola lista de motivos de rechazo**, compartida por `order_report.v1` y `ticket_verdict.v1`: los del módulo de riesgo más `no_price`, `unknown_instrument` y `stop_wrong_side`. Un test comprueba que las dos listas sean iguales.
 - **Sin ejecuciones parciales** en la simulación: la spec §12 las prevé solo para el registro real.
-- Los escribe el motor (`cfds-broker`, siguiente PR) y los lee la UI (terminal, #275), que hoy los tiene como mocks con `TODO(#275)`.
+- Los escribe el motor (`cfds-broker`) y los lee la UI (terminal, #275), que hoy los tiene como mocks con `TODO(#275)`.
+- **Guardado** (`infra/migrations/0028_paper_orders.sql`, solo agregar con trigger): `paper_orders` (cada `order.v1`, una vez por `order_id`, en orden de llegada, solo `mode = paper`) y `paper_order_reports` (su `order_report.v1`, uno por orden). Otro contenido para un `order_id` ya guardado es repintado: error. Con este registro el broker se reconstruye al arrancar y se reconcilia cada `[reconcile] every_minutes`.
 
 ### Fondo del grupo (#179)
 

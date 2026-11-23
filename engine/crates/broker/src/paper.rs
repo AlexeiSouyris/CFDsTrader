@@ -47,6 +47,8 @@ pub struct BrokerConfig {
     pub exits: ExitConfig,
     /// Zona del "día" de la pérdida diaria (spec §10: Madrid).
     pub day_tz: Tz,
+    /// Cada cuánto se reconcilia el broker con el registro guardado (`[reconcile]`).
+    pub reconcile_every: chrono::TimeDelta,
 }
 
 impl BrokerConfig {
@@ -62,6 +64,12 @@ impl BrokerConfig {
         #[serde(deny_unknown_fields)]
         struct Raw {
             paper: RawPaper,
+            reconcile: RawReconcile,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct RawReconcile {
+            every_minutes: u32,
         }
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
@@ -78,6 +86,9 @@ impl BrokerConfig {
         if initial_equity <= Decimal::ZERO || raw.paper.atr_period == 0 {
             return Err("paper: initial_equity y atr_period tienen que ser > 0".into());
         }
+        if raw.reconcile.every_minutes == 0 {
+            return Err("reconcile.every_minutes tiene que ser > 0".into());
+        }
         Ok(Self {
             initial_equity,
             atr_period: raw.paper.atr_period,
@@ -85,6 +96,7 @@ impl BrokerConfig {
             costs,
             exits,
             day_tz,
+            reconcile_every: chrono::TimeDelta::minutes(i64::from(raw.reconcile.every_minutes)),
         })
     }
 }
@@ -230,6 +242,10 @@ impl PaperBroker {
         if self.kill_switch.is_none() {
             self.kill_switch = Some((reason.into(), at));
         }
+    }
+
+    pub fn config(&self) -> &BrokerConfig {
+        &self.cfg
     }
 
     pub fn kill_switch_active(&self) -> bool {

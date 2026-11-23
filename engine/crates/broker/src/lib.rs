@@ -10,6 +10,7 @@
 
 pub mod live;
 pub mod paper;
+pub mod persist;
 pub mod reconcile;
 
 use cfds_core::{Order, OrderReport, PaperAccount, Position, TicketVerdict};
@@ -17,6 +18,9 @@ use chrono::{DateTime, Utc};
 
 pub use live::{LiveAuthorization, LiveBroker, live_trading_status};
 pub use paper::{BrokerConfig, FundingSetup, MarketSetup, PaperBroker};
+pub use persist::{
+    ReconcileSchedule, reconcile_periodically, restore_from_store, submit_and_record,
+};
 pub use reconcile::{Drift, Mismatch, Reconciliation, reconcile, restore_and_reconcile};
 
 /// Lo que cualquier broker hace. Las órdenes son idempotentes por `order_id`.
