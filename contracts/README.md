@@ -237,6 +237,15 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Los escribe el motor (`cfds-broker`) y los lee la UI (terminal, #275), que hoy los tiene como mocks con `TODO(#275)`.
 - **Guardado** (`infra/migrations/0028_paper_orders.sql`, solo agregar con trigger): `paper_orders` (cada `order.v1`, una vez por `order_id`, en orden de llegada, solo `mode = paper`) y `paper_order_reports` (su `order_report.v1`, uno por orden). Otro contenido para un `order_id` ya guardado es repintado: error. Con este registro el broker se reconstruye al arrancar y se reconcilia cada `[reconcile] every_minutes`.
 
+### Análogos históricos (#148, #294)
+
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `analog_report.v1` | `analog_reports` | El informe de análogos de la última ventana de un índice: fuente (`ig` o `futures`), día y cierre de la ventana, contexto (volatilidad y tasas), vecinos (índice, día y distancia) y, para "todos" y "mismo contexto", cuántos son, si son insuficientes, los percentiles del retorno por horizonte (fracciones), el % positivo y los toques de +R/−R. |
+
+- **Solo informativo:** es la distribución de lo que pasó después de situaciones parecidas, **nunca un pronóstico ni una recomendación**. Con menos de `min_neighbors` vecinos, `insufficient = true` y se muestra "datos insuficientes".
+- Lo calcula y lo escribe **solo Python** (`python -m cfds_intel.analogs --guardar`, migración 0029, solo agregar). Un informe igual al último del mismo día no se repite. Rust (gateway) y la UI lo leen sin recalcular.
+
 ### Fondo del grupo (#179)
 
 | Contrato | Tabla | Contenido |

@@ -80,7 +80,8 @@ jobs:
             tests/test_ml_experiment_store.py tests/test_sentiment_index_store.py \
             tests/test_analogs_store.py tests/test_phase4b_store.py \
             tests/test_calendar_store.py tests/test_databento_store.py \
-            tests/test_treasury_store.py tests/test_vix_store.py
+            tests/test_treasury_store.py tests/test_vix_store.py \
+            tests/test_analogs_reports_store.py
 
   intelligence:
     name: intelligence (Python)
