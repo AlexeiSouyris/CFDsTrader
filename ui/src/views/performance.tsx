@@ -5,14 +5,17 @@
  * **No calcula nada** (CLAUDE.md §1): las métricas llegan del motor y se muestran tal cual; las
  * fracciones se pasan a % corriendo la coma en el texto (`percent`).
  *
- * TODO(#286): hoy todo sale de `mocks/` (`BACKTEST_RUNS`, `FUND`): el gateway todavía no expone
- * `backtest_runs` ni el fondo. No se inventan contratos: los tipos son los de `contracts/`.
+ * Las corridas llegan del gateway (`GET /api/v1/backtest_runs`, `backtest_run.v1[]`, las más
+ * nuevas primero, #292). Si no responde, se ven las corridas de ejemplo de `mocks/`, marcadas así.
+ * TODO(#286): el fondo sigue saliendo de `mocks/` (`FUND`): el gateway todavía no lo expone. No se
+ * inventan contratos: los tipos son los de `contracts/`.
  */
 import type { ReactNode } from 'react'
 
 import { AnimatedNumber } from '@/components/ui/animated-number'
 import { Term } from '@/components/ui/term'
 import { dateTimeUtc, decimal, percent } from '@/lib/format'
+import { useBacktestRuns } from '@/lib/paper-api'
 import { cn } from '@/lib/utils'
 import { BACKTEST_RUNS, FUND, type BacktestRun } from '@/mocks'
 
@@ -132,14 +135,26 @@ function RunsTable({ runs }: { runs: BacktestRun[] }) {
 }
 
 export function PerformanceView({ onOpen }: { onOpen: (view: string) => void }) {
-  const last = BACKTEST_RUNS[0]
+  const remote = useBacktestRuns()
+  const live = remote.status === 'ok'
+  const runs = live ? remote.data : BACKTEST_RUNS
+  const last = runs[0]
   const m = last?.metrics
   return (
     <div className="grid gap-3">
       <p className="max-w-3xl text-[13px] text-muted-foreground">
-        Cómo le fue a la simulación, con costos incluidos (spread, slippage y financiación). Son
-        resultados del pasado con <strong className="text-foreground">datos de ejemplo</strong>: no
-        anticipan lo que va a pasar.
+        Cómo le fue a la <strong className="text-foreground">simulación (paper)</strong>, con costos
+        incluidos (spread, slippage y financiación). Son resultados del pasado
+        {live ? (
+          ' que guardó el motor'
+        ) : (
+          <>
+            {' '}
+            con <strong className="text-foreground">datos de ejemplo</strong> (el gateway no
+            respondió)
+          </>
+        )}
+        : no anticipan lo que va a pasar.
       </p>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -173,9 +188,12 @@ export function PerformanceView({ onOpen }: { onOpen: (view: string) => void }) 
         )}
       </div>
 
-      <Card title="Corridas de backtest" aside={`${BACKTEST_RUNS.length} corridas (ejemplo)`}>
-        {BACKTEST_RUNS.length ? (
-          <RunsTable runs={BACKTEST_RUNS} />
+      <Card
+        title="Corridas de backtest"
+        aside={`${runs.length} ${runs.length === 1 ? 'corrida' : 'corridas'} ${live ? 'del motor' : '(ejemplo)'}`}
+      >
+        {runs.length ? (
+          <RunsTable runs={runs} />
         ) : (
           <p className="text-[12.5px]">Todavía no hay corridas guardadas.</p>
         )}

@@ -13,7 +13,16 @@ import { AnimatedNumber } from '@/components/ui/animated-number'
 import { Term } from '@/components/ui/term'
 import { dateTimeUtc, decimal, isNegative, signed } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import type { PaperAccount, PaperPosition, TicketDraft, TicketVerdict } from '@/mocks'
+import { newOrder } from '@/lib/paper-api'
+import {
+  REJECTION_LABEL,
+  type Order,
+  type OrderReport,
+  type PaperAccount,
+  type Position,
+  type TicketVerdict,
+} from '@/lib/paper-contracts'
+import type { TicketDraft } from '@/mocks'
 
 /** El indicador grande de que todo es simulación. */
 export function PaperBadge() {
@@ -32,7 +41,8 @@ export function PaperBadge() {
           MODO SIMULACIÓN
         </strong>
         <span className="mt-1 block text-[11px] text-muted-foreground">
-          <Term id="paper-trading">Paper</Term>: no hay broker y no se envía ninguna orden real.
+          <Term id="paper-trading">Paper</Term>: las órdenes van al broker simulado. No se envía
+          ninguna orden real.
         </span>
       </span>
     </div>
@@ -155,22 +165,36 @@ export function KillSwitchBanner({ account }: { account: PaperAccount }) {
 const SIDE = { long: 'Comprar', short: 'Vender' } as const
 /** Lo que se escribe con coma se manda con punto: el decimal viaja como texto (contratos). */
 const asDecimal = (s: string) => s.trim().replace(',', '.')
+const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /**
- * Ticket de orden en simulación. El stop es obligatorio. La validación de riesgo la hace el
- * motor (`verdictFor`): la UI solo muestra su respuesta, o que no la hay.
+ * Ticket de orden en **simulación** (`order.v1`, modo paper). El stop es obligatorio y el tamaño
+ * no se elige: lo decide el módulo de riesgo del motor. Primero se valida (`preview`,
+ * `ticket_verdict.v1`, sin efectos) y, si el riesgo la acepta, se envía (`submit`,
+ * `order_report.v1`). La UI solo muestra lo que responde el motor; no calcula riesgo.
+ *
+ * Validar y enviar usan el mismo `order_id`: el broker es idempotente, así que un doble clic o un
+ * reintento nunca abren dos posiciones. Cambiar el ticket arma una orden nueva.
  */
 export function OrderTicket({
   instruments,
   initial,
-  examples,
-  verdictFor,
+  examples = [],
+  preview,
+  submit,
+  onFilled,
   locked,
 }: {
   instruments: string[]
   initial: TicketDraft
-  examples: { label: string; draft: TicketDraft }[]
-  verdictFor: (draft: TicketDraft) => TicketVerdict | null
+  /** tickets de ejemplo para la maqueta sin gateway */
+  examples?: { label: string; draft: TicketDraft }[]
+  /** `null`: el motor no tiene respuesta (maqueta sin gateway) */
+  preview: (order: Order) => Promise<TicketVerdict | null>
+  /** sin `submit` (maqueta sin gateway) no se envía nada */
+  submit?: (order: Order) => Promise<OrderReport>
+  /** después de una orden ejecutada, para volver a pedir la cuenta y las posiciones */
+  onFilled?: (report: OrderReport) => void
   /** motivo por el que no se puede operar (por ejemplo, kill switch) */
   locked?: string
 }) {
@@ -178,25 +202,65 @@ export function OrderTicket({
   const [draft, setDraft] = useState<TicketDraft>(initial)
   const [missing, setMissing] = useState<string | null>(null)
   const [verdict, setVerdict] = useState<TicketVerdict | null | undefined>(undefined)
-  const [sent, setSent] = useState(false)
+  const [report, setReport] = useState<OrderReport | 'mock' | null>(null)
+  const [busy, setBusy] = useState<'preview' | 'submit' | null>(null)
+  const [failure, setFailure] = useState<string | null>(null)
+  const [order, setOrder] = useState<Order | null>(null)
 
   const change = (patch: Partial<TicketDraft>) => {
     setDraft((d) => ({ ...d, ...patch }))
+    setOrder(null)
     setVerdict(undefined)
-    setSent(false)
+    setReport(null)
     setMissing(null)
+    setFailure(null)
   }
 
-  const validate = (e: FormEvent) => {
+  const validate = async (e: FormEvent) => {
     e.preventDefault()
-    if (!draft.size.trim()) return setMissing('Falta el tamaño.')
+    if (busy) return
     if (!draft.stop.trim()) return setMissing('El stop es obligatorio: sin stop no se abre nada.')
     setMissing(null)
-    setVerdict(verdictFor({ ...draft, size: asDecimal(draft.size), stop: asDecimal(draft.stop) }))
+    setFailure(null)
+    setReport(null)
+    const o = newOrder({
+      instrument_id: draft.instrument_id,
+      side: draft.side,
+      stop: asDecimal(draft.stop),
+      tp1: draft.tp1.trim() ? asDecimal(draft.tp1) : null,
+    })
+    setOrder(o)
+    setBusy('preview')
+    try {
+      setVerdict(await preview(o))
+    } catch (err) {
+      setVerdict(undefined)
+      setFailure(errorText(err))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const send = async () => {
+    if (busy || !order) return
+    if (!submit) return setReport('mock')
+    setBusy('submit')
+    setFailure(null)
+    try {
+      // la hora de la orden es la del envío: el gateway rechaza órdenes viejas
+      const r = await submit({ ...order, created_at: new Date().toISOString() })
+      setReport(r)
+      if (r.status === 'filled') onFilled?.(r)
+    } catch (err) {
+      setFailure(errorText(err))
+    } finally {
+      setBusy(null)
+    }
   }
 
   const field =
     'mt-1 w-full rounded-xl border border-border bg-transparent px-3 py-2.5 text-[15px] font-semibold tabular-nums outline-none focus-visible:border-ring'
+  const label = 'text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase'
 
   return (
     <form onSubmit={validate} aria-label="Ticket de orden" className="grid gap-4">
@@ -221,7 +285,7 @@ export function OrderTicket({
         ))}
       </div>
 
-      <label className="text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
+      <label className={label}>
         Instrumento
         <select
           className={field}
@@ -237,24 +301,7 @@ export function OrderTicket({
       </label>
 
       <div className="grid grid-cols-2 gap-3">
-        <label
-          htmlFor={`${id}-size`}
-          className="text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase"
-        >
-          Tamaño (€/punto)
-          <input
-            id={`${id}-size`}
-            aria-label="Tamaño en € por punto"
-            inputMode="decimal"
-            className={field}
-            value={draft.size}
-            onChange={(e) => change({ size: e.target.value })}
-          />
-        </label>
-        <label
-          htmlFor={`${id}-stop`}
-          className="text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase"
-        >
+        <label htmlFor={`${id}-stop`} className={label}>
           <Term id="stop-loss">Stop</Term> (obligatorio)
           <input
             id={`${id}-stop`}
@@ -267,7 +314,22 @@ export function OrderTicket({
             onChange={(e) => change({ stop: e.target.value })}
           />
         </label>
+        <label htmlFor={`${id}-tp1`} className={label}>
+          TP1 (opcional)
+          <input
+            id={`${id}-tp1`}
+            aria-label="TP1 (opcional)"
+            inputMode="decimal"
+            className={field}
+            value={draft.tp1}
+            onChange={(e) => change({ tp1: e.target.value })}
+          />
+        </label>
       </div>
+      <p className="-mt-2 text-[11.5px] text-muted-foreground">
+        Orden a mercado en simulación. El tamaño no se elige: lo calcula el módulo de riesgo del
+        motor.
+      </p>
 
       {missing && (
         <p role="alert" className="text-[12.5px] font-semibold text-down">
@@ -277,17 +339,25 @@ export function OrderTicket({
 
       <button
         type="submit"
-        disabled={Boolean(locked)}
+        disabled={Boolean(locked) || busy !== null}
         className="glass-strong flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[13px] font-bold disabled:opacity-40"
       >
-        <ShieldCheck className="size-4" aria-hidden="true" /> Validar con el motor
+        <ShieldCheck className="size-4" aria-hidden="true" />
+        {busy === 'preview' ? 'Validando…' : 'Validar con el motor'}
       </button>
+
+      {failure && (
+        <p role="alert" className="rounded-2xl border border-down/40 p-3 text-[12.5px]">
+          <strong className="block font-bold text-down">No se pudo hablar con el motor.</strong>
+          {failure}
+        </p>
+      )}
 
       {verdict === null && (
         <div role="status" className="rounded-2xl border border-border p-3 text-[12.5px]">
           <p className="font-semibold">Sin respuesta del motor.</p>
           <p className="mt-1 text-muted-foreground">
-            La UI no calcula el riesgo. En esta maqueta, el motor solo responde los ejemplos:
+            La UI no calcula el riesgo. Sin gateway, la maqueta solo responde los ejemplos:
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {examples.map((x) => (
@@ -307,21 +377,19 @@ export function OrderTicket({
       {verdict && <Verdict verdict={verdict} />}
 
       {verdict?.accepted &&
-        (sent ? (
-          <p role="status" className="text-[12.5px] font-bold">
-            Enviada a la simulación (maqueta: no se envió nada).
-          </p>
+        (report ? (
+          <Report report={report} />
         ) : (
           <button
             type="button"
-            disabled={Boolean(locked)}
-            onClick={() => setSent(true)}
+            disabled={Boolean(locked) || busy !== null}
+            onClick={send}
             className={cn(
               'rounded-full px-4 py-2.5 text-[14px] font-extrabold disabled:opacity-40',
               draft.side === 'long' ? 'bg-up text-white' : 'bg-down text-white',
             )}
           >
-            {SIDE[draft.side]} en simulación
+            {busy === 'submit' ? 'Enviando…' : `${SIDE[draft.side]} en simulación`}
           </button>
         ))}
 
@@ -330,7 +398,33 @@ export function OrderTicket({
   )
 }
 
+function Report({ report: r }: { report: OrderReport | 'mock' }) {
+  if (r === 'mock')
+    return (
+      <p role="status" className="text-[12.5px] font-bold">
+        Maqueta sin gateway: no se envió nada al broker simulado.
+      </p>
+    )
+  if (r.status === 'rejected')
+    return (
+      <p role="status" className="rounded-2xl border border-down/40 p-3 text-[12.5px]">
+        <strong className="block font-extrabold text-down">El broker simulado la rechazó.</strong>
+        {r.rejection ? REJECTION_LABEL[r.rejection] : 'Sin motivo.'}
+      </p>
+    )
+  return (
+    <p role="status" className="rounded-2xl border border-up/40 p-3 text-[12.5px]">
+      <strong className="block font-extrabold text-up">Ejecutada en simulación (paper).</strong>
+      {r.size && <>Tamaño {decimal(r.size)} €/pt</>}
+      {r.fill_price && <> a {decimal(r.fill_price)}</>}
+      {r.commission && <>, comisión {decimal(r.commission, 2)} €</>}. Posición{' '}
+      <code className="text-[11px]">{r.position_id}</code>, {dateTimeUtc(r.at)}.
+    </p>
+  )
+}
+
 function Verdict({ verdict: v }: { verdict: TicketVerdict }) {
+  const or = (x: string | null, f: (t: string) => string) => (x === null ? '—' : f(x))
   return (
     <section
       aria-label="Validación de riesgo del motor"
@@ -342,47 +436,57 @@ function Verdict({ verdict: v }: { verdict: TicketVerdict }) {
       <p className={cn('text-[13px] font-extrabold', v.accepted ? 'text-up' : 'text-down')}>
         {v.accepted ? 'El motor la acepta' : 'El motor la rechaza'}
       </p>
-      <dl className="mt-2 grid grid-cols-3 gap-2 text-[12px]">
+      {v.rejection && (
+        <p className="mt-1 flex items-start gap-2 text-[12.5px]">
+          <X className="mt-0.5 size-3.5 shrink-0 text-down" aria-hidden="true" />
+          {REJECTION_LABEL[v.rejection]}
+        </p>
+      )}
+      <dl className="mt-2 grid grid-cols-2 gap-2 text-[12px] sm:grid-cols-3">
         <div>
-          <dt className="text-muted-foreground">Riesgo</dt>
+          <dt className="text-muted-foreground">Tamaño</dt>
+          <dd className="font-bold tabular-nums">{or(v.size, (t) => `${decimal(t)} €/pt`)}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Riesgo si salta el stop</dt>
           <dd className="font-bold tabular-nums">
-            {decimal(v.risk_eur, 2)} € · {decimal(v.risk_pct)} %
+            {or(v.risk, (t) => `${decimal(t, 2)} €`)}
+            {v.risk_pct !== null && ` · ${decimal(v.risk_pct)} %`}
           </dd>
         </div>
         <div>
           <dt className="text-muted-foreground">
             <Term id="apalancamiento">Apalanc.</Term>
           </dt>
-          <dd className="font-bold tabular-nums">{decimal(v.leverage)}:1</dd>
+          <dd className="font-bold tabular-nums">{or(v.leverage, (t) => `${decimal(t)}:1`)}</dd>
         </div>
         <div>
           <dt className="text-muted-foreground">
             <Term id="margen">Margen</Term>
           </dt>
-          <dd className="font-bold tabular-nums">{decimal(v.margin_required, 2)} €</dd>
+          <dd className="font-bold tabular-nums">{or(v.margin, (t) => `${decimal(t, 2)} €`)}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Precio de referencia</dt>
+          <dd className="font-bold tabular-nums">{or(v.reference, (t) => decimal(t))}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Vela usada</dt>
+          <dd className="font-bold">{dateTimeUtc(v.as_of)}</dd>
         </div>
       </dl>
-      <ul className="mt-3 grid gap-1.5">
-        {v.checks.map((c) => (
-          <li key={c.rule} className="flex items-start gap-2 text-[12px]">
-            {c.ok ? (
-              <Check className="mt-0.5 size-3.5 shrink-0 text-up" aria-label="cumple" />
-            ) : (
-              <X className="mt-0.5 size-3.5 shrink-0 text-down" aria-label="no cumple" />
-            )}
-            <span>
-              <strong className="font-semibold">{c.rule}:</strong>{' '}
-              <span className="text-muted-foreground">{c.detail}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
+      {v.leverage_capped && (
+        <p className="mt-2 flex items-start gap-2 text-[12px]">
+          <Check className="mt-0.5 size-3.5 shrink-0 text-up" aria-hidden="true" />
+          El tope de apalancamiento del instrumento redujo el tamaño.
+        </p>
+      )}
     </section>
   )
 }
 
-/** Posiciones abiertas de la simulación, con el P/L que manda el motor. */
-export function PositionsTable({ positions }: { positions: PaperPosition[] }) {
+/** Posiciones abiertas de la simulación (`position.v1`), con el P/L que manda el motor. */
+export function PositionsTable({ positions }: { positions: Position[] }) {
   if (positions.length === 0)
     return <p className="text-[13px] text-muted-foreground">No hay posiciones abiertas.</p>
   const th = 'py-2 px-2 font-bold'
@@ -404,7 +508,7 @@ export function PositionsTable({ positions }: { positions: PaperPosition[] }) {
         </thead>
         <tbody>
           {positions.map((p) => (
-            <tr key={p.id} className="border-b border-border last:border-b-0">
+            <tr key={p.position_id} className="border-b border-border last:border-b-0">
               <td className="px-2 py-3">
                 <span className="font-extrabold">{p.instrument_id}</span>{' '}
                 <span
@@ -420,7 +524,7 @@ export function PositionsTable({ positions }: { positions: PaperPosition[] }) {
               <td className="px-2 py-3 text-right tabular-nums">{decimal(p.entry)}</td>
               <td className="px-2 py-3 text-right font-semibold tabular-nums">{decimal(p.last)}</td>
               <td className="px-2 py-3 text-right text-muted-foreground tabular-nums">
-                {decimal(p.stop)} · {decimal(p.tp1)}
+                {decimal(p.stop)} · {p.tp1 === null ? '—' : decimal(p.tp1)}
               </td>
               <td
                 className={cn(
@@ -431,12 +535,7 @@ export function PositionsTable({ positions }: { positions: PaperPosition[] }) {
                 {signed(p.unrealized_pl, 2)} €
                 <span className="block text-[11px] font-semibold">{signed(p.unrealized_r)} R</span>
               </td>
-              <td className="px-2 py-3 text-right tabular-nums">
-                {decimal(p.margin, 2)} €
-                <span className="block text-[11px] text-muted-foreground">
-                  {decimal(p.leverage)}:1
-                </span>
-              </td>
+              <td className="px-2 py-3 text-right tabular-nums">{decimal(p.margin, 2)} €</td>
               <td className="px-2 py-3 text-muted-foreground">{dateTimeUtc(p.opened_at)}</td>
             </tr>
           ))}
