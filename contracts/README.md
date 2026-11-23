@@ -52,6 +52,14 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - La arma el motor en Rust, solo con información al cierre de la vela de la señal. **Todavía no la escribe nadie:** el productor va en otro PR de #158.
 - La lee Python (`cfds_intel.models.dataset`), junto con `proposals` y `outcomes` de una corrida de `backtest_runs`.
 
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `ml_experiment.v1` | `ml_experiments` | Un entrenamiento y evaluación walk-forward (spec ML §7): id propio (SHA-256 de código, corrida, configuración y datos), versión del código (commit de git), corrida de `backtest_runs`, variables, hiperparámetros, cada ventana (con su motivo si no entrenó), métricas de B0, B1 y M1 (números: no son dinero) y el resultado: `suspended`, `m1_improves` o `b1_stays`. |
+
+- Se registran **todos**, también los que no funcionan o quedan en suspenso. Sirve para el Sharpe deflactado y el PBO de la fase 5.
+- Tabla de **solo agregar** (`infra/migrations/0014_ml_experiments.sql`): las columnas de arriba más `document`, el `JSONB` con el documento entero. El mismo experimento no se repite.
+- Lo escribe Python (`python -m cfds_intel.models.experiment <run_id>`).
+
 ### Sentimiento (#25, #27)
 
 | Contrato | Tabla | Contenido |
