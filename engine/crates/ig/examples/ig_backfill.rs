@@ -45,9 +45,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../config");
     let calendar = ExchangeCalendar::load(&config_dir, catalog.exchange_map())?;
     let store = PgStore::connect(&std::env::var("DATABASE_URL")?).await?;
-    store.migrate().await?;
-    for spec in catalog.instruments.values() {
-        store.upsert_instrument(&spec.instrument).await?;
+    // Con --dry-run, solo lectura (#132): no migra ni registra instrumentos.
+    if flags.writes() {
+        store.migrate().await?;
+        for spec in catalog.instruments.values() {
+            store.upsert_instrument(&spec.instrument).await?;
+        }
+    } else {
+        println!("--dry-run: solo lectura de la base (no migra ni registra instrumentos)");
     }
     let (id, tf) = (instrument.parse()?, tf.parse()?);
     let (from, to) = (from.parse()?, to.parse()?);

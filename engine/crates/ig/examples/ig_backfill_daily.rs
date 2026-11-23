@@ -48,9 +48,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let calendar = ExchangeCalendar::load(&config_dir, catalog.exchange_map())?;
     let session = calendar.session_for(&id).ok_or("instrumento sin bolsa")?;
     let store = PgStore::connect(&std::env::var("DATABASE_URL")?).await?;
-    store.migrate().await?;
-    for spec in catalog.instruments.values() {
-        store.upsert_instrument(&spec.instrument).await?;
+    // Con --dry-run, solo lectura (#132): no migra ni registra instrumentos.
+    if flags.writes() {
+        store.migrate().await?;
+        for spec in catalog.instruments.values() {
+            store.upsert_instrument(&spec.instrument).await?;
+        }
+    } else {
+        println!("--dry-run: solo lectura de la base (no migra ni registra instrumentos)");
     }
     let cfg = IgConfig::from_toml(CONFIG)?;
     let (tz, tolerance) = (cfg.prices_tz, cfg.daily_start_tolerance);

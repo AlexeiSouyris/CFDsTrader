@@ -22,6 +22,15 @@ pub struct LoadFlags {
     pub yes: bool,
 }
 
+impl LoadFlags {
+    /// Si la carga puede escribir en la base (migrar y registrar los instrumentos). Con
+    /// `--dry-run`, no (#132): el plan se arma solo leyendo, así que se puede correr contra la
+    /// base real en una sesión de solo lectura.
+    pub fn writes(self) -> bool {
+        !self.dry_run
+    }
+}
+
 /// Separa `--dry-run` y `--yes` de los argumentos posicionales. Otra opción es un error.
 pub fn parse_flags(args: Vec<String>) -> Result<(Vec<String>, LoadFlags), String> {
     let mut flags = LoadFlags::default();
@@ -107,6 +116,17 @@ pub fn decide(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn a_dry_run_never_writes() {
+        let (_, f) = parse_flags(vec!["DE40".into(), "--dry-run".into()]).unwrap();
+        assert!(!f.writes());
+        let (_, f) = parse_flags(vec!["DE40".into(), "--dry-run".into(), "--yes".into()]).unwrap();
+        assert!(!f.writes(), "--yes no apaga el --dry-run");
+        let (_, f) = parse_flags(vec!["DE40".into(), "--yes".into()]).unwrap();
+        assert!(f.writes());
+    }
+
     use super::*;
 
     const LIMITS: LoadLimits = LoadLimits {
