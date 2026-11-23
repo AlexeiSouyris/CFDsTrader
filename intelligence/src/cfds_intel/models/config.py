@@ -33,15 +33,48 @@ class TrainingConfig:
 
 
 @dataclass(frozen=True)
+class EvaluationConfig:
+    bootstrap_resamples: int
+    confidence: float
+
+
+@dataclass(frozen=True)
+class IntervalConfig:
+    models: int
+    low_percentile: int
+    high_percentile: int
+
+
+@dataclass(frozen=True)
 class MlConfig:
     dataset: DatasetConfig
     training: TrainingConfig
+    evaluation: EvaluationConfig
+    interval: IntervalConfig
+
+
+def _evaluation(t: object) -> EvaluationConfig:
+    if not isinstance(t, dict):
+        raise MlConfigError("falta [evaluation]")
+    return EvaluationConfig(
+        bootstrap_resamples=_int(t, "bootstrap_resamples", 1),
+        confidence=_fraction(t.get("confidence"), "confidence"),
+    )
+
+
+def _interval(t: object) -> IntervalConfig:
+    if not isinstance(t, dict):
+        raise MlConfigError("falta [interval]")
+    low, high = _int(t, "low_percentile", 0), _int(t, "high_percentile", 0)
+    if not low < high <= 100:
+        raise MlConfigError("interval: low_percentile < high_percentile <= 100")
+    return IntervalConfig(models=_int(t, "models", 1), low_percentile=low, high_percentile=high)
 
 
 def _int(table: dict[str, object], key: str, low: int) -> int:
     v = table.get(key)
     if not isinstance(v, int) or isinstance(v, bool) or v < low:
-        raise MlConfigError(f"training.{key} tiene que ser un entero >= {low}")
+        raise MlConfigError(f"{key} tiene que ser un entero >= {low}")
     return v
 
 
@@ -51,7 +84,7 @@ def _fraction(text: object, key: str, *, open_low: bool = True) -> float:
     except InvalidOperation:
         v = None
     if v is None or not (0 < v < 1 if open_low else 0 < v):
-        raise MlConfigError(f'training.{key}: decimal en texto, como "0.2"')
+        raise MlConfigError(f'{key}: decimal en texto, como "0.2"')
     return float(v)
 
 
@@ -87,6 +120,8 @@ def load_config(text: str) -> MlConfig:
     return MlConfig(
         dataset=DatasetConfig(instruments=tuple(instruments)),
         training=_training(raw.get("training")),
+        evaluation=_evaluation(raw.get("evaluation")),
+        interval=_interval(raw.get("interval")),
     )
 
 

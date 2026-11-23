@@ -17,3 +17,18 @@ l2_grid = ["0.0001", "0.001", "0.01", "0.1", "1"]
 # M1 se ajusta con L-BFGS en lote completo, en float64: determinista con la misma semilla.
 max_iterations = 200
 seed = 42
+
+[evaluation]
+# Regla de "mejora" (spec §6, fijada antes de mirar): M1 mejora a B1 si su log loss es menor y el
+# intervalo de la diferencia queda entero por debajo de 0. Bootstrap por bloques de una semana
+# (ISO, en UTC) sobre todas las validaciones juntas.
+bootstrap_resamples = 1000
+confidence = "0.95"
+
+[interval]
+# Intervalo de cada predicción (spec §6): percentiles de las predicciones de N modelos M1
+# entrenados con remuestreos bootstrap del entrenamiento (por bloques de una semana, como arriba).
+# Con menos casos parecidos que min_cases de config/probability.toml: "datos insuficientes".
+models = 200
+low_percentile = 5
+high_percentile = 95
