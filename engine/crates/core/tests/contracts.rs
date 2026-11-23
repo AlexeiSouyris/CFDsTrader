@@ -1007,3 +1007,57 @@ fn contract_and_rust_reject_the_same_bad_liquidity_stats() {
         assert_both_reject::<cfds_core::LiquidityStats>(schema, d);
     }
 }
+
+fn sample_imbalance(displacement: Option<cfds_core::Direction>) -> cfds_core::Imbalance {
+    cfds_core::Imbalance {
+        instrument_id: "US100".parse().unwrap(),
+        timeframe: cfds_core::StatsTimeframe::M15,
+        at: "2026-11-19T17:00:00Z".parse().unwrap(),
+        window_bars: std::num::NonZeroU32::new(20).unwrap(),
+        displacement,
+        bullish_body_sum: dec!(12.5),
+        bearish_body_sum: dec!(30),
+        range_sum: dec!(70),
+        index: dec!(-0.25),
+        label: cfds_core::ImbalanceLabel::PriceApproximation,
+    }
+}
+
+#[test]
+fn imbalance_roundtrips_through_the_contract() {
+    use cfds_core::Direction;
+    for d in [None, Some(Direction::Bullish), Some(Direction::Bearish)] {
+        assert_roundtrip("imbalance.v1.schema.json", &sample_imbalance(d));
+    }
+    let json = serde_json::to_value(sample_imbalance(None)).unwrap();
+    assert_eq!(json["label"], json!("aproximación desde el precio"));
+}
+
+#[test]
+fn contract_and_rust_reject_the_same_bad_imbalances() {
+    let schema = "imbalance.v1.schema.json";
+    let doc = || serde_json::to_value(sample_imbalance(None)).unwrap();
+    let mut cases: Vec<Value> = Vec::new();
+    for (key, value) in [
+        ("label", json!("order flow")),
+        ("displacement", json!("up")),
+        ("index", json!(-0.25)),
+        ("range_sum", json!("-1")),
+        ("window_bars", json!(0)),
+        ("timeframe", json!("5m")),
+        ("at", json!("2026-11-19T17:00:00")),
+        ("extra", json!(1)),
+    ] {
+        let mut d = doc();
+        d[key] = value;
+        cases.push(d);
+    }
+    for key in ["displacement", "label"] {
+        let mut d = doc();
+        d.as_object_mut().unwrap().remove(key);
+        cases.push(d);
+    }
+    for d in cases {
+        assert_both_reject::<cfds_core::Imbalance>(schema, d);
+    }
+}

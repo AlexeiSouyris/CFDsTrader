@@ -52,3 +52,12 @@ max_sessions = 20
 min_cases = 30
 # Intervalo de Wilson: z de la normal. 1.96 = 95 % (igual que config/probability.toml).
 z = "1.96"
+
+# --- Desequilibrio aproximado desde el precio (spec §5.4.1, #231). No es flujo de órdenes. ---
+
+[imbalance]
+# Vela de desplazamiento: |C − O| ≥ displacement_body_atr × ATR14 y |C − O| / (H − L) ≥ min_body_ratio.
+displacement_body_atr = "1.5"
+min_body_ratio = "0.7"
+# Velas cerradas de la ventana del índice (la última es la actual).
+window_bars = 20

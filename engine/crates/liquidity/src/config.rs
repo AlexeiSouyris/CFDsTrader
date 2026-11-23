@@ -33,6 +33,9 @@ struct Raw {
     _gaps: toml::Table,
     #[serde(rename = "stats")]
     _stats: toml::Table,
+    // Desequilibrio de §5.4.1 (#231): lo lee y valida `imbalance::ImbalanceConfig`.
+    #[serde(rename = "imbalance")]
+    _imbalance: toml::Table,
 }
 
 #[derive(Deserialize)]
@@ -67,6 +70,7 @@ impl LiquidityConfig {
             return Err("todos los parámetros de liquidez tienen que ser mayores que 0".into());
         }
         crate::stats::StatsConfig::from_toml(text)?;
+        crate::imbalance::ImbalanceConfig::from_toml(text)?;
         Ok(Self {
             fvg_lookback_bars: raw.fvg.lookback_bars,
             min_impulse_body_atr: body,
