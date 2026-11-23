@@ -2,7 +2,8 @@
  * Lectura de la vista de liquidez desde el gateway del motor (#231):
  * - `GET /api/v1/instruments` (`contracts/gateway_instruments.v1`): instrumentos del catálogo,
  *   timeframes y lo que se abre primero;
- * - `GET /api/v1/liquidity?instrument=<id>&timeframe=<tf>` (`contracts/liquidity_view.v1`).
+ * - `GET /api/v1/liquidity?instrument=<id>&timeframe=<tf>[&source=futures]`
+ *   (`contracts/liquidity_view.v1`). Sin `source`, las velas del CFD de IG.
  * La UI solo pide y muestra; no calcula nada. En desarrollo, Vite manda `/api` al gateway.
  */
 import { useEffect, useState } from 'react'
@@ -10,6 +11,7 @@ import { useEffect, useState } from 'react'
 import type {
   GatewayInstruments,
   LiquidityViewData,
+  ViewSource,
   ViewTimeframe,
 } from '@/lib/liquidity-contracts'
 
@@ -29,9 +31,11 @@ export const fetchLiquidityView = (
   instrument: string,
   timeframe: ViewTimeframe,
   signal?: AbortSignal,
+  source: ViewSource['id'] = 'ig',
 ) =>
   getJson<LiquidityViewData>(
-    `/api/v1/liquidity?instrument=${encodeURIComponent(instrument)}&timeframe=${timeframe}`,
+    `/api/v1/liquidity?instrument=${encodeURIComponent(instrument)}&timeframe=${timeframe}` +
+      (source === 'ig' ? '' : `&source=${source}`),
     signal,
   )
 
@@ -85,13 +89,13 @@ function useRemote<T>(
 
 export const useInstruments = () => useRemote('instruments', fetchInstruments)
 
-/** La vista de un instrumento y timeframe; `null` mientras no se sepa cuál. */
+/** La vista de un instrumento, timeframe y fuente; `null` mientras no se sepa cuál. */
 export function useLiquidityView(
-  sel: { instrument: string; timeframe: ViewTimeframe } | null,
+  sel: { instrument: string; timeframe: ViewTimeframe; source?: ViewSource['id'] } | null,
 ): Remote<LiquidityViewData> {
   return useRemote(
-    sel && `${sel.instrument}|${sel.timeframe}`,
-    (signal) => fetchLiquidityView(sel!.instrument, sel!.timeframe, signal),
+    sel && `${sel.instrument}|${sel.timeframe}|${sel.source ?? 'ig'}`,
+    (signal) => fetchLiquidityView(sel!.instrument, sel!.timeframe, signal, sel!.source),
     REFRESH_MS,
   )
 }

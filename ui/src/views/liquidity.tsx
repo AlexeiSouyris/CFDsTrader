@@ -14,7 +14,7 @@ import { Segmented } from '@/components/ui/segmented'
 import { Term } from '@/components/ui/term'
 import { useInstruments, useLiquidityView } from '@/lib/liquidity-api'
 import { chartBars } from '@/lib/liquidity-bars'
-import type { LiquidityViewData, ViewTimeframe } from '@/lib/liquidity-contracts'
+import type { LiquidityViewData, ViewSource, ViewTimeframe } from '@/lib/liquidity-contracts'
 import { dateTimeUtc } from '@/lib/format'
 
 function Card({ title, children }: { title?: ReactNode; children: ReactNode }) {
@@ -76,9 +76,11 @@ function Unreachable({ message }: { message: string }) {
 /** La vista conectada al motor: instrumento y timeframe salen del gateway (catálogo y config). */
 export function LiquidityView() {
   const catalog = useInstruments()
-  const [picked, setPicked] = useState<{ instrument: string; timeframe: ViewTimeframe } | null>(
-    null,
-  )
+  const [picked, setPicked] = useState<{
+    instrument: string
+    timeframe: ViewTimeframe
+    source?: ViewSource['id']
+  } | null>(null)
   const sel =
     picked ??
     (catalog.status === 'ok'
@@ -97,6 +99,8 @@ export function LiquidityView() {
         <Unreachable message={catalog.message} />
       </Shell>
     )
+  // Las fuentes las manda el motor; sin ellas (gateway anterior) solo existe la del CFD.
+  const sources = catalog.data.sources ?? []
   const controls = sel && (
     <div className="flex flex-wrap gap-2">
       <Segmented
@@ -111,6 +115,16 @@ export function LiquidityView() {
         value={sel.timeframe}
         onChange={(tf) => setPicked({ ...sel, timeframe: tf as ViewTimeframe })}
       />
+      {sources.length > 1 && (
+        <Segmented
+          label="Fuente"
+          options={sources.map((s) => s.label)}
+          value={(sources.find((s) => s.id === (sel.source ?? 'ig')) ?? sources[0]).label}
+          onChange={(label) =>
+            setPicked({ ...sel, source: sources.find((s) => s.label === label)?.id ?? 'ig' })
+          }
+        />
+      )}
     </div>
   )
   return (
@@ -125,12 +139,17 @@ export function LiquidityView() {
 /** Lo que muestra la vista con una respuesta del gateway (también la usan los tests). */
 export function LiquidityContent({ data }: { data: LiquidityViewData }) {
   const tf = data.timeframe ?? '15m'
+  const source = data.source?.label ?? 'IG CFD'
+  const futures = data.source?.id === 'futures'
   if (data.as_of === null || data.candles.length === 0)
     return (
       <Card title="Sin datos todavía">
         <p className="text-[13px]">
-          El motor todavía no tiene {TF_TEXT[tf][1]} de {data.instrument_id} guardadas. La vista se
-          llena sola cuando lleguen.
+          El motor todavía no tiene {TF_TEXT[tf][1]} de {data.instrument_id} guardadas (fuente:{' '}
+          {source}).{' '}
+          {futures && tf === '1d'
+            ? 'Los futuros no tienen velas diarias.'
+            : 'La vista se llena sola cuando lleguen.'}
         </p>
       </Card>
     )
@@ -141,8 +160,14 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
     <div className="grid gap-3">
       <p className="text-[11.5px] text-muted-foreground">
         Datos del motor al {dateTimeUtc(data.as_of)} · {data.candles.length}{' '}
-        {TF_TEXT[tf][data.candles.length === 1 ? 0 : 1]}
+        {TF_TEXT[tf][data.candles.length === 1 ? 0 : 1]} · fuente: <strong>{source}</strong>
       </p>
+      {futures && (
+        <p role="note" className="text-[12px] text-muted-foreground">
+          Son precios del futuro, no del CFD: la diferencia entre los dos (la base) cambia con cada
+          vencimiento, así que los niveles no son precios del CFD.
+        </p>
+      )}
 
       <div className="grid gap-3 xl:grid-cols-[1fr_320px]">
         <Card>

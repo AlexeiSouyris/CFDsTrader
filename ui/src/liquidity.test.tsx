@@ -265,4 +265,43 @@ describe('vista de liquidez en vivo (#231)', () => {
     const { container } = render(<LiquidityContent data={DATA} />)
     expect(container.textContent).not.toMatch(/ganancia (segura|garantizada)|sin riesgo|asegurad/i)
   })
+
+  it('la fuente de futuros se pide con ?source=futures y la vista dice de dónde son los precios', async () => {
+    const withSources = {
+      ...INSTRUMENTS,
+      sources: [
+        { id: 'ig', label: 'IG CFD' },
+        { id: 'futures', label: 'futuros CME/Eurex (base distinta al CFD)' },
+      ],
+    }
+    const futures = {
+      ...DATA,
+      source: { id: 'futures', label: 'futuros CME/Eurex (base distinta al CFD)' },
+    }
+    const fetch = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input), 'http://ui.test')
+      const body =
+        url.pathname === '/api/v1/instruments'
+          ? withSources
+          : url.searchParams.get('source') === 'futures'
+            ? futures
+            : { ...DATA, source: { id: 'ig', label: 'IG CFD' } }
+      return new Response(JSON.stringify(body), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetch)
+    render(<LiquidityView />)
+    expect(await screen.findByText('IG CFD', { selector: 'strong' })).toBeInTheDocument()
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'futuros CME/Eurex (base distinta al CFD)' }),
+    )
+    expect(
+      await screen.findByText('futuros CME/Eurex (base distinta al CFD)', { selector: 'strong' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(/precios del futuro, no del CFD/)
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/liquidity?instrument=US100&timeframe=15m&source=futures',
+      expect.anything(),
+    )
+  })
 })
