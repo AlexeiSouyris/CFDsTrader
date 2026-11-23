@@ -26,18 +26,18 @@ export const LEVEL_SHORT: Record<LevelKind, string> = {
 export const SESSION_LABEL: Record<TradingSession, string> = {
   asia: 'Asia',
   london: 'Londres',
-  new_york: 'Nueva York',
+  ny: 'Nueva York',
 }
 
 const SESSION_SHORT: Record<TradingSession, string> = {
   asia: 'Asia',
   london: 'Lon',
-  new_york: 'NY',
+  ny: 'NY',
 }
 
 export const STATE_LABEL: Record<LevelState, string> = {
   intact: 'Intacto',
-  swept_reversal: 'Barrido con reversión',
+  swept: 'Barrido con reversión',
   broken: 'Roto',
 }
 
@@ -46,3 +46,11 @@ export const levelName = (l: LiquidityLevel) =>
 
 export const levelShort = (l: LiquidityLevel) =>
   l.session ? `${SESSION_SHORT[l.session]} ${LEVEL_SHORT[l.kind]}` : LEVEL_SHORT[l.kind]
+
+/** Clave estable de un nivel para React: los contratos no traen un id. */
+export const levelKey = (l: LiquidityLevel) =>
+  `${l.kind}:${l.session ?? ''}:${l.exists_from}:${l.price}`
+
+/** Clave estable de un FVG para React. */
+export const fvgKey = (f: { timeframe: string; direction: string; created_at: string }) =>
+  `${f.timeframe}:${f.direction}:${f.created_at}`

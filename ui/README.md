@@ -28,7 +28,7 @@ Los términos subrayados con puntos (`<Term id="...">`) muestran su definición 
 
 - `src/components/ui/`: los componentes. Cada uno dice en su encabezado de qué original de 21st.dev o AnimateIcons se inspira y qué se cambió.
 - `src/views/`: las vistas, que solo ubican componentes y les pasan datos.
-- `src/mocks/`: los datos de ejemplo, con la forma de los contratos (precios como texto decimal, horas en UTC). Los de liquidez (`liquidity.ts`) usan tipos derivados de la spec §5.4.1 hasta que estén los contratos `liquidity_level.v1`, `fvg_event.v1` y `liquidity_stats.v1` (TODO en el archivo). El RSI y el MACD de `us100-1h.json` vienen **precalculados** en el archivo: la UI no los calcula.
+- `src/mocks/`: los datos de ejemplo, con la forma de los contratos (precios como texto decimal, horas en UTC). Los de liquidez (`liquidity.ts`) siguen exactamente `candle.v1`, `liquidity_level.v1`, `fvg_event.v1`, `liquidity_stats.v1` e `imbalance.v1`, y un test de `engine/crates/core/tests/ui_mocks.rs` valida el JSON contra esos schemas. El RSI y el MACD de `us100-1h.json` vienen **precalculados** en el archivo: la UI no los calcula.
 - `src/lib/`: formato en español (`format.ts`), el reparto del mapa de mercado (`squarify.ts`, geometría de dibujo) y un hook de ancho.
 
 ## Repetidos que se unificaron

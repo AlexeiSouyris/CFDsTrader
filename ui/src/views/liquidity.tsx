@@ -2,9 +2,9 @@
  * Vista de liquidez en vivo (#231, spec §5.4.1). Solo ubica componentes y les pasa lo que manda el
  * motor: la UI no calcula niveles, estados, FVG, tasas ni el desequilibrio (CLAUDE.md §1).
  *
- * TODO(#231): hoy lee `LIQUIDITY_US100` de `mocks/`. Cuando estén en `main` los contratos
- * `liquidity_level.v1`, `fvg_event.v1` y `liquidity_stats.v1` y el `gateway` los publique, cambiar
- * la fuente por la suscripción en vivo, sin tocar los componentes.
+ * TODO(#231): hoy lee `LIQUIDITY_US100` de `mocks/`, con la forma de los contratos. Cuando el
+ * `gateway` publique esos mensajes, cambiar la fuente por la suscripción en vivo, sin tocar los
+ * componentes.
  */
 import type { ReactNode } from 'react'
 
@@ -25,6 +25,7 @@ function Card({ title, children }: { title?: ReactNode; children: ReactNode }) {
 export function LiquidityView({ data = LIQUIDITY_US100 }: { data?: LiquiditySnapshot }) {
   const open = data.fvgs.filter((f) => f.status === 'open')
   const closed = data.fvgs.filter((f) => f.status !== 'open')
+  const current = data.imbalance.at(-1)
   return (
     <div className="grid gap-3">
       <p className="max-w-3xl text-[13px] text-muted-foreground">
@@ -40,11 +41,15 @@ export function LiquidityView({ data = LIQUIDITY_US100 }: { data?: LiquiditySnap
             bars={data.candles}
             levels={data.levels}
             fvgs={data.fvgs}
-            displacement={data.displacement}
+            imbalance={data.imbalance}
           />
         </Card>
         <Card title="Índice de desequilibrio">
-          <ImbalanceGauge imbalance={data.imbalance} />
+          {current ? (
+            <ImbalanceGauge imbalance={current} />
+          ) : (
+            <p className="text-[12.5px]">Todavía no hay valor (calentamiento).</p>
+          )}
         </Card>
       </div>
 

@@ -10,24 +10,24 @@ import { useMemo, useState } from 'react'
 
 import { Segmented } from '@/components/ui/segmented'
 import { dateTimeUtc, dateUtc, decimal } from '@/lib/format'
-import { levelName, levelShort, STATE_LABEL } from '@/lib/liquidity-labels'
+import { fvgKey, levelKey, levelName, levelShort, STATE_LABEL } from '@/lib/liquidity-labels'
 import { useElementWidth } from '@/lib/use-element-width'
 import { cn } from '@/lib/utils'
-import type { FvgEvent, LevelState, LiquidityBar, LiquidityLevel } from '@/mocks'
+import type { FvgEvent, Imbalance, LevelState, LiquidityBar, LiquidityLevel } from '@/mocks'
 
 const RANGES = [
   { label: '1 día', bars: 96 },
   { label: '2 días', bars: 192 },
   { label: 'Todo', bars: Infinity },
 ] as const
-const FILTERS = ['Todos', 'Intactos'] as const
+const FILTERS = ['Todos', 'Activos'] as const
 
 const AXIS_W = 70
 const SLOT_MS = 15 * 60_000
 
 const STATE_STYLE: Record<LevelState, { stroke: string; dash?: string; opacity: number }> = {
   intact: { stroke: 'var(--chart-accent)', opacity: 0.95 },
-  swept_reversal: { stroke: 'var(--chart-signal)', dash: '5 3', opacity: 0.95 },
+  swept: { stroke: 'var(--chart-signal)', dash: '5 3', opacity: 0.95 },
   broken: { stroke: 'var(--muted-foreground)', dash: '1.5 3', opacity: 0.7 },
 }
 
@@ -36,7 +36,7 @@ export function LiquidityChart({
   bars,
   levels,
   fvgs,
-  displacement,
+  imbalance,
   height = 440,
   className,
 }: {
@@ -44,7 +44,8 @@ export function LiquidityChart({
   bars: LiquidityBar[]
   levels: LiquidityLevel[]
   fvgs: FvgEvent[]
-  displacement: { at: string; direction: 'bullish' | 'bearish' }[]
+  /** `imbalance.v1` por vela: la marca de desplazamiento la trae el motor */
+  imbalance: Imbalance[]
   height?: number
   className?: string
 }) {
@@ -76,17 +77,20 @@ export function LiquidityChart({
   }
   const lastClose = count ? new Date(Date.parse(view[count - 1].start) + SLOT_MS) : null
 
+  // Activo = intacto y sin vencer (`expired_at` de liquidity_level.v1). Los vencidos se dibujan
+  // atenuados hasta la vela en que vencieron.
+  const expired = (l: LiquidityLevel) => l.state === 'intact' && l.expired_at != null
   const shownLevels = levels.filter(
     (l) =>
-      (filter === 'Todos' || l.state === 'intact') &&
+      (filter === 'Todos' || (l.state === 'intact' && !expired(l))) &&
       lastClose !== null &&
       Date.parse(l.exists_from) <= lastClose.getTime() &&
-      (l.state_changed_at === null || xAt(l.state_changed_at) > 0),
+      xAt(l.state_changed_at ?? l.expired_at ?? null) > 0,
   )
   // Rótulos de los niveles intactos en el eje: los de fuera de escala van al borde con una flecha,
   // y se separan para que no se pisen (solo geometría de dibujo).
   const labels = shownLevels
-    .filter((l) => l.state === 'intact')
+    .filter((l) => l.state === 'intact' && !expired(l))
     .map((l) => {
       const v = Number(l.price)
       const arrow = v > hi + pad ? ' ↑' : v < lo - pad ? ' ↓' : ''
@@ -96,7 +100,8 @@ export function LiquidityChart({
   labels.forEach((t, k) => {
     if (k > 0) t.y = Math.max(t.y, labels[k - 1].y + 10)
   })
-  const shownFvgs = fvgs.filter((f) => f.filled === null || xAt(f.filled.at) > 0)
+  const fvgEnd = (f: FvgEvent) => f.fill?.at ?? f.expiry?.at ?? null
+  const shownFvgs = fvgs.filter((f) => xAt(fvgEnd(f)) > 0)
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => lo - pad + f * (hi - lo + 2 * pad))
   const timeLabels = Array.from({ length: 4 }, (_, k) =>
     Math.min(count - 1, Math.round((k * (count - 1)) / 3)),
@@ -164,13 +169,13 @@ export function LiquidityChart({
           {/* FVG: zona desde la vela de creación hasta la que la llena (o hasta ahora) */}
           {shownFvgs.map((f) => {
             const x0 = xAt(f.created_at)
-            const x1 = xAt(f.filled?.at ?? null)
-            const yTop = yP(Number(f.zone_high))
-            const yBot = yP(Number(f.zone_low))
+            const x1 = xAt(fvgEnd(f))
+            const yTop = yP(Number(f.top))
+            const yBot = yP(Number(f.bottom))
             const color = f.direction === 'bullish' ? 'var(--chart-up)' : 'var(--chart-down)'
             return (
               <rect
-                key={f.id}
+                key={fvgKey(f)}
                 data-fvg={f.status}
                 x={x0}
                 y={yTop}
@@ -207,10 +212,11 @@ export function LiquidityChart({
           })}
 
           {/* velas de desplazamiento (marca del motor) */}
-          {displacement.map((d) => {
+          {imbalance.map((d) => {
+            if (d.displacement === null) return null
             const x = xAt(d.at) - slot / 2
             if (x < 0) return null
-            const y = d.direction === 'bullish' ? height - 26 : top + 4
+            const y = d.displacement === 'bullish' ? height - 26 : top + 4
             return (
               <text
                 key={d.at}
@@ -218,9 +224,9 @@ export function LiquidityChart({
                 y={y}
                 textAnchor="middle"
                 fontSize={9}
-                fill={d.direction === 'bullish' ? 'var(--chart-up)' : 'var(--chart-down)'}
+                fill={d.displacement === 'bullish' ? 'var(--chart-up)' : 'var(--chart-down)'}
               >
-                {d.direction === 'bullish' ? '▲' : '▼'}
+                {d.displacement === 'bullish' ? '▲' : '▼'}
               </text>
             )
           })}
@@ -231,10 +237,16 @@ export function LiquidityChart({
             if (!inScale(v)) return null
             const s = STATE_STYLE[l.state]
             const x0 = xAt(l.exists_from)
-            const x1 = xAt(l.state_changed_at)
+            const x1 = xAt(l.state_changed_at ?? l.expired_at ?? null)
             const y = yP(v)
+            const old = expired(l)
             return (
-              <g key={l.id} data-level-state={l.state} opacity={s.opacity}>
+              <g
+                key={levelKey(l)}
+                data-level-state={l.state}
+                data-expired={old || undefined}
+                opacity={old ? 0.3 : s.opacity}
+              >
                 <line
                   x1={x0}
                   x2={x1}
@@ -255,7 +267,7 @@ export function LiquidityChart({
 
           {/* rótulos de los niveles intactos (los de fuera de escala, con flecha) */}
           {labels.map(({ l, arrow, y }) => (
-            <g key={l.id}>
+            <g key={levelKey(l)}>
               <rect
                 x={plotW + 1}
                 y={y - 6}
@@ -313,6 +325,12 @@ export function LiquidityChart({
           </li>
         ))}
         <li className="flex items-center gap-1.5">
+          <svg width={22} height={6} aria-hidden opacity={0.3}>
+            <line x1={0} x2={22} y1={3} y2={3} stroke="var(--chart-accent)" strokeWidth={1.6} />
+          </svg>
+          Vencido
+        </li>
+        <li className="flex items-center gap-1.5">
           <span className="inline-block h-2.5 w-4 rounded-[2px] bg-up/30" aria-hidden />
           FVG abierto
         </li>
@@ -321,7 +339,7 @@ export function LiquidityChart({
             className="inline-block h-2.5 w-4 rounded-[2px] border border-dashed border-muted-foreground/50"
             aria-hidden
           />
-          FVG lleno
+          FVG lleno o vencido
         </li>
         <li>▲ ▼ vela de desplazamiento</li>
       </ul>
