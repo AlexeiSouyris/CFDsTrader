@@ -10,6 +10,7 @@ pub mod daily_indicator;
 pub mod daily_vol_tercile;
 pub mod decimal_str;
 pub mod economic_event;
+pub mod imbalance;
 pub mod instrument;
 pub mod liquidity_level;
 pub mod liquidity_stats;
@@ -25,6 +26,7 @@ pub use daily_drawdown::DailyDrawdown;
 pub use daily_indicator::DailyIndicator;
 pub use daily_vol_tercile::{DailyVolTercile, VolTercile};
 pub use economic_event::{EconomicEvent, Impact};
+pub use imbalance::{Imbalance, ImbalanceLabel};
 pub use instrument::{AssetClass, Instrument, InstrumentId};
 pub use liquidity_level::{
     LiquidityLevel, LiquidityLevelKind, LiquidityLevelState, LiquiditySession,

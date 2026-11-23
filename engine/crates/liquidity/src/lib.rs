@@ -5,6 +5,7 @@
 
 pub mod config;
 pub mod fvg;
+pub mod imbalance;
 pub mod levels;
 pub mod order_blocks;
 pub mod stats;
@@ -13,6 +14,7 @@ pub mod sweep;
 
 pub use config::LiquidityConfig;
 pub use fvg::{Fvg, fvg_touches_at, fvgs_up_to};
+pub use imbalance::{ImbalanceConfig, OhlcBar, displacement, imbalance_series};
 pub use levels::{LevelsConfig, SessionWindow, is_active_at, liquidity_levels};
 pub use order_blocks::{OrderBlock, order_block_touches_at, order_blocks};
 pub use stats::{StatsBar, StatsConfig, fvg_events, fvg_stats, gap_stats, opening_gaps};

@@ -145,6 +145,17 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Los gaps son un contrato aparte de los FVG porque se miden en sesiones y se llenan al **tocar** el cierre anterior, no al cerrar más allá del borde.
 - **Todavía no se guardan ni se publican:** la tabla de PostgreSQL y el comando van en otro PR de #231.
 
+### Desequilibrio aproximado desde el precio (#231, spec §5.4.1)
+
+| Contrato | Contenido |
+|---|---|
+| `imbalance.v1` | Al cierre de cada vela (15m, 1h o 1d): si es de desplazamiento y en qué dirección, las sumas de cuerpos de desplazamiento alcistas y bajistas y de rangos de la ventana de `window_bars` velas, el índice de −1 a +1 (0 si los rangos suman 0) y el rótulo fijo `"aproximación desde el precio"`. |
+
+- **No es flujo de órdenes** (IG no da volumen ni libro de órdenes): el rótulo viaja en el contrato para que la UI lo muestre siempre.
+- Contrato **aparte** de `liquidity_stats.v1`: es una serie, un valor por vela cerrada para el gráfico, y no un agregado de casos.
+- Lo calcula **solo Rust** (`cfds_liquidity::imbalance`, `[imbalance]` de `config/liquidity.toml`). Un valor emitido no cambia. Solo informativo.
+- **Todavía no se guarda ni se publica** (otro PR de #231).
+
 ### Fondo del grupo (#179)
 
 | Contrato | Tabla | Contenido |
