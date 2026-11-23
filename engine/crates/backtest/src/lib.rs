@@ -3,6 +3,7 @@
 
 pub mod config;
 pub mod costs;
+pub mod evaluation;
 pub mod exits;
 pub mod export;
 pub mod metrics;
@@ -16,6 +17,10 @@ pub use config::{BacktestConfig, CostConfig, ExitConfig, MetricsConfig};
 pub use costs::{
     Commission, Execution, InstrumentCosts, commission, fill_price, funding, funding_cutoffs,
     funding_nights, funding_over,
+};
+pub use evaluation::{
+    Aggregate, EvalError, EvaluationConfig, FoldResult, Inputs, PeriodResult, aggregate,
+    evaluate_holdout, evaluate_period, research_period, walk_forward,
 };
 pub use exits::{ExitReason, Fill, Outcome, Trade, simulate};
 pub use export::{ChartExport, chart_export};
