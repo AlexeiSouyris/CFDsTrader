@@ -129,7 +129,7 @@ def test_the_repository_config_maps_the_four_futures() -> None:
         ('start = "2021-11-01"', 'start = "1/11/2021"'),
         ('start = "2021-11-01"', 'start = "2021-11-01"\nmin_start = "2023-08-01"'),
         ('schema = "ohlcv-1m"', 'schema = "trades"'),
-        ("min_session_hours = 20", "min_session_hours = 25"),
+        ("min_session_hours = 18", "min_session_hours = 25"),
         ("max_gap_minutes = 5", "max_gap_minutes = 0"),
     ],
 )
