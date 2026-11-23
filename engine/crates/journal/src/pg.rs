@@ -10,9 +10,11 @@ use sqlx::postgres::{PgPool, PgRow};
 use sqlx::{Postgres, Row, Transaction};
 
 use crate::curve::{CurveInvalid, RunCurve, RunDetail, RunTrade};
+use crate::learning::LearningReport;
 use crate::ml_features::MlFeatures;
+use crate::votes::{StoredChange, Vote, changes_of};
 use crate::walk_forward::WalkForwardReport;
-use crate::{BacktestRun, Outcome, OutcomeKind, Proposal, RunInvalid};
+use crate::{BacktestRun, Outcome, OutcomeKind, Proposal, RunInvalid, Source};
 
 #[derive(Debug, thiserror::Error)]
 pub enum JournalError {
@@ -675,6 +677,175 @@ impl PgJournal {
         let r = select_paper_comparison(&mut tx, comparison_id).await?;
         tx.commit().await?;
         Ok(r)
+    }
+}
+
+impl PgJournal {
+    /// Guarda un informe de aprendizaje (`learning_report.v1`) y sus propuestas de cambio
+    /// (`change_proposal.v1`, todas "pendiente_de_voto") en una transacción (#327). El mismo
+    /// informe otra vez no guarda nada; con otro contenido es un error (solo agregar). Nunca
+    /// aplica un cambio.
+    pub async fn record_learning_report(
+        &self,
+        report: &LearningReport,
+    ) -> Result<Recorded, JournalError> {
+        let doc = serde_json::to_value(report)?;
+        let mut tx = self.pool.begin().await?;
+        let done = sqlx::query(
+            "INSERT INTO learning_reports (report_id, period_from, period_to, created_at, report)
+             VALUES ($1, $2, $3, $4, $5::jsonb)
+             ON CONFLICT (report_id) DO NOTHING",
+        )
+        .bind(&report.report_id)
+        .bind(report.from)
+        .bind(report.to)
+        .bind(report.created_at)
+        .bind(doc.to_string())
+        .execute(&mut *tx)
+        .await?;
+        if done.rows_affected() == 0 {
+            let stored: Option<String> = sqlx::query_scalar(
+                "SELECT report::text FROM learning_reports WHERE report_id = $1",
+            )
+            .bind(&report.report_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+            let same = stored
+                .map(|t| serde_json::from_str::<serde_json::Value>(&t))
+                .transpose()?
+                .is_some_and(|v| v == doc);
+            if !same {
+                return Err(JournalError::Conflict {
+                    id: report.report_id.clone(),
+                });
+            }
+            tx.commit().await?;
+            return Ok(Recorded::Unchanged);
+        }
+        for c in changes_of(report) {
+            sqlx::query(
+                "INSERT INTO change_proposals (change_id, report_id, created_at, proposal)
+                 VALUES ($1, $2, $3, $4::jsonb)",
+            )
+            .bind(&c.change_id)
+            .bind(&c.report_id)
+            .bind(c.created_at)
+            .bind(serde_json::to_string(&c)?)
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(Recorded::Inserted)
+    }
+
+    /// Las propuestas de cambio de un informe, en el orden en que se guardaron.
+    pub async fn change_proposals(
+        &self,
+        report_id: &str,
+    ) -> Result<Vec<StoredChange>, JournalError> {
+        let rows: Vec<String> = sqlx::query_scalar(
+            "SELECT proposal::text FROM change_proposals WHERE report_id = $1
+             ORDER BY inserted_at, change_id",
+        )
+        .bind(report_id)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.iter()
+            .map(|t| serde_json::from_str(t).map_err(JournalError::from))
+            .collect()
+    }
+
+    /// Las propuestas de `source` decididas en `[from, to)`, con su resultado simulado (las que
+    /// todavía no tienen resultado no se cuentan), por hora de la señal (#327).
+    pub async fn pairs(
+        &self,
+        source: Source,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<(Proposal, Outcome)>, JournalError> {
+        let mut tx = self.pool.begin().await?;
+        let rows = sqlx::query(concat!(
+            "SELECT id, source, run_id, instrument_id, side, signal_at, reference, stop, tp1, ",
+            "size, leverage, score, breakdown::text AS breakdown, triggers::text AS triggers ",
+            "FROM proposals WHERE source = $1 AND signal_at >= $2 AND signal_at < $3 ",
+            "ORDER BY signal_at, id"
+        ))
+        .bind(name(&source)?)
+        .bind(from)
+        .bind(to)
+        .fetch_all(&mut *tx)
+        .await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in rows {
+            let proposal = row_to_proposal(&r)?;
+            let outcome = sqlx::query(select_outcome!())
+                .bind(&proposal.id)
+                .bind(name(&OutcomeKind::Simulated)?)
+                .fetch_optional(&mut *tx)
+                .await?
+                .map(|r| row_to_outcome(&r))
+                .transpose()?;
+            if let Some(o) = outcome {
+                out.push((proposal, o));
+            }
+        }
+        tx.commit().await?;
+        Ok(out)
+    }
+
+    /// Registra un voto (`change_vote.v1`). Un voto por miembro y propuesta: el mismo voto otra
+    /// vez no guarda nada; otro voto del mismo miembro es un error. Nunca aplica un cambio.
+    pub async fn record_vote(&self, v: &Vote) -> Result<Recorded, JournalError> {
+        let doc = serde_json::to_value(v)?;
+        let mut tx = self.pool.begin().await?;
+        let done = sqlx::query(
+            "INSERT INTO change_votes (vote_id, change_id, member_id, in_favor, voted_at, vote)
+             VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(&v.vote_id)
+        .bind(&v.change_id)
+        .bind(&v.member_id)
+        .bind(v.in_favor)
+        .bind(v.voted_at)
+        .bind(doc.to_string())
+        .execute(&mut *tx)
+        .await?;
+        if done.rows_affected() == 0 {
+            let stored: Option<String> = sqlx::query_scalar(
+                "SELECT vote::text FROM change_votes WHERE change_id = $1 AND member_id = $2",
+            )
+            .bind(&v.change_id)
+            .bind(&v.member_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+            let same = stored
+                .map(|t| serde_json::from_str::<serde_json::Value>(&t))
+                .transpose()?
+                .is_some_and(|s| s == doc);
+            if !same {
+                return Err(JournalError::Conflict {
+                    id: v.vote_id.clone(),
+                });
+            }
+            tx.commit().await?;
+            return Ok(Recorded::Unchanged);
+        }
+        tx.commit().await?;
+        Ok(Recorded::Inserted)
+    }
+
+    /// Los votos de una propuesta, en orden.
+    pub async fn votes(&self, change_id: &str) -> Result<Vec<Vote>, JournalError> {
+        let rows: Vec<String> = sqlx::query_scalar(
+            "SELECT vote::text FROM change_votes WHERE change_id = $1 ORDER BY voted_at, vote_id",
+        )
+        .bind(change_id)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.iter()
+            .map(|t| serde_json::from_str(t).map_err(JournalError::from))
+            .collect()
     }
 }
 

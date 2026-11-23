@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/change_vote.v1.schema.json",
+  "title": "Change vote v1",
+  "description": "El voto de un miembro sobre una propuesta de cambio (change_proposal.v1, fase 8b, #327). Uno por miembro y propuesta (spec §1.2). Cambios de reglas o parámetros: 4 de 6 a favor dentro de 48 h (config/votes.toml); si no se llega en el plazo, la propuesta queda rechazada. Contar votos nunca aplica el cambio.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["vote_id", "change_id", "member_id", "in_favor", "voted_at"],
+  "properties": {
+    "vote_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,200}$" },
+    "change_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,200}$" },
+    "member_id": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+    "in_favor": { "type": "boolean" },
+    "voted_at": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" }
+  }
+}

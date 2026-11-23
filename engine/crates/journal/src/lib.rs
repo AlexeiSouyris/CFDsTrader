@@ -11,6 +11,7 @@ pub mod ml_features;
 pub mod pg;
 pub mod probability;
 pub mod run;
+pub mod votes;
 pub mod walk_forward;
 
 pub use curve::{CurveInvalid, CurvePoint, RunBuyAndHold, RunCurve, RunDetail, RunTrade};

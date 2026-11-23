@@ -1,0 +1,10 @@
+# Votaciones de las propuestas de cambio (spec §1.2, fase 8b, #327). Fila "Cambios de reglas o
+# parámetros (riesgo, instrumentos, apalancamiento)": 4 de 6 en 48 h; si no se llega a la
+# mayoría en el plazo, la propuesta queda rechazada. Estos umbrales se cambian con una votación
+# de 4 de 6. Contar los votos NUNCA aplica el cambio: eso se hace a mano en config/ con el voto
+# registrado.
+
+[rule_change]
+members = 6
+majority = 4
+window_hours = 48
