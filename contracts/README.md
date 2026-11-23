@@ -42,6 +42,16 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - **Idempotente por `run_id`:** guardar otra vez la misma corrida (todo igual salvo `started_at` y `finished_at`) no guarda nada y conserva la primera. Con otro contenido es un error: un `run_id` no se reusa.
 - La escribe el motor al terminar `backtest_run` con `run_id` (`cfds_journal::pg::PgJournal::record_run`). La lee el aprendizaje en Python.
 
+### Modelo de ML v1 (#158, `docs/spec/ml-v1.md`)
+
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `ml_features.v1` | `ml_features` | Variables de una propuesta que no viajan en `proposal.v1` (spec ML §3): `proposal_id`, `as_of` (= `signal_at`), `atr14_m15` (string decimal, > 0), `realized_vol_tercile` (`low`/`mid`/`high`) y `session_band` (`open`/`mid`/`close`). |
+
+- Una fila por propuesta, de **solo agregar** (`infra/migrations/0013_ml_features.sql`, trigger): una variable ya armada no cambia (sin repintado). Si a una propuesta le falta alguna variable (calentamiento), no hay fila: no se rellena.
+- La arma el motor en Rust, solo con información al cierre de la vela de la señal. **Todavía no la escribe nadie:** el productor va en otro PR de #158.
+- La lee Python (`cfds_intel.models.dataset`), junto con `proposals` y `outcomes` de una corrida de `backtest_runs`.
+
 ### Sentimiento (#25, #27)
 
 | Contrato | Tabla | Contenido |

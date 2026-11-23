@@ -1,0 +1,7 @@
+# Modelo de ML v1 (docs/spec/ml-v1.md, #158, aprobada por el dueño el 23-11-2026). Lo lee Python
+# (`cfds_intel.models`) y se valida al cargar. Los cortes de tiempo salen de config/data_split.toml
+# y el embargo, de backtest.toml (exits.time_exit_bars): no se repiten acá.
+
+[dataset]
+# Decisión 4 de la spec §11: se empieza solo con US500. Sumar otros pide otra aprobación.
+instruments = ["US500"]
