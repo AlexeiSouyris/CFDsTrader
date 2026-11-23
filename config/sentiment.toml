@@ -46,3 +46,11 @@ weight = "1"
 inverted = false
 expiry_days = 5
 pending = true
+
+# Estados emocionales que salen del índice (spec §9.1, #220). Python (cfds_intel.sentiment.states).
+[states]
+# Miedo extremo: índice ≤ este valor. Euforia extrema: índice ≥ este valor.
+extreme_fear = "-0.6"
+extreme_euphoria = "0.6"
+# Complacencia: percentil de la volatilidad realizada (sin invertir) ≤ este valor.
+complacency_percentile = "0.10"
