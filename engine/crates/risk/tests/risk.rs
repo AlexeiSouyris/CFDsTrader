@@ -351,3 +351,35 @@ fn limits_come_from_the_catalog_and_pending_minimums_stay_unknown() {
     let us100 = InstrumentLimits::from_spec(&catalog.instruments[&id("US100")]).unwrap();
     assert_eq!(us100.min_deal_size, None);
 }
+
+#[test]
+fn outside_the_backtest_the_kill_switch_never_resets_by_itself() {
+    // #277: la reactivación después de N días hábiles existe solo en el backtest
+    // (`config/backtest.toml`, `cfds_backtest`). El módulo de riesgo, que usa la operación en vivo,
+    // no tiene ese parámetro: la configuración lo rechaza en cualquier sección.
+    let real = include_str!("../../../../config/risk.toml");
+    for bad in [
+        format!("{real}\n[kill_switch]\nreset_after_business_days = 20\n"),
+        real.replace(
+            "max_drawdown_pct = \"15\"",
+            "max_drawdown_pct = \"15\"\nreset_after_business_days = 20",
+        ),
+    ] {
+        assert_ne!(bad, real);
+        assert!(RiskConfig::from_toml(&bad).is_err(), "{bad}");
+    }
+    // Y con el kill switch activo, nada lo saltea: ni un capital nuevo ni un pico recuperado.
+    for (equity, peak) in [(dec!(1000), dec!(1000)), (dec!(2000), dec!(1000))] {
+        let acc = Account {
+            kill_switch: true,
+            equity,
+            peak_equity: peak,
+            day_start_equity: equity,
+            ..account()
+        };
+        assert_eq!(
+            run(&request(), &acc, &limits()),
+            Err(Rejection::KillSwitchActive)
+        );
+    }
+}

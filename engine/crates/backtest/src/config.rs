@@ -37,6 +37,9 @@ pub struct BacktestConfig {
     pub metrics: MetricsConfig,
     /// Zona del "día" de la pérdida diaria (spec §10).
     pub day_tz: Tz,
+    /// Solo en backtest (#277): días hábiles después de un kill switch hasta reactivar el
+    /// recorrido. `None` = nunca, igual que en vivo.
+    pub kill_switch_reset_days: Option<u32>,
 }
 
 impl ExitConfig {
@@ -75,11 +78,17 @@ impl BacktestConfig {
         }
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
+        struct KillSwitch {
+            reset_after_business_days: u32,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Raw {
             exits: Exits,
             costs: Costs,
             metrics: Metrics,
             account: Account,
+            kill_switch: KillSwitch,
         }
         let raw = toml::from_str::<Raw>(text).map_err(|e| e.to_string())?;
         let e = raw.exits;
@@ -124,11 +133,16 @@ impl BacktestConfig {
         };
         let day_tz = Tz::from_str(&raw.account.day_timezone)
             .map_err(|_| format!("day_timezone desconocida: {}", raw.account.day_timezone))?;
+        let reset = raw.kill_switch.reset_after_business_days;
+        if reset > 260 {
+            return Err("kill_switch.reset_after_business_days: de 0 a 260 (un año)".into());
+        }
         Ok(Self {
             exits: cfg,
             costs,
             metrics,
             day_tz,
+            kill_switch_reset_days: (reset > 0).then_some(reset),
         })
     }
 }
@@ -153,6 +167,22 @@ mod tests {
             }
         );
         assert_eq!(
+            BacktestConfig::from_toml(REAL)
+                .unwrap()
+                .kill_switch_reset_days,
+            Some(20)
+        );
+        let never = REAL.replace(
+            "reset_after_business_days = 20",
+            "reset_after_business_days = 0",
+        );
+        assert_eq!(
+            BacktestConfig::from_toml(&never)
+                .unwrap()
+                .kill_switch_reset_days,
+            None
+        );
+        assert_eq!(
             BacktestConfig::from_toml(REAL).unwrap().costs,
             CostConfig {
                 slippage_spread_fraction: dec!(0.1),
@@ -174,6 +204,11 @@ mod tests {
                 r#"risk_free_annual_pct = "-1""#,
             ),
             REAL.replace(r#"slippage_ticks = "1""#, r#"slippage_ticks = "0""#),
+            REAL.replace(
+                "reset_after_business_days = 20",
+                "reset_after_business_days = 1000",
+            ),
+            REAL.replace("reset_after_business_days = 20", "reset_after_days = 20"),
             REAL.replace(
                 r#"slippage_spread_fraction = "0.1""#,
                 r#"slippage_spread_fraction = "-0.1""#,

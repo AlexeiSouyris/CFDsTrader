@@ -151,6 +151,31 @@ pub struct RunMetrics {
         skip_serializing_if = "Option::is_none"
     )]
     pub kill_switch_at: Option<DateTime<Utc>>,
+    /// Solo backtest (#277): días hábiles hasta reactivar el kill switch, si se usó.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kill_switch_reset_business_days: Option<u32>,
+    /// Cada activación y cada reactivación del kill switch, en orden (#277).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub kill_switch_events: Vec<RunKillSwitchEvent>,
+}
+
+/// Una activación o reactivación del kill switch en una corrida (#277).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RunKillSwitchEvent {
+    pub event: RunKillSwitchKind,
+    #[serde(with = "utc_z")]
+    pub at: DateTime<Utc>,
+    /// Capital en ese momento, en la moneda de la cuenta.
+    #[serde(with = "decimal_str::signed")]
+    pub equity: Decimal,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RunKillSwitchKind {
+    Activated,
+    Reset,
 }
 
 /// `utc_z` para un campo opcional que, si viene, es una hora UTC.
@@ -185,7 +210,20 @@ impl RunMetrics {
             profit_factor: m.profit_factor.map(|d| d.normalize()),
             exposure: m.exposure.map(|d| d.normalize()),
             kill_switch_at: None,
+            kill_switch_reset_business_days: None,
+            kill_switch_events: Vec::new(),
         }
+    }
+
+    /// Las mismas, con la reactivación del kill switch del backtest y sus eventos (#277).
+    pub fn with_kill_switch_events(
+        mut self,
+        reset_business_days: Option<u32>,
+        events: Vec<RunKillSwitchEvent>,
+    ) -> Self {
+        self.kill_switch_reset_business_days = reset_business_days;
+        self.kill_switch_events = events;
+        self
     }
 
     /// Las mismas, con la hora del kill switch si se activó (#273).

@@ -11,8 +11,8 @@ pub mod probability;
 pub mod run;
 
 pub use run::{
-    BacktestRun, RunCommission, RunCosts, RunInstrumentCosts, RunInvalid, RunMetrics, RunNews,
-    RunTimeframe, SpreadSource, config_sha256,
+    BacktestRun, RunCommission, RunCosts, RunInstrumentCosts, RunInvalid, RunKillSwitchEvent,
+    RunKillSwitchKind, RunMetrics, RunNews, RunTimeframe, SpreadSource, config_sha256,
 };
 
 use cfds_backtest::{CloseReason, ExitReason, TradeRecord};

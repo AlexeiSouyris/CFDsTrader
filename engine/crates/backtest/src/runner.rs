@@ -123,8 +123,10 @@ pub struct RejectedSignal {
 pub struct Report {
     pub trades: Vec<TradeRecord>,
     pub rejected: Vec<RejectedSignal>,
-    /// Vela en la que se activó el kill switch, si pasó.
+    /// Vela en la que se activó el kill switch por primera vez, si pasó.
     pub kill_switch_at: Option<usize>,
+    /// Cada activación y cada reactivación del kill switch (#277).
+    pub kill_switch_events: Vec<crate::KillSwitchEvent>,
     /// Capital final, en la moneda de la cuenta.
     pub final_equity: Decimal,
     /// Capital al último cierre de cada día (ver `PortfolioReport::daily_equity`).
@@ -360,6 +362,7 @@ fn report_of(market: &Market) -> Result<Report, RunError> {
             .find(|r| r.reason == Rejection::DrawdownLimit)
             .map(|r| r.index),
         trades: p.trades.into_iter().map(|t| t.record).collect(),
+        kill_switch_events: p.kill_switch_events,
         rejected,
         final_equity: p.final_equity,
         daily_equity: p.daily_equity,

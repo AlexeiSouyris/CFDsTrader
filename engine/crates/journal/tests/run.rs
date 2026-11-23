@@ -75,6 +75,33 @@ fn a_run_validates_against_its_contract_and_reads_back_identical() {
     assert!(validator().is_valid(&j), "{j}");
     assert_eq!(serde_json::from_value::<BacktestRun>(j).unwrap(), killed);
 
+    // Eventos del kill switch del backtest (#277).
+    let mut reset = run.clone();
+    reset.metrics = reset.metrics.clone().with_kill_switch_events(
+        Some(20),
+        vec![
+            cfds_journal::RunKillSwitchEvent {
+                event: cfds_journal::RunKillSwitchKind::Activated,
+                at: at("2025-10-22T09:45:00Z"),
+                equity: dec!(10500.5),
+            },
+            cfds_journal::RunKillSwitchEvent {
+                event: cfds_journal::RunKillSwitchKind::Reset,
+                at: at("2025-11-19T00:00:00Z"),
+                equity: dec!(10480),
+            },
+        ],
+    );
+    let j = serde_json::to_value(&reset).unwrap();
+    assert_eq!(
+        j["metrics"]["kill_switch_events"][1]["event"],
+        json!("reset")
+    );
+    assert_eq!(j["metrics"]["kill_switch_reset_business_days"], json!(20));
+    assert!(validator().is_valid(&j), "{j}");
+    assert_eq!(serde_json::from_value::<BacktestRun>(j).unwrap(), reset);
+    assert!(json["metrics"].get("kill_switch_events").is_none());
+
     let mut no_news = run.clone();
     no_news.news = None;
     let j = serde_json::to_value(&no_news).unwrap();
@@ -144,6 +171,11 @@ fn the_contract_and_rust_reject_the_same_bad_runs() {
         with("/extra", json!(1)),
         with("/costs/spread_source", json!("estimated")),
         with("/metrics/kill_switch_at", json!("2025-10-23 09:15")),
+        with("/metrics/kill_switch_reset_business_days", json!(0)),
+        with(
+            "/metrics/kill_switch_events",
+            json!([{"event": "paused", "at": "2025-10-23T09:15:00Z", "equity": "1"}]),
+        ),
     ];
     let v = validator();
     for doc in bad {

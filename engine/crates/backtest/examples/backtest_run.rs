@@ -112,6 +112,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             (s, rest)
         }
     };
+    // `--reiniciar-kill-switch-dias N` (#277, SOLO BACKTEST): pisa
+    // `config/backtest.toml [kill_switch] reset_after_business_days` en esta corrida; 0 = nunca.
+    let (reset_days, all) = match all.iter().position(|a| a == "--reiniciar-kill-switch-dias") {
+        None => (None, all),
+        Some(i) => {
+            let n: u32 = all
+                .get(i + 1)
+                .and_then(|s| s.parse().ok())
+                .filter(|n| *n <= 260)
+                .ok_or("--reiniciar-kill-switch-dias N (días hábiles, de 0 a 260)")?;
+            let rest = [&all[..i], all.get(i + 2..).unwrap_or(&[])].concat();
+            (Some(n), rest)
+        }
+    };
     let args: Vec<&str> = all
         .iter()
         .map(String::as_str)
@@ -123,7 +137,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ => {
             return Err(
                 "uso: <INSTRUMENTO> <desde UTC> <hasta UTC> <capital> <tamaño B&H> [<run_id>] \
-                 [--sin-noticias] [--fuente ig|futuros]"
+                 [--sin-noticias] [--fuente ig|futuros] [--reiniciar-kill-switch-dias N]"
                     .into(),
             );
         }
@@ -156,6 +170,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         BacktestConfig::from_toml(cfg!("backtest.toml"))?,
         equity,
     )?;
+    if let Some(n) = reset_days {
+        setup.backtest.kill_switch_reset_days = (n > 0).then_some(n);
+    }
+    match setup.backtest.kill_switch_reset_days {
+        Some(n) => println!(
+            "kill switch: SOLO BACKTEST, se reactiva {n} días hábiles después de activarse (#277)"
+        ),
+        None => println!("kill switch: no se reactiva (como en vivo)"),
+    }
 
     let store = PgStore::connect(&std::env::var("DATABASE_URL")?).await?;
     // Tipo de referencia de cada noche (#79): la serie diaria guardada, nunca la constante.
@@ -341,13 +364,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if !reasons.is_empty() {
         println!("señales rechazadas por motivo: {reasons:?}");
     }
-    let kill_switch = report.kill_switch_time(&m15);
-    if let Some(at) = kill_switch {
-        let left = m15.len() - report.kill_switch_at.unwrap_or(m15.len());
+    for e in &report.kill_switch_events {
+        match e.kind {
+            cfds_backtest::KillSwitchEventKind::Activated => eprintln!(
+                "⛔ KILL SWITCH en {}: el drawdown llegó al límite de config/risk.toml \
+                 (max_drawdown_pct), capital {}. {}",
+                e.at,
+                e.equity.round_dp(2),
+                match setup.backtest.kill_switch_reset_days {
+                    Some(n) =>
+                        format!("SOLO BACKTEST: se reactiva después de {n} días hábiles (#277)."),
+                    None => "No se abre NADA MÁS hasta el final del período.".to_owned(),
+                }
+            ),
+            cfds_backtest::KillSwitchEventKind::Reset => eprintln!(
+                "↻ kill switch reactivado en {} (solo backtest), capital {}: el drawdown se mide \
+                 desde acá",
+                e.at,
+                e.equity.round_dp(2)
+            ),
+        }
+    }
+    if !report.kill_switch_events.is_empty() {
         eprintln!(
-            "⛔ KILL SWITCH en {at}: el drawdown llegó al límite de config/risk.toml \
-             (max_drawdown_pct). No se abre NADA MÁS hasta el final del período ({left} velas de \
-             15m sin operar). Queda guardado en backtest_runs (metrics.kill_switch_at)."
+            "   (queda en backtest_runs: metrics.kill_switch_at y metrics.kill_switch_events)"
         );
     }
     for t in &report.trades {
@@ -481,7 +521,26 @@ fn run_record(
             .with_spread_source(spread_source),
         news,
         metrics: cfds_journal::RunMetrics::new(report.final_equity, &metrics)
-            .with_kill_switch(report.kill_switch_time(m15)),
+            .with_kill_switch(report.kill_switch_time(m15))
+            .with_kill_switch_events(
+                setup.backtest.kill_switch_reset_days,
+                report
+                    .kill_switch_events
+                    .iter()
+                    .map(|e| cfds_journal::RunKillSwitchEvent {
+                        event: match e.kind {
+                            cfds_backtest::KillSwitchEventKind::Activated => {
+                                cfds_journal::RunKillSwitchKind::Activated
+                            }
+                            cfds_backtest::KillSwitchEventKind::Reset => {
+                                cfds_journal::RunKillSwitchKind::Reset
+                            }
+                        },
+                        at: e.at,
+                        equity: e.equity.normalize(),
+                    })
+                    .collect(),
+            ),
         started_at,
         finished_at: chrono::Utc::now(),
     })

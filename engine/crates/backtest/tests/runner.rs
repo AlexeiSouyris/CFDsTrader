@@ -13,7 +13,7 @@ use cfds_risk::{InstrumentLimits, Rejection, RiskConfig};
 use cfds_strategy::{
     Component, Configs, Score, Side, Signal, StrategyConfig, Trigger, TriggerKind,
 };
-use chrono::{DateTime, NaiveTime, TimeDelta, Utc};
+use chrono::{DateTime, Datelike, NaiveTime, TimeDelta, Utc};
 use rust_decimal::{Decimal, dec};
 
 fn setup() -> Setup {
@@ -478,8 +478,11 @@ fn the_drawdown_limit_stops_the_run() {
     let mut s = setup();
     s.risk.max_drawdown_pct = dec!(0.01);
     s.risk.max_daily_loss_pct = dec!(99);
+    // Sin reactivación (como en vivo): corta para siempre.
+    s.backtest.kill_switch_reset_days = None;
     let report = run(&m15, &h1, &[], &[], &s).unwrap();
     let at = report.kill_switch_at.expect("tendría que dispararse");
+    assert_eq!(report.kill_switch_events.len(), 1);
     assert_eq!(
         report.rejected.last().unwrap().reason,
         Rejection::DrawdownLimit
@@ -497,6 +500,76 @@ fn the_drawdown_limit_stops_the_run() {
     loose.risk.max_drawdown_pct = dec!(99);
     let clean = run(&m15, &h1, &[], &[], &loose).unwrap();
     assert_eq!(clean.kill_switch_time(&m15), None);
+}
+
+#[test]
+fn in_the_backtest_the_kill_switch_resets_after_n_business_days_from_the_current_equity() {
+    // #277: solo en backtest, después de N días hábiles se reactiva y el drawdown se mide desde
+    // el capital de ese momento.
+    use cfds_backtest::KillSwitchEventKind::{Activated, Reset};
+    let m15 = random_walk(3000, 11);
+    let h1 = resample_h1(&m15);
+    let mut s = setup();
+    s.risk.max_drawdown_pct = dec!(0.01);
+    s.risk.max_daily_loss_pct = dec!(99);
+    s.backtest.kill_switch_reset_days = Some(3);
+    let report = run(&m15, &h1, &[], &[], &s).unwrap();
+    let ev = &report.kill_switch_events;
+    assert!(ev.len() >= 2, "{ev:?}");
+    assert_eq!(ev[0].kind, Activated);
+    assert_eq!(ev[1].kind, Reset);
+    // Alternan: activado, reactivado, activado...
+    for (k, e) in ev.iter().enumerate() {
+        assert_eq!(e.kind, if k % 2 == 0 { Activated } else { Reset });
+    }
+    // La reactivación es después de al menos 3 días hábiles (lunes a viernes, hora de Madrid).
+    let tz = s.backtest.day_tz;
+    let days = |a: DateTime<Utc>, b: DateTime<Utc>| {
+        let (mut d, end) = (
+            a.with_timezone(&tz).date_naive(),
+            b.with_timezone(&tz).date_naive(),
+        );
+        let mut n = 0;
+        while d < end {
+            d = d.succ_opt().unwrap();
+            if !matches!(d.weekday(), chrono::Weekday::Sat | chrono::Weekday::Sun) {
+                n += 1;
+            }
+        }
+        n
+    };
+    assert_eq!(days(ev[0].at, ev[1].at), 3);
+    // Mientras está activo no se abre nada; después de reactivarse, sí.
+    let during = |t: &cfds_backtest::TradeRecord| {
+        let at = m15[t.signal_index].end();
+        ev.chunks(2)
+            .any(|p| at > p[0].at && p.get(1).is_none_or(|r| at < r.at))
+    };
+    assert!(report.trades.iter().all(|t| !during(t)));
+    assert!(
+        report
+            .trades
+            .iter()
+            .any(|t| m15[t.signal_index].end() > ev[1].at)
+    );
+    // El pico se mide desde el capital de la reactivación: la siguiente activación es por una
+    // caída desde ahí, no desde el pico viejo (que la habría disparado en la primera señal).
+    if let Some(next) = ev.get(2) {
+        assert!(next.equity < ev[1].equity);
+        assert!(report.trades.iter().any(|t| {
+            let at = m15[t.signal_index].end();
+            at > ev[1].at && at < next.at
+        }));
+    }
+    // Sin reactivación hay un solo evento.
+    s.backtest.kill_switch_reset_days = None;
+    assert_eq!(
+        run(&m15, &h1, &[], &[], &s)
+            .unwrap()
+            .kill_switch_events
+            .len(),
+        1
+    );
 }
 
 #[test]

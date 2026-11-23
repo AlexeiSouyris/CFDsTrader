@@ -23,3 +23,11 @@ risk_free_annual_pct = "0"
 [account]
 # Zona del "día" de la pérdida diaria y de la curva de capital (spec §10: desde las 00:00 de Madrid).
 day_timezone = "Europe/Madrid"
+
+[kill_switch]
+# SOLO EN BACKTEST (#277, spec §10): después de un kill switch por drawdown, el recorrido se
+# reactiva solo pasados estos días hábiles (lunes a viernes, en `day_timezone`), como si el grupo
+# hubiera votado reactivarlo. El drawdown se vuelve a medir desde el capital de ese momento.
+# 0 = nunca (igual que en vivo). `backtest_run --reiniciar-kill-switch-dias N` lo cambia en una
+# corrida. En vivo no existe: config/risk.toml no tiene este parámetro y cfds-risk no lo conoce.
+reset_after_business_days = 20
