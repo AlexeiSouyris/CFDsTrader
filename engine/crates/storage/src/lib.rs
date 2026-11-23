@@ -6,6 +6,8 @@
 //!   con el JSON del contrato `candle.v1`.
 //! - [`NewsInterpretationConsumer`]: lee las interpretaciones de noticias que publica Python en
 //!   `news_interpretations.v1`, sin perder ni repetir entradas entre reinicios (#197).
+//! - Calendario económico (`economic_event.v1`, #243): [`PgStore::economic_events`] y
+//!   [`PgStore::economic_event_sightings`], solo lectura (lo escribe Python).
 //! - Mapa de liquidez (`liquidity_level.v1`, #231): [`PgStore::insert_liquidity_levels`] y
 //!   [`PgStore::liquidity_levels`], de solo agregar y sin repintado.
 //! - Estadísticas de liquidez (#231): eventos de FVG, gaps de apertura, desequilibrio y
@@ -13,6 +15,7 @@
 //!
 //! Las migraciones viven en `infra/migrations/` y se aplican con [`PgStore::migrate`].
 
+mod economic_events;
 mod liquidity_levels;
 mod liquidity_stats;
 mod news_stream;

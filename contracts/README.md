@@ -112,7 +112,7 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Hoy la fuente es el feed JSON oficial de Forex Factory (`source = 'forex_factory'`, ADR 0010). Lo lee y guarda Python con `python -m cfds_intel.calendar`. La moneda del feed pasa a país con `config/calendar.toml`, y los feriados (`Holiday`) no se guardan.
 - **`published_at` es la primera vez que se vio el evento** (anti look-ahead, ADR 0006 §3). No hay histórico: el calendario se acumula desde que empieza la ingesta.
 - Tabla de **solo agregar** (`infra/migrations/0022_economic_events.sql`, trigger), con clave natural `(source, event, country, instrument_id, impact, scheduled_at)` y `NULLS NOT DISTINCT`. Leer otra vez el mismo evento no lo repite y conserva su primer `published_at`. Si la fuente cambia la hora o el impacto, es **otra fila** con su propio `published_at`; la anterior queda.
-- Para leerla sin mirar el futuro: `published_at <= as_of` (`cfds_intel.calendar.store.events_known_at`). El filtro §7.2 del motor (`cfds_market_data::news_flags`) todavía no la lee: es el siguiente paso.
+- Para leerla sin mirar el futuro: `published_at <= as_of` (`cfds_intel.calendar.store.events_known_at`). La lee el motor (`PgStore::economic_events` y `PgStore::economic_event_sightings`, #243) para el filtro §7.2 de `backtest_run` y `chart_export` (`cfds_market_data::NewsFilter`): un evento cuenta en una vela solo si `published_at ≤` su cierre, y una vela sin una lectura de la ingesta en los `calendar_stale_after_days` anteriores (`config/news_filter.toml`) se informa como "sin calendario".
 
 ### Indicadores diarios (#148, #213, #218)
 

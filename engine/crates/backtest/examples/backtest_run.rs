@@ -24,9 +24,17 @@
 //! interpretado hasta su cierre. Si hay interpretaciones de otro modelo, no corre. Si no hay
 //! ninguna, corre sin ajuste de noticias y lo dice.
 //!
+//! Filtro de noticias de alto impacto (spec §7.2, #243): usa los eventos del calendario guardado
+//! (`economic_events`), cada uno desde que se vio, y avisa qué tramos del período no tienen
+//! calendario (ahí no descuenta nada). `--sin-noticias` no lo apaga: solo apaga el ajuste del
+//! puntaje.
+//!
 //! Con `--sin-noticias` no carga ninguna interpretación y la corrida queda con `news: null` en
 //! `backtest_runs`: es la variante "capa apagada" del reporte de la fase 4b (#221), para medir
 //! el ajuste de noticias contra no usarlo con todo lo demás igual.
+
+#[path = "common/news_filter.rs"]
+mod news_filter;
 
 use std::path::PathBuf;
 
@@ -37,8 +45,8 @@ use cfds_core::Timeframe;
 use cfds_indicators::TrendConfig;
 use cfds_liquidity::LiquidityConfig;
 use cfds_market_data::{
-    Catalog, ExchangeCalendar, SpreadFilterConfig, TradingWindowConfig, ValidationConfig,
-    check_series, spread_flags, trading_window,
+    Catalog, ExchangeCalendar, NewsFilterConfig, SpreadFilterConfig, TradingWindowConfig,
+    ValidationConfig, check_series, spread_flags, trading_window,
 };
 use cfds_patterns::PatternsConfig;
 use cfds_risk::RiskConfig;
@@ -53,13 +61,14 @@ macro_rules! cfg {
 }
 
 /// Archivos de `config/` que lee la corrida, para el hash de `backtest_run.v1` (#200).
-const CONFIG_FILES: [(&str, &str); 14] = [
+const CONFIG_FILES: [(&str, &str); 15] = [
     ("backtest.toml", cfg!("backtest.toml")),
     ("data_split.toml", cfg!("data_split.toml")),
     ("data_validation.toml", cfg!("data_validation.toml")),
     ("indicators.toml", cfg!("indicators.toml")),
     ("instruments.toml", cfg!("instruments.toml")),
     ("liquidity.toml", cfg!("liquidity.toml")),
+    ("news_filter.toml", cfg!("news_filter.toml")),
     ("news_interpreter.toml", cfg!("news_interpreter.toml")),
     ("patterns.toml", cfg!("patterns.toml")),
     ("probability.toml", cfg!("probability.toml")),
@@ -163,12 +172,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .zip(&spread_ok)
         .map(|(e, s)| *e && *s)
         .collect();
-    // Filtro de noticias (spec §7.2, `cfds_market_data::news_flags`): la fuente del calendario
-    // económico es de la fase 4b y necesita su ADR (spec §9). Sin eventos no se aplica: avisarlo.
-    eprintln!(
-        "⚠️  filtro de noticias de alto impacto (§7.2) SIN DATOS: falta la fuente del calendario \
-         (fase 4b). El resultado no lo descuenta."
-    );
+    // Filtro de noticias (spec §7.2): eventos del calendario guardado (`economic_events`, #243),
+    // cada uno solo desde que se vio. Avisa qué tramos no tienen calendario.
+    let news_cfg = NewsFilterConfig::from_toml(cfg!("news_filter.toml"))?;
+    let entries = news_filter::apply(&store, &m15, &entries, &news_cfg).await?;
     println!(
         "{id}: {} velas de 15m y {} de 1h, del {from} al {to}",
         m15.len(),

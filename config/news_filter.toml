@@ -1,13 +1,19 @@
 # Filtro de noticias (spec §7.2 y §9): no se abre si hay un evento de impacto alto del
 # instrumento o de su país entre `window_minutes` antes y `window_minutes` después de la entrada.
-# Los eventos vienen del calendario económico (contracts/economic_event.v1). La fuente es de la
-# fase 4b y necesita su ADR: mientras no exista, el backtest avisa que el filtro no tiene datos.
+# Los eventos vienen del calendario económico guardado (contracts/economic_event.v1, tabla
+# economic_events): hoy, el feed JSON oficial de Forex Factory (ADR 0010, #239). Un evento
+# cuenta en una vela solo si ya se había visto al cerrarla (published_at ≤ cierre).
 
 [news]
 # "Entre 15 minutos antes y 15 minutos después" (los dos bordes cuentan).
 window_minutes = 15
 # Impactos que bloquean.
 blocking_impacts = ["high"]
+# Cobertura del calendario (#243): una vela tiene calendario si la última vez que la ingesta vio
+# un evento nuevo (published_at ≤ cierre) fue hace a lo sumo estos días. El feed trae la semana
+# en curso y cada semana aparecen eventos nuevos: con más días de silencio, la ingesta estuvo
+# parada. Antes de la primera lectura tampoco hay calendario (no hay histórico).
+calendar_stale_after_days = 8
 
 # "Su país": países (ISO 3166-1 alfa-2) cuyos eventos cuentan para cada instrumento.
 # SUPUESTO para confirmar: DE40 incluye "EU" (zona euro, por ejemplo las decisiones del BCE).
