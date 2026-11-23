@@ -1,6 +1,7 @@
 {
   "note": "DATOS DE EJEMPLO generados para el prototipo (#231). No son precios reales. Cada elemento sigue su contrato (candle.v1, liquidity_level.v1, fvg_event.v1, liquidity_stats.v1 e imbalance.v1), precalculado fuera de la UI como lo enviaría el motor.",
   "instrument_id": "US100",
+  "generated_at": "2026-11-21T00:00:00Z",
   "as_of": "2026-11-21T00:00:00Z",
   "candles": [
     {

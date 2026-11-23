@@ -17,7 +17,7 @@ import type {
   LiquidityStats,
   StatsDistribution,
   StatsRate,
-} from '@/mocks'
+} from '@/lib/liquidity-contracts'
 
 const STATE_TONE: Record<LevelState, string> = {
   intact: 'text-foreground',

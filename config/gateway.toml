@@ -1,0 +1,14 @@
+# Gateway: API de solo lectura del motor para la UI (#231). Nada de esto envía órdenes.
+
+[server]
+# Dirección donde escucha. Por defecto solo la máquina local; la UI llega con el proxy de Vite.
+bind = "127.0.0.1:8787"
+
+[liquidity]
+# Ventana de la vista de liquidez, hacia atrás desde la última vela cerrada (as_of).
+# Velas de 15m (y desequilibrio) que se mandan: 3 días.
+candles_hours = 72
+# FVG creados en estos días.
+fvg_days = 7
+# Niveles con exists_from en estos días (alcanza para PDH/PDL y PWH/PWL).
+levels_days = 14
