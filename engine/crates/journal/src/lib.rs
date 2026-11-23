@@ -10,11 +10,16 @@ pub mod ml_features;
 pub mod pg;
 pub mod probability;
 pub mod run;
+pub mod walk_forward;
 
 pub use curve::{CurveInvalid, CurvePoint, RunBuyAndHold, RunCurve, RunDetail, RunTrade};
 pub use run::{
     BacktestRun, RunCommission, RunCosts, RunInstrumentCosts, RunInvalid, RunKillSwitchEvent,
     RunKillSwitchKind, RunMetrics, RunNews, RunTimeframe, SpreadSource, config_sha256,
+};
+pub use walk_forward::{
+    CandleSourceName, ReportHeader, WalkForwardReport, WfAggregate, WfBuyAndHold, WfFold,
+    WfMetrics, WfPeriod, WfSensitivity, WfSplit, WfStability, WfValue,
 };
 
 use cfds_backtest::{CloseReason, ExitReason, TradeRecord};

@@ -10,6 +10,7 @@ use sqlx::{Postgres, Row, Transaction};
 
 use crate::curve::{CurveInvalid, RunCurve, RunDetail, RunTrade};
 use crate::ml_features::MlFeatures;
+use crate::walk_forward::WalkForwardReport;
 use crate::{BacktestRun, Outcome, OutcomeKind, Proposal, RunInvalid};
 
 #[derive(Debug, thiserror::Error)]
@@ -24,6 +25,8 @@ pub enum JournalError {
     InvalidRun(#[from] RunInvalid),
     #[error("curva inválida: {0}")]
     InvalidCurve(#[from] CurveInvalid),
+    #[error("reporte de walk-forward inválido: report_id o config_sha256 con otro formato")]
+    InvalidReport,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -528,4 +531,70 @@ async fn insert_outcome(
         });
     }
     Ok(false)
+}
+
+/// Reportes de la evaluación de la Fase 5 (`walk_forward_report.v1`, migración 0031, #298).
+impl PgJournal {
+    /// Guarda el reporte. Idempotente: el mismo reporte (salvo `computed_at`) no guarda nada; con
+    /// otro contenido es `Conflict`.
+    pub async fn record_walk_forward(
+        &self,
+        report: &WalkForwardReport,
+    ) -> Result<Recorded, JournalError> {
+        if !report.valid_id() {
+            return Err(JournalError::InvalidReport);
+        }
+        let mut tx = self.pool.begin().await?;
+        let done = sqlx::query(
+            "INSERT INTO walk_forward_reports (report_id, instrument_id, candle_source,
+               config_sha256, computed_at, report)
+             VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+             ON CONFLICT (report_id) DO NOTHING",
+        )
+        .bind(&report.report_id)
+        .bind(report.instrument_id.as_str())
+        .bind(report.candle_source.as_str())
+        .bind(&report.config_sha256)
+        .bind(report.computed_at)
+        .bind(serde_json::to_string(report)?)
+        .execute(&mut *tx)
+        .await?;
+        let inserted = done.rows_affected() == 1;
+        if !inserted {
+            let stored = select_walk_forward(&mut tx, &report.report_id).await?;
+            if !stored.is_some_and(|s| s.same_report(report)) {
+                return Err(JournalError::Conflict {
+                    id: report.report_id.clone(),
+                });
+            }
+        }
+        tx.commit().await?;
+        Ok(if inserted {
+            Recorded::Inserted
+        } else {
+            Recorded::Unchanged
+        })
+    }
+
+    pub async fn walk_forward(
+        &self,
+        report_id: &str,
+    ) -> Result<Option<WalkForwardReport>, JournalError> {
+        let mut tx = self.pool.begin().await?;
+        let r = select_walk_forward(&mut tx, report_id).await?;
+        tx.commit().await?;
+        Ok(r)
+    }
+}
+
+async fn select_walk_forward(
+    tx: &mut Transaction<'_, Postgres>,
+    report_id: &str,
+) -> Result<Option<WalkForwardReport>, JournalError> {
+    let text: Option<String> =
+        sqlx::query_scalar("SELECT report::text FROM walk_forward_reports WHERE report_id = $1")
+            .bind(report_id)
+            .fetch_optional(&mut **tx)
+            .await?;
+    Ok(text.map(|t| serde_json::from_str(&t)).transpose()?)
 }
