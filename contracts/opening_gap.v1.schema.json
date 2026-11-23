@@ -31,7 +31,8 @@
           "required": ["day", "sessions"],
           "properties": {
             "day": { "$ref": "#/$defs/day" },
-            "sessions": { "description": "Sesiones desde la del gap (0 = la misma).", "type": "integer", "minimum": 0 }
+            "sessions": { "description": "Sesiones desde la del gap (0 = la misma).", "type": "integer", "minimum": 0 },
+            "at": { "description": "Opcional (agregado para el guardado, #231): fin de la vela diaria de esa sesión, desde cuando se conoce el evento.", "oneOf": [{ "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" }, { "type": "null" }] }
           }
         },
         { "type": "null" }

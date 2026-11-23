@@ -8,15 +8,19 @@
 //!   `news_interpretations.v1`, sin perder ni repetir entradas entre reinicios (#197).
 //! - Mapa de liquidez (`liquidity_level.v1`, #231): [`PgStore::insert_liquidity_levels`] y
 //!   [`PgStore::liquidity_levels`], de solo agregar y sin repintado.
+//! - Estadísticas de liquidez (#231): eventos de FVG, gaps de apertura, desequilibrio y
+//!   agregados por corrida ([`PgStore::insert_fvg_events`] y siguientes), de solo agregar.
 //!
 //! Las migraciones viven en `infra/migrations/` y se aplican con [`PgStore::migrate`].
 
 mod liquidity_levels;
+mod liquidity_stats;
 mod news_stream;
 mod pg;
 mod stream;
 
 pub use liquidity_levels::LevelsReport;
+pub use liquidity_stats::{StatsReport, StatsRunReport};
 pub use news_stream::{
     Delivery, NEWS_INTERPRETATIONS_STREAM, NewsBatch, NewsInterpretationConsumer, Rejected, StartAt,
 };
@@ -75,6 +79,14 @@ pub enum StorageError {
         instrument: String,
         kind: String,
         exists_from: DateTime<Utc>,
+    },
+    #[error(
+        "{what} de {instrument} ({at}) ya está guardado con otros valores o eventos: sería repintado (revisar el cálculo, la config o las velas)"
+    )]
+    LiquidityStatsConflict {
+        what: String,
+        instrument: String,
+        at: DateTime<Utc>,
     },
     #[error("fila inválida en la base: {0}")]
     CorruptRow(String),

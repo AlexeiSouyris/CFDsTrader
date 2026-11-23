@@ -196,12 +196,13 @@ pub fn fvg_events<T: StatsBar>(bars: &[T], atr_period: usize, cfg: &StatsConfig)
             let reactions = cfg
                 .reaction_bars
                 .iter()
-                .map(|&k| FvgReaction {
-                    bars: k,
-                    return_atr: touch.and_then(|t| {
-                        let later = bars.get(t + k.get() as usize)?;
-                        Some(signed(later.close() - bars[t].close()) / a)
-                    }),
+                .map(|&k| {
+                    let later = touch.and_then(|t| Some((t, bars.get(t + k.get() as usize)?)));
+                    FvgReaction {
+                        bars: k,
+                        return_atr: later.map(|(t, c)| signed(c.close() - bars[t].close()) / a),
+                        at: later.map(|(_, c)| c.closed_at()),
+                    }
                 })
                 .collect();
             let status = match (fill, expiry) {
@@ -264,6 +265,7 @@ pub fn opening_gaps(
             let session = |j: usize| GapSession {
                 day: daily[j].day,
                 sessions: count(j - s),
+                at: Some(daily[j].end),
             };
             Some(OpeningGap {
                 instrument_id: daily[s].instrument_id.clone(),

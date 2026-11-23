@@ -35,6 +35,10 @@
           "return_atr": {
             "description": "(C[toque + bars] − C[toque]) / atr, con signo a favor de la dirección (positivo = el precio se movió hacia el lado del FVG). null sin toque o si todavía no cerraron esas velas.",
             "oneOf": [{ "$ref": "#/$defs/signed_decimal" }, { "type": "null" }]
+          },
+          "at": {
+            "description": "Opcional (agregado para el guardado, #231): cierre de la vela toque + bars, desde cuando se conoce la reacción. null mientras return_atr sea null.",
+            "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }]
           }
         }
       }

@@ -14,6 +14,25 @@ use serde::{Deserialize, Serialize};
 use crate::candle::{Timeframe, utc_z};
 use crate::instrument::InstrumentId;
 
+/// `utc_z` para un campo opcional: `null` o ausente es `None`.
+mod utc_z_option {
+    use chrono::{DateTime, Utc};
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(t: &Option<DateTime<Utc>>, s: S) -> Result<S::Ok, S::Error> {
+        match t {
+            Some(t) => super::utc_z::serialize(t, s),
+            None => s.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<DateTime<Utc>>, D::Error> {
+        #[derive(Deserialize)]
+        struct W(#[serde(with = "super::utc_z")] DateTime<Utc>);
+        Ok(Option::<W>::deserialize(d)?.map(|w| w.0))
+    }
+}
+
 /// Dirección de una zona: alcista (FVG alcista o gap hacia arriba) o bajista (el espejo).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -70,6 +89,11 @@ pub struct FvgReaction {
     /// `None` si no hubo toque o todavía no cerraron `bars` velas después del toque.
     #[serde(with = "crate::decimal_str::signed_option")]
     pub return_atr: Option<Decimal>,
+    /// Cierre de la vela `toque + bars`: desde ahí se conoce la reacción (#231, guardado).
+    /// Opcional en el contrato (campo agregado después); el motor siempre lo llena junto con
+    /// `return_atr`.
+    #[serde(default, with = "utc_z_option")]
+    pub at: Option<DateTime<Utc>>,
 }
 
 /// Un FVG (definición de §5.4) con lo que le pasó hasta `as_of`.
@@ -113,6 +137,10 @@ pub struct GapSession {
     pub day: NaiveDate,
     /// Sesiones desde la del gap (0 = la misma sesión).
     pub sessions: u32,
+    /// Fin de la vela diaria de esa sesión: desde ahí se conoce el evento. Opcional en el
+    /// contrato (campo agregado después); el motor siempre lo llena.
+    #[serde(default, with = "utc_z_option")]
+    pub at: Option<DateTime<Utc>>,
 }
 
 /// Un gap de apertura diario con lo que le pasó hasta `as_of`.
