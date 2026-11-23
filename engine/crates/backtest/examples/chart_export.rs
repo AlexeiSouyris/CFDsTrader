@@ -17,7 +17,7 @@ use cfds_indicators::TrendConfig;
 use cfds_liquidity::LiquidityConfig;
 use cfds_market_data::{
     Catalog, ExchangeCalendar, NewsFilterConfig, SpreadFilterConfig, TradingWindowConfig,
-    ValidationConfig, check_series, spread_flags, trading_window,
+    ValidationConfig, check_series, decision_flags, spread_flags, trading_window,
 };
 use cfds_patterns::PatternsConfig;
 use cfds_risk::RiskConfig;
@@ -62,20 +62,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Spec §7.8 y §12: se descartan las velas sospechosas y, después de cada error de datos,
     // no se abre hasta volver a tener el calentamiento completo.
     let validation = ValidationConfig::from_toml(cfg!("data_validation.toml"))?;
-    let (m15, h1, data_errors) = {
+    let (m15, h1, data_errors, decisions) = {
         let a = check_series(&raw_m15, &calendar, &validation);
         let b = check_series(&raw_h1, &calendar, &validation);
         for i in a.issues.iter().chain(&b.issues) {
-            eprintln!("⚠️  error de datos en {}: {}", i.start, i.kind);
+            eprintln!("⚠️  dato sospechoso en {}: {}", i.start, i.kind);
         }
+        // Saltos que se sostuvieron (#271): movimientos reales, se aceptan sin reiniciar el
+        // calentamiento. Hasta confirmarlos, no se decide.
+        for t in a.volatility.iter().chain(&b.volatility) {
+            println!("evento de volatilidad: salto real en {t} (se acepta)");
+        }
+        let decisions = decision_flags(&a.candles, &[&a, &b]);
         let mut errors = [a.data_errors, b.data_errors].concat();
         errors.sort();
-        (a.candles, b.candles, errors)
+        (a.candles, b.candles, errors, decisions)
     };
     let session = calendar.session_for(&id).ok_or("instrumento sin bolsa")?;
     let window = TradingWindowConfig::from_toml(cfg!("trading_window.toml"))?;
-    let (entries, force_close) =
+    let (mut entries, force_close) =
         trading_window::flags(session, &m15, &window).ok_or("fechas fuera del calendario")?;
+    for (e, d) in entries.iter_mut().zip(&decisions) {
+        *e &= *d;
+    }
     // Filtro de spread (spec §7.3): necesita el spread de cierre guardado (#95), también de los
     // días anteriores al período. Sin ese dato no se abre.
     let spread_cfg = SpreadFilterConfig::from_toml(cfg!("spread_filter.toml"))?;

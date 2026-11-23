@@ -121,3 +121,19 @@ fn a_missing_candle_inside_the_session_rejects_the_batch() {
         other => panic!("debería rechazar el lote: {other:?}"),
     }
 }
+
+#[test]
+fn a_big_jump_does_not_reject_the_batch_it_is_decided_later() {
+    // #271: 20 velas sanas (ATR ≈ 10) y un salto de 1.000 puntos que se sostiene. Se guarda; si
+    // fue un pico o un movimiento real lo decide `check_series` al usar la serie.
+    let mut up = series(24);
+    for c in &mut up[20..] {
+        c.open += dec!(1000);
+        c.high += dec!(1000);
+        c.low += dec!(1000);
+        c.close += dec!(1000);
+    }
+    let now = up.last().unwrap().end();
+    let (closed, _) = prepare(&req(), up.clone(), &calendar(), &cfg(), now).unwrap();
+    assert_eq!(closed, up);
+}

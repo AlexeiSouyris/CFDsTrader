@@ -18,7 +18,8 @@ pub use gaps::{GapPlan, daily_gaps, intraday_gaps, missing_runs, missing_runs_by
 
 use cfds_core::{Candle, InstrumentId, Timeframe};
 use cfds_market_data::{
-    Issue, MarketDataProvider, ProviderError, SessionCalendar, ValidationConfig, validate_series,
+    Issue, IssueKind, MarketDataProvider, ProviderError, SessionCalendar, ValidationConfig,
+    validate_series,
 };
 use cfds_storage::{CandlePublisher, PgStore, Published, StorageError};
 use chrono::{DateTime, Utc};
@@ -92,7 +93,13 @@ pub fn prepare(
     let mut closed = candles;
     closed.truncate(closed_count);
 
-    let issues = validate_series(&closed, calendar, cfg);
+    // Un salto de más de `max_jump_atr_multiple` ATR no rechaza el lote (#271): con datos de
+    // bolsa suele ser un movimiento real, y si fue un pico se sabe recién unas velas después.
+    // Se guarda, y lo decide `cfds_market_data::check_series` al usar la serie.
+    let issues: Vec<Issue> = validate_series(&closed, calendar, cfg)
+        .into_iter()
+        .filter(|i| !matches!(i.kind, IssueKind::Outlier { .. }))
+        .collect();
     if !issues.is_empty() {
         return Err(IngestError::Rejected(issues));
     }

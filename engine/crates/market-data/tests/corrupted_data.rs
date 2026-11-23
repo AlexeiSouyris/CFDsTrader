@@ -3,7 +3,8 @@
 
 use cfds_core::{Candle, InstrumentId, Timeframe};
 use cfds_market_data::{
-    IssueKind, SessionCalendar, ValidationConfig, check_series, validate_series,
+    IssueKind, JumpOutcome, SessionCalendar, ValidationConfig, check_series, jump_outcome,
+    validate_series,
 };
 use chrono::{DateTime, TimeDelta, Utc};
 use rust_decimal::{Decimal, dec};
@@ -295,4 +296,133 @@ fn a_candle_with_several_problems_is_one_data_error() {
     assert!(checked.issues.iter().filter(|i| i.index == 25).count() >= 2);
     assert_eq!(checked.data_errors, vec![c[25].start]);
     assert_eq!(checked.candles.len(), 29);
+}
+
+// #271: un salto de más de 10 ATR es un error de datos solo si fue un pico aislado. Si el precio
+// se sostiene, es un movimiento real. Se decide recién `confirm_bars` velas después.
+
+/// Sube toda la serie desde la vela `from` en `points` (un salto que se sostiene).
+fn shifted_from(mut c: Vec<Candle>, from: usize, points: Decimal) -> Vec<Candle> {
+    for k in &mut c[from..] {
+        k.open += points;
+        k.high += points;
+        k.low += points;
+        k.close += points;
+    }
+    c
+}
+
+#[test]
+fn a_spike_that_comes_back_is_a_data_error_and_the_candle_is_discarded() {
+    // Un tick malo: la vela 20 llega a +1000 pero cierra donde venía (vuelve en la misma vela).
+    let mut c = healthy(30);
+    c[20].high += dec!(1000);
+    assert_eq!(jump_outcome(&c, 20, &cfg()), JumpOutcome::Spike);
+    let checked = check_series(&c, &AlwaysOpen, &cfg());
+    assert!(!checked.candles.contains(&c[20]));
+    assert_eq!(checked.data_errors, vec![c[20].start]);
+    assert!(checked.volatility.is_empty());
+    // Mientras no se confirmó (4 velas), no se decide.
+    assert_eq!(checked.blocked, vec![(c[20].start, Some(c[24].start))]);
+    assert!(!checked.decision_allowed(c[23].start));
+    assert!(checked.decision_allowed(c[24].start));
+
+    // Un pico que vuelve unas velas después: la vela 20 y la 21 arriba, la 22 vuelve.
+    let mut c = shifted_from(healthy(30), 20, dec!(1000));
+    for k in &mut c[22..] {
+        k.open -= dec!(1000);
+        k.high -= dec!(1000);
+        k.low -= dec!(1000);
+        k.close -= dec!(1000);
+    }
+    assert_eq!(jump_outcome(&c, 20, &cfg()), JumpOutcome::Spike);
+}
+
+#[test]
+fn a_jump_that_holds_is_a_real_move_kept_without_restarting_the_warmup() {
+    let c = shifted_from(healthy(30), 20, dec!(1000));
+    assert_eq!(jump_outcome(&c, 20, &cfg()), JumpOutcome::Sustained);
+    let checked = check_series(&c, &AlwaysOpen, &cfg());
+    assert_eq!(checked.candles, c, "ninguna vela se descarta");
+    assert!(
+        checked.data_errors.is_empty(),
+        "no reinicia el calentamiento"
+    );
+    assert_eq!(checked.volatility, vec![c[20].start]);
+    // Se informa igual (la validación reporta todo) y no se decide hasta confirmar.
+    assert!(
+        checked
+            .issues
+            .iter()
+            .any(|i| i.index == 20 && matches!(i.kind, IssueKind::Outlier { .. }))
+    );
+    assert_eq!(checked.blocked, vec![(c[20].start, Some(c[24].start))]);
+}
+
+#[test]
+fn until_confirmed_the_jump_is_pending_and_nothing_is_decided() {
+    // Sin look-ahead: con menos de 4 velas después del salto todavía no se sabe.
+    let full = shifted_from(healthy(30), 20, dec!(1000));
+    for n in 21..=24 {
+        let part = &full[..n];
+        assert_eq!(jump_outcome(part, 20, &cfg()), JumpOutcome::Pending, "{n}");
+        let checked = check_series(part, &AlwaysOpen, &cfg());
+        assert!(checked.data_errors.is_empty() && checked.volatility.is_empty());
+        assert_eq!(checked.blocked, vec![(full[20].start, None)]);
+        assert!(!checked.decision_allowed(full[n - 1].start));
+    }
+    // Con la vela de confirmación, sostenido; lo de antes no cambia.
+    let checked = check_series(&full[..25], &AlwaysOpen, &cfg());
+    assert_eq!(checked.volatility, vec![full[20].start]);
+}
+
+#[test]
+fn a_news_day_jump_that_keeps_going_is_a_real_move() {
+    // Datos inventados con la forma de un día de noticias (como el 9-4-2025 en DE40): una vela
+    // con un rango de más de 10 ATR que cierra lejos y las siguientes que siguen más arriba.
+    // No son precios reales: el repo no guarda precios.
+    let mut c: Vec<Candle> = (0..30)
+        .map(|i| {
+            let base = dec!(10000) + Decimal::from(i % 3);
+            Candle {
+                instrument_id: "DE40".parse().unwrap(),
+                timeframe: Timeframe::M15,
+                start: t0() + TimeDelta::minutes(15 * i as i64),
+                open: base,
+                high: base + dec!(15),
+                low: base - dec!(15),
+                close: base,
+                volume: Some(dec!(300)),
+            }
+        })
+        .collect();
+    let jump = [
+        (dec!(10002), dec!(10600), dec!(9950), dec!(10350)),
+        (dec!(10355), dec!(10700), dec!(10340), dec!(10550)),
+        (dec!(10560), dec!(10650), dec!(10520), dec!(10640)),
+        (dec!(10640), dec!(10760), dec!(10630), dec!(10720)),
+        (dec!(10725), dec!(10760), dec!(10680), dec!(10730)),
+    ];
+    let last = c[29].start;
+    for (k, (o, h, l, cl)) in jump.into_iter().enumerate() {
+        c.push(Candle {
+            start: last + TimeDelta::minutes(15 * (k as i64 + 1)),
+            open: o,
+            high: h,
+            low: l,
+            close: cl,
+            ..c[0].clone()
+        });
+    }
+    let at = 30;
+    assert!(
+        kinds(&c, &AlwaysOpen)
+            .iter()
+            .any(|(i, k)| *i == at && matches!(k, IssueKind::Outlier { .. }))
+    );
+    assert_eq!(jump_outcome(&c, at, &cfg()), JumpOutcome::Sustained);
+    let checked = check_series(&c, &AlwaysOpen, &cfg());
+    assert_eq!(checked.candles.len(), c.len());
+    assert!(checked.data_errors.is_empty());
+    assert_eq!(checked.volatility, vec![c[at].start]);
 }
