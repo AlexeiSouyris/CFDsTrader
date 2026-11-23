@@ -116,6 +116,65 @@ pub fn compare_h1(provider: &[Candle], built: &[Candle]) -> H1Comparison {
     out
 }
 
+/// Resumen de una comparación para la medición de #150.
+///
+/// ```text
+/// p99 por campo = percentil 99 (rango más cercano) de |proveedor − armada| sobre las horas
+///                 comparadas (las idénticas cuentan como 0)
+/// efecto de los picos de bid y ask: máximo del proveedor > máximo armado, o mínimo del
+///   proveedor < mínimo armado. Es esperable con precio medio: el máximo medio de 1h es
+///   (máximo bid + máximo ask) / 2 y puede quedar por encima de los cuatro máximos de 15m.
+/// signo contrario: máximo del proveedor < armado, o mínimo del proveedor > armado. Con los
+///   mismos precios no puede pasar: es un ERROR DE DATOS.
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct H1Stats {
+    /// Apertura, máximo, mínimo y cierre, en puntos.
+    pub p99_abs_diff: [Decimal; 4],
+    /// Horas con el máximo del proveedor por encima del armado.
+    pub peak_high: usize,
+    /// Horas con el mínimo del proveedor por debajo del armado.
+    pub peak_low: usize,
+    /// Horas con alguno de los dos (sin contar dos veces).
+    pub peak_hours: usize,
+    /// Horas con el máximo del proveedor por debajo del armado (error de datos).
+    pub wrong_high: usize,
+    /// Horas con el mínimo del proveedor por encima del armado (error de datos).
+    pub wrong_low: usize,
+    /// Horas con alguno de los dos errores (sin contar dos veces).
+    pub wrong_hours: usize,
+}
+
+impl H1Comparison {
+    pub fn stats(&self) -> H1Stats {
+        let mut s = H1Stats::default();
+        let n = self.compared;
+        if n == 0 {
+            return s;
+        }
+        // Rango más cercano: el valor en la posición ⌈0,99 · n⌉ (desde 1) de los ordenados.
+        let rank = (n * 99).div_ceil(100).max(1);
+        for k in 0..4 {
+            let mut v: Vec<Decimal> = self.differing.iter().map(|(_, d)| d[k].abs()).collect();
+            v.resize(n, Decimal::ZERO);
+            v.sort();
+            s.p99_abs_diff[k] = v[rank - 1];
+        }
+        for (_, d) in &self.differing {
+            let (high, low) = (d[1], d[2]);
+            let peak = (high > Decimal::ZERO, low < Decimal::ZERO);
+            let wrong = (high < Decimal::ZERO, low > Decimal::ZERO);
+            s.peak_high += usize::from(peak.0);
+            s.peak_low += usize::from(peak.1);
+            s.peak_hours += usize::from(peak.0 || peak.1);
+            s.wrong_high += usize::from(wrong.0);
+            s.wrong_low += usize::from(wrong.1);
+            s.wrong_hours += usize::from(wrong.0 || wrong.1);
+        }
+        s
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -263,5 +322,71 @@ mod tests {
         assert!(r.only_built.is_empty());
         let r = compare_h1(&[], &built);
         assert_eq!(r.only_built, vec![t("2026-11-20T15:00:00Z")]);
+    }
+
+    /// `n` horas armadas de 15m seguidas desde las 10:00 del 16-11-2026, cada una distinta.
+    fn hours(n: i64) -> Vec<Candle> {
+        (0..n * 4)
+            .map(|i| {
+                let base = Decimal::from(1000 + i);
+                Candle {
+                    start: t("2026-11-16T10:00:00Z") + TimeDelta::minutes(15 * i),
+                    ..c(
+                        "2026-11-16T10:00:00Z",
+                        base,
+                        base + dec!(2),
+                        base - dec!(2),
+                        base + dec!(1),
+                    )
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn stats_of_identical_series_are_all_zero() {
+        let built = aggregate_h1(&hours(10)).unwrap();
+        let s = compare_h1(&built, &built).stats();
+        assert_eq!(s, H1Stats::default());
+        assert_eq!(compare_h1(&[], &[]).stats(), H1Stats::default());
+    }
+
+    #[test]
+    fn p99_uses_every_compared_hour_and_the_nearest_rank() {
+        let built = aggregate_h1(&hours(200)).unwrap();
+        let mut ig = built.clone();
+        // 2 de 200 horas con el cierre distinto: el p99 (posición 198) sigue en 0.
+        ig[5].close += dec!(0.5);
+        ig[9].close -= dec!(3);
+        let s = compare_h1(&ig, &built).stats();
+        assert_eq!(s.p99_abs_diff, [dec!(0); 4]);
+        // Con 3 de 200, la posición 198 ya cae en una diferencia: la menor de las tres.
+        ig[11].close += dec!(1);
+        let s = compare_h1(&ig, &built).stats();
+        assert_eq!(s.p99_abs_diff, [dec!(0), dec!(0), dec!(0), dec!(0.5)]);
+        // Con una sola hora, el p99 es esa hora.
+        let one = &built[..1];
+        let mut ig1 = one.to_vec();
+        ig1[0].open += dec!(0.25);
+        assert_eq!(
+            compare_h1(&ig1, one).stats().p99_abs_diff,
+            [dec!(0.25), dec!(0), dec!(0), dec!(0)]
+        );
+    }
+
+    #[test]
+    fn the_bid_ask_peak_effect_and_the_wrong_sign_are_counted_apart() {
+        let built = aggregate_h1(&hours(6)).unwrap();
+        let mut ig = built.clone();
+        ig[0].high += dec!(0.3); // pico: máximo de IG arriba
+        ig[1].low -= dec!(0.2); // pico: mínimo de IG abajo
+        ig[2].high += dec!(0.1); // las dos en la misma hora: una hora
+        ig[2].low -= dec!(0.1);
+        ig[3].high -= dec!(0.4); // signo contrario: error de datos
+        ig[4].low += dec!(0.4); // signo contrario: error de datos
+        ig[5].open += dec!(1); // solo la apertura: ni pico ni error
+        let s = compare_h1(&ig, &built).stats();
+        assert_eq!((s.peak_high, s.peak_low, s.peak_hours), (2, 2, 3));
+        assert_eq!((s.wrong_high, s.wrong_low, s.wrong_hours), (1, 1, 2));
     }
 }
