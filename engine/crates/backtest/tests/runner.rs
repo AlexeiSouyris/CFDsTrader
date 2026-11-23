@@ -486,6 +486,17 @@ fn the_drawdown_limit_stops_the_run() {
     );
     assert!(report.trades.iter().all(|t| t.signal_index < at));
     assert!(report.trades.iter().any(|t| t.net_pnl < Decimal::ZERO));
+    // #273: la corrida lo puede mostrar y guardar, nunca pasa en silencio.
+    assert_eq!(report.kill_switch_time(&m15), Some(m15[at].start));
+    assert_eq!(report.rejections_by_reason().get("DrawdownLimit"), Some(&1));
+    assert_eq!(
+        report.rejections_by_reason().values().sum::<usize>(),
+        report.rejected.len()
+    );
+    let mut loose = setup();
+    loose.risk.max_drawdown_pct = dec!(99);
+    let clean = run(&m15, &h1, &[], &[], &loose).unwrap();
+    assert_eq!(clean.kill_switch_time(&m15), None);
 }
 
 #[test]

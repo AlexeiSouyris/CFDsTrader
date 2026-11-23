@@ -108,6 +108,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let entries = news_filter::apply(&store, &m15, &entries, &news_cfg).await?;
     let report = run_checked(&m15, &h1, &entries, &force_close, &data_errors, &setup)
         .map_err(|e| format!("{e:?}"))?;
+    // Nada pasa en silencio (#273).
+    if let Some(at) = report.kill_switch_time(&m15) {
+        eprintln!(
+            "⛔ KILL SWITCH en {at}: el drawdown llegó al límite de config/risk.toml; no se abre \
+             nada más hasta el final del período"
+        );
+    }
     let export =
         chart_export(&m15, &h1, &data_errors, &setup, &report).map_err(|e| format!("{e:?}"))?;
     std::fs::write(out, serde_json::to_string(&export)?)?;

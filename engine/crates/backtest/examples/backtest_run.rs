@@ -336,6 +336,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         report.rejected.len(),
         report.final_equity
     );
+    // Nada pasa en silencio (#273): por qué se rechazaron señales y si el kill switch cortó.
+    let reasons = report.rejections_by_reason();
+    if !reasons.is_empty() {
+        println!("señales rechazadas por motivo: {reasons:?}");
+    }
+    let kill_switch = report.kill_switch_time(&m15);
+    if let Some(at) = kill_switch {
+        let left = m15.len() - report.kill_switch_at.unwrap_or(m15.len());
+        eprintln!(
+            "⛔ KILL SWITCH en {at}: el drawdown llegó al límite de config/risk.toml \
+             (max_drawdown_pct). No se abre NADA MÁS hasta el final del período ({left} velas de \
+             15m sin operar). Queda guardado en backtest_runs (metrics.kill_switch_at)."
+        );
+    }
     for t in &report.trades {
         println!(
             "  {:?} entrada {} @ {} tamaño {} → neto {} (costos {})",
@@ -466,7 +480,8 @@ fn run_record(
         costs: cfds_journal::RunCosts::new(&setup.backtest.costs, &[(id.clone(), setup.costs)])
             .with_spread_source(spread_source),
         news,
-        metrics: cfds_journal::RunMetrics::new(report.final_equity, &metrics),
+        metrics: cfds_journal::RunMetrics::new(report.final_equity, &metrics)
+            .with_kill_switch(report.kill_switch_time(m15)),
         started_at,
         finished_at: chrono::Utc::now(),
     })
