@@ -22,8 +22,8 @@ use std::collections::BTreeMap;
 use std::cell::Cell;
 
 use cfds_backtest::{
-    CostConfig, Execution, ExitConfig, FundingRates, InstrumentCosts, Trade, commission,
-    fill_price, funding_cutoffs, funding_over, simulate,
+    CostConfig, Execution, ExitConfig, ExitReason, Fill, FundingRates, InstrumentCosts, Trade,
+    commission, fill_price, funding_cutoffs, funding_over, simulate,
 };
 use cfds_core::{
     AccountCurrency, Candle, ClientId, InstrumentId, KillSwitch, Order, OrderRejection,
@@ -388,29 +388,17 @@ impl PaperBroker {
             .cloned()
             .collect();
         let exit_px = |mid| fill_price(side, Execution::Exit, mid, &m.costs, &self.cfg.costs);
-        let mut exits = Vec::new();
-        let mut open = Decimal::ONE;
-        if closed.len() > t.entry_index {
-            let atr = wilder_atr(&closed, self.cfg.atr_period);
-            let trade = Trade {
-                side,
-                entry_index: t.entry_index,
-                entry: t.entry_mid,
-                stop: t.stop,
-            };
-            if let Some(out) = simulate(&trade, &closed, &atr, &[], &self.cfg.exits) {
-                for f in &out.fills {
-                    exits.push(PaperExit {
-                        time: closed[f.index].end(),
-                        mid: f.price,
-                        price: exit_px(f.price),
-                        fraction: f.fraction,
-                        end_of_data: false,
-                    });
-                }
-                open = out.open_fraction;
-            }
-        }
+        let (fills, open) = self.exits_of(t, &closed);
+        let mut exits: Vec<PaperExit> = fills
+            .iter()
+            .map(|f| PaperExit {
+                time: closed[f.index].end(),
+                mid: f.price,
+                price: exit_px(f.price),
+                fraction: f.fraction,
+                end_of_data: false,
+            })
+            .collect();
         if open > Decimal::ZERO
             && let Some(last) = closed.last()
         {
@@ -457,6 +445,35 @@ impl PaperBroker {
         self.reports.get(order_id)
     }
 
+    /// Las salidas de una operación con las velas cerradas, y la fracción que sigue abierta.
+    /// Igual que el backtest (`cfds_backtest::execute`, #319): TP1, break-even y trailing se
+    /// calculan desde el **precio ejecutado** de la entrada, y si la apertura de la entrada ya
+    /// saltó el stop (gap), sale entera a esa apertura (spec §12).
+    fn exits_of(&self, t: &OpenTrade, closed: &[Candle]) -> (Vec<Fill>, Decimal) {
+        if closed.len() <= t.entry_index {
+            return (Vec::new(), Decimal::ONE);
+        }
+        let atr = wilder_atr(closed, self.cfg.atr_period);
+        let trade = Trade {
+            side: strategy_side(t.side),
+            entry_index: t.entry_index,
+            entry: t.entry_fill,
+            stop: t.stop,
+        };
+        match simulate(&trade, closed, &atr, &[], &self.cfg.exits) {
+            Some(out) => (out.fills, out.open_fraction),
+            None => (
+                vec![Fill {
+                    index: t.entry_index,
+                    price: t.entry_mid,
+                    fraction: Decimal::ONE,
+                    reason: ExitReason::Stop,
+                }],
+                Decimal::ZERO,
+            ),
+        }
+    }
+
     fn valuate(&self, t: &OpenTrade, now: DateTime<Utc>) -> Valued {
         let m = &self.markets[&t.instrument];
         let fx = m.account_to_instrument;
@@ -474,34 +491,24 @@ impl PaperBroker {
             unrealized: Decimal::ZERO,
             as_of: closed.last().map(Candle::end),
         };
-        if closed.len() > t.entry_index {
-            let atr = wilder_atr(&closed, self.cfg.atr_period);
-            let trade = Trade {
-                side: strategy_side(t.side),
-                entry_index: t.entry_index,
-                entry: t.entry_mid,
-                stop: t.stop,
-            };
-            if let Some(out) = simulate(&trade, &closed, &atr, &[], &self.cfg.exits) {
-                for f in &out.fills {
-                    let size = t.size * f.fraction;
-                    let px = fill_price(
-                        strategy_side(t.side),
-                        Execution::Exit,
-                        f.price,
-                        &m.costs,
-                        &self.cfg.costs,
-                    );
-                    let exit_at = closed[f.index].end();
-                    let pnl = size * (px - t.entry_fill) * sign(t.side)
-                        - commission(&m.costs, size, px)
-                        - self.funding(t, size, exit_at);
-                    v.realized_eur += pnl / fx;
-                    v.realized_events.push((exit_at, pnl / fx));
-                }
-                v.open_fraction = out.open_fraction;
-            }
+        let (fills, open) = self.exits_of(t, &closed);
+        for f in &fills {
+            let size = t.size * f.fraction;
+            let px = fill_price(
+                strategy_side(t.side),
+                Execution::Exit,
+                f.price,
+                &m.costs,
+                &self.cfg.costs,
+            );
+            let exit_at = closed[f.index].end();
+            let pnl = size * (px - t.entry_fill) * sign(t.side)
+                - commission(&m.costs, size, px)
+                - self.funding(t, size, exit_at);
+            v.realized_eur += pnl / fx;
+            v.realized_events.push((exit_at, pnl / fx));
         }
+        v.open_fraction = open;
         if let Some(last) = v.last {
             let open = v.open_fraction * t.size;
             // El no realizado ya descuenta la financiación de las noches que lleva abierta.
