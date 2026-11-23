@@ -20,7 +20,10 @@ use std::sync::Arc;
 use cfds_backtest::BacktestConfig;
 use cfds_broker::BrokerConfig;
 use cfds_core::Instrument;
+use cfds_fund::FundConfig;
+use cfds_fund::pg::PgFund;
 use cfds_gateway::context::{ContextConfig, is_context_route, respond_context};
+use cfds_gateway::fund::{is_fund_route, respond_fund};
 use cfds_gateway::ops::url_password;
 use cfds_gateway::paper::{HttpIn, Ops, PaperConfig, PgPaper, is_paper_route, respond_paper};
 use cfds_gateway::{GatewayConfig, PgSource, Reply, read_only_url, respond};
@@ -46,6 +49,7 @@ const RISK: &str = include_str!("../../../../config/risk.toml");
 const BACKTEST: &str = include_str!("../../../../config/backtest.toml");
 const BROKER: &str = include_str!("../../../../config/broker.toml");
 const ALERTS: &str = include_str!("../../../../config/alerts.toml");
+const FUND: &str = include_str!("../../../../config/fund.toml");
 
 struct State {
     source: PgSource,
@@ -55,6 +59,9 @@ struct State {
     /// Token local de escritura; `None`: escritura apagada.
     token: Option<String>,
     context_cfg: ContextConfig,
+    /// Fondo del grupo (#312): solo lectura.
+    fund: PgFund,
+    fund_cfg: FundConfig,
 }
 
 fn header<'a>(req: &'a Request<Incoming>, name: &str) -> Option<&'a str> {
@@ -102,6 +109,14 @@ async fn handle(
 ) -> Result<Response<Full<Bytes>>, Infallible> {
     let reply = if is_paper_route(req.uri().path()) {
         paper_reply(&state, req).await
+    } else if is_fund_route(req.uri().path()) {
+        respond_fund(
+            &state.fund,
+            &state.fund_cfg,
+            req.method().as_str(),
+            req.uri().path(),
+        )
+        .await
     } else if is_context_route(req.uri().path()) {
         respond_context(
             &state.source.store,
@@ -260,7 +275,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             json!({ "missing_env": paper_cfg.token_env }),
         );
     }
+    let fund_cfg = FundConfig::from_toml(FUND)?;
+    let fund = PgFund::new(store.pool().clone());
     let state = Arc::new(State {
+        fund,
+        fund_cfg,
         paper,
         paper_cfg,
         token,

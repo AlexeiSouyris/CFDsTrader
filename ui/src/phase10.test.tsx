@@ -130,7 +130,7 @@ describe('fondo', () => {
 
   it('muestra el historial, del más reciente al más antiguo', () => {
     render(<FundView />)
-    expect(screen.getByRole('heading', { name: 'Historial' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /^Historial/ })).toBeInTheDocument()
     expect(screen.getAllByText('aporte').length).toBeGreaterThanOrEqual(FUND.history.length)
   })
 

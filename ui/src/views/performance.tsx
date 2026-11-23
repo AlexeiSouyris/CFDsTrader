@@ -7,8 +7,8 @@
  *
  * Las corridas llegan del gateway (`GET /api/v1/backtest_runs`, `backtest_run.v1[]`, las más
  * nuevas primero, #292). Si no responde, se ven las corridas de ejemplo de `mocks/`, marcadas así.
- * TODO(#286): el fondo sigue saliendo de `mocks/` (`FUND`): el gateway todavía no lo expone. No se
- * inventan contratos: los tipos son los de `contracts/`.
+ * El fondo llega del motor (`GET /api/v1/fund`, `fund_summary.v1`, #312); sin gateway, el de
+ * ejemplo, marcado así. No se inventan contratos: los tipos son los de `contracts/`.
  */
 import { useState, type ReactNode } from 'react'
 
@@ -16,10 +16,11 @@ import { AnimatedNumber } from '@/components/ui/animated-number'
 import { RunDetailView } from '@/components/ui/run-detail'
 import { Term } from '@/components/ui/term'
 import { dateTimeUtc, decimal } from '@/lib/format'
+import { currencySign, useFund } from '@/lib/fund-api'
 import { dayYear, numOrDash, pctOrDash, signedPct, tone } from '@/lib/run-format'
 import { useBacktestRuns, useRunDetail } from '@/lib/paper-api'
 import { cn } from '@/lib/utils'
-import { BACKTEST_RUN_DETAIL, BACKTEST_RUNS, FUND, type BacktestRun } from '@/mocks'
+import { BACKTEST_RUN_DETAIL, BACKTEST_RUNS, type BacktestRun } from '@/mocks'
 
 function Card({
   title,
@@ -138,6 +139,7 @@ function RunsTable({
 export function PerformanceView({ onOpen }: { onOpen: (view: string) => void }) {
   const remote = useBacktestRuns()
   const live = remote.status === 'ok'
+  const { summary: fund, live: fundLive } = useFund()
   const runs = live ? remote.data : BACKTEST_RUNS
   const last = runs[0]
   const m = last?.metrics
@@ -164,17 +166,22 @@ export function PerformanceView({ onOpen }: { onOpen: (view: string) => void }) 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi
           label={<Term id="nav">Valor de la unidad</Term>}
-          value={<AnimatedNumber value={FUND.nav} format={decimal} />}
-          detail={`cierre del ${dateTimeUtc(FUND.navAt)}`}
+          value={<AnimatedNumber value={fund.nav} format={(v) => decimal(v, 4)} />}
+          detail={
+            fund.valued_at
+              ? `liquidación del ${dateTimeUtc(fund.valued_at)}${fundLive ? '' : ' (ejemplo)'}`
+              : 'sin liquidaciones todavía'
+          }
         />
         <Kpi
           label="Valor del fondo"
           value={
             <>
-              <AnimatedNumber value={FUND.total} format={decimal} /> €
+              <AnimatedNumber value={fund.total_value} format={decimal} />{' '}
+              {currencySign(fund.currency)}
             </>
           }
-          detail={`${FUND.members.length} miembros, simulación`}
+          detail={`${fund.members.length} miembros, simulación${fundLive ? '' : ' (ejemplo)'}`}
         />
         {m && (
           <>
@@ -243,10 +250,10 @@ export function PerformanceView({ onOpen }: { onOpen: (view: string) => void }) 
             </dl>
           </Card>
         )}
-        <Card title="Fondo" aside="simulación">
+        <Card title="Fondo" aside={fundLive ? 'simulación, del motor' : 'simulación (ejemplo)'}>
           <p className="text-[12.5px] text-muted-foreground">
-            {decimal(FUND.units)} unidades a {decimal(FUND.nav)} € cada una, repartidas entre{' '}
-            {FUND.members.length} miembros.
+            {decimal(fund.total_units)} unidades a {decimal(fund.nav, 4)}{' '}
+            {currencySign(fund.currency)} cada una, repartidas entre {fund.members.length} miembros.
           </p>
           <button
             type="button"

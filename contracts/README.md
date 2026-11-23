@@ -253,6 +253,7 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 | Contrato | Tabla | Contenido |
 |---|---|---|
 | `fund_movement.v1` | `fund_movements` | Un aporte o retiro ya liquidado (spec §14): `id` (`fund:<fecha>:<orden>`), `settled_at`, `member_id`, `kind` (`contribution` o `withdrawal`), `amount` (en céntimos), `units`, `nav` y `currency`, con los decimales como string. |
+| `fund_summary.v1` | (respuesta del gateway) | `GET /api/v1/fund` (#312): `currency`, `basis` (`last_settlement`: valuado al cerrar la última liquidación), `valued_at` (o `null`), `nav`, `total_value`, `total_units` y por miembro `units`, `value`, `net_contributions` y `pnl` (estos dos con signo). Lo calcula `cfds_fund::summary` desde el historial; la suma de `value` es `total_value`. |
 
 - Tabla de **solo agregar**: un trigger impide `UPDATE` y `DELETE`. Guardar el mismo movimiento otra vez no duplica nada, y otro contenido con el mismo id es un error.
 - El estado de cada miembro (unidades, aportes y retiros) **no se guarda aparte**: se reconstruye sumando el historial (`cfds_fund::Fund::replay`).

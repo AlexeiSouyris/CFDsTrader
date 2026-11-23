@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/fund_summary.v1.schema.json",
+  "title": "Fund summary v1",
+  "description": "Resumen del fondo del grupo (spec §14, #312): valor de la unidad (NAV), valor total, unidades y la cuenta de cada miembro. Lo calcula el motor (engine/crates/fund) desde el historial fund_movement.v1 y lo sirve el gateway en GET /api/v1/fund. La UI lo muestra tal cual. La suma de value de los miembros es total_value, al céntimo.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["currency", "basis", "valued_at", "nav", "total_value", "total_units", "members"],
+  "properties": {
+    "currency": {
+      "description": "Moneda del fondo (ISO 4217), la de config/fund.toml.",
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "basis": {
+      "description": "De dónde sale el valor. last_settlement: al cerrar la última liquidación del historial (las unidades que había antes al NAV de esa liquidación, redondeado a céntimos, más los aportes y menos los retiros de ese día). Entre liquidaciones el historial no guarda el valor del fondo.",
+      "enum": ["last_settlement"]
+    },
+    "valued_at": {
+      "description": "Hora de la última liquidación, en UTC; null si todavía no hay movimientos.",
+      "type": ["string", "null"],
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "nav": {
+      "description": "Valor de la unidad: total_value ÷ total_units. Sin unidades, el initial_nav de config/fund.toml.",
+      "type": "string",
+      "pattern": "^\\d+(\\.\\d+)?$"
+    },
+    "total_value": {
+      "description": "Valor total del fondo, en céntimos.",
+      "type": "string",
+      "pattern": "^\\d+(\\.\\d{1,2})?$"
+    },
+    "total_units": {
+      "description": "Unidades emitidas.",
+      "type": "string",
+      "pattern": "^\\d+(\\.\\d+)?$"
+    },
+    "members": {
+      "description": "Una fila por miembro que tuvo movimientos, ordenadas por member_id. Un miembro que retiró todo aparece con 0 unidades.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["member_id", "units", "value", "net_contributions", "pnl"],
+        "properties": {
+          "member_id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+          },
+          "units": {
+            "type": "string",
+            "pattern": "^\\d+(\\.\\d+)?$"
+          },
+          "value": {
+            "description": "Lo que valen sus unidades, en céntimos (reparto por el mayor resto).",
+            "type": "string",
+            "pattern": "^\\d+(\\.\\d{1,2})?$"
+          },
+          "net_contributions": {
+            "description": "Aportes − retiros. Negativo si retiró más de lo que aportó.",
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d{1,2})?$"
+          },
+          "pnl": {
+            "description": "value − net_contributions.",
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d{1,2})?$"
+          }
+        }
+      }
+    }
+  }
+}

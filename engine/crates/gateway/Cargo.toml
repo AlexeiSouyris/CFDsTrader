@@ -9,6 +9,7 @@ publish.workspace = true
 cfds-backtest = { version = "0.1.0", path = "../backtest" }
 cfds-broker = { version = "0.1.0", path = "../broker" }
 cfds-core = { version = "0.1.0", path = "../core" }
+cfds-fund = { version = "0.1.0", path = "../fund" }
 cfds-journal = { version = "0.1.0", path = "../journal" }
 cfds-liquidity = { version = "0.1.0", path = "../liquidity" }
 cfds-market-data = { version = "0.1.0", path = "../market-data" }
