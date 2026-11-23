@@ -1,0 +1,11 @@
+# Reporte de aprobación de la fase 4b (ROADMAP: "sin leakage entre períodos y mejora medida fuera
+# de muestra frente a no usar la capa", #221). Lo lee Python (`cfds_intel.phase4b`).
+#
+# Valores INICIALES, fijados antes de mirar resultados. La regla de mejora y su bootstrap son los
+# de ML (config/ml.toml [evaluation] y la semilla de [training]); las ventanas walk-forward y el
+# tramo fuera de muestra, los de config/data_split.toml. No se repiten acá.
+
+[news]
+# Semanas de validación walk-forward mínimas para medir la capa de noticias. Con menos, el
+# intervalo del bootstrap por semanas no dice nada: "datos insuficientes".
+min_weeks = 26

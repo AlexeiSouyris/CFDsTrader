@@ -78,7 +78,7 @@ jobs:
           uv run pytest tests/test_news_store.py tests/test_cot_store.py \
             tests/test_news_interpretations_store.py tests/test_ml_dataset_store.py \
             tests/test_ml_experiment_store.py tests/test_sentiment_index_store.py \
-            tests/test_analogs_store.py
+            tests/test_analogs_store.py tests/test_phase4b_store.py
 
   intelligence:
     name: intelligence (Python)
