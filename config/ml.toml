@@ -5,3 +5,15 @@
 [dataset]
 # Decisión 4 de la spec §11: se empieza solo con US500. Sumar otros pide otra aprobación.
 instruments = ["US500"]
+
+[training]
+# Mínimo por ventana de entrenamiento (spec §6, decisión 3): con menos, la ventana no entrena.
+min_examples = 300
+min_per_class = 50
+# Corte interno para elegir hiperparámetros (spec §5): el último 20 % del entrenamiento.
+inner_tune_fraction = "0.2"
+# Fuerza de la penalización L2 de M1: se elige la de menor log loss en el corte interno.
+l2_grid = ["0.0001", "0.001", "0.01", "0.1", "1"]
+# M1 se ajusta con L-BFGS en lote completo, en float64: determinista con la misma semilla.
+max_iterations = 200
+seed = 42

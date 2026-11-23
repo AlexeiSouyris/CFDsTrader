@@ -9,6 +9,7 @@ dependencies = [
     "psycopg[binary]>=3.3.9",
     "pypdf>=6.9.2,<7",
     "redis>=6",
+    "torch>=2.15.0",
     "truststore>=0.10.5",
     "tzdata>=2026.6",
 ]
@@ -46,9 +47,19 @@ files = ["src", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# torch avisa al importarse si no está NumPy; ML v1 no usa NumPy (#158).
+filterwarnings = ["ignore:Failed to initialize NumPy:UserWarning"]
 
 [tool.uv.sources]
 nasdaq-100-ticker-history = { git = "https://github.com/jmccarrell/n100tickers", rev = "4ce85254b67f27540abedbb93a109687eafe39f0" }
+# PyTorch (ML v1, #158): en Linux (CI) el wheel de CPU, sin CUDA (unos 200 MB en vez de varios
+# GB). En macOS (el Mac mini) el de PyPI, que ya es de CPU/MPS.
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [[tool.mypy.overrides]]
 # La fuente de componentes del NASDAQ 100 no publica tipos; se envuelve en cfds_intel.universe.

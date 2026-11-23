@@ -3,6 +3,7 @@
 import re
 import tomllib
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -22,8 +23,52 @@ class DatasetConfig:
 
 
 @dataclass(frozen=True)
+class TrainingConfig:
+    min_examples: int
+    min_per_class: int
+    inner_tune_fraction: float
+    l2_grid: tuple[float, ...]
+    max_iterations: int
+    seed: int
+
+
+@dataclass(frozen=True)
 class MlConfig:
     dataset: DatasetConfig
+    training: TrainingConfig
+
+
+def _int(table: dict[str, object], key: str, low: int) -> int:
+    v = table.get(key)
+    if not isinstance(v, int) or isinstance(v, bool) or v < low:
+        raise MlConfigError(f"training.{key} tiene que ser un entero >= {low}")
+    return v
+
+
+def _fraction(text: object, key: str, *, open_low: bool = True) -> float:
+    try:
+        v = Decimal(str(text)) if isinstance(text, str) else None
+    except InvalidOperation:
+        v = None
+    if v is None or not (0 < v < 1 if open_low else 0 < v):
+        raise MlConfigError(f'training.{key}: decimal en texto, como "0.2"')
+    return float(v)
+
+
+def _training(t: object) -> TrainingConfig:
+    if not isinstance(t, dict):
+        raise MlConfigError("falta [training]")
+    grid = t.get("l2_grid")
+    if not isinstance(grid, list) or not grid:
+        raise MlConfigError("training.l2_grid: lista no vacía de decimales en texto")
+    return TrainingConfig(
+        min_examples=_int(t, "min_examples", 1),
+        min_per_class=_int(t, "min_per_class", 1),
+        inner_tune_fraction=_fraction(t.get("inner_tune_fraction"), "inner_tune_fraction"),
+        l2_grid=tuple(_fraction(g, "l2_grid", open_low=False) for g in grid),
+        max_iterations=_int(t, "max_iterations", 1),
+        seed=_int(t, "seed", 0),
+    )
 
 
 def load_config(text: str) -> MlConfig:
@@ -39,7 +84,10 @@ def load_config(text: str) -> MlConfig:
         or len(set(instruments)) != len(instruments)
     ):
         raise MlConfigError("dataset.instruments: lista no vacía de instrumentos sin repetir")
-    return MlConfig(dataset=DatasetConfig(instruments=tuple(instruments)))
+    return MlConfig(
+        dataset=DatasetConfig(instruments=tuple(instruments)),
+        training=_training(raw.get("training")),
+    )
 
 
 def load_default() -> MlConfig:
