@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/backtest_run_detail.v1.schema.json",
+  "title": "Backtest run detail v1",
+  "description": "El detalle de una corrida de backtest que devuelve el gateway en GET /api/v1/backtest_runs/{run_id} (#299): la corrida, su curva y sus operaciones, tal como están en el diario. Solo junta contratos existentes; no agrega cálculos. La UI lo dibuja tal cual.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["run", "curve", "trades"],
+  "properties": {
+    "run": { "$ref": "backtest_run.v1.schema.json" },
+    "curve": {
+      "description": "La curva de la corrida, o null si no se guardó (las corridas anteriores a #299 no la tienen).",
+      "oneOf": [{ "type": "null" }, { "$ref": "backtest_run_curve.v1.schema.json" }]
+    },
+    "trades": {
+      "description": "Las operaciones de la corrida: cada propuesta con el mismo run_id y su resultado simulado, por hora de la señal.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["proposal", "outcome"],
+        "properties": {
+          "proposal": { "$ref": "proposal.v1.schema.json" },
+          "outcome": {
+            "description": "El resultado simulado (outcome.v1, kind = simulated), o null si no hay.",
+            "oneOf": [{ "type": "null" }, { "$ref": "outcome.v1.schema.json" }]
+          }
+        }
+      }
+    }
+  }
+}

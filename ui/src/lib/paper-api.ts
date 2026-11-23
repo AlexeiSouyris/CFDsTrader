@@ -9,12 +9,13 @@
  * | `GET /api/v1/paper/positions` | `position.v1[]` |
  * | `GET /api/v1/paper/account` | `paper_account.v1` |
  * | `GET /api/v1/backtest_runs` | `backtest_run.v1[]` |
+ * | `GET /api/v1/backtest_runs/{run_id}` | `backtest_run_detail.v1` (#299) |
  *
  * Los `POST` llevan la cabecera anti-CSRF `x-cfds-token`, pero **no la pone el navegador**: la
  * agrega el proxy de desarrollo de Vite desde la variable `CFDS_GATEWAY_TOKEN` (ver
  * `vite.config.ts`). El token nunca está en el código del cliente.
  */
-import type { BacktestRun } from '@/lib/backtest-contracts'
+import type { BacktestRun, RunDetail } from '@/lib/backtest-contracts'
 import { REFRESH_MS, useRemote } from '@/lib/liquidity-api'
 import type {
   Order,
@@ -74,6 +75,12 @@ export const usePaperAccount = (refresh = 0) =>
 export const usePaperPositions = (refresh = 0) =>
   useRemote('paper-positions', fetchPositions, PAPER_REFRESH_MS, refresh)
 export const useBacktestRuns = () => useRemote('backtest_runs', fetchBacktestRuns, REFRESH_MS)
+
+/** El detalle de una corrida (#299). Una corrida terminada no cambia: se pide una vez. */
+export const fetchRunDetail = (runId: string, signal?: AbortSignal) =>
+  request<RunDetail>(`/api/v1/backtest_runs/${encodeURIComponent(runId)}`, { signal })
+export const useRunDetail = (runId: string | null) =>
+  useRemote(runId && `run-detail|${runId}`, (signal) => fetchRunDetail(runId!, signal))
 
 /** Una orden nueva de la persona (ticket manual): id propio, modo paper y hora de ahora. */
 export function newOrder(ticket: {

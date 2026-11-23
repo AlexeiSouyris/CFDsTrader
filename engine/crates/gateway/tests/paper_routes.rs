@@ -13,7 +13,7 @@ use cfds_core::{
 };
 use cfds_gateway::Reply;
 use cfds_gateway::paper::{HttpIn, PaperConfig, PaperService, respond_paper};
-use cfds_journal::BacktestRun;
+use cfds_journal::{BacktestRun, RunDetail};
 use cfds_risk::{InstrumentLimits, RiskConfig};
 use chrono::{DateTime, NaiveTime, TimeDelta, Utc};
 use rust_decimal::{Decimal, dec};
@@ -49,6 +49,19 @@ impl PaperService for MemPaper {
     async fn runs(&self, _limit: u32) -> Result<Vec<BacktestRun>, String> {
         Ok(Vec::new())
     }
+    /// El detalle de ejemplo de la UI (`ui/src/mocks/backtest-run-detail.json`, #299): el mismo
+    /// documento que dibuja Performance sin gateway.
+    async fn run_detail(&self, run_id: &str) -> Result<Option<RunDetail>, String> {
+        let d = sample_detail();
+        Ok((d.run.run_id == run_id).then_some(d))
+    }
+}
+
+const DETAIL_MOCK: &str = include_str!("../../../../ui/src/mocks/backtest-run-detail.json");
+
+fn sample_detail() -> RunDetail {
+    let mock: Value = serde_json::from_str(DETAIL_MOCK).unwrap();
+    serde_json::from_value(mock["detail"].clone()).unwrap()
 }
 
 fn paper() -> MemPaper {
@@ -395,4 +408,88 @@ async fn the_read_only_session_writes_only_the_broker_journal() {
         direct.is_err(),
         "fuera de esa transacción, la sesión no escribe"
     );
+}
+
+/// Resuelve los `$ref` entre contratos con los archivos del repo, sin red.
+struct Local;
+
+impl jsonschema::Retrieve for Local {
+    fn retrieve(
+        &self,
+        uri: &jsonschema::Uri<String>,
+    ) -> Result<Value, Box<dyn std::error::Error + Send + Sync>> {
+        let name = uri.as_str().rsplit('/').next().ok_or("uri sin archivo")?;
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../contracts")
+            .join(name);
+        Ok(serde_json::from_str(&std::fs::read_to_string(path)?)?)
+    }
+}
+
+/// #299: el detalle de una corrida, de solo lectura, con el contrato backtest_run_detail.v1.
+#[tokio::test]
+async fn the_run_detail_route_reads_one_run_with_its_curve_and_trades() {
+    let p = paper();
+    let id = sample_detail().run.run_id;
+    let r = get(&p, &format!("/api/v1/backtest_runs/{id}")).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.content_type, "application/json");
+    let doc: Value = serde_json::from_str(&r.body).unwrap();
+    let schema: Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../contracts/backtest_run_detail.v1.schema.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let v = jsonschema::options()
+        .with_retriever(Local)
+        .build(&schema)
+        .unwrap();
+    let errors: Vec<String> = v.iter_errors(&doc).map(|e| e.to_string()).collect();
+    assert!(errors.is_empty(), "{errors:?}");
+    // tal cual lo guarda el diario: la curva y las operaciones no se recalculan
+    let back: RunDetail = serde_json::from_value(doc).unwrap();
+    assert_eq!(back, sample_detail());
+
+    // una corrida que no existe
+    let missing = get(&p, "/api/v1/backtest_runs/no-existe").await;
+    assert_eq!(missing.status, 404);
+
+    // un run_id fuera del formato del contrato
+    let long = "a".repeat(101);
+    for bad in ["", "con espacio", "..", "a/b", "%2e%2e", long.as_str()] {
+        let r = get(&p, &format!("/api/v1/backtest_runs/{bad}")).await;
+        assert_eq!(r.status, 400, "{bad:?}: {}", r.body);
+    }
+
+    // solo GET, sin token: no escribe nada
+    let post = call(
+        Some(&p),
+        "POST",
+        &format!("/api/v1/backtest_runs/{id}"),
+        Some(TOKEN),
+        Some("application/json"),
+        b"{}",
+        at(20),
+    )
+    .await;
+    assert_eq!(post.status, 405);
+
+    // sin broker simulado, 503 como las demás rutas
+    let down = call(
+        None,
+        "GET",
+        &format!("/api/v1/backtest_runs/{id}"),
+        None,
+        None,
+        b"",
+        at(29),
+    )
+    .await;
+    assert_eq!(down.status, 503);
+    assert!(cfds_gateway::paper::is_paper_route(
+        "/api/v1/backtest_runs/x"
+    ));
 }

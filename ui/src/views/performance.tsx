@@ -10,35 +10,16 @@
  * TODO(#286): el fondo sigue saliendo de `mocks/` (`FUND`): el gateway todavía no lo expone. No se
  * inventan contratos: los tipos son los de `contracts/`.
  */
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 
 import { AnimatedNumber } from '@/components/ui/animated-number'
+import { RunDetailView } from '@/components/ui/run-detail'
 import { Term } from '@/components/ui/term'
-import { dateTimeUtc, decimal, percent } from '@/lib/format'
-import { useBacktestRuns } from '@/lib/paper-api'
+import { dateTimeUtc, decimal } from '@/lib/format'
+import { dayYear, numOrDash, pctOrDash, signedPct, tone } from '@/lib/run-format'
+import { useBacktestRuns, useRunDetail } from '@/lib/paper-api'
 import { cn } from '@/lib/utils'
-import { BACKTEST_RUNS, FUND, type BacktestRun } from '@/mocks'
-
-const DAY_YEAR = new Intl.DateTimeFormat('es-ES', {
-  day: '2-digit',
-  month: 'short',
-  year: 'numeric',
-  timeZone: 'UTC',
-})
-/** "01 ene 2024": el período de una corrida puede cruzar años. */
-const dayYear = (iso: string) => DAY_YEAR.format(new Date(iso))
-
-/** Una fracción del motor ("-0.0125") como % con signo ("−1,25 %"), sin pasar por float. */
-function signedPct(fraction: string, digits = 2) {
-  const neg = fraction.startsWith('-')
-  const p = percent(fraction.replace('-', ''), digits)
-  const zero = /^[0,]+$/.test(p)
-  return `${zero ? '' : neg ? '−' : '+'}${p} %`
-}
-const pctOrDash = (f: string | null, digits = 1) => (f === null ? '—' : `${percent(f, digits)} %`)
-const numOrDash = (f: string | null) => (f === null ? '—' : decimal(f))
-const tone = (f: string) =>
-  /^-?0(\.0*)?$/.test(f) ? undefined : f.startsWith('-') ? 'text-down' : 'text-up'
+import { BACKTEST_RUN_DETAIL, BACKTEST_RUNS, FUND, type BacktestRun } from '@/mocks'
 
 function Card({
   title,
@@ -81,7 +62,15 @@ function Kpi({ label, value, detail }: { label: ReactNode; value: ReactNode; det
   )
 }
 
-function RunsTable({ runs }: { runs: BacktestRun[] }) {
+function RunsTable({
+  runs,
+  open,
+  onOpen,
+}: {
+  runs: BacktestRun[]
+  open: string | null
+  onOpen: (runId: string) => void
+}) {
   return (
     <div className="overflow-x-auto">
       <table aria-label="Corridas de backtest" className="w-full min-w-[860px] text-[12.5px]">
@@ -101,9 +90,21 @@ function RunsTable({ runs }: { runs: BacktestRun[] }) {
         </thead>
         <tbody>
           {runs.map((r) => (
-            <tr key={r.run_id} className="border-b border-border last:border-b-0">
+            <tr
+              key={r.run_id}
+              aria-selected={open === r.run_id}
+              className="border-b border-border last:border-b-0 aria-selected:bg-foreground/5"
+            >
               <td className="py-2.5">
-                <span className="block font-semibold">{r.run_id}</span>
+                <button
+                  type="button"
+                  aria-expanded={open === r.run_id}
+                  aria-label={`Ver el detalle de ${r.run_id}`}
+                  onClick={() => onOpen(r.run_id)}
+                  className="block text-left font-semibold underline-offset-4 hover:underline"
+                >
+                  {r.run_id}
+                </button>
                 <span className="text-[10.5px] text-muted-foreground">
                   {dateTimeUtc(r.finished_at)} ·{' '}
                   {r.costs.spread_source === 'config' ? 'spread de config' : 'spread medido'}
@@ -140,6 +141,9 @@ export function PerformanceView({ onOpen }: { onOpen: (view: string) => void }) 
   const runs = live ? remote.data : BACKTEST_RUNS
   const last = runs[0]
   const m = last?.metrics
+  const [open, setOpen] = useState<string | null>(null)
+  // con gateway, el detalle lo pide al motor; sin gateway, solo hay uno de ejemplo
+  const remoteDetail = useRunDetail(live ? open : null)
   return (
     <div className="grid gap-3">
       <p className="max-w-3xl text-[13px] text-muted-foreground">
@@ -193,11 +197,25 @@ export function PerformanceView({ onOpen }: { onOpen: (view: string) => void }) 
         aside={`${runs.length} ${runs.length === 1 ? 'corrida' : 'corridas'} ${live ? 'del motor' : '(ejemplo)'}`}
       >
         {runs.length ? (
-          <RunsTable runs={runs} />
+          <RunsTable
+            runs={runs}
+            open={open}
+            onOpen={(id) => setOpen((cur) => (cur === id ? null : id))}
+          />
         ) : (
           <p className="text-[12.5px]">Todavía no hay corridas guardadas.</p>
         )}
       </Card>
+
+      {open && (
+        <RunDetailSlot
+          key={open}
+          runId={open}
+          live={live}
+          remote={remoteDetail}
+          onClose={() => setOpen(null)}
+        />
+      )}
 
       <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">
         {m && (
@@ -240,5 +258,45 @@ export function PerformanceView({ onOpen }: { onOpen: (view: string) => void }) 
         </Card>
       </div>
     </div>
+  )
+}
+
+/** El detalle de la corrida abierta: del motor, de ejemplo o el aviso de que no está. */
+function RunDetailSlot({
+  runId,
+  live,
+  remote,
+  onClose,
+}: {
+  runId: string
+  live: boolean
+  remote: ReturnType<typeof useRunDetail>
+  onClose: () => void
+}) {
+  if (!live) {
+    if (BACKTEST_RUN_DETAIL.run.run_id === runId)
+      return <RunDetailView detail={BACKTEST_RUN_DETAIL} example onClose={onClose} />
+    return (
+      <Card title="Detalle de la corrida">
+        <p role="status" className="text-[12.5px]">
+          Sin gateway solo hay un detalle de ejemplo (la corrida{' '}
+          <code className="text-[11px]">{BACKTEST_RUN_DETAIL.run.run_id}</code>).
+        </p>
+      </Card>
+    )
+  }
+  if (remote.status === 'ok') return <RunDetailView detail={remote.data} onClose={onClose} />
+  return (
+    <Card title="Detalle de la corrida">
+      {remote.status === 'loading' ? (
+        <p role="status" className="text-[12.5px]">
+          Pidiendo el detalle al motor…
+        </p>
+      ) : (
+        <p role="alert" className="text-[12.5px]">
+          No se pudo leer el detalle ({remote.message}).
+        </p>
+      )}
+    </Card>
   )
 }

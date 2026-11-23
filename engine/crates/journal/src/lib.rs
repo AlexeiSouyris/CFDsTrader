@@ -5,11 +5,13 @@
 //! diario lo escribe el motor y lo lee el aprendizaje en Python.
 //! Montos en la moneda del instrumento. `pg` los guarda en PostgreSQL.
 
+pub mod curve;
 pub mod ml_features;
 pub mod pg;
 pub mod probability;
 pub mod run;
 
+pub use curve::{CurveInvalid, CurvePoint, RunBuyAndHold, RunCurve, RunDetail, RunTrade};
 pub use run::{
     BacktestRun, RunCommission, RunCosts, RunInstrumentCosts, RunInvalid, RunKillSwitchEvent,
     RunKillSwitchKind, RunMetrics, RunNews, RunTimeframe, SpreadSource, config_sha256,

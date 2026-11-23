@@ -18,7 +18,9 @@
             "instrument_id": "US100",
             "spread": "1.8",
             "tick": "0.1",
-            "commission": { "kind": "none" },
+            "commission": {
+              "kind": "none"
+            },
             "funding_admin_fee_pct": "2.5",
             "funding_day_count": "360"
           },
@@ -26,7 +28,9 @@
             "instrument_id": "DE40",
             "spread": "1.2",
             "tick": "0.1",
-            "commission": { "kind": "none" },
+            "commission": {
+              "kind": "none"
+            },
             "funding_admin_fee_pct": "2.5",
             "funding_day_count": "360"
           }
@@ -70,7 +74,9 @@
             "instrument_id": "US100",
             "spread": "1.8",
             "tick": "0.1",
-            "commission": { "kind": "none" },
+            "commission": {
+              "kind": "none"
+            },
             "funding_admin_fee_pct": "2.5",
             "funding_day_count": "360"
           },
@@ -78,7 +84,9 @@
             "instrument_id": "US500",
             "spread": "0.6",
             "tick": "0.1",
-            "commission": { "kind": "none" },
+            "commission": {
+              "kind": "none"
+            },
             "funding_admin_fee_pct": "2.5",
             "funding_day_count": "360"
           },
@@ -86,7 +94,9 @@
             "instrument_id": "US30",
             "spread": "2.4",
             "tick": "0.1",
-            "commission": { "kind": "none" },
+            "commission": {
+              "kind": "none"
+            },
             "funding_admin_fee_pct": "2.5",
             "funding_day_count": "360"
           },
@@ -94,7 +104,9 @@
             "instrument_id": "DE40",
             "spread": "1.2",
             "tick": "0.1",
-            "commission": { "kind": "none" },
+            "commission": {
+              "kind": "none"
+            },
             "funding_admin_fee_pct": "2.5",
             "funding_day_count": "360"
           }
@@ -102,16 +114,29 @@
       },
       "news": null,
       "metrics": {
-        "trades": 212,
+        "trades": 12,
         "final_equity": "9875.40",
         "total_return": "-0.0125",
-        "max_drawdown": "0.0820",
+        "max_drawdown": "0.087495",
         "sharpe": "-0.12",
         "sortino": "-0.15",
         "win_rate": "0.4010",
         "profit_factor": "0.96",
         "exposure": "0.3140",
-        "kill_switch_at": "2025-08-12T14:00:00Z"
+        "kill_switch_at": "2025-10-28T14:00:00Z",
+        "kill_switch_reset_business_days": 10,
+        "kill_switch_events": [
+          {
+            "event": "activated",
+            "at": "2025-10-28T14:00:00Z",
+            "equity": "9693.49"
+          },
+          {
+            "event": "reset",
+            "at": "2025-11-11T07:00:00Z",
+            "equity": "9782.58"
+          }
+        ]
       },
       "started_at": "2026-11-21T19:00:00Z",
       "finished_at": "2026-11-21T19:11:40Z"
@@ -133,7 +158,9 @@
             "instrument_id": "US30",
             "spread": "2.4",
             "tick": "0.1",
-            "commission": { "kind": "none" },
+            "commission": {
+              "kind": "none"
+            },
             "funding_admin_fee_pct": "2.5",
             "funding_day_count": "360"
           }

@@ -7,6 +7,7 @@
 //! | `GET /api/v1/paper/positions` | `position.v1[]` |
 //! | `GET /api/v1/paper/account` | `paper_account.v1` |
 //! | `GET /api/v1/backtest_runs` | `backtest_run.v1[]` (las más nuevas primero) |
+//! | `GET /api/v1/backtest_runs/{run_id}` | `backtest_run_detail.v1` (corrida, curva y operaciones, #299) |
 //!
 //! Seguridad (además de escuchar solo en 127.0.0.1):
 //! - **Solo paper:** `order.v1` solo admite `mode = paper`, el broker real no existe y la tabla
@@ -30,8 +31,8 @@ use cfds_broker::{
 use cfds_core::{
     InstrumentId, Order, OrderReport, PaperAccount, Position, TicketVerdict, Timeframe,
 };
-use cfds_journal::BacktestRun;
 use cfds_journal::pg::PgJournal;
+use cfds_journal::{BacktestRun, RunDetail};
 use cfds_market_data::Catalog;
 use cfds_storage::PgStore;
 use chrono::{DateTime, TimeDelta, Utc};
@@ -113,6 +114,11 @@ pub trait PaperService: Sync {
         now: DateTime<Utc>,
     ) -> impl Future<Output = Result<PaperAccount, String>> + Send;
     fn runs(&self, limit: u32) -> impl Future<Output = Result<Vec<BacktestRun>, String>> + Send;
+    /// El detalle de una corrida guardada, o `None` si no existe (#299). Solo lectura.
+    fn run_detail(
+        &self,
+        run_id: &str,
+    ) -> impl Future<Output = Result<Option<RunDetail>, String>> + Send;
 }
 
 /// Un pedido HTTP ya leído (el body, con el límite de tamaño aplicado).
@@ -127,7 +133,24 @@ pub struct HttpIn<'a> {
 
 /// `true` si la ruta es de este módulo.
 pub fn is_paper_route(path: &str) -> bool {
-    path.starts_with("/api/v1/paper/") || path == "/api/v1/backtest_runs"
+    path.starts_with("/api/v1/paper/")
+        || path == "/api/v1/backtest_runs"
+        || path.starts_with(RUN_DETAIL)
+}
+
+const RUN_DETAIL: &str = "/api/v1/backtest_runs/";
+
+/// El `run_id` de `/api/v1/backtest_runs/{run_id}`, con el mismo formato que `backtest_run.v1`
+/// (`^[A-Za-z0-9._-]{1,100}$`). `None` si la ruta no es esa; `Some(Err)` si el id no vale.
+fn run_detail_id(path: &str) -> Option<Result<&str, ()>> {
+    let id = path.strip_prefix(RUN_DETAIL)?;
+    let ok = (1..=100).contains(&id.len())
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
+        && id != "."
+        && id != "..";
+    Some(if ok { Ok(id) } else { Err(()) })
 }
 
 fn text(status: u16, body: &str) -> Reply {
@@ -176,6 +199,22 @@ pub async fn respond_paper<P: PaperService>(
     now: DateTime<Utc>,
 ) -> Reply {
     let route = (req.method, req.path);
+    if let Some(id) = run_detail_id(req.path) {
+        if req.method != "GET" {
+            return text(405, "solo GET");
+        }
+        let Ok(id) = id else {
+            return text(400, "run_id inválido");
+        };
+        let Some(paper) = paper else {
+            return text(503, "el broker simulado no está disponible");
+        };
+        return match paper.run_detail(id).await {
+            Ok(Some(d)) => json(&d),
+            Ok(None) => text(404, "no hay una corrida con ese run_id"),
+            Err(e) => internal(e),
+        };
+    }
     let write = matches!(req.path, "/api/v1/paper/preview" | "/api/v1/paper/orders");
     let read = matches!(
         req.path,
@@ -383,5 +422,11 @@ impl PaperService for PgPaper {
 
     async fn runs(&self, limit: u32) -> Result<Vec<BacktestRun>, String> {
         self.journal.runs(limit).await.map_err(|e| e.to_string())
+    }
+    async fn run_detail(&self, run_id: &str) -> Result<Option<RunDetail>, String> {
+        self.journal
+            .run_detail(run_id)
+            .await
+            .map_err(|e| e.to_string())
     }
 }

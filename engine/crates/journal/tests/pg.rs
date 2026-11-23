@@ -268,3 +268,75 @@ async fn ml_features_are_stored_once_and_never_rewritten() {
         Err(JournalError::Db(_))
     ));
 }
+
+/// #299: la curva se guarda una vez por corrida y el detalle junta corrida, curva y operaciones.
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn the_run_detail_joins_the_run_its_curve_and_its_trades() {
+    use cfds_journal::{RunCurve, RunTrade};
+    // Tablas de solo agregar: un run_id propio por corrida del test.
+    let run_id = format!("bt-detail-{}", Utc::now().timestamp_nanos_opt().unwrap());
+    let j = journal(&run_id).await;
+    assert!(j.run_detail(&run_id).await.unwrap().is_none());
+
+    let run = run_sample::sample(&run_id);
+    j.record_run(&run).await.unwrap();
+    // sin curva todavía: el detalle sale igual, con curve = None
+    let detail = j.run_detail(&run_id).await.unwrap().unwrap();
+    assert_eq!(detail.run, run);
+    assert_eq!(detail.curve, None);
+    assert!(detail.trades.is_empty());
+
+    let day = |d| chrono::NaiveDate::from_ymd_opt(2026, 11, d).unwrap();
+    let curve = RunCurve::new(
+        &run_id,
+        run.initial_equity,
+        &[(day(16), dec!(10100)), (day(17), dec!(9999))],
+        vec![],
+    )
+    .unwrap();
+    assert_eq!(
+        j.record_run_curve(&curve).await.unwrap(),
+        Recorded::Inserted
+    );
+    assert_eq!(
+        j.record_run_curve(&curve).await.unwrap(),
+        Recorded::Unchanged
+    );
+    assert_eq!(j.run_curve(&run_id).await.unwrap(), Some(curve.clone()));
+    let mut other = curve.clone();
+    other.points.pop();
+    assert!(matches!(
+        j.record_run_curve(&other).await,
+        Err(JournalError::Conflict { .. })
+    ));
+
+    let (p, o) = entry(&run_id);
+    j.record(&p, Some(&o)).await.unwrap();
+    let detail = j.run_detail(&run_id).await.unwrap().unwrap();
+    assert_eq!(detail.curve, Some(curve));
+    assert_eq!(
+        detail.trades,
+        vec![RunTrade {
+            proposal: p,
+            outcome: Some(o)
+        }]
+    );
+
+    // una curva de una corrida que no existe no entra (clave foránea)
+    let orphan = RunCurve::new("no-existe-299", dec!(1), &[], vec![]).unwrap();
+    assert!(j.record_run_curve(&orphan).await.is_err());
+
+    // la base impide modificar o borrar la curva
+    let url = std::env::var("DATABASE_URL").expect(NEEDS);
+    let pool = sqlx::PgPool::connect(&url).await.unwrap();
+    for sql in [
+        "UPDATE backtest_run_curves SET buy_and_hold = '[]'::jsonb WHERE run_id = $1",
+        "DELETE FROM backtest_run_curves WHERE run_id = $1",
+    ] {
+        assert!(
+            sqlx::query(sql).bind(&run_id).execute(&pool).await.is_err(),
+            "{sql}"
+        );
+    }
+}

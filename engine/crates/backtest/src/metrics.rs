@@ -45,6 +45,23 @@ pub fn daily_returns(initial: Decimal, curve: &[(NaiveDate, Decimal)]) -> Vec<De
         .collect()
 }
 
+/// Drawdown de cada día (#299): fracción bajo el pico anterior, contando el capital inicial
+/// como primer pico. 0 en un pico nuevo. Su máximo es [`max_drawdown`]. Lo guarda el diario
+/// (`backtest_run_curve.v1`) para que la UI dibuje la curva sin calcularla.
+pub fn drawdown_curve(
+    initial: Decimal,
+    curve: &[(NaiveDate, Decimal)],
+) -> Vec<(NaiveDate, Decimal)> {
+    let mut peak = initial;
+    curve
+        .iter()
+        .map(|&(d, e)| {
+            peak = peak.max(e);
+            (d, (peak - e) / peak)
+        })
+        .collect()
+}
+
 pub fn max_drawdown(initial: Decimal, curve: &[(NaiveDate, Decimal)]) -> Decimal {
     let mut peak = initial;
     let mut worst = Decimal::ZERO;

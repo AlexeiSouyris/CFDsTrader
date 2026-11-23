@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/backtest_run_curve.v1.schema.json",
+  "title": "Backtest run curve v1",
+  "description": "La curva de una corrida de backtest (#299): el capital al cierre de cada día y el drawdown de ese día, y comprar y mantener de cada instrumento como comparación (benchmark de la Fase 5). La calcula y la escribe el motor (Rust, cfds-backtest y cfds-journal) al terminar la corrida, en la tabla backtest_run_curves; la UI solo la dibuja. Montos en la moneda de la cuenta salvo los precios, que van en la del instrumento.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["run_id", "points", "buy_and_hold"],
+  "properties": {
+    "run_id": {
+      "description": "La corrida (backtest_run.v1) a la que pertenece. Una sola curva por corrida: volver a guardar la misma no guarda nada; otra distinta es un error.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,100}$"
+    },
+    "points": {
+      "description": "Un punto por día, en orden y sin repetir: capital realizado + no realizado al último cierre del día (zona del día de la cuenta). El último día termina con el capital final.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["date", "equity", "drawdown"],
+        "properties": {
+          "date": {
+            "description": "Día (zona del día de la cuenta), AAAA-MM-DD.",
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "equity": { "$ref": "#/$defs/signed" },
+          "drawdown": {
+            "description": "Fracción positiva bajo el pico anterior (contando el capital inicial): (pico − capital) / pico. 0 en un pico nuevo. El máximo coincide con metrics.max_drawdown de backtest_run.v1.",
+            "$ref": "#/$defs/decimal"
+          }
+        }
+      }
+    },
+    "buy_and_hold": {
+      "description": "Comprar y mantener cada instrumento de la corrida, con los mismos costos: compra en la apertura de la primera vela y vende en el cierre de la última. Vacío si la corrida no lo calculó.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "instrument_id", "size", "entry_price", "exit_price", "nights", "commission",
+          "funding", "net_pnl", "total_return"
+        ],
+        "properties": {
+          "instrument_id": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" },
+          "size": { "description": "Moneda del instrumento por punto.", "$ref": "#/$defs/decimal" },
+          "entry_price": { "description": "En precio del instrumento.", "$ref": "#/$defs/decimal" },
+          "exit_price": { "description": "En precio del instrumento.", "$ref": "#/$defs/decimal" },
+          "nights": { "description": "Noches con financiación.", "type": "integer", "minimum": 0 },
+          "commission": { "description": "En la moneda de la cuenta.", "$ref": "#/$defs/decimal" },
+          "funding": { "description": "En la moneda de la cuenta. Positivo: pagó; negativo: cobró.", "$ref": "#/$defs/signed" },
+          "net_pnl": { "description": "En la moneda de la cuenta, con costos.", "$ref": "#/$defs/signed" },
+          "total_return": { "description": "net_pnl / capital inicial de la corrida, como fracción (0.1 = +10 %).", "$ref": "#/$defs/signed" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "decimal": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "signed": { "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" }
+  }
+}

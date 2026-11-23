@@ -8,6 +8,7 @@ use rust_decimal::Decimal;
 use sqlx::postgres::{PgPool, PgRow};
 use sqlx::{Postgres, Row, Transaction};
 
+use crate::curve::{CurveInvalid, RunCurve, RunDetail, RunTrade};
 use crate::ml_features::MlFeatures;
 use crate::{BacktestRun, Outcome, OutcomeKind, Proposal, RunInvalid};
 
@@ -21,6 +22,8 @@ pub enum JournalError {
     Conflict { id: String },
     #[error("corrida inválida: {0}")]
     InvalidRun(#[from] RunInvalid),
+    #[error("curva inválida: {0}")]
+    InvalidCurve(#[from] CurveInvalid),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -237,6 +240,117 @@ impl PgJournal {
         tx.commit().await?;
         Ok(out)
     }
+}
+
+impl PgJournal {
+    /// Guarda la curva de una corrida ya guardada (`backtest_run_curve.v1`, #299). Idempotente:
+    /// la misma curva no guarda nada; otra distinta para la misma corrida es `Conflict`.
+    pub async fn record_run_curve(&self, curve: &RunCurve) -> Result<Recorded, JournalError> {
+        curve.validate()?;
+        let mut tx = self.pool.begin().await?;
+        let done = sqlx::query(
+            "INSERT INTO backtest_run_curves (run_id, points, buy_and_hold)
+             VALUES ($1, $2::jsonb, $3::jsonb)
+             ON CONFLICT (run_id) DO NOTHING",
+        )
+        .bind(&curve.run_id)
+        .bind(serde_json::to_string(&curve.points)?)
+        .bind(serde_json::to_string(&curve.buy_and_hold)?)
+        .execute(&mut *tx)
+        .await?;
+        let inserted = done.rows_affected() == 1;
+        if !inserted && select_curve(&mut tx, &curve.run_id).await?.as_ref() != Some(curve) {
+            return Err(JournalError::Conflict {
+                id: curve.run_id.clone(),
+            });
+        }
+        tx.commit().await?;
+        Ok(if inserted {
+            Recorded::Inserted
+        } else {
+            Recorded::Unchanged
+        })
+    }
+
+    pub async fn run_curve(&self, run_id: &str) -> Result<Option<RunCurve>, JournalError> {
+        let mut tx = self.pool.begin().await?;
+        let curve = select_curve(&mut tx, run_id).await?;
+        tx.commit().await?;
+        Ok(curve)
+    }
+
+    /// Las operaciones de una corrida: sus propuestas (por hora de la señal) con su resultado
+    /// simulado, si hay.
+    pub async fn run_trades(&self, run_id: &str) -> Result<Vec<RunTrade>, JournalError> {
+        let mut tx = self.pool.begin().await?;
+        let trades = select_trades(&mut tx, run_id).await?;
+        tx.commit().await?;
+        Ok(trades)
+    }
+
+    /// El detalle de una corrida (`backtest_run_detail.v1`): la corrida, su curva (o `None` si
+    /// no se guardó) y sus operaciones, leídos en una sola transacción. `None` si no existe.
+    pub async fn run_detail(&self, run_id: &str) -> Result<Option<RunDetail>, JournalError> {
+        let mut tx = self.pool.begin().await?;
+        let Some(run) = select_run(&mut tx, run_id).await? else {
+            tx.commit().await?;
+            return Ok(None);
+        };
+        let curve = select_curve(&mut tx, run_id).await?;
+        let trades = select_trades(&mut tx, run_id).await?;
+        tx.commit().await?;
+        Ok(Some(RunDetail { run, curve, trades }))
+    }
+}
+
+async fn select_curve(
+    tx: &mut Transaction<'_, Postgres>,
+    run_id: &str,
+) -> Result<Option<RunCurve>, JournalError> {
+    let Some(r) = sqlx::query(
+        "SELECT run_id, points::text AS points, buy_and_hold::text AS buy_and_hold
+         FROM backtest_run_curves WHERE run_id = $1",
+    )
+    .bind(run_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    else {
+        return Ok(None);
+    };
+    let curve = RunCurve {
+        run_id: r.try_get("run_id")?,
+        points: serde_json::from_str(r.try_get("points")?)?,
+        buy_and_hold: serde_json::from_str(r.try_get("buy_and_hold")?)?,
+    };
+    curve.validate()?;
+    Ok(Some(curve))
+}
+
+async fn select_trades(
+    tx: &mut Transaction<'_, Postgres>,
+    run_id: &str,
+) -> Result<Vec<RunTrade>, JournalError> {
+    let rows = sqlx::query(concat!(
+        "SELECT id, source, run_id, instrument_id, side, signal_at, reference, stop, tp1, ",
+        "size, leverage, score, breakdown::text AS breakdown, triggers::text AS triggers ",
+        "FROM proposals WHERE run_id = $1 ORDER BY signal_at, id"
+    ))
+    .bind(run_id)
+    .fetch_all(&mut **tx)
+    .await?;
+    let mut out = Vec::with_capacity(rows.len());
+    for r in rows {
+        let proposal = row_to_proposal(&r)?;
+        let outcome = sqlx::query(select_outcome!())
+            .bind(&proposal.id)
+            .bind(name(&OutcomeKind::Simulated)?)
+            .fetch_optional(&mut **tx)
+            .await?
+            .map(|r| row_to_outcome(&r))
+            .transpose()?;
+        out.push(RunTrade { proposal, outcome });
+    }
+    Ok(out)
 }
 
 impl PgJournal {
