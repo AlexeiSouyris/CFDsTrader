@@ -111,7 +111,7 @@ def run(c: Client, cfg: DatabentoConfig) -> int:
     from cfds_intel.databento.store import insert_chunk, loaded_until
 
     end = today_utc()
-    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+    with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as conn:
         loaded = loaded_until(conn)
         for e in guarded_estimate(c, cfg, end, loaded):
             if e.skipped:
@@ -142,7 +142,7 @@ def main(argv: list[str]) -> int:
 
                 from cfds_intel.databento.store import loaded_until
 
-                with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+                with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as conn:
                     loaded = loaded_until(conn)
             guarded_estimate(c, cfg, today_utc(), loaded)
             return 0

@@ -54,6 +54,10 @@ def insert_chunk(
 ) -> ChunkReport:
     """Guarda las barras de `[start, end)` y el registro del tramo, en una transacción."""
     with conn.transaction(), conn.cursor() as cur:
+        # Si la conexión ya tenía una transacción abierta, `conn.transaction()` es un savepoint y
+        # el ON COMMIT DROP no corre hasta el commit final: sin este DROP, el segundo tramo falla
+        # con "relation incoming already exists".
+        cur.execute("DROP TABLE IF EXISTS pg_temp.incoming")
         cur.execute(
             "CREATE TEMP TABLE incoming (LIKE futures_bars_1m INCLUDING DEFAULTS) ON COMMIT DROP"
         )
