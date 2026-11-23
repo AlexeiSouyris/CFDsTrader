@@ -49,14 +49,13 @@ macro_rules! cfg {
 }
 
 /// Archivos de `config/` que lee la corrida, para el hash de `backtest_run.v1` (#200).
-const CONFIG_FILES: [(&str, &str); 15] = [
+const CONFIG_FILES: [(&str, &str); 14] = [
     ("backtest.toml", cfg!("backtest.toml")),
     ("data_split.toml", cfg!("data_split.toml")),
     ("data_validation.toml", cfg!("data_validation.toml")),
     ("indicators.toml", cfg!("indicators.toml")),
     ("instruments.toml", cfg!("instruments.toml")),
     ("liquidity.toml", cfg!("liquidity.toml")),
-    ("ml.toml", cfg!("ml.toml")),
     ("news_interpreter.toml", cfg!("news_interpreter.toml")),
     ("patterns.toml", cfg!("patterns.toml")),
     ("probability.toml", cfg!("probability.toml")),
@@ -400,8 +399,8 @@ async fn journal_and_probability(
     Ok(())
 }
 
-/// Guarda las variables de ML de cada operación (`ml_features.v1`, #158). Las diarias se leen
-/// desde `vol_history_years` + 1 años antes del período, para tener la historia de los tercios.
+/// Guarda las variables de ML de cada operación (`ml_features.v1`, #158). Los tercios de la
+/// volatilidad son los guardados (`daily_vol_terciles`, del ejemplo `daily_indicators`).
 #[allow(clippy::too_many_arguments)]
 async fn record_ml_features(
     store: &PgStore,
@@ -413,25 +412,23 @@ async fn record_ml_features(
     from: chrono::DateTime<chrono::Utc>,
     to: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    use cfds_journal::ml_features::{FeaturesConfig, atr14_m15, from_backtest};
+    use cfds_journal::ml_features::{atr14_m15, from_backtest};
     use cfds_journal::pg::{PgJournal, Recorded};
 
-    let cfg = FeaturesConfig::from_toml(cfg!("ml.toml"))?;
     let daily_cfg = cfds_indicators::DailyConfig::from_toml(cfg!("indicators.toml"))?;
-    let years = i32::try_from(cfg.vol_history_years)?;
-    let first_day = from.date_naive() - chrono::Months::new(12 * u32::try_from(years + 1)?);
+    // El tercio vigente en `from` puede ser de unos días antes (fines de semana, feriados).
     let daily = store
-        .daily_indicators(
+        .daily_vol_terciles(
             id,
-            u32::try_from(daily_cfg.atr_period)?,
             u32::try_from(daily_cfg.realized_vol_window)?,
-            first_day,
+            daily_cfg.vol_tercile_years,
+            from.date_naive() - chrono::Days::new(30),
             to.date_naive() + chrono::Days::new(1),
         )
         .await?;
     if daily.is_empty() {
         eprintln!(
-            "⚠️  sin indicadores diarios de {id}: ninguna propuesta tiene variables de ML \
+            "⚠️  sin tercios de volatilidad de {id}: ninguna propuesta tiene variables de ML \
              (cargarlos con el ejemplo `daily_indicators` de cfds-ingest)"
         );
     }
@@ -439,7 +436,7 @@ async fn record_ml_features(
     let journal = PgJournal::new(store.pool().clone());
     let (mut with, mut new) = (0, 0);
     for t in trades {
-        let Some(f) = from_backtest(run_id, id, t, &atr, &daily, session, &cfg) else {
+        let Some(f) = from_backtest(run_id, id, t, &atr, &daily, session) else {
             continue;
         };
         with += 1;

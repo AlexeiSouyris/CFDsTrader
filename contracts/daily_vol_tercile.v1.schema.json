@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/daily_vol_tercile.v1.schema.json",
+  "title": "Daily volatility tercile v1",
+  "description": "Tercio de la volatilidad realizada de una vela diaria cerrada frente a su propia historia (spec §13 y spec ML §3): rango = (# valores menores) / n entre los días con sesión y con volatilidad desde el mismo día `history_years` años antes (el 29 de febrero pasa al 28) hasta el día anterior; < 1/3 bajo, < 2/3 medio, si no alto. La calcula y escribe Rust (indicators + ingest); la leen los análogos (Python) y las variables de ML (Rust), y nadie la recalcula (CLAUDE.md §1). Un valor ya guardado nunca cambia (sin repintado).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instrument_id", "day", "published_at", "realized_vol_window", "history_years", "tercile"],
+  "properties": {
+    "instrument_id": {
+      "description": "Instrumento (ver instrument.v1).",
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$"
+    },
+    "day": {
+      "description": "Día de la vela diaria (ver daily_candle.v1), AAAA-MM-DD. Solo días con sesión de la bolsa del instrumento.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "published_at": {
+      "description": "Desde cuándo existe el valor: el fin de la vela diaria, en UTC. Nada lo usa antes (CLAUDE.md §5b).",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "realized_vol_window": { "description": "Retornos de la volatilidad realizada (daily_indicator.v1).", "type": "integer", "minimum": 2 },
+    "history_years": { "description": "Años de historia de los tercios (config/indicators.toml [daily] vol_tercile_years).", "type": "integer", "minimum": 1 },
+    "tercile": {
+      "description": "low / mid / high. null si ese día no tiene volatilidad (calentamiento) o si la historia no llega a `history_years` años completos.",
+      "oneOf": [
+        { "enum": ["low", "mid", "high"] },
+        { "type": "null" }
+      ]
+    }
+  }
+}

@@ -3,7 +3,8 @@
 ```text
 DATABASE_URL=... uv run python -m cfds_intel.analogs [INSTRUMENTO]
 ```
-Lee las diarias y los indicadores de Rust (`daily_indicators`); antes hay que correr
+Lee las diarias y los indicadores de Rust (`daily_indicators` y `daily_vol_terciles`); antes hay
+que correr
 `cargo run -p cfds-ingest --example daily_indicators`. No usa IG.
 """
 
@@ -18,6 +19,7 @@ from cfds_intel.analogs.data import benchmarks, daily_params, load_bars, load_ra
 from cfds_intel.analogs.search import AnalogReport, Summary, analyze
 
 CONFIG = Path(__file__).resolve().parents[4] / "config"
+VOL_NAMES = {"low": "baja", "mid": "media", "high": "alta"}
 
 
 def _fmt_summary(title: str, s: Summary) -> list[str]:
@@ -39,7 +41,8 @@ def _fmt_summary(title: str, s: Summary) -> list[str]:
 
 
 def render(r: AnalogReport) -> str:
-    ctx = f"volatilidad {r.context.vol or 'sin dato'}, tasas {r.context.rates or 'sin dato'}"
+    vol = VOL_NAMES[r.context.vol] if r.context.vol else "sin dato"
+    ctx = f"volatilidad {vol}, tasas {r.context.rates or 'sin dato'}"
     lines = [f"{r.instrument} — ventana al {r.day} ({ctx})"]
     lines += _fmt_summary("todos", r.all_neighbors)
     lines += _fmt_summary("mismo contexto", r.same_context)
@@ -48,9 +51,9 @@ def render(r: AnalogReport) -> str:
 
 def main(argv: list[str]) -> int:
     cfg = load_config((CONFIG / "analogs.toml").read_text())
-    atr_period, vol_window = daily_params((CONFIG / "indicators.toml").read_text())
+    atr_period, vol_window, years = daily_params((CONFIG / "indicators.toml").read_text())
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
-        series = load_bars(conn, atr_period, vol_window)
+        series = load_bars(conn, atr_period, vol_window, years)
         rates = load_rates(conn, benchmarks((CONFIG / "instruments.toml").read_text()))
     wanted = argv[1:] or sorted(series)
     for inst in wanted:

@@ -20,6 +20,8 @@ pub struct DailyConfig {
     pub realized_vol_window: usize,
     /// Velas diarias del máximo de la caída desde el máximo (spec §9.1).
     pub drawdown_window: usize,
+    /// Años de historia de los tercios de la volatilidad realizada (spec §13, spec ML §3).
+    pub vol_tercile_years: u32,
 }
 
 impl DailyConfig {
@@ -35,8 +37,12 @@ impl DailyConfig {
         let cfg = toml::from_str::<File>(text)
             .map_err(|e| e.to_string())?
             .daily;
-        if cfg.atr_period == 0 || cfg.realized_vol_window < 2 || cfg.drawdown_window == 0 {
-            return Err("daily.atr_period y daily.drawdown_window tienen que ser > 0, y daily.realized_vol_window ≥ 2".into());
+        if cfg.atr_period == 0
+            || cfg.realized_vol_window < 2
+            || cfg.drawdown_window == 0
+            || cfg.vol_tercile_years == 0
+        {
+            return Err("daily.atr_period, daily.drawdown_window y daily.vol_tercile_years tienen que ser > 0, y daily.realized_vol_window ≥ 2".into());
         }
         Ok(cfg)
     }

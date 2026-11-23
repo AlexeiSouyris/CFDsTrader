@@ -17,3 +17,6 @@ realized_vol_window = 20
 # Caída desde el máximo (spec §9.1, #213): (cierre − máximo de las últimas `drawdown_window`
 # velas diarias con sesión, la actual incluida) / ese máximo.
 drawdown_window = 252
+# Tercios de la volatilidad realizada (spec §13 y spec ML §3): cada día frente a la de los
+# `vol_tercile_years` años anteriores. Los usan los análogos (contexto) y las variables de ML.
+vol_tercile_years = 3

@@ -12,8 +12,8 @@ vecinos   = los K más cercanos, de cualquier índice
   superpongan, y tampoco con la ventana consultada.
 - La forma usa `float`: es una medida de parecido, no un precio. Retornos, R y tasas, que
   salen de precios, van en `Decimal` (CLAUDE.md §4).
-- El ATR diario y la volatilidad realizada **no se calculan acá**: vienen de Rust
-  (`daily_indicators`, CLAUDE.md §1).
+- El ATR diario y el tercio de la volatilidad realizada **no se calculan acá**: vienen de Rust
+  (`daily_indicators` y `daily_vol_terciles`, CLAUDE.md §1).
 """
 
 import math
@@ -26,7 +26,7 @@ from typing import Literal
 from cfds_intel.analogs.config import AnalogsConfig
 
 Hit = Literal["up", "down", "none"]
-VolBand = Literal["baja", "media", "alta"]
+VolBand = Literal["low", "mid", "high"]  # daily_vol_tercile.v1
 RatesTrend = Literal["sube", "baja", "estable"]
 
 
@@ -40,7 +40,7 @@ class Bar:
     low: Decimal
     close: Decimal
     atr: Decimal | None
-    realized_vol: Decimal | None
+    vol_tercile: VolBand | None  # tercio de la volatilidad de Rust (daily_vol_tercile.v1)
 
 
 @dataclass(frozen=True)
@@ -200,30 +200,6 @@ def summarize(
     return Summary(len(neighbors), len(neighbors) < cfg.min_neighbors, horizons, hits, without_atr)
 
 
-def vol_band(bars: Sequence[Bar], end: int, years: int) -> VolBand | None:
-    """Tercio de la volatilidad realizada frente a la de los `years` años anteriores."""
-    current = bars[end].realized_vol
-    if current is None:
-        return None
-    day = bars[end].day
-    try:
-        since = day.replace(year=day.year - years)
-    except ValueError:  # 29 de febrero
-        since = day.replace(year=day.year - years, day=28)
-    with_vol = [b for b in bars[:end] if b.realized_vol is not None]
-    if not with_vol or with_vol[0].day > since:
-        return None  # sin años completos de historia
-    history = [b.realized_vol for b in with_vol if b.day >= since and b.realized_vol is not None]
-    if not history:
-        return None  # ningún valor en esos años
-    rank = Decimal(sum(1 for v in history if v < current)) / len(history)
-    if rank < Decimal(1) / 3:
-        return "baja"
-    if rank < Decimal(2) / 3:
-        return "media"
-    return "alta"
-
-
 def rate_at(rates: Sequence[Rate], t: datetime) -> Decimal | None:
     """Valor vigente en `t`: el del día más reciente ya publicado (su última corrección)."""
     published = [r for r in rates if r.published_at <= t]
@@ -284,7 +260,7 @@ def analyze(
         if (inst, e) not in cache:
             bars = series[inst]
             cache[(inst, e)] = Context(
-                vol_band(bars, e, cfg.vol_history_years),
+                bars[e].vol_tercile,
                 rates_trend(bars, e, rates.get(inst), cfg),
             )
         return cache[(inst, e)]

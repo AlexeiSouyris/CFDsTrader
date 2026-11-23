@@ -1,8 +1,8 @@
 //! Histórico en PostgreSQL.
 
 use cfds_core::{
-    Candle, CandleSpread, DailyCandle, DailyDrawdown, DailyIndicator, Instrument, InstrumentId,
-    NewsInterpretation, ReferenceRate, SentimentObservation, Timeframe,
+    Candle, CandleSpread, DailyCandle, DailyDrawdown, DailyIndicator, DailyVolTercile, Instrument,
+    InstrumentId, NewsInterpretation, ReferenceRate, SentimentObservation, Timeframe,
 };
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -516,6 +516,104 @@ impl PgStore {
         }
         tx.commit().await?;
         Ok(report)
+    }
+
+    /// Guarda tercios de la volatilidad (`daily_vol_tercile.v1`) en **una sola transacción**,
+    /// como [`Self::insert_daily_indicators`]: uno idéntico ya guardado cuenta como `unchanged`;
+    /// otro valor para la misma clave es [`StorageError::DailyIndicatorConflict`] y no se guarda
+    /// nada.
+    pub async fn insert_daily_vol_terciles(
+        &self,
+        rows: &[DailyVolTercile],
+    ) -> Result<InsertReport, StorageError> {
+        let mut tx = self.pool.begin().await?;
+        let mut report = InsertReport::default();
+        for r in rows {
+            let window = i32::try_from(r.realized_vol_window).unwrap_or(i32::MAX);
+            let years = i32::try_from(r.history_years).unwrap_or(i32::MAX);
+            let tercile = r.tercile.map(|t| t.as_str());
+            let inserted = sqlx::query(
+                "INSERT INTO daily_vol_terciles (instrument_id, day, published_at,
+                     realized_vol_window, history_years, tercile)
+                 VALUES ($1, $2, $3, $4, $5, $6)
+                 ON CONFLICT (instrument_id, day, realized_vol_window, history_years) DO NOTHING",
+            )
+            .bind(r.instrument_id.as_str())
+            .bind(r.day)
+            .bind(r.published_at)
+            .bind(window)
+            .bind(years)
+            .bind(tercile)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected()
+                == 1;
+            if inserted {
+                report.inserted += 1;
+                continue;
+            }
+            let stored: (DateTime<Utc>, Option<String>) = sqlx::query_as(
+                "SELECT published_at, tercile FROM daily_vol_terciles
+                 WHERE instrument_id = $1 AND day = $2 AND realized_vol_window = $3
+                   AND history_years = $4",
+            )
+            .bind(r.instrument_id.as_str())
+            .bind(r.day)
+            .bind(window)
+            .bind(years)
+            .fetch_one(&mut *tx)
+            .await?;
+            if (stored.0, stored.1.as_deref()) == (r.published_at, tercile) {
+                report.unchanged += 1;
+            } else {
+                return Err(StorageError::DailyIndicatorConflict {
+                    instrument: r.instrument_id.to_string(),
+                    day: r.day,
+                });
+            }
+        }
+        tx.commit().await?;
+        Ok(report)
+    }
+
+    /// Tercios de la volatilidad de un instrumento con día en `[from, to)` y los parámetros
+    /// dados, en orden.
+    pub async fn daily_vol_terciles(
+        &self,
+        instrument: &InstrumentId,
+        realized_vol_window: u32,
+        history_years: u32,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<DailyVolTercile>, StorageError> {
+        let rows: Vec<(NaiveDate, DateTime<Utc>, Option<String>)> = sqlx::query_as(
+            "SELECT day, published_at, tercile FROM daily_vol_terciles
+                 WHERE instrument_id = $1 AND realized_vol_window = $2 AND history_years = $3
+                   AND day >= $4 AND day < $5
+                 ORDER BY day",
+        )
+        .bind(instrument.as_str())
+        .bind(i32::try_from(realized_vol_window).unwrap_or(i32::MAX))
+        .bind(i32::try_from(history_years).unwrap_or(i32::MAX))
+        .bind(from)
+        .bind(to)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter()
+            .map(|(day, published_at, tercile)| {
+                let tercile = tercile
+                    .map(|t| serde_json::from_value(serde_json::Value::String(t)))
+                    .transpose()?;
+                Ok(DailyVolTercile {
+                    instrument_id: instrument.clone(),
+                    day,
+                    published_at,
+                    realized_vol_window,
+                    history_years,
+                    tercile,
+                })
+            })
+            .collect()
     }
 
     /// Indicadores diarios de un instrumento con día en `[from, to)` y los parámetros dados,

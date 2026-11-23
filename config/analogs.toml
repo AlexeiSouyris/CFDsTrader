@@ -22,8 +22,8 @@ r_horizon = 20
 percentiles = [10, 25, 50, 75, 90]
 
 [context]
-# Volatilidad realizada en tercios de su propia historia de `vol_history_years` años anteriores.
-vol_history_years = 3
+# El tercio de la volatilidad realizada lo calcula Rust (`daily_vol_terciles`); sus años de
+# historia están en config/indicators.toml [daily] vol_tercile_years.
 # Tendencia del tipo de referencia: variación en `rates_lookback` sesiones, umbral en puntos %.
 rates_lookback = 60
 rates_threshold_pp = "0.10"
