@@ -11,7 +11,7 @@ cfds-core = { version = "0.1.0", path = "../core" }
 cfds-indicators = { version = "0.1.0", path = "../indicators" }
 cfds-market-data = { version = "0.1.0", path = "../market-data" }
 cfds-strategy = { version = "0.1.0", path = "../strategy" }
-chrono = { version = "0.4.45", default-features = false, features = ["std"] }
+chrono = { version = "0.4.45", default-features = false, features = ["std", "serde"] }
 rust_decimal = { version = "1.43.0", features = ["maths"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"

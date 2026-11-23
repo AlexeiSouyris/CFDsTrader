@@ -459,6 +459,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             &run.config_sha256[..12],
             run.metrics.trades
         );
+        // La curva diaria con su drawdown y comprar y mantener (#299), para el detalle de la
+        // corrida en la UI. Sin comprar y mantener (falta un tipo de referencia), va vacío.
+        let benchmark = buy_and_hold(&m15, size, &setup)
+            .map(|bh| {
+                cfds_journal::RunBuyAndHold::from_backtest(
+                    out.clone(),
+                    size,
+                    &bh,
+                    setup.account_to_instrument,
+                    setup.initial_equity,
+                )
+            })
+            .into_iter()
+            .collect();
+        let curve = cfds_journal::RunCurve::new(
+            run_id,
+            setup.initial_equity,
+            &report.daily_equity,
+            benchmark,
+        )?;
+        let recorded = journal.record_run_curve(&curve).await?;
+        println!(
+            "curva de {run_id} en backtest_run_curves ({recorded:?}): {} días",
+            curve.points.len()
+        );
     }
 
     let bh = buy_and_hold(&m15, size, &setup).ok_or("sin velas")?;

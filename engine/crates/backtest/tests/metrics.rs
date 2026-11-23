@@ -1,7 +1,8 @@
 //! Métricas calculables a mano (ROADMAP Fase 5, #58).
 
 use cfds_backtest::metrics::{
-    daily_returns, evaluate, exposure, max_drawdown, profit_factor, sharpe, sortino, win_rate,
+    daily_returns, drawdown_curve, evaluate, exposure, max_drawdown, profit_factor, sharpe,
+    sortino, win_rate,
 };
 use cfds_backtest::{BacktestConfig, MetricsConfig};
 use chrono::{DateTime, NaiveDate, Utc};
@@ -137,4 +138,24 @@ fn evaluate_puts_it_all_together() {
     assert_eq!(m.profit_factor.unwrap(), dec!(19.9) / dec!(11));
     assert_eq!(m.exposure, Some(dec!(0)));
     assert!(m.sharpe.is_some() && m.sortino.is_some());
+}
+
+/// #299: el drawdown de cada día, y su máximo es el de las métricas.
+#[test]
+fn drawdown_curve_day_by_day_and_its_max_is_the_max_drawdown() {
+    let dd = drawdown_curve(dec!(100), &curve());
+    assert_eq!(
+        dd,
+        vec![
+            (day(16), dec!(0)),
+            (day(17), dec!(0.1)),
+            (day(18), dec!(0.01))
+        ]
+    );
+    let worst = dd.iter().map(|&(_, x)| x).max().unwrap();
+    assert_eq!(worst, max_drawdown(dec!(100), &curve()));
+    // por debajo del capital inicial desde el primer día: el pico es el inicial
+    let under = drawdown_curve(dec!(100), &[(day(16), dec!(95))]);
+    assert_eq!(under, vec![(day(16), dec!(0.05))]);
+    assert!(drawdown_curve(dec!(100), &[]).is_empty());
 }

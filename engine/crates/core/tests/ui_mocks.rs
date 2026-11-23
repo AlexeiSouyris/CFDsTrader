@@ -60,3 +60,46 @@ fn ui_backtest_runs_mock_follows_the_contract() {
     let mock = read_json(&repo().join("ui/src/mocks/backtest-runs.json"));
     assert_all_valid(&mock, "runs", "backtest_run.v1.schema.json");
 }
+
+/// Resuelve los `$ref` entre contratos con los archivos del repo, sin red.
+struct Local;
+
+impl jsonschema::Retrieve for Local {
+    fn retrieve(
+        &self,
+        uri: &jsonschema::Uri<String>,
+    ) -> Result<Value, Box<dyn std::error::Error + Send + Sync>> {
+        let name = uri.as_str().rsplit('/').next().ok_or("uri sin archivo")?;
+        Ok(read_json(&repo().join("contracts").join(name)))
+    }
+}
+
+#[test]
+fn ui_backtest_run_detail_mock_follows_the_contract() {
+    // el detalle de ejemplo de la pestaña Performance (#299), con la forma de
+    // backtest_run_detail.v1 (que junta backtest_run, backtest_run_curve, proposal y outcome)
+    let mock = read_json(&repo().join("ui/src/mocks/backtest-run-detail.json"));
+    let schema = read_json(&repo().join("contracts/backtest_run_detail.v1.schema.json"));
+    let v = jsonschema::options()
+        .with_retriever(Local)
+        .build(&schema)
+        .expect("el contrato no es un JSON Schema válido");
+    let errors: Vec<String> = v
+        .iter_errors(&mock["detail"])
+        .map(|e| e.to_string())
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "el detalle de ejemplo no valida: {errors:?}"
+    );
+    // es el detalle de una de las corridas de ejemplo, idéntica
+    let runs = read_json(&repo().join("ui/src/mocks/backtest-runs.json"));
+    let id = &mock["detail"]["run"]["run_id"];
+    let run = runs["runs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| &r["run_id"] == id)
+        .expect("el detalle no es de una corrida de ejemplo");
+    assert_eq!(run, &mock["detail"]["run"]);
+}

@@ -36,6 +36,8 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 | Contrato | Tabla | Contenido |
 |---|---|---|
 | `backtest_run.v1` | `backtest_runs` | Una corrida de backtest (#200): `run_id`, instrumentos, timeframe de decisión, período `[from, to)`, `config_sha256` (SHA-256 de los archivos de `config/` que leyó, cada uno con su nombre), capital inicial, costos usados (slippage y costos de cada instrumento), noticias (intérprete, modelo, `published_from` del corte del ADR 0008 §5 y cantidad de interpretaciones, o `null`), resumen de métricas (decimales como texto, `null` si no están definidas) y `started_at`/`finished_at` en UTC. |
+| `backtest_run_curve.v1` | `backtest_run_curves` | La curva de una corrida (#299): capital al cierre de cada día con el drawdown de ese día (lo calcula el motor; su máximo es `max_drawdown`) y comprar y mantener de cada instrumento con los mismos costos. Una por corrida, de solo agregar. |
+| `backtest_run_detail.v1` | (respuesta del gateway) | `GET /api/v1/backtest_runs/{run_id}` (#299): la corrida (`backtest_run.v1`), su curva (o `null`) y sus operaciones (`proposal.v1` con su `outcome.v1` simulado o `null`). Solo junta contratos existentes. |
 
 - Las operaciones de una corrida son las filas de `proposals` con el mismo `run_id`: `proposal.v1` no cambia.
 - `metrics.kill_switch_events` y `metrics.kill_switch_reset_business_days` (opcionales, #277): cada activación (`activated`) y cada reactivación del backtest (`reset`), con su hora y el capital, y cuántos días hábiles espera el backtest para reactivar (solo backtest; en vivo no existe).
