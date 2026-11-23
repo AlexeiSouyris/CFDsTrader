@@ -1,0 +1,25 @@
+[package]
+name = "cfds-broker"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+cfds-backtest = { version = "0.1.0", path = "../backtest" }
+cfds-core = { version = "0.1.0", path = "../core" }
+cfds-indicators = { version = "0.1.0", path = "../indicators" }
+cfds-risk = { version = "0.1.0", path = "../risk" }
+cfds-strategy = { version = "0.1.0", path = "../strategy" }
+chrono = { version = "0.4.45", default-features = false, features = ["std"] }
+chrono-tz = "0.10.4"
+rust_decimal = { version = "1.43.0", features = ["macros"] }
+serde = { version = "1.0.229", features = ["derive"] }
+toml = "0.9"
+
+[dev-dependencies]
+jsonschema = { version = "0.61.2", default-features = false }
+serde_json = "1.0.154"
+
+[lints]
+workspace = true

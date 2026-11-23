@@ -217,6 +217,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "cfds-broker"
+version = "0.1.0"
+dependencies = [
+ "cfds-backtest",
+ "cfds-core",
+ "cfds-indicators",
+ "cfds-risk",
+ "cfds-strategy",
+ "chrono",
+ "chrono-tz",
+ "jsonschema",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "toml",
+]
+
+[[package]]
 name = "cfds-core"
 version = "0.1.0"
 dependencies = [
