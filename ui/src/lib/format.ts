@@ -42,3 +42,14 @@ export function percent(fraction: string, digits = 1): string {
   const whole = String(Number(int + f.slice(0, 2)))
   return decimal(digits ? `${whole}.${f.slice(2, 2 + digits)}` : whole)
 }
+
+/**
+ * Una fracción con signo como porcentaje con signo: "-0.031" → "−3,1", "0.004" → "+0,4". Mueve la
+ * coma en el texto, sin float; no es un cálculo de trading.
+ */
+export function signedPercent(fraction: string, digits = 1): string {
+  const text = fraction.trim()
+  const body = percent(text.replace(/^[-+]/, ''), digits)
+  if (/^0(,0*)?$/.test(body)) return body
+  return `${text.startsWith('-') ? '−' : '+'}${body}`
+}

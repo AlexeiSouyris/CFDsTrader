@@ -16,6 +16,7 @@ use std::sync::Arc;
 use cfds_backtest::BacktestConfig;
 use cfds_broker::BrokerConfig;
 use cfds_core::Instrument;
+use cfds_gateway::context::{ContextConfig, is_context_route, respond_context};
 use cfds_gateway::paper::{HttpIn, PaperConfig, PgPaper, is_paper_route, respond_paper};
 use cfds_gateway::{GatewayConfig, PgSource, Reply, read_only_url, respond};
 use cfds_liquidity::StatsConfig;
@@ -45,6 +46,7 @@ struct State {
     paper_cfg: PaperConfig,
     /// Token local de escritura; `None`: escritura apagada.
     token: Option<String>,
+    context_cfg: ContextConfig,
 }
 
 fn header<'a>(req: &'a Request<Incoming>, name: &str) -> Option<&'a str> {
@@ -92,6 +94,16 @@ async fn handle(
 ) -> Result<Response<Full<Bytes>>, Infallible> {
     let reply = if is_paper_route(req.uri().path()) {
         paper_reply(&state, req).await
+    } else if is_context_route(req.uri().path()) {
+        respond_context(
+            &state.source.store,
+            &state.context_cfg,
+            req.method().as_str(),
+            req.uri().path(),
+            req.uri().query(),
+            chrono::Utc::now(),
+        )
+        .await
     } else {
         liquidity_reply(&state, &req).await
     };
@@ -174,6 +186,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         paper,
         paper_cfg,
         token,
+        context_cfg: ContextConfig::from_toml(GATEWAY)?,
         source: PgSource {
             store,
             config: cfg.clone(),
