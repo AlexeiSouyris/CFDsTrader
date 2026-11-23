@@ -83,6 +83,19 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Solo se emite con al menos `min_components` componentes válidos. Un valor emitido no cambia nunca.
 - Tabla de **solo agregar** (trigger), clave `(instrument_id, published_at)`. Los componentes van tal cual el contrato en `components` (JSONB). La escribe `python -m cfds_intel.sentiment.compute_index`: lo idéntico cuenta como "ya estaba", y otro valor para la misma clave es repintado y frena sin guardar.
 
+### Estados emocionales (spec §9.1, #220)
+
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `emotional_state.v1` | `emotional_states` | Los estados emocionales activos de un instrumento en un momento, cada uno con los valores de su regla como texto: `instrument_id`, `source` (`price` o `sentiment`), `basis` (`15m`, `1h` o `sentiment_index`), `as_of` (desde cuándo se conoce) y `states` (vacío si no hay ninguno). |
+
+- **Precio (Rust):** FOMO de precio y clímax de venta en 1h (`cfds_regime`), rechazo en 15m y 1h (`cfds_liquidity`), juntados por `cfds_strategy::price_emotional_states`. Un registro por cada vela **cerrada**, con `as_of` = su cierre. Lo guarda `cargo run -p cfds-ingest --example emotional_states` (`[-- --fuente futuros]`), sin IG ni cupo.
+- **Índice (Python):** miedo extremo, euforia extrema y complacencia (`cfds_intel.sentiment.states`, `config/sentiment.toml` [states]), en cada valor del índice y en cada momento sin índice (donde solo puede haber complacencia), con `as_of` = `published_at`. Lo guarda `python -m cfds_intel.sentiment.compute_index`.
+- **Distribución:** no se calcula todavía (pendiente de volumen real, spec §9.1).
+- Tabla de **solo agregar** (trigger), clave `(instrument_id, source, basis, as_of)` (`infra/migrations/0033_emotional_states.sql`). Guardar lo mismo otra vez no hace nada; el mismo momento con otros estados es un error (sería repintado).
+- **Sin mirar el futuro:** se lee lo conocido hasta un momento (`as_of <= t`). El gateway lo sirve en `GET /api/v1/emotions` (el último de cada instrumento, fuente y base) y la UI lo muestra al lado del índice de sentimiento. Lo puede leer el arnés de hipótesis (H1–H7, otro Issue).
+- **Informativo:** ningún estado suma al puntaje hasta validarse en la fase 5 y votarse. No es un pronóstico.
+
 ### Tipos de referencia (#79)
 
 | Contrato | Tabla | Contenido |

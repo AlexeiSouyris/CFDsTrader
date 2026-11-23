@@ -51,14 +51,28 @@ def load_states_config(text: str) -> StatesConfig:
     return cfg
 
 
-def index_states(r: SentimentIndex | NotEmitted, cfg: StatesConfig) -> tuple[str, ...]:
-    """Estados activos en ese momento, en un orden fijo."""
-    out = []
+def _text(d: Decimal) -> str:
+    """Decimal como texto del contrato: con punto y sin exponente."""
+    return format(d.normalize(), "f")
+
+
+def index_state_values(
+    r: SentimentIndex | NotEmitted, cfg: StatesConfig
+) -> tuple[tuple[str, dict[str, str]], ...]:
+    """Estados activos con los valores de su regla (`emotional_state.v1`), en un orden fijo."""
+    out: list[tuple[str, dict[str, str]]] = []
     if isinstance(r, SentimentIndex):
         if r.value <= cfg.extreme_fear:
-            out.append(EXTREME_FEAR)
+            out.append(
+                (EXTREME_FEAR, {"index": _text(r.value), "threshold": _text(cfg.extreme_fear)})
+            )
         if r.value >= cfg.extreme_euphoria:
-            out.append(EXTREME_EUPHORIA)
+            out.append(
+                (
+                    EXTREME_EUPHORIA,
+                    {"index": _text(r.value), "threshold": _text(cfg.extreme_euphoria)},
+                )
+            )
     vol = next((c for c in r.components if c.name == "realized_vol"), None)
     if (
         vol is not None
@@ -66,5 +80,18 @@ def index_states(r: SentimentIndex | NotEmitted, cfg: StatesConfig) -> tuple[str
         and vol.percentile is not None
         and vol.percentile <= cfg.complacency_percentile
     ):
-        out.append(COMPLACENCY)
+        out.append(
+            (
+                COMPLACENCY,
+                {
+                    "percentile": _text(vol.percentile),
+                    "threshold": _text(cfg.complacency_percentile),
+                },
+            )
+        )
     return tuple(out)
+
+
+def index_states(r: SentimentIndex | NotEmitted, cfg: StatesConfig) -> tuple[str, ...]:
+    """Estados activos en ese momento, en un orden fijo."""
+    return tuple(name for name, _ in index_state_values(r, cfg))

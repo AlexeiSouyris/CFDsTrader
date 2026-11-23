@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/emotional_state.v1.schema.json",
+  "title": "Emotional state v1",
+  "description": "Estados emocionales de la spec §9.1 (#220) de un instrumento en un momento: cada estado activo con los valores de su regla. Es un dato informativo, nunca un pronóstico: no suma al puntaje hasta validarse en la fase 5 y votarse. Los de precio los calcula Rust (FOMO y clímax de venta en regime, rechazo en patterns y liquidity) en cada vela cerrada de 15m y 1h, también cuando no hay ninguno (states vacío). Los del índice los calcula Python (sentiment) en cada valor del índice. La distribución no existe todavía (pendiente de volumen real). Tabla emotional_states, de solo agregar; GET /api/v1/emotions devuelve el último de cada instrumento, fuente y base.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instrument_id", "source", "basis", "as_of", "states"],
+  "properties": {
+    "instrument_id": {
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$"
+    },
+    "source": {
+      "description": "price: de las velas (Rust); sentiment: del índice de sentimiento (Python).",
+      "enum": ["price", "sentiment"]
+    },
+    "basis": {
+      "description": "Sobre qué se evaluó: velas cerradas de 15m o de 1h (source = price), o un valor del índice (source = sentiment).",
+      "enum": ["15m", "1h", "sentiment_index"]
+    },
+    "as_of": {
+      "description": "Desde cuándo se conoce: el cierre de la vela evaluada, o el published_at del valor del índice. En UTC.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "states": {
+      "description": "Los estados activos en ese momento, en un orden fijo. Vacío si no hay ninguno.",
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["state", "values"],
+        "properties": {
+          "state": {
+            "enum": ["fomo", "selling_climax", "rejection", "extreme_fear", "extreme_euphoria", "complacency"]
+          },
+          "values": {
+            "description": "Los valores de la regla que lo activó, como texto (decimales con punto). fomo y selling_climax: close, ema, atr, stretch ((cierre − EMA) / ATR), atr_multiple, lookback. rejection: side (long o short) y via (level, fvg, order_block o sweep, separados por coma). extreme_fear y extreme_euphoria: index y threshold. complacency: percentile y threshold.",
+            "type": "object",
+            "maxProperties": 8,
+            "additionalProperties": { "type": "string", "maxLength": 64 }
+          }
+        }
+      }
+    }
+  }
+}

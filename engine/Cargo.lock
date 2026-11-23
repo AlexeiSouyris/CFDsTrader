@@ -336,7 +336,9 @@ dependencies = [
  "cfds-liquidity",
  "cfds-market-data",
  "cfds-patterns",
+ "cfds-regime",
  "cfds-storage",
+ "cfds-strategy",
  "chrono",
  "redis",
  "rust_decimal",
@@ -490,9 +492,12 @@ dependencies = [
  "cfds-indicators",
  "cfds-liquidity",
  "cfds-patterns",
+ "cfds-regime",
  "chrono",
+ "jsonschema",
  "rust_decimal",
  "serde",
+ "serde_json",
  "toml",
 ]
 

@@ -1,6 +1,7 @@
 /**
  * Contexto de mercado del Panel (#294), solo lectura: el índice de sentimiento de EE. UU. y los
- * análogos históricos, tal como los calculó Python y los sirve el gateway. Los instrumentos salen
+ * análogos históricos, tal como los calculó Python y los sirve el gateway, y al lado del índice los
+ * estados emocionales de la spec §9.1 (#220) con los valores de su regla. Los instrumentos salen
  * de lo que hay guardado (nada fijo en el código). No calcula nada.
  */
 import { useState, type ReactNode } from 'react'
@@ -10,13 +11,28 @@ import {
   SentimentGauge,
   SentimentHistory,
 } from '@/components/ui/market-context'
+import { EmotionalStates } from '@/components/ui/emotional-states'
 import { Segmented } from '@/components/ui/segmented'
 import { Term } from '@/components/ui/term'
-import { useAnalogs, useLatestSentiment, useSentimentHistory } from '@/lib/context-api'
+import { useAnalogs, useEmotions, useLatestSentiment, useSentimentHistory } from '@/lib/context-api'
+import { cn } from '@/lib/utils'
 
-function Card({ title, children }: { title: ReactNode; children: ReactNode }) {
+function Card({
+  title,
+  children,
+  wide,
+}: {
+  title: ReactNode
+  children: ReactNode
+  wide?: boolean
+}) {
   return (
-    <section className="glass relative min-w-0 rounded-[20px] p-4 has-[[role=dialog]]:z-30">
+    <section
+      className={cn(
+        'glass relative min-w-0 rounded-[20px] p-4 has-[[role=dialog]]:z-30',
+        wide && 'lg:col-span-2',
+      )}
+    >
       <h3 className="mb-3 text-[14px] font-bold">{title}</h3>
       {children}
     </section>
@@ -28,12 +44,14 @@ const muted = (text: string) => <p className="text-[12.5px] text-muted-foregroun
 export function MarketContextView() {
   const latest = useLatestSentiment()
   const analogs = useAnalogs()
+  const emotions = useEmotions()
   const [picked, setPicked] = useState<string | null>(null)
 
   const ids = [
     ...new Set([
       ...(latest.status === 'ok' ? latest.data.map((s) => s.instrument_id) : []),
       ...(analogs.status === 'ok' ? analogs.data.map((a) => a.instrument_id) : []),
+      ...(emotions.status === 'ok' ? emotions.data.map((e) => e.instrument_id) : []),
     ]),
   ].sort()
   const selected = picked && ids.includes(picked) ? picked : (ids[0] ?? null)
@@ -42,6 +60,8 @@ export function MarketContextView() {
     latest.status === 'ok' ? latest.data.find((s) => s.instrument_id === selected) : undefined
   const report =
     analogs.status === 'ok' ? analogs.data.find((a) => a.instrument_id === selected) : undefined
+  const moods =
+    emotions.status === 'ok' ? emotions.data.filter((e) => e.instrument_id === selected) : []
 
   if (latest.status === 'error' && analogs.status === 'error')
     return (
@@ -73,7 +93,23 @@ export function MarketContextView() {
             muted('Sin índice guardado para este instrumento.')
           )}
         </Card>
-        <Card title={<Term id="analogos">Análogos históricos</Term>}>
+        <Card title="Estados emocionales">
+          {emotions.status === 'loading' ? (
+            muted('Pidiendo los datos al motor…')
+          ) : moods.length ? (
+            <EmotionalStates rows={moods} />
+          ) : (
+            muted(
+              emotions.status === 'error'
+                ? 'No se pudieron leer los estados emocionales.'
+                : 'Sin estados guardados para este instrumento.',
+            )
+          )}
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            Son reglas medidas sobre lo que ya pasó, no un pronóstico.
+          </p>
+        </Card>
+        <Card title={<Term id="analogos">Análogos históricos</Term>} wide>
           {analogs.status === 'loading' ? (
             muted('Pidiendo los datos al motor…')
           ) : report ? (

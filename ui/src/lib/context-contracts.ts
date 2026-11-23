@@ -60,3 +60,19 @@ export type AnalogReport = {
   neighbors: { instrument_id: string; end_day: string; distance: Decimal }[]
   groups: AnalogGroup[]
 }
+
+/** Estados de `emotional_state.v1` (spec §9.1, #220). */
+export type EmotionKind =
+  'fomo' | 'selling_climax' | 'rejection' | 'extreme_fear' | 'extreme_euphoria' | 'complacency'
+
+/**
+ * `emotional_state.v1`: los estados activos de un instrumento con los valores de su regla, tal
+ * como los calcularon el motor (precio) y Python (índice). Un dato, nunca un pronóstico.
+ */
+export type EmotionalState = {
+  instrument_id: string
+  source: 'price' | 'sentiment'
+  basis: '15m' | '1h' | 'sentiment_index'
+  as_of: Utc
+  states: { state: EmotionKind; values: Record<string, string> }[]
+}

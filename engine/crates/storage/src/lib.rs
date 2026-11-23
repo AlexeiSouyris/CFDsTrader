@@ -16,6 +16,7 @@
 //! Las migraciones viven en `infra/migrations/` y se aplican con [`PgStore::migrate`].
 
 mod economic_events;
+mod emotional_states;
 mod futures_bars;
 mod futures_candles;
 mod liquidity_levels;
@@ -71,6 +72,14 @@ pub enum StorageError {
     DailyIndicatorConflict {
         instrument: String,
         day: chrono::NaiveDate,
+    },
+    #[error(
+        "los estados emocionales de {instrument} {basis} de {as_of} ya están guardados con otros valores: sería repintado (revisar el cálculo o las velas)"
+    )]
+    EmotionalStateConflict {
+        instrument: String,
+        basis: String,
+        as_of: DateTime<Utc>,
     },
     #[error(
         "ya existe {instrument} {timeframe} {start} con otros valores: no se pisa (revisar la fuente)"

@@ -8,7 +8,8 @@ diarias de los futuros (instrumento derivado de `config/candle_sources.toml`, po
 `US500.FUT`) y el índice se guarda bajo ese id: rotulado y sin mezclarse con el del CFD. El COT
 es el mismo.
 Lee los datos crudos de PostgreSQL (COT, volatilidad realizada y caída desde el máximo), arma el
-índice cada vez que un componente publicó un dato y guarda lo nuevo en `sentiment_index`. Es
+índice cada vez que un componente publicó un dato y guarda lo nuevo en `sentiment_index`, y sus
+estados emocionales (spec §9.1, #220) en `emotional_states`. Es
 idempotente: lo ya guardado e idéntico cuenta como "ya estaban". Si un valor ya guardado diera
 distinto, frena con error (sería repintado). Si no se llega al mínimo de componentes, lo dice.
 No usa IG ni la red.
@@ -25,6 +26,7 @@ from cfds_intel.analogs.data import futures_suffix
 from cfds_intel.sentiment.index import index_series, load_config
 from cfds_intel.sentiment.index_store import insert_index, load_points
 from cfds_intel.sentiment.states import index_states, load_states_config
+from cfds_intel.sentiment.states_store import insert_states, states_rows
 
 CONFIG = Path(__file__).resolve().parents[4] / "config"
 
@@ -64,6 +66,14 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 f"{instrument}: datos ({counts}) → {len(emitted)} valores del índice: "
                 f"{r.inserted} nuevos, {r.unchanged} ya estaban"
+            )
+            # Estados emocionales del índice (#220), en `emotional_states` con los de precio.
+            rows = states_rows(emitted, skipped, states_cfg)
+            rs = insert_states(conn, rows)
+            active = sum(1 for row in rows if row.states)
+            print(
+                f"  estados emocionales: {len(rows)} momentos ({active} con algún estado): "
+                f"{rs.inserted} nuevos, {rs.unchanged} ya estaban"
             )
             if emitted:
                 last = emitted[-1]

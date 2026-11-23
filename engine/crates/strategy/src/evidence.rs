@@ -117,6 +117,24 @@ impl<'a> Analysis<'a> {
         &self.pivots
     }
 
+    /// Rechazo de la spec §9.1 (#220) en la vela de 15m `t`, con las entradas que ya armó el
+    /// análisis (ATR de los patrones, pivotes, order blocks y pivotes de 1h para el sweep).
+    pub fn rejections_at(&self, t: usize) -> Vec<cfds_liquidity::Rejection> {
+        cfds_liquidity::rejection_state_at(
+            &cfds_liquidity::RejectionInputs {
+                candles: self.m15,
+                atr: &self.atr,
+                pivots: &self.pivots,
+                order_blocks: &self.obs,
+                h1: self.h1,
+                h1_pivots: &self.h1_pivots,
+            },
+            t,
+            &self.cfg.patterns,
+            &self.cfg.liquidity,
+        )
+    }
+
     /// Errores de datos del instrumento (`cfds_market_data::check_series`): después de cada uno,
     /// el calentamiento empieza de nuevo y hacen falta otra vez `min_m15_candles` y
     /// `min_h1_candles` velas válidas, **posteriores** al error (spec §3, §7.8 y §12).
