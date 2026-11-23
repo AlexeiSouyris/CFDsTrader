@@ -367,6 +367,13 @@ Para todas: "la media" es el retorno medio del mismo instrumento y horizonte en 
 | Apalancamiento por posición | índices 10:1, acciones 3:1 | Se reduce el tamaño |
 | [Stop-out](../GLOSARIO.md#stop-out) del broker | 50 % del margen (mínimo ESMA) | La simulación replica el cierre forzado |
 
+**Kill switch en el backtest (#277).** En vivo, y por omisión en el papel, el kill switch se reactiva solo por votación. El backtest no puede votar, así que tiene una regla **solo para el backtest**:
+- se reactiva después de `[kill_switch] reset_after_business_days` días hábiles (20, lunes a viernes en la hora de Madrid), en `config/backtest.toml`. Con `backtest_run --reiniciar-kill-switch-dias N` se cambia en una corrida, y 0 = nunca, como en vivo;
+- al reactivarse, el drawdown se mide desde el **capital de ese momento**, como si la votación aceptara la pérdida. Si se siguiera midiendo desde el pico viejo, la primera señal lo volvería a disparar;
+- cada activación y cada reactivación quedan en `backtest_runs` (`metrics.kill_switch_events`).
+
+En vivo no existe: `config/risk.toml` no tiene ese parámetro (lo rechaza) y el módulo de riesgo no lo conoce. Lo decidió el dueño el 23-11-2026 ("acepto ya de adelantado todo lo que me recomiendes", sobre la opción A recomendada por el coordinador).
+
 ## 11. Costos (nunca en cero)
 
 Por instrumento, en `config/`: [spread](../GLOSARIO.md#spread) por franja horaria, [comisión](../GLOSARIO.md#comision), [swap](../GLOSARIO.md#swap) diario de largos y de cortos (el triple los miércoles o según el broker), y [slippage](../GLOSARIO.md#slippage) supuesto (inicial: 0,1 × spread promedio + 1 tick).

@@ -20,7 +20,7 @@ use cfds_core::{Candle, InstrumentId};
 use cfds_indicators::wilder_atr;
 use cfds_risk::{Account, Rejection, Request, check};
 use cfds_strategy::{Analysis, Side, news_adjustment};
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, Utc, Weekday};
 use rust_decimal::Decimal;
 
 use crate::{RejectedSignal, RunError, Setup, TradeRecord, choose, execute};
@@ -64,12 +64,33 @@ pub struct PortfolioRejected {
     pub rejected: RejectedSignal,
 }
 
+/// Un kill switch por drawdown, o su reactivación en el backtest (#277).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KillSwitchEvent {
+    pub at: DateTime<Utc>,
+    pub kind: KillSwitchEventKind,
+    /// Capital (realizado + no realizado) en ese momento, en la moneda de la cuenta.
+    pub equity: Decimal,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KillSwitchEventKind {
+    /// El drawdown llegó al límite: no se abre nada más.
+    Activated,
+    /// Solo en backtest: pasaron `kill_switch_reset_days` días hábiles y se reactiva, con el
+    /// pico del drawdown desde el capital de ese momento.
+    Reset,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PortfolioReport {
     /// En el orden en que se abrieron.
     pub trades: Vec<PortfolioTrade>,
     pub rejected: Vec<PortfolioRejected>,
+    /// La primera activación del kill switch, si hubo.
     pub kill_switch_at: Option<DateTime<Utc>>,
+    /// Cada activación y cada reactivación, en orden (#277).
+    pub kill_switch_events: Vec<KillSwitchEvent>,
     /// Capital final realizado, en la moneda de la cuenta.
     pub final_equity: Decimal,
     /// Capital (realizado + no realizado) al último cierre de cada día (zona del día). El
@@ -162,6 +183,7 @@ pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioErr
         trades: Vec::new(),
         rejected: Vec::new(),
         kill_switch_at: None,
+        kill_switch_events: Vec::new(),
         final_equity: first.initial_equity,
         daily_equity: Vec::new(),
     };
@@ -170,6 +192,9 @@ pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioErr
     let mut day: Option<NaiveDate> = None;
     let mut day_start = cash;
     let mut busy_until = vec![0usize; markets.len()];
+    // Kill switch activo y días hábiles contados desde que se activó (#277).
+    let mut killed = false;
+    let mut business_days = 0u32;
     let mut open: Vec<Open> = Vec::new();
 
     for (now, mi, t) in events {
@@ -197,11 +222,30 @@ pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioErr
             day = Some(today);
             day_start = equity;
             report.daily_equity.push((today, equity));
+            // Solo en backtest (#277): después de N días hábiles se reactiva, y el drawdown se
+            // mide de nuevo desde el capital de ese momento (si no, el pico viejo lo volvería a
+            // disparar en la primera señal).
+            if killed && !matches!(today.weekday(), Weekday::Sat | Weekday::Sun) {
+                business_days += 1;
+                if first
+                    .backtest
+                    .kill_switch_reset_days
+                    .is_some_and(|n| business_days >= n)
+                {
+                    killed = false;
+                    peak = equity;
+                    report.kill_switch_events.push(KillSwitchEvent {
+                        at: now,
+                        kind: KillSwitchEventKind::Reset,
+                        equity,
+                    });
+                }
+            }
         } else if let Some(last) = report.daily_equity.last_mut() {
             last.1 = equity;
         }
         let in_window = markets[mi].entries.get(t).copied().unwrap_or(true);
-        if report.kill_switch_at.is_some() || t < busy_until[mi] || !in_window {
+        if killed || t < busy_until[mi] || !in_window {
             continue;
         }
         // 4. Decidir en este instrumento.
@@ -254,7 +298,14 @@ pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioErr
             Ok(s) => s,
             Err(reason) => {
                 if reason == Rejection::DrawdownLimit {
-                    report.kill_switch_at = Some(now);
+                    report.kill_switch_at.get_or_insert(now);
+                    report.kill_switch_events.push(KillSwitchEvent {
+                        at: now,
+                        kind: KillSwitchEventKind::Activated,
+                        equity,
+                    });
+                    killed = true;
+                    business_days = 0;
                 }
                 report.rejected.push(PortfolioRejected {
                     instrument: setup.instrument.clone(),

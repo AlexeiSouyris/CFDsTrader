@@ -154,6 +154,25 @@
         "kill_switch_at": {
           "description": "Opcional (agregado sin romper v1, #273): cuándo se activó el kill switch por drawdown (inicio de la vela, UTC). Desde ahí el recorrido no abre nada más. Ausente si no se activó.",
           "$ref": "#/$defs/utc"
+        },
+        "kill_switch_reset_business_days": {
+          "description": "Opcional (agregado sin romper v1, #277). SOLO BACKTEST: días hábiles después de un kill switch hasta reactivar el recorrido (config/backtest.toml [kill_switch] o --reiniciar-kill-switch-dias). Ausente = no se reactiva, como en vivo.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "kill_switch_events": {
+          "description": "Opcional (agregado sin romper v1, #277): cada activación del kill switch por drawdown y cada reactivación del backtest, en orden, con el capital en ese momento. Ausente si no hubo ninguna.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["event", "at", "equity"],
+            "properties": {
+              "event": { "enum": ["activated", "reset"] },
+              "at": { "$ref": "#/$defs/utc" },
+              "equity": { "$ref": "#/$defs/signed" }
+            }
+          }
         }
       }
     },

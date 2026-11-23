@@ -21,7 +21,8 @@ pub use exits::{ExitReason, Fill, Outcome, Trade, simulate};
 pub use export::{ChartExport, chart_export};
 pub use metrics::{Metrics, evaluate};
 pub use portfolio::{
-    Market, PortfolioError, PortfolioRejected, PortfolioReport, PortfolioTrade, run_portfolio,
+    KillSwitchEvent, KillSwitchEventKind, Market, PortfolioError, PortfolioRejected,
+    PortfolioReport, PortfolioTrade, run_portfolio,
 };
 pub use rates::{DailyRates, FundingRates};
 pub use rollover::mark_rollovers;
