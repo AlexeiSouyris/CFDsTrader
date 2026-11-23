@@ -1,8 +1,9 @@
 # 0003 – Modelo adaptativo por régimen, capas de contexto y blindaje anti-sobreajuste
 
-- **Estado:** propuesta
+- **Estado:** aceptada
 - **Fecha:** 2026-11-20
-- **Aprobada por:** pendiente (las dos personas). Los puntos que cambian reglas de riesgo o parámetros también pasan por la votación de 4 de 6 (spec §1.2).
+- **Aprobada por:** el dueño, por el modo de un solo constructor de `CLAUDE.md` (#155). Lo confirmó el 22-11-2026 en el #25: "El **ADR 0003** está aprobado (se actualiza su estado en el mismo PR)". Se acepta con el PR #133. Los puntos que cambian reglas de riesgo o parámetros también pasan por la votación de 4 de 6 (spec §1.2).
+- **Actualizada por:** el [ADR 0004](0004-fuentes-de-sentimiento.md), que deja el VIX, el put/call y la AAII fuera de v1, y el #25 (spec §9.1), que pone la capa de miedo y sentimiento en el módulo `sentiment` y no en `news`.
 - **Issue:** #19
 - **Base:** [Por qué fallan los algoritmos de trading](../research/por-que-fallan-los-algoritmos.md)
 
@@ -16,7 +17,7 @@ La mayoría de los algoritmos minoristas fallan por sobreajuste, cambios de rég
 
 El grupo además pidió que el modelo sea **cambiante**. La spec §15b dice que el sistema **nunca cambia solo sus parámetros**. Este ADR propone una forma de compatibilizar las dos cosas.
 
-## Decisión (propuesta)
+## Decisión
 
 ### A. Detector de régimen de mercado (Rust, módulo nuevo `regime`)
 - Clasifica cada instrumento, al cierre de cada vela de 1h, en un régimen con dos ejes objetivos:
