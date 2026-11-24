@@ -105,6 +105,7 @@ Detalle y criterios de aprobación por fase en `docs/ROADMAP.md`. Resumen obliga
 - **Nada hardcodeado:** símbolos, tamaños, umbrales, horarios y apalancamientos van en configuración (`config/`), validada al arrancar.
 - **Funciones puras** para señales y estrategias: misma entrada, misma salida, sin estado oculto.
 - **Órdenes idempotentes** (ID propio), y un **kill switch** ante límite superado, error de datos o desconexión.
+- **Registro de resultados:** toda prueba (backtest, walk-forward, ronda de investigación, ML) agrega una fila a `docs/analysis/registro-de-resultados.csv` en el mismo PR. Las filas viejas no se editan: si algo cambia, va una fila nueva que dice contra qué fila compara y si dio mejor, peor o igual (ver `docs/analysis/registro-de-resultados.md`).
 - **No inventar:** ni datos, ni endpoints de APIs, ni parámetros del broker. Si no está en la documentación oficial o en la spec, se pregunta.
 
 ## 5c. Trabajo por fases
