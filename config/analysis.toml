@@ -53,3 +53,15 @@ slow = 200
 normal_from = "15"
 elevated_from = "20"
 stress_from = "30"
+
+[warmup]
+# Calentamiento de una vista (#511): el gráfico del gateway calcula pivotes, Fibonacci,
+# spring/upthrust y fondos con estas velas de 15m ANTES de la primera que muestra, y devuelve solo
+# lo de la vista. Así una vela cerrada da lo mismo aunque la vista empiece en otro lado. Tiene que
+# ser ≥ wyckoff.lookback_bars y ≥ bottom.lookback + bottom.atr_period (se valida al cargar).
+# 1000 velas ≈ 11 sesiones de un índice que cotiza ~23 h por día.
+m15_bars = 1000
+# Hasta cuántos días corridos hacia atrás se buscan (noches, fines de semana, feriados y huecos).
+# Tiene que alcanzar para m15_bars velas seguidas (m15_bars / 96 días); con menos velas en el
+# plazo, se usan las que haya.
+max_lookback_days = 45

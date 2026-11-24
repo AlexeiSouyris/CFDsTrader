@@ -20,7 +20,9 @@ pub mod sensitivity;
 pub mod setup;
 pub mod variants;
 
-pub use analysis::{AnalysisConfig, ExportAnalysis, analysis_export, last_closed_day};
+pub use analysis::{
+    AnalysisConfig, ExportAnalysis, WarmupConfig, analysis_export, analysis_view, last_closed_day,
+};
 pub use basis::{FuturesBasis, basis_carry, roll_jumps, splice_rates};
 pub use config::{BacktestConfig, CostConfig, ExitConfig, MetricsConfig};
 pub use costs::{

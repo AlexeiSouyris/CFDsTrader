@@ -8,6 +8,7 @@ import {
   analysisLayers,
   DEFAULT_TOOLS,
   loadTools,
+  mergeLayers,
   saveTools,
   TOOLS,
   TOOLS_KEY,
@@ -163,6 +164,56 @@ describe('mapeo del bloque analysis (#501): índices del motor → cierres de ve
     expect(activeAt(layers.pivots, t(5))?.day).toBe('2026-11-20')
     expect(activeAt(layers.fibonacci, t(1))).toBeNull()
     expect(activeAt(layers.fibonacci, t(3))?.from).toBe(BARS[2].end)
+  })
+})
+
+describe('velas más viejas con su análisis (#511)', () => {
+  const NEWER = Array.from({ length: 6 }, (_, k) => bar(k + 6))
+  const old = analysisLayers(fixture(6), BARS)
+  const next = analysisLayers(
+    {
+      ...fixture(6),
+      floor_pivots: [
+        { ...fixture(6).floor_pivots[1], from_index: 0 },
+        { ...fixture(6).floor_pivots[1], day: '2026-11-21', from_index: 4 },
+      ],
+      vix: Array.from({ length: 6 }, () => null),
+    },
+    NEWER,
+  )
+  const from = NEWER[0].end
+  const merged = mergeLayers(old, next, from)
+
+  it('suma lo de las viejas antes de lo de la vista, en orden', () => {
+    // la EMA sigue sin corte entre las dos páginas
+    expect(merged.ema.map((r) => r.length)).toEqual([2, 5, 3])
+    expect(merged.fibonacci.map((f) => f.from)).toEqual([
+      BARS[2].end,
+      BARS[4].end,
+      NEWER[2].end,
+      NEWER[4].end,
+    ])
+    // el último tramo viejo vale hasta donde empieza la vista
+    expect(merged.fibonacci[1].to).toBe(from)
+    expect(merged.markers).toHaveLength(old.markers.length + next.markers.length)
+    expect(merged.vix).toBeNull()
+  })
+
+  it('los puntos pivote del mismo día siguen como una sola entrada', () => {
+    expect(merged.pivots.map((p) => [p.day, p.from, p.to])).toEqual([
+      ['2026-11-19', BARS[0].end, BARS[4].end],
+      ['2026-11-20', BARS[4].end, NEWER[4].end],
+      ['2026-11-21', NEWER[4].end, null],
+    ])
+  })
+
+  it('de las viejas solo queda lo anterior a la vista', () => {
+    const cut = mergeLayers(old, next, BARS[3].end)
+    expect(cut.markers.filter((m) => Date.parse(m.at) >= Date.parse(BARS[3].end))).toEqual(
+      next.markers.filter((m) => Date.parse(m.at) >= Date.parse(BARS[3].end)),
+    )
+    expect(cut.fibonacci[0].events).toEqual([])
+    expect(cut.fibonacci[0].to).toBe(BARS[3].end)
   })
 })
 

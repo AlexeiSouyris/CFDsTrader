@@ -3,8 +3,8 @@
 use std::path::PathBuf;
 
 use cfds_backtest::{
-    AnalysisConfig, BacktestConfig, ExportAnalysis, analysis_export, chart_export, run,
-    run_checked, setup_from_catalog,
+    AnalysisConfig, BacktestConfig, ExportAnalysis, analysis_export, analysis_view, chart_export,
+    run, run_checked, setup_from_catalog,
 };
 use cfds_core::{Candle, Timeframe};
 use cfds_indicators::TrendConfig;
@@ -233,6 +233,16 @@ fn vix_of(m15: &[Candle]) -> Vec<(DateTime<Utc>, Decimal)> {
 }
 
 fn analysis(m15: &[Candle], daily: &[cfds_core::DailyCandle], period: usize) -> ExportAnalysis {
+    analysis_export(
+        m15,
+        daily,
+        &vix_of(m15),
+        setup().strategy.patterns.pivots.strength,
+        &test_cfg(period),
+    )
+}
+
+fn test_cfg(period: usize) -> AnalysisConfig {
     let mut cfg = AnalysisConfig::from_toml(ANALYSIS).unwrap();
     cfg.ema_daily_period = period;
     // Medias cortas y fondos fáciles: las series sintéticas son de pocos días.
@@ -243,13 +253,7 @@ fn analysis(m15: &[Candle], daily: &[cfds_core::DailyCandle], period: usize) -> 
     cfg.wyckoff.max_bars_to_reclaim = 20;
     cfg.wyckoff.max_penetration = dec!(0.05);
     cfg.bottom.min_decline = dec!(0.001);
-    analysis_export(
-        m15,
-        daily,
-        &vix_of(m15),
-        setup().strategy.patterns.pivots.strength,
-        &cfg,
-    )
+    cfg
 }
 
 #[test]
@@ -382,4 +386,161 @@ fn the_vix_and_the_floor_pivots_come_from_what_was_known() {
     let pp = (daily[0].high + daily[0].low + daily[0].close) / Decimal::from(3);
     assert_eq!(a.floor_pivots[0].pp, pp);
     assert_eq!(a.floor_pivots.len(), 4);
+}
+
+/// Lo de una vista con los índices de la serie entera (`base` = dónde empieza la vista) y cada
+/// toque del golden pocket con su tramo, para comparar vistas que empiezan en lugares distintos.
+#[derive(Debug, PartialEq)]
+struct Absolute {
+    ema: Vec<(usize, Option<Decimal>)>,
+    legs: Vec<(usize, usize, usize, String)>,
+    pocket: Vec<(usize, (usize, usize), bool)>,
+    wyckoff: Vec<(usize, usize, String, Decimal)>,
+    bottoms: Vec<(usize, usize, usize, Decimal)>,
+    crosses: Vec<(usize, String)>,
+    pivots: Vec<(usize, String)>,
+    vix: Vec<(usize, Option<String>)>,
+}
+
+impl Absolute {
+    /// Solo lo que se refiere a velas en `[from, to)`.
+    fn of(a: &ExportAnalysis, base: usize, from: usize, to: usize) -> Self {
+        let inside = |i: usize| (from..to).contains(&(i + base));
+        let leg_of = |k: usize| {
+            let l = &a.fibonacci[k];
+            (l.start_index + base, l.end_index + base)
+        };
+        Self {
+            ema: (0..a.ema_daily.len())
+                .filter(|&i| inside(i))
+                .map(|i| (i + base, a.ema_daily[i]))
+                .collect(),
+            legs: a
+                .fibonacci
+                .iter()
+                .filter(|l| inside(l.start_index) && inside(l.confirmed_index))
+                .map(|l| {
+                    (
+                        l.start_index + base,
+                        l.end_index + base,
+                        l.confirmed_index + base,
+                        l.direction.clone(),
+                    )
+                })
+                .collect(),
+            pocket: a
+                .golden_pocket
+                .iter()
+                .filter(|e| inside(e.index) && inside(a.fibonacci[e.leg].start_index))
+                .map(|e| (e.index + base, leg_of(e.leg), e.closes_inside))
+                .collect(),
+            wyckoff: a
+                .wyckoff
+                .iter()
+                .filter(|w| inside(w.break_index) && inside(w.confirmed_index))
+                .map(|w| {
+                    (
+                        w.break_index + base,
+                        w.confirmed_index + base,
+                        w.kind.clone(),
+                        w.level,
+                    )
+                })
+                .collect(),
+            bottoms: a
+                .bottoms
+                .iter()
+                .filter(|b| inside(b.index) && inside(b.confirmed_index))
+                .map(|b| {
+                    (
+                        b.index + base,
+                        b.confirmed_index + base,
+                        b.rebound_index + base,
+                        b.price,
+                    )
+                })
+                .collect(),
+            crosses: a
+                .ma_cross
+                .crosses
+                .iter()
+                .filter(|c| inside(c.known_from_index))
+                .map(|c| (c.known_from_index + base, c.day.clone()))
+                .collect(),
+            pivots: a
+                .floor_pivots
+                .iter()
+                .filter(|p| inside(p.from_index) && p.from_index + base > from)
+                .map(|p| (p.from_index + base, p.day.clone()))
+                .collect(),
+            vix: (0..a.vix.len())
+                .filter(|&i| inside(i))
+                .map(|i| (i + base, a.vix[i].as_ref().map(|v| v.close.to_string())))
+                .collect(),
+        }
+    }
+}
+
+/// #511: el gateway calcula sobre `warmup` velas antes de la primera visible y devuelve solo la
+/// vista. Una vela cerrada da lo mismo aunque la vista empiece en otro lado o termine antes (sin
+/// repintado por el borde), y la vista trae las señales cerca de su borde izquierdo.
+#[test]
+fn a_view_gives_the_same_analysis_wherever_it_starts() {
+    let full = random_walk(3200, 11);
+    let daily = daily_of(&full);
+    let vix = vix_of(&full);
+    let cfg = test_cfg(5);
+    let strength = setup().strategy.patterns.pivots.strength;
+    let warmup = cfg.warmup.m15_bars;
+    let view = |first: usize, end: usize| {
+        let known: Vec<_> = daily
+            .iter()
+            .filter(|d| d.end <= full[end - 1].end())
+            .cloned()
+            .collect();
+        let base = first - warmup;
+        let a = analysis_view(&full[base..end], warmup, &known, &vix, strength, &cfg);
+        assert_eq!(a.ema_daily.len(), end - first, "un valor por vela visible");
+        a
+    };
+    let (fa, ea) = (1100, 2600);
+    let (fb, eb) = (1700, 3200);
+    let (a, b) = (view(fa, ea), view(fb, eb));
+    // En lo que comparten (y que la vista A ya conocía), lo mismo.
+    let (sa, sb) = (Absolute::of(&a, fa, fb, ea), Absolute::of(&b, fb, fb, ea));
+    assert_eq!(sa, sb);
+    assert!(!sa.legs.is_empty() && !sa.pocket.is_empty(), "hay tramos");
+    assert!(
+        !sa.wyckoff.is_empty() && !sa.bottoms.is_empty(),
+        "hay señales"
+    );
+    assert!(!sa.pivots.is_empty() && sa.vix.iter().any(|v| v.1.is_some()));
+    // Y es lo mismo que sale de la serie entera.
+    let whole = analysis(&full[..ea], &daily_of(&full[..ea]), 5);
+    assert_eq!(Absolute::of(&whole, 0, fb, ea), sa);
+    // Cerca del borde izquierdo de la vista también hay señales: sin calentamiento, una vista
+    // que empieza ahí no tendría pivotes en sus primeras velas ni niveles de Wyckoff.
+    let edge = |x: &Absolute| {
+        x.wyckoff.iter().filter(|w| w.0 < fb + 200).count()
+            + x.bottoms.iter().filter(|b| b.0 < fb + 200).count()
+            + x.legs.iter().filter(|l| l.0 < fb + 200).count()
+    };
+    let cold = analysis_export(&full[fb..ea], &daily, &vix, strength, &cfg);
+    assert!(edge(&sb) > edge(&Absolute::of(&cold, fb, fb, ea)));
+    // Y la vista tiene las velas de la vista, nada del calentamiento.
+    assert!(b.fibonacci.iter().all(|l| l.end_index < eb - fb));
+    assert!(b.floor_pivots.first().is_some_and(|p| p.from_index == 0));
+}
+
+#[test]
+fn a_view_without_warmup_is_the_same_as_the_export() {
+    let m15 = random_walk(800, 4);
+    let daily = daily_of(&m15);
+    let cfg = test_cfg(5);
+    let strength = setup().strategy.patterns.pivots.strength;
+    let vix = vix_of(&m15);
+    assert_eq!(
+        analysis_view(&m15, 0, &daily, &vix, strength, &cfg),
+        analysis_export(&m15, &daily, &vix, strength, &cfg)
+    );
 }

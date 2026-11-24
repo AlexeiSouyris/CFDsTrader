@@ -244,6 +244,55 @@ export function analysisLayers(analysis: ChartAnalysis, bars: ChartBar[]): Analy
 }
 
 /**
+ * Junta las capas de velas más viejas (`older`, las que se piden al desplazarse, #511) con las de
+ * velas más nuevas (`newer`), que empiezan en el cierre `from` (UTC) de su primera vela. De
+ * `older` queda solo lo anterior a `from`; un tramo o unos puntos pivote que seguían vigentes
+ * terminan ahí, y los del mismo día siguen como una sola entrada. No calcula nada: solo ordena
+ * por hora lo que mandó el motor para cada pedido.
+ */
+export function mergeLayers(
+  older: AnalysisLayers,
+  newer: AnalysisLayers,
+  from: string,
+): AnalysisLayers {
+  const cut = Date.parse(from)
+  const before = (iso: string) => Date.parse(iso) < cut
+  const upTo = (to: string | null) => (to === null || !before(to) ? from : to)
+
+  const ema = older.ema.map((run) => run.filter((p) => before(p.at))).filter((r) => r.length)
+  const [first, ...rest] = newer.ema
+  // la EMA sigue sin corte si la vista nueva arranca justo donde termina la vieja
+  if (ema.length && first?.[0]?.at === from)
+    ema[ema.length - 1] = [...ema[ema.length - 1], ...first]
+  else if (first) ema.push(first)
+  ema.push(...rest)
+
+  const fibonacci = [
+    ...older.fibonacci
+      .filter((f) => before(f.from))
+      .map((f) => ({ ...f, to: upTo(f.to), events: f.events.filter((e) => before(e.at)) })),
+    ...newer.fibonacci,
+  ]
+
+  const pivots = older.pivots.filter((p) => before(p.from)).map((p) => ({ ...p, to: upTo(p.to) }))
+  const [head, ...tail] = newer.pivots
+  const last = pivots[pivots.length - 1]
+  if (head && last && last.day === head.day && head.from === from) {
+    pivots[pivots.length - 1] = { ...head, from: last.from }
+  } else if (head) pivots.push(head)
+  pivots.push(...tail)
+
+  return {
+    emaPeriod: newer.emaPeriod,
+    ema,
+    fibonacci,
+    markers: [...older.markers.filter((m) => before(m.at)), ...newer.markers],
+    pivots,
+    vix: newer.vix,
+  }
+}
+
+/**
  * La entrada que vale en el cierre `t` (ms) de una lista con `from` y `to` en orden: la última
  * que empezó a más tardar en `t`. Para elegir qué rótulos van al eje (geometría de pantalla).
  */
