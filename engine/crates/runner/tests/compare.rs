@@ -139,6 +139,7 @@ fn setup(rate: Decimal) -> Setup {
         funding_rates: FundingRates::Constant(rate),
         funding_cutoff: NaiveTime::from_hms_opt(23, 0, 0).unwrap(),
         funding_tz: chrono_tz::Europe::Madrid,
+        futures_basis: None,
     }
 }
 

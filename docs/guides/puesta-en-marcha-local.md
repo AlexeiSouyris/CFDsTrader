@@ -77,7 +77,7 @@ Antes de cargar, `--dry-run` muestra qué falta y cuántos puntos estima, sin co
 | Qué | Comando | Costo de cupo |
 |---|---|---|
 | COT de la CFTC (2010 → hoy) | `cd intelligence && uv run python -m cfds_intel.sentiment` | 0 (API pública) |
-| €STR del BCE (2019 → hoy), para la financiación del backtest | `cd intelligence && uv run python -m cfds_intel.rates` | 0 (API pública) |
+| €STR del BCE (2019 → hoy) y EFFR y SOFR de la NY Fed (2010 → hoy, base de los futuros, #467), para la financiación del backtest | `cd intelligence && uv run python -m cfds_intel.rates` | 0 (API pública) |
 | Noticias de la Fed y del BCE (últimas de cada feed) | `cd intelligence && uv run python -m cfds_intel.news` | 0 |
 | Interpretación de las noticias nuevas con Ollama (ADR 0008, #186): guarda en `news_interpretations` y publica en Redis. Necesita Ollama con el modelo fijado; ~25 s por noticia. `--limit N` para ir de a poco. Para `cron`, ver la sección 7 | `infra/scripts/interpret_news.sh [--limit N]` (desde la raíz del repo) | 0 (no usa IG) |
 | Diarias de 5 años, **un año de prueba** | `cd engine && cargo run -p cfds-ig --example ig_backfill_daily -- DE40 2021-11-22 2022-11-22` | ~270 |

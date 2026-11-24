@@ -6,16 +6,16 @@
 use std::path::PathBuf;
 
 use cfds_backtest::{
-    BacktestConfig, DailyRates, FundingRates, Setup, StudyAssumptions, apply_assumptions,
-    apply_funding_scenario, mark_rollovers, setup_from_catalog,
+    BacktestConfig, DailyRates, FundingRates, FuturesBasis, Setup, StudyAssumptions,
+    apply_assumptions, apply_funding_scenario, mark_rollovers, setup_from_catalog, splice_rates,
 };
 use cfds_core::{Candle, InstrumentId, NewsInterpretation, Timeframe};
 use cfds_indicators::TrendConfig;
 use cfds_liquidity::LiquidityConfig;
 use cfds_market_data::{
-    CandleSource, CandleSources, Catalog, ExchangeCalendar, NewsFilterConfig, SpreadFilterConfig,
-    TradingWindowConfig, ValidationConfig, check_series, decision_flags, spread_flags,
-    trading_window,
+    CandleSource, CandleSources, Catalog, ExchangeCalendar, NewsFilterConfig, RateSegment,
+    SpreadFilterConfig, TradingWindowConfig, ValidationConfig, check_series, decision_flags,
+    spread_flags, trading_window,
 };
 use cfds_patterns::PatternsConfig;
 use cfds_risk::RiskConfig;
@@ -233,6 +233,30 @@ pub async fn prepare_with(
             rolls.len(),
             closed.len()
         );
+        // Base del futuro (#467): lo que el precio ya descontó se resta de la financiación.
+        let spec = sources.basis.instruments.get(id).ok_or_else(|| {
+            format!(
+                "falta futures.basis.rates.{id} en config/candle_sources.toml: sin la tasa de la \
+                 base, la financiación con futuros contaría la tasa dos veces (#467)"
+            )
+        })?;
+        let rate = load_spliced(&store, &spec.rate, to).await?;
+        let dividends = match &spec.dividends {
+            Some(d) => Some(FundingRates::Daily(load_spliced(&store, d, to).await?)),
+            None => None,
+        };
+        if let Some((day, pct)) = rate.at_with_day(from) {
+            println!(
+                "base del futuro ({:?}): se descuenta {} (al inicio, {pct} % del {day})",
+                sources.basis.mode,
+                rate.series()
+            );
+        }
+        setup.futures_basis = Some(FuturesBasis {
+            rate: FundingRates::Daily(rate),
+            dividends,
+            rolls,
+        });
     }
     // Filtro de spread (spec §7.3): necesita el spread de cierre guardado (#95), también de los
     // días anteriores al período. Sin ese dato no se abre. Con futuros no hay spread medido del
@@ -344,5 +368,27 @@ pub async fn prepare_with(
         news,
         published_from,
         interpreter,
+    })
+}
+
+/// Serie diaria empalmada de los tramos `segments` (#467), rotulada con sus nombres
+/// (`EFFR→SOFR`). Sin valores guardados, error con el comando que los carga.
+async fn load_spliced(
+    store: &PgStore,
+    segments: &[RateSegment],
+    to: DateTime<Utc>,
+) -> Result<DailyRates, Box<dyn std::error::Error>> {
+    let mut rows = Vec::with_capacity(segments.len());
+    for s in segments {
+        rows.push(store.reference_rates(&s.series, to).await?);
+    }
+    let label = segments
+        .iter()
+        .map(|s| s.series.as_str())
+        .collect::<Vec<_>>()
+        .join("→");
+    splice_rates(segments, rows, &label).ok_or_else(|| {
+        format!("no hay valores de {label} guardados: cargarlos con `python -m cfds_intel.rates`")
+            .into()
     })
 }

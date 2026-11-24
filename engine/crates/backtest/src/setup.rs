@@ -153,5 +153,6 @@ pub fn setup_from_catalog(
         funding_rates: m.funding_rates,
         funding_cutoff: m.funding_cutoff,
         funding_tz: m.funding_tz,
+        futures_basis: None,
     })
 }
