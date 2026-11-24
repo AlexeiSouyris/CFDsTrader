@@ -3,10 +3,13 @@
 //! - ronda 1 (#472, `docs/analysis/2026-11-ronda1-preregistro.md`): ruptura del rango de
 //!   apertura (familia C) y cambio de mes (familia D1);
 //! - ronda 2 (#486, `docs/analysis/2026-11-ronda2-preregistro.md`): tendencia mensual (familia A)
-//!   y momentum intradía (familia B), con comprar y mantener como vara del criterio 5 de A.
+//!   y momentum intradía (familia B), con comprar y mantener como vara del criterio 5 de A;
+//! - ronda 3 (#493, `docs/analysis/2026-11-ronda3-preregistro.md`): exposición manejada por
+//!   volatilidad (familia V), cascada al cruzar un número redondo (familia M1) y el descriptivo
+//!   de la deriva nocturna.
 //!
 //! Están aparte a propósito: ni el runner, ni el paper, ni la estrategia en uso (la confluencia
-//! de `cfds_strategy`) las usan. Solo las corren los ejemplos `ronda1` y `ronda2`.
+//! de `cfds_strategy`) las usan. Solo las corren los ejemplos `ronda1`, `ronda2` y `ronda3`.
 //!
 //! ```text
 //! señales (funciones puras, solo velas cerradas):   orb_plans / turn_of_month_plans /
@@ -22,10 +25,13 @@ pub mod buy_and_hold;
 pub mod config;
 pub mod intraday_momentum;
 pub mod orb;
+pub mod overnight;
+pub mod round_number;
 pub mod run;
 pub mod stats;
 pub mod trend;
 pub mod turn_of_month;
+pub mod vol_managed;
 
 use cfds_core::Candle;
 use cfds_strategy::Side;
@@ -34,16 +40,22 @@ use rust_decimal::Decimal;
 
 pub use buy_and_hold::buy_and_hold_returns;
 pub use config::{
-    IntradayMomentumConfig, OrbConfig, ResearchConfig, RuleConfig, TrendConfig, TurnOfMonthConfig,
+    IntradayMomentumConfig, OrbConfig, OvernightDriftConfig, ResearchConfig, RoundNumberConfig,
+    RuleConfig, TrendConfig, TurnOfMonthConfig, VolManagedConfig,
 };
 pub use intraday_momentum::intraday_momentum_plans;
 pub use orb::orb_plans;
+pub use overnight::window_returns;
+pub use round_number::{Levels, round_number_plans};
 pub use run::{
     StudyExit, StudyRejected, StudyRun, StudyTrade, execute_plan, monthly_returns, run_plans,
     simulate_leg, trade_return,
 };
 pub use trend::{monthly_reviews, trend_plans};
 pub use turn_of_month::{SessionBar, session_bars, turn_of_month_plans};
+pub use vol_managed::{
+    managed_returns, review_variances, session_close_indices, vol_constant, vol_weights,
+};
 
 /// Una operación que una familia quiere abrir, decidida al **cierre** de `signal_index`. Se
 /// ejecuta en la apertura de `signal_index + 1` y, si no salta antes el stop o un cierre forzado,

@@ -265,3 +265,64 @@ pub fn deflated_sharpe(xs: &[f64], trials: u32) -> Option<Deflated> {
         dsr,
     })
 }
+
+/// Regresión `y = α + β x + e` por mínimos cuadrados, con el error estándar de `α` robusto a
+/// heterocedasticidad (White, HC1: factor `n / (n − 2)`) y la prueba t unilateral de `α`
+/// (H0: α ≤ 0) con `n − 2` grados de libertad (pre-registro de la ronda 3 §3.2).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Alpha {
+    pub n: usize,
+    pub alpha: f64,
+    pub beta: f64,
+    pub se_alpha: f64,
+    pub t: f64,
+    /// P(T > t) con n − 2 grados de libertad.
+    pub p_value: f64,
+}
+
+pub fn alpha_hc1(y: &[f64], x: &[f64]) -> Option<Alpha> {
+    let n = y.len();
+    if n != x.len() || n < 3 {
+        return None;
+    }
+    let (my, mx) = (mean(y)?, mean(x)?);
+    let sxx: f64 = x.iter().map(|v| (v - mx) * (v - mx)).sum();
+    if sxx <= 0.0 {
+        return None;
+    }
+    let sxy: f64 = x.iter().zip(y).map(|(a, b)| (a - mx) * (b - my)).sum();
+    let beta = sxy / sxx;
+    let alpha = my - beta * mx;
+    let nf = n as f64;
+    // (X'X)⁻¹ X' diag(e²) X (X'X)⁻¹, elemento de α, con X = [1, x].
+    let sx: f64 = x.iter().sum();
+    let sx2: f64 = x.iter().map(|v| v * v).sum();
+    let det = nf * sx2 - sx * sx;
+    if det <= 0.0 {
+        return None;
+    }
+    // Fila de α en (X'X)⁻¹: [sx2, −sx] / det.
+    let meat: f64 = x
+        .iter()
+        .zip(y)
+        .map(|(xi, yi)| {
+            let e = yi - alpha - beta * xi;
+            let g = (sx2 - sx * xi) / det;
+            g * g * e * e
+        })
+        .sum();
+    let var = meat * nf / (nf - 2.0);
+    let se = var.sqrt();
+    if se <= 0.0 {
+        return None;
+    }
+    let t = alpha / se;
+    Some(Alpha {
+        n,
+        alpha,
+        beta,
+        se_alpha: se,
+        t,
+        p_value: student_t_upper(t, nf - 2.0),
+    })
+}

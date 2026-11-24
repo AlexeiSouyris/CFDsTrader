@@ -22,7 +22,7 @@ use crate::{
     Execution, RunError, Setup, basis_carry, commission, fill_price, funding_cutoffs, funding_over,
 };
 
-fn in_session(session: &Session, c: &Candle) -> bool {
+pub(crate) fn in_session(session: &Session, c: &Candle) -> bool {
     matches!(
         session.hours(session.trading_day(c.start)),
         Some(Some((open, close))) if c.start >= open && c.end() <= close
