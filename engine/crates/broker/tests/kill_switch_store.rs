@@ -22,7 +22,7 @@ use rust_decimal::{Decimal, dec};
 
 const RISK: &str = include_str!("../../../../config/risk.toml");
 const BACKTEST: &str = include_str!("../../../../config/backtest.toml");
-const BROKER: &str = include_str!("../../../../config/broker.toml");
+const BROKER: &str = include_str!("fixtures/broker.toml");
 const DB: &str = "cfds_test_broker_kill";
 
 /// Crea `cfds_test_broker_kill` desde cero y devuelve la conexión con las migraciones hechas.
