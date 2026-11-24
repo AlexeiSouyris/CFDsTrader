@@ -1,8 +1,8 @@
 //! Histórico en PostgreSQL.
 
 use cfds_core::{
-    Candle, CandleSpread, DailyCandle, DailyDrawdown, DailyIndicator, DailyVolTercile, Instrument,
-    InstrumentId, NewsInterpretation, ReferenceRate, SentimentObservation, Timeframe,
+    Candle, CandleSpread, DailyCandle, DailyDrawdown, DailyIndicator, DailyVolTercile, FxRate,
+    Instrument, InstrumentId, NewsInterpretation, ReferenceRate, SentimentObservation, Timeframe,
 };
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -857,6 +857,33 @@ impl PgStore {
                 ref_date,
                 published_at,
                 rate_pct,
+            })
+            .collect())
+    }
+
+    /// Tipos de cambio de `pair` (ADR 0013 §4, `fx_rate.v1`) publicados hasta `until`, en
+    /// orden de publicación. Incluye las correcciones (otra fila con otra `published_at`).
+    pub async fn fx_rates(
+        &self,
+        pair: &str,
+        until: DateTime<Utc>,
+    ) -> Result<Vec<FxRate>, StorageError> {
+        let rows: Vec<(NaiveDate, DateTime<Utc>, Decimal)> = sqlx::query_as(
+            "SELECT ref_date, published_at, rate FROM fx_rates
+             WHERE pair = $1 AND published_at <= $2
+             ORDER BY published_at, ref_date",
+        )
+        .bind(pair)
+        .bind(until)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(ref_date, published_at, rate)| FxRate {
+                pair: pair.to_string(),
+                ref_date,
+                published_at,
+                rate,
             })
             .collect())
     }

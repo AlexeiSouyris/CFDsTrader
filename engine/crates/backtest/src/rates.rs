@@ -2,13 +2,14 @@
 //!
 //! - [`FundingRates::Constant`]: un valor fijo, el de `[funding_benchmarks]` del catálogo.
 //! - [`FundingRates::Daily`]: la serie diaria guardada (`reference_rate.v1`, hoy el €STR).
+//! - [`FxRates`]: tipo de cambio diario de referencia (`fx_rate.v1`, EUR/USD del BCE, ADR 0013).
 //!
 //! Regla sin look-ahead (CLAUDE.md §5b): en el momento `t` vale el valor **del día más
 //! reciente ya publicado** a `t`. Una corrección (otra fila del mismo día, publicada después)
 //! reemplaza a la anterior desde que se publica; la corrección tardía de un día viejo no pisa
 //! el valor de un día más nuevo.
 
-use cfds_core::ReferenceRate;
+use cfds_core::{FxRate, ReferenceRate};
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 
@@ -40,23 +41,16 @@ pub struct DailyRates {
 
 impl DailyRates {
     /// `None` si `rates` está vacío o mezcla series.
-    pub fn new(mut rates: Vec<ReferenceRate>) -> Option<Self> {
+    pub fn new(rates: Vec<ReferenceRate>) -> Option<Self> {
         let series = rates.first()?.series.clone();
         if rates.iter().any(|r| r.series != series) {
             return None;
         }
-        rates.sort_by_key(|r| (r.published_at, r.ref_date));
-        let mut published = Vec::with_capacity(rates.len());
-        let mut in_force: Vec<(NaiveDate, Decimal)> = Vec::with_capacity(rates.len());
-        for r in rates {
-            // Un día igual o más nuevo que el vigente lo reemplaza (el igual es una corrección).
-            let current = match in_force.last() {
-                Some(&(day, value)) if day > r.ref_date => (day, value),
-                _ => (r.ref_date, r.rate_pct),
-            };
-            published.push(r.published_at);
-            in_force.push(current);
-        }
+        let (published, in_force) = in_force_timeline(
+            rates
+                .into_iter()
+                .map(|r| (r.published_at, r.ref_date, r.rate_pct)),
+        );
         Some(Self {
             series,
             published,
@@ -69,6 +63,74 @@ impl DailyRates {
     }
 
     /// Tasa vigente en `t` y el día al que corresponde.
+    pub fn at_with_day(&self, t: DateTime<Utc>) -> Option<(NaiveDate, Decimal)> {
+        let n = self.published.partition_point(|p| *p <= t);
+        n.checked_sub(1).map(|i| self.in_force[i])
+    }
+
+    pub fn at(&self, t: DateTime<Utc>) -> Option<Decimal> {
+        self.at_with_day(t).map(|(_, v)| v)
+    }
+}
+
+/// Horas de publicación en orden y el valor vigente después de cada una: el del día más
+/// reciente publicado hasta ahí. Un día igual o más nuevo que el vigente lo reemplaza (el igual
+/// es una corrección); uno más viejo publicado tarde no pisa al más nuevo.
+type Timeline = (Vec<DateTime<Utc>>, Vec<(NaiveDate, Decimal)>);
+
+fn in_force_timeline(rows: impl Iterator<Item = (DateTime<Utc>, NaiveDate, Decimal)>) -> Timeline {
+    let mut rows: Vec<_> = rows.collect();
+    rows.sort_by_key(|&(published, day, _)| (published, day));
+    let mut published = Vec::with_capacity(rows.len());
+    let mut in_force: Vec<(NaiveDate, Decimal)> = Vec::with_capacity(rows.len());
+    for (at, day, value) in rows {
+        let current = match in_force.last() {
+            Some(&(d, v)) if d > day => (d, v),
+            _ => (day, value),
+        };
+        published.push(at);
+        in_force.push(current);
+    }
+    (published, in_force)
+}
+
+/// Tipo de cambio diario de referencia de un par (ADR 0013 §4), listo para consultar por
+/// momento, con la misma regla sin look-ahead que [`DailyRates`]: en `t` vale el del día más
+/// reciente ya publicado. Sin ninguno publicado, `None`: nunca se inventa un tipo.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FxRates {
+    pair: String,
+    published: Vec<DateTime<Utc>>,
+    in_force: Vec<(NaiveDate, Decimal)>,
+}
+
+impl FxRates {
+    /// `None` si `rates` está vacío, mezcla pares o trae un tipo no positivo.
+    pub fn new(rates: Vec<FxRate>) -> Option<Self> {
+        let pair = rates.first()?.pair.clone();
+        if rates
+            .iter()
+            .any(|r| r.pair != pair || r.rate <= Decimal::ZERO)
+        {
+            return None;
+        }
+        let (published, in_force) = in_force_timeline(
+            rates
+                .into_iter()
+                .map(|r| (r.published_at, r.ref_date, r.rate)),
+        );
+        Some(Self {
+            pair,
+            published,
+            in_force,
+        })
+    }
+
+    pub fn pair(&self) -> &str {
+        &self.pair
+    }
+
+    /// Tipo vigente en `t` (unidades de la cotizada por 1 de la base) y su día.
     pub fn at_with_day(&self, t: DateTime<Utc>) -> Option<(NaiveDate, Decimal)> {
         let n = self.published.partition_point(|p| *p <= t);
         n.checked_sub(1).map(|i| self.in_force[i])

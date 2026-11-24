@@ -18,7 +18,9 @@ pub enum SetupError {
     Unknown(InstrumentId),
     /// Faltan datos del broker: no se simula con valores inventados.
     Pending(Vec<PendingField>),
-    /// El contrato está en otra moneda que la cuenta: hace falta un tipo de cambio con fuente.
+    /// El contrato está en otra moneda que la cuenta. La serie con fuente ya existe
+    /// ([`crate::FxRates`], EUR/USD del BCE, ADR 0013 §4), pero el recorrido todavía convierte
+    /// con un tipo constante: hasta que use el tipo vigente en cada momento, no se simula.
     CurrencyConversion { account: String, instrument: String },
     /// El capital inicial tiene que ser mayor que 0.
     InvalidEquity(Decimal),
@@ -40,7 +42,7 @@ impl std::fmt::Display for SetupError {
                 instrument,
             } => write!(
                 f,
-                "el contrato está en {instrument} y la cuenta en {account}: falta un tipo de cambio con fuente"
+                "el contrato está en {instrument} y la cuenta en {account}: falta convertir con el tipo vigente en cada momento (FxRates, ADR 0013 §4)"
             ),
             SetupError::InvalidEquity(e) => write!(f, "capital inicial inválido: {e}"),
         }

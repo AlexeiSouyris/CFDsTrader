@@ -55,7 +55,7 @@ pub use market_context::{
 };
 pub use money::{Currency, Money, MoneyError};
 pub use news::{Interpreter, NewsImpact, NewsInterpretation};
-pub use rate::ReferenceRate;
+pub use rate::{FxRate, ReferenceRate};
 pub use sentiment::SentimentObservation;
 pub use spread::CandleSpread;
 

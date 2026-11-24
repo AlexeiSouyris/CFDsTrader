@@ -115,6 +115,16 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - `published_at` nunca es anterior al fin de `ref_date`: un valor solo se usa desde que se publicó (CLAUDE.md §5b).
 - La escribe Python (`cfds_intel.rates`). La lee el motor para el costo de financiación de cada noche.
 
+### Tipos de cambio (ADR 0013 §4, #418)
+
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `fx_rate.v1` | `fx_rates` | Tipo de cambio diario de referencia, tal como lo publicó la fuente: `pair` (BASE+COTIZADA, hoy `EURUSD`: dólares por 1 euro, BCE), `ref_date`, `published_at` y `rate` (string decimal positivo). |
+
+- Tabla de **solo agregar** (trigger). Una corrección es otra fila, publicada cuando se leyó. `rate > 0` y `published_at` no anterior al día (`CHECK`).
+- `published_at`: el mismo día a las 17:00 de Fráncfort (`config/fx_rates.toml`; el BCE publica «alrededor de las 16:00 CET», se deja una hora de margen). Nunca antes.
+- La escribe Python (`python -m cfds_intel.rates.fx`). La lee el motor (`PgStore::fx_rates`, `cfds_backtest::FxRates`) para convertir montos de un contrato en USD a la cuenta en EUR con el tipo vigente en cada momento.
+
 ### Curva del Tesoro de EE. UU. (ADR 0012, #260)
 
 | Contrato | Tabla | Contenido |

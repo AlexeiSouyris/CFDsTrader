@@ -149,3 +149,63 @@ fn with_a_constant_rate_it_matches_the_old_formula() {
         );
     }
 }
+
+// ---------- Tipo de cambio EUR/USD del BCE (ADR 0013 §4) ----------
+
+mod fx {
+    use cfds_backtest::FxRates;
+    use cfds_core::FxRate;
+    use chrono::{DateTime, Utc};
+    use rust_decimal::{Decimal, dec};
+
+    fn utc(s: &str) -> DateTime<Utc> {
+        s.parse().unwrap()
+    }
+
+    fn fx(day: &str, published: &str, rate: Decimal) -> FxRate {
+        FxRate {
+            pair: "EURUSD".into(),
+            ref_date: day.parse().unwrap(),
+            published_at: utc(published),
+            rate,
+        }
+    }
+
+    fn series() -> FxRates {
+        FxRates::new(vec![
+            fx("2026-11-23", "2026-11-23T16:00:00Z", dec!(1.0939)),
+            fx("2026-11-20", "2026-11-20T16:00:00Z", dec!(1.099)),
+            // Corrección del 20, publicada el 24: no pisa al 23, que es más nuevo.
+            fx("2026-11-20", "2026-11-24T10:00:00Z", dec!(1.2)),
+        ])
+        .unwrap()
+    }
+
+    #[test]
+    fn a_rate_counts_from_its_publication_never_before() {
+        let s = series();
+        assert_eq!(s.pair(), "EURUSD");
+        assert_eq!(s.at(utc("2026-11-20T15:59:59Z")), None);
+        assert_eq!(s.at(utc("2026-11-20T16:00:00Z")), Some(dec!(1.099)));
+        // El fin de semana sigue el del viernes.
+        assert_eq!(s.at(utc("2026-11-22T12:00:00Z")), Some(dec!(1.099)));
+        assert_eq!(s.at(utc("2026-11-23T15:59:59Z")), Some(dec!(1.099)));
+        assert_eq!(s.at(utc("2026-11-23T16:00:00Z")), Some(dec!(1.0939)));
+        assert_eq!(s.at(utc("2026-11-25T00:00:00Z")), Some(dec!(1.0939)));
+    }
+
+    #[test]
+    fn empty_mixed_or_non_positive_series_are_rejected() {
+        assert!(FxRates::new(vec![]).is_none());
+        let mut other = fx("2026-11-20", "2026-11-20T16:00:00Z", dec!(0.85));
+        other.pair = "EURGBP".into();
+        assert!(
+            FxRates::new(vec![
+                fx("2026-11-23", "2026-11-23T16:00:00Z", dec!(1.09)),
+                other
+            ])
+            .is_none()
+        );
+        assert!(FxRates::new(vec![fx("2026-11-23", "2026-11-23T16:00:00Z", dec!(0))]).is_none());
+    }
+}
