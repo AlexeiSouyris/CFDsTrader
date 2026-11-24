@@ -12,7 +12,7 @@ Pedido del dueño (24-11-2026, textual, en #526): "Quiero que este modelo se esp
 - **Dónde sí puede ayudar el nicho:** el Nasdaq tiene características propias (pocas empresas gigantes pesan muchísimo, es muy sensible a las tasas, depende de los semiconductores y de los resultados trimestrales). Una idea que use **eso** tiene más sentido que una regla genérica de precio.
 - **Propuesta concreta: 4 hipótesis, 1,25 % de presupuesto de error cada una (5 % en total):**
   1. **H1. Antes del anuncio de la Fed** (la "deriva previa al FOMC"): estar comprado en US100 durante las ~24 horas antes del comunicado. **Los datos ya están en la base.**
-  2. **H2. Días de CPI y empleo:** estar comprado en US100 la sesión del dato. Falta cargar el calendario del BLS (gratis; falta que el dueño elija cómo acceder).
+  2. **H2. Días de CPI y empleo:** estar comprado en US100 la sesión del dato. Falta cargar el calendario del BLS (gratis; el dueño eligió la opción A el 24-11-2026: guarda las páginas a mano).
   3. **H3. Resultados de las gigantes del índice** (Apple, Microsoft, Nvidia, etc.): qué hace el US100 al día siguiente de que una publica resultados después del cierre. **Bloqueada por datos**: hay fuente gratis para la hora de publicación (a verificar), pero no encontramos una gratis para saber, en cada fecha pasada, cuáles eran las más grandes sin mirar el futuro.
   4. **H4. Un modelo de ML chico con contexto** (VIX, tasas, días de eventos), con walk-forward. Expectativa baja: las versiones anteriores no mejoraron.
 - **Ideas descartadas, con su razón (§4):** reaccionar a las tasas o al dólar de la madrugada (el Nasdaq ya cotiza a esa hora y lo descuenta en el momento), el régimen de VIX solo (es la familia V, que no pasó) y la deriva de la sesión de Asia y Europa (se apagó en 2021).
@@ -138,7 +138,7 @@ Qué se hace con el resultado: pasa → al dueño, que decide si se congela y se
 
 - **Idea:** los días con anuncios macro programados tienen retornos medios más altos (premio por el riesgo del anuncio). Fuente: Savor, P. y Wilson, M. (2013). *How much do investors care about macroeconomic risk? Evidence from scheduled economic announcements*. Journal of Financial and Quantitative Analysis, 48(2), 343–375 (página no leída en esta tarea).
 - **Regla:** compra en la apertura de la vela de 15 m de las **08:00 ET** del día del CPI o del informe de empleo (el dato sale a las 08:30 ET; se entra antes, porque reaccionar después es llegar tarde, programa 2 §2). Venta en la apertura de la vela de las **15:45 ET** del mismo día (sin noche, sin financiación). Si el mismo día hay CPI y empleo, cuenta una sola vez.
-- **Datos y publicación real:** calendario del BLS según el ADR 0016 (`published_at` = la hora de embargo del informe anterior de la misma serie, que anuncia la fecha siguiente). **No está cargado:** el ADR dejó abierta la forma de acceso al BLS (§1.3), que decide el dueño. Gratis.
+- **Datos y publicación real:** calendario del BLS según el ADR 0016 (`published_at` = la hora de embargo del informe anterior de la misma serie, que anuncia la fecha siguiente). **No está cargado todavía:** el dueño eligió la opción A del ADR 0016 §1.3 el 24-11-2026 (guarda las páginas a mano, #505). Gratis.
 - **Costo:** la entrada es fuera de sesión (spread 2,5 puntos) y la salida en sesión (1,6): ≈ 2,7 puntos de ida y vuelta con slippage, ≈ 1 a 6 pb.
 - **Poder: bajo** (≈ 26 % con el efecto supuesto, §2). Se propone igual porque es la otra mitad de la familia E y es barata, pero **el dueño debería saber que lo más probable es que no pase aunque exista**.
 
@@ -204,7 +204,7 @@ Consultado en la base el 24-11-2026, **solo lectura** (solo fechas extremas y ca
 | Futuros NQ 1 m (US100) | todas | **en la base** (`futures_bars_1m`) | 02-01-2011 | ya pagado (ADR 0011) |
 | Futuros ES e YM 1 m | control sin voto | **en la base** | 2011 | ya pagado |
 | Comunicados del FOMC con hora y `published_at` | H1, H4 | **en la base** (`official_releases`, 122 filas) | 26-01-2011 | gratis |
-| Calendario de CPI y empleo (BLS) | H2, H4 | **falta**; falta elegir la forma de acceso (ADR 0016 §1.3) | — | gratis |
+| Calendario de CPI y empleo (BLS) | H2, H4 | **falta**; acceso elegido (opción A, #505), esperando las páginas | — | gratis |
 | VIX diario | H4 | **en la base** (`vix_daily`, 2017 filas) | 02-01-2019 | gratis (CSV de Cboe desde 1990; términos aceptados por el dueño, ADR 0012) |
 | VIX 2011–2018 | H4 | falta cargar | — | gratis (mismo CSV) |
 | VXN (volatilidad del Nasdaq 100) | descartado / H4 opcional | no está | — | a verificar (Cboe) |
@@ -224,7 +224,7 @@ Consultado en la base el 24-11-2026, **solo lectura** (solo fechas extremas y ca
 
 1. **¿Aprueba el programa Nasdaq como propuesta**, con sus 4 hipótesis y 5 % de presupuesto (1,25 % cada una)? O solo algunas (lo recomendado: **H1 ahora, H2 cuando esté el BLS**; H3 y H4 en reserva). La aprobación tiene que quedar escrita en #526; el agente no la da por hecha. Después se escribe el **pre-registro** (congelado con fecha, hora y hash) antes de correr nada.
 2. **No probar la misma idea dos veces.** H1/H2 son la familia E del programa 2. Opciones: (a) correr E **una sola vez, sobre US100**, con cargo a la reserva de 2,5 % del programa 2, y cerrar esa reserva; (b) correr E sobre la cartera de tres índices en el programa 2 y sacar H1/H2 de este programa. Recomendación: **(a)**, porque es lo que pidió el dueño y no gasta presupuesto nuevo. En cualquier caso, decir qué pasa con los presupuestos abiertos (2,5 % del programa 2, 5 % del borrador del programa 3 y 5 % de este).
-3. **Acceso al BLS** (ADR 0016 §1.3) para cargar CPI y empleo: necesario para H2 y para las marcas de H4.
+3. **Acceso al BLS:** ya decidido (opción A, 24-11-2026, #505). Falta que el dueño guarde las páginas; necesario para H2 y para las marcas de H4.
 4. **H3: ¿se paga por datos de componentes?** Sin los pesos del índice en cada fecha, H3 no se puede probar sin mirar el futuro. Si sí: pedir precio a EODHD (o el proveedor que elija), con su ADR de proveedor de datos (`CLAUDE.md` §6). Si no: H3 se cierra.
 5. **Acceso a EDGAR** (SEC) para la hora de los resultados: qué User-Agent y contacto usar (no se usa ningún dato personal sin el OK del dueño).
 6. **Cargar el VIX 2011–2018** (gratis, mismo CSV) y revisar por qué la carga diaria de #522 tiene 6E solo hasta 2019 y no tiene 6J, 6B, 6A, SI, CL ni HG. Solo hace falta para H4.
