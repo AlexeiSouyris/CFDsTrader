@@ -208,11 +208,16 @@ fn stop_on_the_wrong_side_no_price_and_unknown_instrument_are_rejected() {
         rejected(&mut b, &order("e", "DE40", OrderSide::Long, dec!(98), 20)),
         OrderRejection::UnknownInstrument
     );
-    // sin ATR todavía (calentamiento)
+    // sin ATR todavía (calentamiento): faltan velas recientes, no es un dato inválido (#361)
     assert_eq!(
         rejected(&mut b, &order("f", "US100", OrderSide::Long, dec!(98), 5)),
-        OrderRejection::InvalidInput
+        OrderRejection::NoRecentCandles
     );
+    // La vista previa da el mismo motivo, con el precio de referencia de la última vela cerrada.
+    let v = b.preview(&order("g", "US100", OrderSide::Long, dec!(98), 5), at(5));
+    assert!(!v.accepted);
+    assert_eq!(v.rejection, Some(OrderRejection::NoRecentCandles));
+    assert!(v.reference.is_some());
 }
 
 #[test]

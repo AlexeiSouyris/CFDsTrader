@@ -639,8 +639,9 @@ impl PaperBroker {
             .last()
             .copied()
             .flatten();
+        // Sin ATR (faltan velas cerradas recientes): motivo propio, no un dato inválido (#361).
         let Some(atr) = atr else {
-            return fail(OrderRejection::InvalidInput);
+            return fail(OrderRejection::NoRecentCandles);
         };
         let req = Request {
             instrument: order.instrument_id.clone(),
