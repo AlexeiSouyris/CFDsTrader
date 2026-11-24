@@ -117,6 +117,7 @@ class FedConfig:
     calendars_url: str
     release_url_prefix: str
     scheduled_meetings_per_year: int
+    max_unscheduled_lag_days: int
     tz: ZoneInfo
     time_rules: tuple[TimeRule, ...]
     announcements: tuple[Announcement, ...]
@@ -215,6 +216,9 @@ def load_config(text: str) -> OfficialCalendarConfig:
     first, last = _int(fed, "first_year", "fed"), _int(fed, "last_year", "fed")
     hist_last = _int(fed, "historical_last_year", "fed")
     per_year = _int(fed, "scheduled_meetings_per_year", "fed")
+    max_lag = _int(fed, "max_unscheduled_lag_days", "fed")
+    if not 0 <= max_lag <= 31:
+        raise OfficialCalendarError("fed.max_unscheduled_lag_days tiene que estar entre 0 y 31")
     if not 2000 <= first <= last or per_year <= 0:
         raise OfficialCalendarError("fed: años o reuniones por año inválidos")
     historical = _https(fed, "historical_url", "fed")
@@ -243,6 +247,7 @@ def load_config(text: str) -> OfficialCalendarConfig:
             calendars_url=_https(fed, "calendars_url", "fed"),
             release_url_prefix=prefix,
             scheduled_meetings_per_year=per_year,
+            max_unscheduled_lag_days=max_lag,
             tz=tz,
             time_rules=tuple(_rule(r, i) for i, r in enumerate(rules)),
             announcements=tuple(_announcement(a, i, prefix) for i, a in enumerate(anns)),
