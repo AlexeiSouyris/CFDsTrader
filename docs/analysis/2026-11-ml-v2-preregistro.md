@@ -17,7 +17,7 @@ hiperparámetros (`config/ml.toml`), misma semilla, mismos cortes walk-forward c
 |---|---|---|
 | `tasas` | rendimiento del Tesoro de EE. UU. a 3 meses, 2 años y 10 años, en % | `treasury_yields` (ADR 0012): el último valor con `published_at` ≤ `signal_at` |
 | `vix` | cierre del VIX | `vix_daily` (ADR 0012 §2): el último valor con `published_at` ≤ `signal_at` |
-| `analogos` | proporción de los análogos (todos los vecinos) que tocaron primero el objetivo en la dirección de la propuesta | `cfds_intel.analogs`, calculado con las diarias cerradas antes de `signal_at` |
+| `analogos` | entre los vecinos de "todos" con ATR (`config/analogs.toml`): en un largo, la proporción que tocó +2R antes que −1R (`up`); en un corto, la que tocó −1R antes que +2R (`down`) | `cfds_intel.analogs` con las diarias de futuros (todas las `.FUT`, como el informe de análogos), con la ventana que termina en la última diaria cerrada al `signal_at`. Con menos vecinos que `min_neighbors`, falta |
 
 Las tres variantes forman **la familia**: K = 3. El orden de prioridad del Issue (sentimiento,
 tasas, análogos, noticias) cambia solo por disponibilidad de datos:
