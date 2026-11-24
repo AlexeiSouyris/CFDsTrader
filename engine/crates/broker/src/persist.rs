@@ -9,19 +9,96 @@
 //! N sale de `[reconcile] every_minutes` de `config/broker.toml`.
 //!
 //! Las dos reconstrucciones aplican los cambios guardados del kill switch (#441,
-//! [`kill_switch_marks`]) en su punto del registro.
+//! [`kill_switch_marks`]) en su punto del registro, y arrancan desde el último punto de control
+//! que verifica (#463, [`crate::checkpoint`]); después de cada reconciliación periódica limpia se
+//! guarda uno nuevo si ya hay algo para sellar ([`save_checkpoint`]).
 
 use std::collections::BTreeMap;
 
 use cfds_core::{InstrumentId, Order, OrderReport, Position};
-use cfds_storage::{PgStore, StorageError};
+use cfds_storage::{CheckpointRow, PgStore, StorageError};
 use chrono::{DateTime, Utc};
 
 use crate::Broker;
+use crate::checkpoint::{BrokerCheckpoint, SealedCheckpoint, seal, verified_chain};
 use crate::paper::{BrokerConfig, MarketSetup, PaperBroker};
 use crate::reconcile::{
-    KillSwitchChange, KillSwitchMark, Mismatch, Reconciliation, restore_with_kill_switch,
+    KillSwitchChange, KillSwitchMark, Mismatch, Reconciliation, restore_from_checkpoint,
+    restore_with_kill_switch,
 };
+
+/// Los puntos de control guardados cuya cadena de hashes verifica (#463), en orden, con su hash.
+pub async fn stored_checkpoints(
+    store: &PgStore,
+) -> Result<Vec<(BrokerCheckpoint, String)>, StorageError> {
+    let rows: Vec<SealedCheckpoint> = store
+        .paper_checkpoints()
+        .await?
+        .into_iter()
+        .map(|r| SealedCheckpoint {
+            after_orders: usize::try_from(r.after_orders).unwrap_or(usize::MAX),
+            state: r.state,
+            prev_hash: r.prev_hash,
+            hash: r.hash,
+        })
+        .collect();
+    Ok(verified_chain(&rows))
+}
+
+/// Reconstruye desde el último punto de control que verifica con este registro, esta config y
+/// estas velas; si ninguno, desde la primera orden (#463). Devuelve también desde cuántas
+/// órdenes arrancó (`None`: desde la primera).
+pub fn restore_best(
+    cfg: BrokerConfig,
+    markets: BTreeMap<InstrumentId, MarketSetup>,
+    checkpoints: &[(BrokerCheckpoint, String)],
+    journal: &[(Order, OrderReport)],
+    marks: &[KillSwitchMark],
+    broker_positions: &[Position],
+    now: DateTime<Utc>,
+) -> (PaperBroker, Reconciliation, Option<usize>) {
+    for (ck, _) in checkpoints.iter().rev() {
+        if let Ok((paper, rec)) = restore_from_checkpoint(
+            cfg.clone(),
+            markets.clone(),
+            ck,
+            journal,
+            marks,
+            broker_positions,
+            now,
+        ) {
+            return (paper, rec, Some(ck.after_orders));
+        }
+    }
+    let (paper, rec) =
+        restore_with_kill_switch(cfg, markets, journal, marks, broker_positions, now);
+    (paper, rec, None)
+}
+
+/// Guarda el punto de control `ck` (planeado sobre el broker reconstruido desde lo guardado,
+/// después de una reconciliación limpia: [`PaperBroker::plan_checkpoint`]) encadenado al último
+/// (`chain`), y corta también el broker en marcha en ese punto. Si no coincide, el broker en
+/// marcha sigue entero: la próxima reconstrucción usa sus velas completas, igual de correcta.
+pub async fn save_checkpoint(
+    store: &PgStore,
+    running: &mut PaperBroker,
+    ck: &BrokerCheckpoint,
+    chain: &[(BrokerCheckpoint, String)],
+) -> Result<(), StorageError> {
+    let sealed = seal(ck, chain.last().map(|(_, h)| h.as_str()))
+        .map_err(|e| StorageError::CorruptRow(format!("punto de control: {e}")))?;
+    store
+        .insert_paper_checkpoint(&CheckpointRow {
+            after_orders: u64::try_from(sealed.after_orders).unwrap_or(u64::MAX),
+            state: sealed.state,
+            prev_hash: sealed.prev_hash,
+            hash: sealed.hash,
+        })
+        .await?;
+    // Si no coincide, el broker en marcha queda entero (más lento, pero igual de correcto).
+    let _ = running.apply_checkpoint(ck);
+    Ok(())
+}
 
 /// Envía la orden y guarda la orden con su informe. Si el guardado falla, el informe no se
 /// pierde: se devuelve el error y la orden se puede reenviar (el `order_id` es idempotente).
@@ -98,14 +175,17 @@ pub async fn restore_from_store(
 ) -> Result<(PaperBroker, Reconciliation), StorageError> {
     let journal = store.paper_journal().await?;
     let marks = kill_switch_marks(store).await?;
-    Ok(restore_with_kill_switch(
+    let checkpoints = stored_checkpoints(store).await?;
+    let (paper, rec, _) = restore_best(
         cfg,
         markets,
+        &checkpoints,
         &journal,
         &marks,
         broker_positions,
         now,
-    ))
+    );
+    Ok((paper, rec))
 }
 
 /// Cuándo toca la próxima reconciliación periódica.
@@ -138,9 +218,17 @@ pub async fn reconcile_periodically(
     }
     let stored = store.paper_journal().await?;
     let marks = kill_switch_marks(store).await?;
+    let checkpoints = stored_checkpoints(store).await?;
     let running_positions = running.positions(now);
-    let (_, mut rec) =
-        restore_with_kill_switch(cfg, markets, &stored, &marks, &running_positions, now);
+    let (rebuilt, mut rec, _) = restore_best(
+        cfg,
+        markets,
+        &checkpoints,
+        &stored,
+        &marks,
+        &running_positions,
+        now,
+    );
     // Lo que el broker en marcha procesó y no está guardado, o al revés, también es diferencia.
     for (o, _) in running.journal() {
         if !stored.iter().any(|(s, _)| s.order_id == o.order_id) {
@@ -159,7 +247,14 @@ pub async fn reconcile_periodically(
         }
     }
     schedule.last = Some(now);
-    if !rec.is_clean() {
+    // El punto de control sale de la reconstrucción desde lo guardado, no del broker en marcha.
+    let plan = rebuilt.plan_checkpoint(now, marks.len());
+    drop(rebuilt);
+    if rec.is_clean() {
+        if let Some(ck) = plan {
+            save_checkpoint(store, running, &ck, &checkpoints).await?;
+        }
+    } else {
         running.activate_kill_switch(rec.reason(), now);
     }
     Ok(Some(rec))

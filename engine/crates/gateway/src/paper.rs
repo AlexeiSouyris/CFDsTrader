@@ -30,7 +30,8 @@ use cfds_backtest::{AccountFx, DailyRates, FundingRates, FxRates, market_terms_f
 use cfds_broker::{
     Broker, BrokerConfig, Flush, FundingSetup, MarketSetup, PaperBroker, ReconcileSchedule,
     flush_journal, kill_switch_marks, kill_switch_stored_active, reconcile_periodically,
-    restore_with_kill_switch, save_kill_switch, submit_and_record,
+    restore_from_checkpoint, restore_with_kill_switch, save_kill_switch, stored_checkpoints,
+    submit_and_record,
 };
 use cfds_core::{
     InstrumentId, Order, OrderReport, PaperAccount, Position, TicketVerdict, Timeframe,
@@ -341,6 +342,95 @@ pub fn candles_from(
     journal.first().map_or(now, |(o, _)| o.created_at) - window
 }
 
+/// Los mercados del broker armados desde el catálogo y lo guardado (velas de 15m desde
+/// `from(id)`, tipos de cambio y tasas de financiación hasta `now`).
+struct Loaded {
+    markets: BTreeMap<InstrumentId, MarketSetup>,
+    /// Instrumentos que no se operan, con el motivo.
+    skipped: Vec<String>,
+    funding_series: BTreeMap<InstrumentId, String>,
+    fx_pairs: BTreeMap<InstrumentId, String>,
+}
+
+async fn load_markets(
+    store: &PgStore,
+    catalog: &Catalog,
+    now: DateTime<Utc>,
+    from: impl Fn(&InstrumentId) -> DateTime<Utc>,
+) -> Result<Loaded, String> {
+    let mut markets = BTreeMap::new();
+    let mut skipped = Vec::new();
+    let mut funding_series = BTreeMap::new();
+    let mut fx_pairs = BTreeMap::new();
+    for id in catalog.instruments.keys() {
+        let terms = match market_terms_from_catalog(catalog, id) {
+            Ok(t) => t,
+            Err(e) => {
+                skipped.push(format!("{id}: {e}"));
+                continue;
+            }
+        };
+        // Contrato en otra moneda que la cuenta (el oro, en USD; ADR 0013 §4): el tipo de
+        // cambio diario guardado hasta `now`. Sin ninguno guardado, no entra.
+        let mut fx = terms.account_to_instrument.clone();
+        if let AccountFx::Missing { pair } = &fx {
+            let saved = store.fx_rates(pair, now).await.map_err(|e| e.to_string())?;
+            match FxRates::new(saved) {
+                Some(daily) => {
+                    fx_pairs.insert(id.clone(), pair.clone());
+                    fx = AccountFx::Daily(daily);
+                }
+                None => {
+                    skipped.push(format!("{id}: no hay tipos de {pair} guardados"));
+                    continue;
+                }
+            }
+        }
+        // Financiación con la serie diaria guardada (#79) si existe; si no, la constante
+        // documentada del catálogo (`[funding_benchmarks]`).
+        let mut rates = terms.funding_rates.clone();
+        if let Some(series) = catalog.instruments[id].terms.funding_benchmark.value() {
+            let saved = store
+                .reference_rates(series, now)
+                .await
+                .map_err(|e| e.to_string())?;
+            if let Some(daily) = DailyRates::new(saved) {
+                rates = FundingRates::Daily(daily);
+                // Solo si ya había serie al arrancar: pasar de la constante a la serie
+                // cambiaría los cortes ya valuados.
+                funding_series.insert(id.clone(), series.to_owned());
+            }
+        }
+        let candles = store
+            .candles(id, Timeframe::M15, from(id), now)
+            .await
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .filter(|c| c.is_closed_at(now))
+            .collect();
+        markets.insert(
+            id.clone(),
+            MarketSetup {
+                limits: terms.limits,
+                costs: terms.costs,
+                account_to_instrument: fx,
+                candles,
+                funding: FundingSetup {
+                    cutoff: terms.funding_cutoff,
+                    tz: terms.funding_tz,
+                    rates,
+                },
+            },
+        );
+    }
+    Ok(Loaded {
+        markets,
+        skipped,
+        funding_series,
+        fx_pairs,
+    })
+}
+
 impl PgPaper {
     /// Arma los mercados desde el catálogo y las velas de 15m guardadas, reconstruye el broker
     /// desde el registro y lo reconcilia (kill switch si algo no coincide). Los instrumentos con
@@ -356,85 +446,73 @@ impl PgPaper {
         ops: Arc<Ops>,
         now: DateTime<Utc>,
     ) -> Result<(Self, Vec<String>), String> {
-        let mut markets = BTreeMap::new();
-        let mut skipped = Vec::new();
         let journal = store.paper_journal().await.map_err(|e| e.to_string())?;
         let candles_window = TimeDelta::days(i64::from(paper.candles_days));
         let from = candles_from(&journal, candles_window, now);
-        let mut funding_series = BTreeMap::new();
-        let mut fx_pairs = BTreeMap::new();
-        for id in catalog.instruments.keys() {
-            let terms = match market_terms_from_catalog(catalog, id) {
-                Ok(t) => t,
-                Err(e) => {
-                    skipped.push(format!("{id}: {e}"));
-                    continue;
-                }
-            };
-            // Contrato en otra moneda que la cuenta (el oro, en USD; ADR 0013 §4): el tipo de
-            // cambio diario guardado hasta `now`. Sin ninguno guardado, no entra.
-            let mut fx = terms.account_to_instrument.clone();
-            if let AccountFx::Missing { pair } = &fx {
-                let saved = store.fx_rates(pair, now).await.map_err(|e| e.to_string())?;
-                match FxRates::new(saved) {
-                    Some(daily) => {
-                        fx_pairs.insert(id.clone(), pair.clone());
-                        fx = AccountFx::Daily(daily);
-                    }
-                    None => {
-                        skipped.push(format!("{id}: no hay tipos de {pair} guardados"));
-                        continue;
-                    }
-                }
-            }
-            // Financiación con la serie diaria guardada (#79) si existe; si no, la constante
-            // documentada del catálogo (`[funding_benchmarks]`).
-            let mut rates = terms.funding_rates.clone();
-            if let Some(series) = catalog.instruments[id].terms.funding_benchmark.value() {
-                let saved = store
-                    .reference_rates(series, now)
-                    .await
-                    .map_err(|e| e.to_string())?;
-                if let Some(daily) = DailyRates::new(saved) {
-                    rates = FundingRates::Daily(daily);
-                    // Solo si ya había serie al arrancar: pasar de la constante a la serie
-                    // cambiaría los cortes ya valuados.
-                    funding_series.insert(id.clone(), series.to_owned());
-                }
-            }
-            let candles = store
-                .candles(id, Timeframe::M15, from, now)
-                .await
-                .map_err(|e| e.to_string())?
-                .into_iter()
-                .filter(|c| c.is_closed_at(now))
-                .collect();
-            markets.insert(
-                id.clone(),
-                MarketSetup {
-                    limits: terms.limits,
-                    costs: terms.costs,
-                    account_to_instrument: fx,
-                    candles,
-                    funding: FundingSetup {
-                        cutoff: terms.funding_cutoff,
-                        tz: terms.funding_tz,
-                        rates,
-                    },
-                },
-            );
-        }
         // El kill switch guardado (#441) vuelve en el mismo punto del registro: sobrevive al
         // reinicio y solo lo apaga una liberación guardada (votación de la spec §1.2).
         let marks = kill_switch_marks(&store).await.map_err(|e| e.to_string())?;
         // En paper, el "broker" es el mismo simulador: se reconstruye y se exige que cada
-        // informe salga igual al guardado (drift = repintado → kill switch).
-        let (probe, _) =
-            restore_with_kill_switch(cfg.clone(), markets.clone(), &journal, &marks, &[], now);
-        let mut probe = probe;
-        let positions = probe.positions(now);
-        let (mut broker, rec) =
-            restore_with_kill_switch(cfg, markets, &journal, &marks, &positions, now);
+        // informe salga igual al guardado (drift = repintado → kill switch). Primero desde el
+        // último punto de control que verifica (#463), con las velas desde su corte; si no
+        // verifica, desde la primera orden, como antes.
+        let checkpoints = stored_checkpoints(&store)
+            .await
+            .map_err(|e| e.to_string())?;
+        let mut restored = None;
+        if let Some((ck, _)) = checkpoints.last() {
+            let loaded = load_markets(&store, catalog, now, |id| {
+                ck.cuts.get(id).and_then(|c| c.first_start).unwrap_or(from)
+            })
+            .await?;
+            let rebuild = |positions: &[Position]| {
+                restore_from_checkpoint(
+                    cfg.clone(),
+                    loaded.markets.clone(),
+                    ck,
+                    &journal,
+                    &marks,
+                    positions,
+                    now,
+                )
+            };
+            if let Ok((mut probe, _)) = rebuild(&[]) {
+                let positions = probe.positions(now);
+                if let Ok((broker, rec)) = rebuild(&positions) {
+                    restored = Some((broker, rec, loaded, Some(ck.after_orders)));
+                }
+            }
+        }
+        let (mut broker, rec, loaded, from_checkpoint) = match restored {
+            Some(r) => r,
+            None => {
+                let loaded = load_markets(&store, catalog, now, |_| from).await?;
+                let (mut probe, _) = restore_with_kill_switch(
+                    cfg.clone(),
+                    loaded.markets.clone(),
+                    &journal,
+                    &marks,
+                    &[],
+                    now,
+                );
+                let positions = probe.positions(now);
+                let (broker, rec) = restore_with_kill_switch(
+                    cfg,
+                    loaded.markets.clone(),
+                    &journal,
+                    &marks,
+                    &positions,
+                    now,
+                );
+                (broker, rec, loaded, None)
+            }
+        };
+        let Loaded {
+            skipped,
+            funding_series,
+            fx_pairs,
+            ..
+        } = loaded;
         let gate = Gate::default();
         gate.set(gate_after_reconcile(&rec));
         ops.log.log(
@@ -451,6 +529,7 @@ impl PgPaper {
                 "mismatches": rec.mismatches.len(),
                 "drifts": rec.drifts.len(),
                 "orders_accepted": gate.state() == GateState::Ready,
+                "from_checkpoint_after_orders": from_checkpoint,
             }),
         );
         let events = broker.take_events();

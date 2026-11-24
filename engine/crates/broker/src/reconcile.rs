@@ -22,6 +22,7 @@ use cfds_core::{ClientId, InstrumentId, Order, OrderReport, Position};
 use chrono::{DateTime, Utc};
 
 use crate::Broker;
+use crate::checkpoint::BrokerCheckpoint;
 use crate::paper::{BrokerConfig, MarketSetup, PaperBroker};
 
 /// Una diferencia entre el libro propio y el broker.
@@ -160,10 +161,60 @@ pub fn restore_with_kill_switch(
     broker_positions: &[Position],
     now: DateTime<Utc>,
 ) -> (PaperBroker, Reconciliation) {
-    let mut paper = PaperBroker::new(cfg, markets);
+    replay(
+        PaperBroker::new(cfg, markets),
+        journal,
+        0,
+        marks,
+        broker_positions,
+        now,
+    )
+}
+
+/// Como [`restore_with_kill_switch`], pero desde un punto de control (#463): el broker arranca
+/// en el estado de `ck` y se reenvían solo las órdenes y los cambios del kill switch
+/// posteriores. Da exactamente lo mismo que desde la primera orden. Error si el punto de
+/// control no verifica con este registro, esta config o estas velas (y entonces se reconstruye
+/// completo).
+pub fn restore_from_checkpoint(
+    cfg: BrokerConfig,
+    markets: BTreeMap<InstrumentId, MarketSetup>,
+    ck: &BrokerCheckpoint,
+    journal: &[(Order, OrderReport)],
+    marks: &[KillSwitchMark],
+    broker_positions: &[Position],
+    now: DateTime<Utc>,
+) -> Result<(PaperBroker, Reconciliation), String> {
+    let applied = marks
+        .get(..ck.marks_applied)
+        .ok_or("hay menos cambios del kill switch que los que cubre el punto de control")?;
+    if applied.iter().any(|m| m.after_orders > ck.after_orders) {
+        return Err("un cambio del kill switch cubierto es posterior al punto de control".into());
+    }
+    let paper = PaperBroker::from_checkpoint(cfg, markets, ck, journal)?;
+    Ok(replay(
+        paper,
+        journal,
+        ck.after_orders,
+        &marks[ck.marks_applied..],
+        broker_positions,
+        now,
+    ))
+}
+
+/// Reenvía `journal[start..]` sobre `paper`, con los cambios del kill switch `marks` en su
+/// punto del registro, y reconcilia con `broker_positions` en `now`.
+fn replay(
+    mut paper: PaperBroker,
+    journal: &[(Order, OrderReport)],
+    start: usize,
+    marks: &[KillSwitchMark],
+    broker_positions: &[Position],
+    now: DateTime<Utc>,
+) -> (PaperBroker, Reconciliation) {
     let mut drifts = Vec::new();
     let mut pending = marks.iter().peekable();
-    for (i, (order, stored)) in journal.iter().enumerate() {
+    for (i, (order, stored)) in journal.iter().enumerate().skip(start) {
         while let Some(m) = pending.next_if(|m| m.after_orders <= i) {
             apply(&mut paper, m);
         }
