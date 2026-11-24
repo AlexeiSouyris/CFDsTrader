@@ -14,6 +14,7 @@ import psycopg
 import pytest
 
 from cfds_intel.models.config import ROOT, load_config
+from cfds_intel.models.dataset import BacktestOutcomes
 from cfds_intel.models.experiment import CONFIG_FILES, run
 from cfds_intel.models.registry import record
 
@@ -89,7 +90,7 @@ def test_an_experiment_runs_end_to_end_and_is_recorded_once() -> None:
     run_id = f"ml-exp-{time.time_ns()}"
     with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as conn:
         seed_run(conn, run_id)
-        dataset, evaluation, doc = run(conn, run_id, CFG, TEXTS)
+        dataset, evaluation, doc, _ = run(conn, BacktestOutcomes(run_id), CFG, TEXTS)
         jsonschema.validate(doc, SCHEMA)
         assert len(dataset.examples) == 700
         assert len(evaluation.windows) == 1

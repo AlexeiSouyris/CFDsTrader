@@ -36,6 +36,8 @@ class TrainingConfig:
 class EvaluationConfig:
     bootstrap_resamples: int
     confidence: float
+    # Grupos del gráfico de calibración (spec §6: deciles de la predicción).
+    calibration_bins: int
 
 
 @dataclass(frozen=True)
@@ -59,6 +61,7 @@ def _evaluation(t: object) -> EvaluationConfig:
     return EvaluationConfig(
         bootstrap_resamples=_int(t, "bootstrap_resamples", 1),
         confidence=_fraction(t.get("confidence"), "confidence"),
+        calibration_bins=_int(t, "calibration_bins", 2),
     )
 
 
