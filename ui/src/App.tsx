@@ -128,9 +128,7 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
               {view === 'fondo' && <FundView />}
               {view === 'competencia' && <CompetitionView />}
               {view === 'glosario' && <GlossaryView />}
-              {view === NOT_FOUND && (
-                <NotFound onHome={() => select('panel')} onExplore={() => select('graficos')} />
-              )}
+              {view === NOT_FOUND && <NotFound onHome={() => select('panel')} />}
             </div>
           </GlassShell>
         )}

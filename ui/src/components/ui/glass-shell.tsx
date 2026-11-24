@@ -6,11 +6,31 @@
  * docks y búsqueda) y "Adjustable Glass Dashboard" (panel para ajustar el vidrio). Queda un solo
  * armazón; el contenido de cada vista lo decide la app.
  */
-import { Bell, Moon, Search, SlidersHorizontal, Sun, X, type LucideIcon } from 'lucide-react'
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import {
+  Bell,
+  LineChart,
+  Moon,
+  Search,
+  SlidersHorizontal,
+  Sun,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from 'react'
 
 import { CandlestickIcon } from '@/components/ui/animated-icons'
 import { PRESETS, type GlassSettings } from '@/components/ui/glass-settings'
+import { useInstruments } from '@/lib/liquidity-api'
+import type { InstrumentInfo } from '@/lib/liquidity-contracts'
+import { focusInstrument, OPEN_SEARCH_EVENT } from '@/lib/terminal-focus'
 import { cn } from '@/lib/utils'
 
 export type ShellView = {
@@ -68,8 +88,13 @@ export function GlassShell({
       }
       if (e.key === 'Escape') setPopover(null)
     }
+    const open = () => setSearching(true)
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener(OPEN_SEARCH_EVENT, open)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener(OPEN_SEARCH_EVENT, open)
+    }
   }, [])
 
   return (
@@ -437,6 +462,31 @@ function Dock({
   )
 }
 
+/** El último catálogo que llegó: la próxima vez que se abre el buscador se ve al instante. */
+let lastInstruments: InstrumentInfo[] = []
+
+type SearchItem = {
+  key: string
+  kind: 'view' | 'instrument'
+  id: string
+  label: string
+  detail: string
+  icon: LucideIcon
+}
+
+/**
+ * El buscador del encabezado (#362): vistas e instrumentos del catálogo
+ * (`GET /api/v1/instruments`). Elegir un instrumento abre el Terminal con ese gráfico.
+ *
+ * - Es un `combobox` con su `listbox`: ↑/↓ marcan (con `aria-activedescendant`, el foco queda en
+ *   el campo), Enter elige la marcada (o la primera) y Esc cierra.
+ * - Con el puntero se elige en `pointerup` sobre la misma opción donde empezó (`pointerdown`), con
+ *   `click` de respaldo: si el navegador o una extensión se come el `click`, igual navega. No se
+ *   navega en `pointerdown` porque el diálogo desaparecería bajo el dedo y el `pointerup`/`click`
+ *   caería sobre lo que hay debajo. En el dedo, desplazar la lista da `pointercancel`, no elige.
+ * - Se cierra por el fondo solo si el clic cae fuera del rectángulo del diálogo: un clic en su
+ *   borde o en su relleno (que también tiene al diálogo como `target`) no lo cierra.
+ */
 function ViewSearch({
   views,
   onClose,
@@ -447,56 +497,185 @@ function ViewSearch({
   onSelect: (id: string) => void
 }) {
   const ref = useRef<HTMLDialogElement>(null)
+  const base = useId()
+  const listId = `${base}-list`
+  const optionId = (i: number) => `${base}-opt-${i}`
   const [q, setQ] = useState('')
+  const [mark, setMark] = useState(0)
+  const pressed = useRef<string | null>(null)
+  const chosen = useRef(false)
+  const catalog = useInstruments()
+  const instruments = catalog.status === 'ok' ? catalog.data.instruments : lastInstruments
+  useEffect(() => {
+    if (catalog.status === 'ok') lastInstruments = catalog.data.instruments
+  }, [catalog])
+  // Enter antes de que llegue el catálogo: se elige apenas llega (o falla)
+  const waiting = useRef(false)
+
   useEffect(() => {
     const d = ref.current
     // jsdom (tests) no implementa showModal: ahí se abre sin modo modal
-    if (d?.showModal) d.showModal()
+    if (d?.showModal && !d.open) d.showModal()
     else d?.setAttribute('open', '')
   }, [])
+
   const words = q.toLowerCase().split(/\s+/).filter(Boolean)
-  const found = views.filter((v) =>
-    words.every((w) => `${v.label} ${v.description}`.toLowerCase().includes(w)),
-  )
+  const matches = (text: string) => words.every((w) => text.toLowerCase().includes(w))
+  const items: SearchItem[] = [
+    ...views
+      .filter((v) => matches(`${v.label} ${v.description}`))
+      .map((v) => ({
+        key: `view:${v.id}`,
+        kind: 'view' as const,
+        id: v.id,
+        label: v.label,
+        detail: v.description,
+        icon: v.icon,
+      })),
+    ...instruments
+      .filter((i) => matches(`${i.id} ${i.name} ${i.asset_class}`))
+      .map((i) => ({
+        key: `instrument:${i.id}`,
+        kind: 'instrument' as const,
+        id: i.id,
+        label: `${i.id} · ${i.name}`,
+        detail: `Instrumento (${i.currency}): abre el Terminal con su gráfico.`,
+        icon: LineChart,
+      })),
+  ]
+  const active = items.length ? Math.min(mark, items.length - 1) : -1
+
+  useEffect(() => {
+    if (active >= 0)
+      document.getElementById(optionId(active))?.scrollIntoView?.({ block: 'nearest' })
+    // optionId depende solo de `base`, que no cambia
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active])
+
+  const choose = (item: SearchItem | undefined) => {
+    if (!item || chosen.current) return
+    chosen.current = true
+    if (item.kind === 'instrument') {
+      focusInstrument(item.id)
+      onSelect('terminal')
+    } else onSelect(item.id)
+  }
+
+  useEffect(() => {
+    if (!waiting.current || catalog.status === 'loading') return
+    waiting.current = false
+    choose(items[0])
+    // solo cuando llega el catálogo
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalog.status])
+
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (!items.length) return
+      const step = e.key === 'ArrowDown' ? 1 : -1
+      setMark((active + step + items.length) % items.length)
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (items.length === 0 && catalog.status === 'loading') waiting.current = true
+      else choose(items[Math.max(active, 0)])
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      onClose()
+    }
+  }
+
   return (
     <dialog
       ref={ref}
-      aria-label="Buscar una vista"
+      aria-label="Buscar una vista o un instrumento"
       onClose={onClose}
-      onClick={(e) => e.target === e.currentTarget && ref.current?.close()}
+      onCancel={(e) => {
+        e.preventDefault()
+        onClose()
+      }}
+      onClick={(e) => {
+        if (e.target !== e.currentTarget) return
+        const r = e.currentTarget.getBoundingClientRect()
+        const outside =
+          e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom
+        if (outside) onClose()
+      }}
       className="glass-strong m-auto w-[min(480px,calc(100%-24px))] rounded-3xl p-4 text-foreground backdrop:bg-black/40 backdrop:backdrop-blur-sm"
     >
       <label className="flex items-center gap-2 rounded-xl border border-border px-3">
         <Search className="size-4 text-muted-foreground" aria-hidden="true" />
         <input
           autoFocus
+          role="combobox"
           aria-label="Buscar"
-          placeholder="Escribí una vista: gráficos, noticias…"
+          aria-expanded={items.length > 0}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={active >= 0 ? optionId(active) : undefined}
+          placeholder="Vista o instrumento: US100, noticias…"
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => {
+            setQ(e.target.value)
+            setMark(0)
+            waiting.current = false
+          }}
+          onKeyDown={onKeyDown}
           className="min-h-11 flex-1 bg-transparent text-[14px] outline-none"
         />
       </label>
-      <ul className="mt-3 grid gap-1.5">
-        {found.map((v) => (
-          <li key={v.id}>
-            <button
-              type="button"
-              onClick={() => onSelect(v.id)}
-              className="flex w-full items-center gap-3 rounded-xl border border-border p-2.5 text-left hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
-            >
-              <v.icon className="size-4 text-muted-foreground" aria-hidden="true" />
-              <span>
-                <strong className="block text-[13px]">{v.label}</strong>
-                <small className="text-[11px] text-muted-foreground">{v.description}</small>
-              </span>
-            </button>
+      <ul
+        id={listId}
+        role="listbox"
+        aria-label="Resultados"
+        className="mt-3 grid max-h-[min(60svh,420px)] gap-1.5 overflow-y-auto"
+      >
+        {items.map((item, i) => (
+          <li
+            key={item.key}
+            id={optionId(i)}
+            role="option"
+            aria-selected={i === active}
+            data-kind={item.kind}
+            onPointerDown={(e) => {
+              if (e.button !== 0) return
+              pressed.current = item.key
+              // el foco queda en el campo (sin blur ni re-render entre el down y el up)
+              e.preventDefault()
+            }}
+            onPointerUp={(e) => {
+              if (e.button === 0 && pressed.current === item.key) choose(item)
+              pressed.current = null
+            }}
+            onPointerCancel={() => (pressed.current = null)}
+            onClick={() => choose(item)}
+            onMouseMove={() => i !== active && setMark(i)}
+            className={cn(
+              'flex cursor-pointer items-center gap-3 rounded-xl border border-border p-2.5 text-left select-none',
+              i === active && 'bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]',
+            )}
+          >
+            <item.icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="min-w-0">
+              <strong className="block text-[13px]">{item.label}</strong>
+              <small className="text-[11px] text-muted-foreground">{item.detail}</small>
+            </span>
           </li>
         ))}
-        {found.length === 0 && (
-          <li className="p-2 text-[12px] text-muted-foreground">No hay vistas con ese nombre.</li>
-        )}
       </ul>
+      {items.length === 0 && (
+        <p className="p-2 text-[12px] text-muted-foreground">
+          No hay vistas ni instrumentos con ese nombre.
+        </p>
+      )}
+      {catalog.status === 'loading' && instruments.length === 0 && (
+        <p className="px-2 pt-2 text-[11px] text-muted-foreground">Pidiendo los instrumentos…</p>
+      )}
+      {catalog.status === 'error' && (
+        <p className="px-2 pt-2 text-[11px] text-muted-foreground">
+          Sin instrumentos: el gateway no respondió. Las vistas se pueden buscar igual.
+        </p>
+      )}
     </dialog>
   )
 }

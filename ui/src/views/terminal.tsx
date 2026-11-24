@@ -27,6 +27,7 @@ import {
 import { useInstruments, useLiquidityView } from '@/lib/liquidity-api'
 import { chartBars } from '@/lib/liquidity-bars'
 import { useOpsStatus } from '@/lib/ops-api'
+import { clearFocusedInstrument, FOCUS_EVENT, focusedInstrument } from '@/lib/terminal-focus'
 import type { LiquidityViewData, ViewTimeframe } from '@/lib/liquidity-contracts'
 import { previewOrder, submitOrder, usePaperAccount, usePaperPositions } from '@/lib/paper-api'
 import { cn } from '@/lib/utils'
@@ -97,6 +98,12 @@ function loadLayout(): Saved {
     return fallback
   }
 }
+
+/** El instrumento pedido desde el buscador (#362) va al primer gráfico. */
+const withFocus = (saved: Saved, id: string | null): Saved =>
+  id
+    ? { ...saved, slots: saved.slots.map((s, i) => (i === 0 ? { ...s, instrument: id } : s)) }
+    : saved
 
 function saveLayout(saved: Saved) {
   try {
@@ -198,9 +205,19 @@ export function TerminalView({ member }: { member: Member }) {
   const locked = account.kill_switch.active
     ? 'Kill switch activo: no se puede operar ni aprobar.'
     : undefined
-  const [saved, setSaved] = useState(loadLayout)
+  const [saved, setSaved] = useState(() => withFocus(loadLayout(), focusedInstrument()))
   useEffect(() => saveLayout(saved), [saved])
   const [shown, setShown] = useState(0)
+  useEffect(() => {
+    clearFocusedInstrument()
+    const onFocus = (e: Event) => {
+      clearFocusedInstrument()
+      setSaved((prev) => withFocus(prev, (e as CustomEvent<string>).detail))
+      setShown(0)
+    }
+    window.addEventListener(FOCUS_EVENT, onFocus)
+    return () => window.removeEventListener(FOCUS_EVENT, onFocus)
+  }, [])
   const catalog = useInstruments()
   const instruments =
     catalog.status === 'ok' ? catalog.data.instruments.map((i) => i.id) : TERMINAL_INSTRUMENTS
