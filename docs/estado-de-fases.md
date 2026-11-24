@@ -241,13 +241,16 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
 1. **Tasa de financiación de US500, US100 y US30** (`funding_benchmark` pendiente en `config/instruments.toml`: ¿es €STR, como en DE40?). Confirmarlo con IG desbloquea sus backtests y la fase 5 en EE. UU. En el mismo pedido a IG: confirmar que **IG España ajusta los dividendos** en los CFD de índices (`mode` de `[futures.basis]` en `config/candle_sources.toml`, #470).
 2. **DE40: separación de datos o más historia.** `data_split.toml` pide 39 meses y hay 19 de futuros. Las salidas son más historia de FDAX o una separación distinta para la evaluación (también afecta a ML v1, §5).
 3. **Cambios de estrategia** después del diagnóstico (#324): horario de apertura, distancia del stop, TP1 o break-even, peso de "patrón de velas + rechazo en nivel". Se evalúan con walk-forward antes de tocar la config.
-4. **Habilitar el runner de paper** (`config/runner.toml`, `enabled`): es lo que arranca el período de paper de la fase 8.
-5. **`CFDS_GATEWAY_TOKEN`:** definirlo en el `.env` del Mac mini habilita las escrituras de paper desde la UI. Sin él, la UI es de solo lectura.
-6. **La ruta del crontab:** confirmar la carpeta absoluta para las tareas de `cron` (`docs/guides/puesta-en-marcha-local.md`; `cron` no expande `~` ni `$HOME`).
-7. **Acceso desde la red local o el celular:** el gateway escucha en `127.0.0.1:8787` (`config/gateway.toml`). Abrirlo pide decidir cómo, por ejemplo LAN con el token o una VPN.
-8. **Telegram:** las alertas están listas (`config/alerts.toml`); falta decidir si se activan y crear el bot (`TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`).
-9. **Cuentas para votar:** quién vota y cómo se identifica cada uno (spec §1.2). Hace falta para las votaciones de la fase 8b y para las cuentas con 2FA de la fase 10.
-10. **Capital de paper:** con los 1000 € de `config/broker.toml`, el riesgo rechaza las propuestas del DE40 del ensayo (#443). Hay que decidir si se sube el capital de la cuenta simulada o se acepta que casi nada se ejecute. El resumen de la noche recomienda 10 000 € simulados (no es dinero real).
-11. **Oro, horas de entrada:** `[entries.hours.CMEGLOBEX_METALS]` en `config/trading_window.toml`. Sin ellas el oro no opera (#418).
-12. **ML después de v1 y v2:** no cambiar nada (se sigue mostrando B1), o cambiar la pregunta (más índices o qué se predice), que es un cambio de spec.
-13. **Cómo seguir con la investigación** (#466 y #474): la ronda 1 no pasó y la regla pre-registrada pide revisar el planteo antes de la ronda 2. Las opciones del resumen de la noche: (a) ronda 2 con tendencia de baja frecuencia, que pide más capital por el tamaño mínimo de IG; (b) replantear qué se predice; (c) aceptar que con CFD de IG y esta frecuencia los costos se comen cualquier ventaja chica.
+4. **Acceso desde la red local o el celular:** el gateway escucha en `127.0.0.1:8787` (`config/gateway.toml`). Abrirlo pide decidir cómo, por ejemplo LAN con el token o una VPN.
+5. **Telegram:** las alertas están listas (`config/alerts.toml`); falta decidir si se activan y crear el bot (`TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`).
+6. **Cuentas para votar:** quién vota y cómo se identifica cada uno (spec §1.2). Hace falta para las votaciones de la fase 8b y para las cuentas con 2FA de la fase 10.
+7. **Oro, horas de entrada:** `[entries.hours.CMEGLOBEX_METALS]` en `config/trading_window.toml`. Sin ellas el oro no opera (#418).
+
+## Decisiones tomadas el 24-11-2026
+
+- **Runner de paper:** el dueño pidió prenderlo ("prendé el runner paper", #380). El PR #382 queda en borrador hasta que vuelvan las velas en vivo de IG (después del 27-11-2026 a las 20:30 UTC).
+- **`CFDS_GATEWAY_TOKEN`:** el dueño lo definió en el `.env` del Mac mini.
+- **Crontab:** el dueño lo instaló con las rutas de `~/Documents/CFDsTrader Home`.
+- **Capital de paper:** 10 000 € simulados ("dale, poné 10.000 € de capital para el paper", #484 y #485).
+- **ML después de v1 y v2:** se cierra por ahora; se sigue mostrando B1 (#158). Textual: "dale, vos hace lo que sea necesario".
+- **Investigación:** se corrió la ronda 2 con la tendencia mensual (A) y el momentum intradía (B) (#486 y #490). Ninguna pasa, y el presupuesto de error de #466 quedó agotado. El dueño pidió un **programa nuevo** que cambie la pregunta (#493), sumando los patrones de manipulación detectables (#492 y #494).
