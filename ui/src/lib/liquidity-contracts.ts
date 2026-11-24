@@ -24,7 +24,16 @@ export type LiquidityBar = {
 }
 
 export type LevelKind =
-  'eqh' | 'eql' | 'pdh' | 'pdl' | 'pwh' | 'pwl' | 'session_high' | 'session_low'
+  | 'eqh'
+  | 'eql'
+  | 'pdh'
+  | 'pdl'
+  | 'pwh'
+  | 'pwl'
+  | 'session_high'
+  | 'session_low'
+  | 'round_high'
+  | 'round_low'
 export type TradingSession = 'asia' | 'london' | 'ny'
 /** intact; swept = barrido con reversión (el sweep de §5.4); broken = roto. */
 export type LevelState = 'intact' | 'swept' | 'broken'

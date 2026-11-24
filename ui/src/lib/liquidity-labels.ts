@@ -15,6 +15,8 @@ export const LEVEL_LABEL: Record<LevelKind, string> = {
   pwl: 'Mínimo de la semana anterior (PWL)',
   session_high: 'Máximo de la sesión',
   session_low: 'Mínimo de la sesión',
+  round_high: 'Número redondo por arriba',
+  round_low: 'Número redondo por abajo',
 }
 
 export const LEVEL_SHORT: Record<LevelKind, string> = {
@@ -26,6 +28,8 @@ export const LEVEL_SHORT: Record<LevelKind, string> = {
   pwl: 'PWL',
   session_high: 'máx',
   session_low: 'mín',
+  round_high: 'red↑',
+  round_low: 'red↓',
 }
 
 export const SESSION_LABEL: Record<TradingSession, string> = {
