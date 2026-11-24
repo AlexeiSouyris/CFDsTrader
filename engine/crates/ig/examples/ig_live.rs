@@ -22,7 +22,11 @@
 //! - **Presupuesto semanal** (#167): antes de cada pedido controla que entre en su parte
 //!   (`budget.live` en el Mac mini, `budget.off_data_machine` en otra máquina) y que no toque
 //!   `budget.reserve`. Lo gastado sale de `ig_allowance_log`; sin base, de lo pedido en esta
-//!   corrida. Si no entra, kill switch: no pide y termina con error.
+//!   corrida.
+//! - **Pausa por cupo** (#360): si no entra, no pide nada y sale con el código
+//!   [`PAUSED_EXIT_CODE`] (3) y «en pausa hasta <renovación UTC>». No es el kill switch por
+//!   datos (código 1): no hay un error de datos, solo falta cupo hasta que IG lo renueve. Si ni
+//!   una vela entra, ni siquiera se conecta a IG.
 
 #[path = "common/allowance.rs"]
 mod allowance;
@@ -33,7 +37,9 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use cfds_core::{InstrumentId, Timeframe};
-use cfds_ig::live::{due_points, due_range, next_wake, overdue};
+use cfds_ig::live::{
+    PAUSED_EXIT_CODE, due_points, due_range, next_wake, out_of_allowance, overdue, pause_message,
+};
 use cfds_ig::{
     Credentials, DATA_MACHINE_ENV, IgConfig, IgProvider, Recent, ReqwestTransport, WeekSpend,
     api_key_from_env, epics_from_catalog, is_data_machine, usage_of,
@@ -53,6 +59,14 @@ const RETRY: TimeDelta = TimeDelta::seconds(60);
 const HORIZON: TimeDelta = TimeDelta::days(5);
 
 type Sink = Option<(PgStore, CandlePublisher)>;
+
+/// Por qué termina el modo en vivo.
+enum Stop {
+    /// Kill switch por datos o por no poder leer el registro (CLAUDE.md §5b): código 1.
+    KillSwitch(String),
+    /// Sin cupo hasta la renovación (#360): código [`PAUSED_EXIT_CODE`].
+    Paused(String),
+}
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -149,24 +163,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some((store, _)) => match budget::spend(store, data_machine).await {
                 Ok(s) => s,
                 Err(e) => {
-                    break Err(format!(
+                    break Err(Stop::KillSwitch(format!(
                         "kill switch: no se pudo leer ig_allowance_log: {e}"
-                    ));
+                    )));
                 }
             },
             None => run_spend,
         };
         println!("{}", budget::describe(usage, &spend, &share));
+        // Si ni una vela entra, ni se conecta a IG (el login es perezoso): pausa (#360).
+        if let Some(why) = out_of_allowance(usage, &spend, &share) {
+            break Err(Stop::Paused(pause_message(&why, spend.resets_at)));
+        }
         'cycle: for id in epics.keys() {
             for &tf in &live.timeframes {
                 let now = Utc::now();
                 let key = (id.clone(), tf);
                 let prev = last.get(&key).copied();
                 if let Some((from, to)) = due_range(&calendar, id, tf, prev, now, delay, lookback) {
-                    // Antes de pedir: si no entra en el presupuesto, kill switch (#167).
+                    // Antes de pedir: si no entra en el presupuesto, pausa sin pedir (#167, #360).
+                    // El rango no se pide a medias: el hueco lo llena `ig_backfill` (#137).
                     let points = due_points(from, to, tf);
                     if let Err(why) = cfds_ig::budget::check(usage, points, &spend, &share) {
-                        failure = Some(format!("kill switch: {id} {tf} [{from}, {to}): {why}"));
+                        let why = format!("{id} {tf} [{from}, {to}): {why}");
+                        failure = Some(Stop::Paused(pause_message(&why, spend.resets_at)));
                         break 'cycle;
                     }
                     spend.add(usage, points);
@@ -183,9 +203,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             last.insert(key, to - tf.duration());
                         }
                         Err(e) if overdue(to, now, give_up) => {
-                            failure = Some(format!(
+                            failure = Some(Stop::KillSwitch(format!(
                                 "kill switch: {id} {tf} sin datos válidos desde {to}: {e}"
-                            ));
+                            )));
                         }
                         Err(e) => {
                             println!("{id} {tf} [{from}, {to}): reintento en 60 s ({e})");
@@ -214,7 +234,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tokio::time::sleep(wait).await;
     };
     ig.logout().await?;
-    result.map_err(Into::into)
+    match result {
+        Ok(()) => Ok(()),
+        Err(Stop::KillSwitch(why)) => Err(why.into()),
+        Err(Stop::Paused(why)) => {
+            println!("{why}");
+            std::process::exit(PAUSED_EXIT_CODE);
+        }
+    }
 }
 
 async fn run(

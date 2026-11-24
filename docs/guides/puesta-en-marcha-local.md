@@ -148,7 +148,13 @@ Antes, `mkdir -p "RUTA/logs"`. La carpeta `logs/` no se commitea.
 - **Cuándo corre:** las velas de 15m cierran en `:00`, `:15`, `:30` y `:45`, y las de 1h en `:00`. Se piden 20 s después del cierre (`live.candle_delay_secs`). El `cron` trabaja de a minutos, así que corre un minuto después del cierre.
 - **Corridas superpuestas:** `lockf -t 0` evita que se pisen. Si la anterior sigue corriendo, por ejemplo compilando después de un `git pull`, la nueva sale sin hacer nada.
 - **Costo:** una vela es un punto. Por día hábil son 138: 26 velas de 15m y 6 de 1h por cada índice de EE. UU., y 34 y 8 para DE40. Eso da unas **690 por semana** contra los 3.400 de `budget.live`. Un test lo controla con el calendario real (`a_week_of_live_candles_fits_the_live_budget`). Se suman los reintentos y lo que haya que completar después de un apagón, hasta 24 h.
-- **Si se agota el presupuesto:** antes de cada pedido se controla que entre en `budget.live` y que no toque `budget.reserve` (#167). Si no entra, la corrida termina con `kill switch: … presupuesto semanal de IG …` en `logs/ig_live.log`, **sin pedir nada**. Las corridas siguientes hacen lo mismo, sin gastar, hasta que IG renueve el cupo. Ahí siguen solas desde la última vela guardada, hasta 24 h atrás.
+- **Si se agota el presupuesto:** antes de cada pedido se controla que entre en `budget.live` y que no toque `budget.reserve` (#167). Si no entra, la corrida se pone **en pausa** (#360):
+  - **No pide nada.** Si ni una vela entra, tampoco se conecta a IG.
+  - **Mensaje:** escribe `en pausa hasta <renovación UTC>: sin cupo de IG, no se pide nada (…)` en `logs/ig_live.log`.
+  - **Código de salida:** sale con **3**, distinto del kill switch por datos (código 1).
+  - **Un hueco que no entra entero no se pide a medias:** también pausa. Ese hueco lo llena después `ig_backfill` (#137).
+  - **Corridas siguientes:** hacen lo mismo, sin gastar, hasta que IG renueve el cupo. Después siguen solas desde la última vela guardada, hasta 24 h atrás.
+  - **Mientras dure la pausa no entran velas nuevas.** Lo que depende de ellas, como el ATR del broker simulado, se queda sin datos recientes.
 - **Si una vela no llega:** la corrida avisa y la siguiente la vuelve a pedir. Si pasan 10 minutos (`live.give_up_after_secs`), la corrida termina con `kill switch` y la siguiente vuelve a intentar. Cada intento puede gastar puntos si IG devuelve velas que no validan. Por eso conviene mirar el log, y el presupuesto pone el techo.
 - **Antes de prenderlo:** `cargo run -q -p cfds-ig --example ig_live -- --dry-run` (en `engine/`, con el `.env` cargado) muestra qué pediría, cuántos puntos y cómo está el presupuesto, sin conectarse a IG.
 
