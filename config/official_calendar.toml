@@ -25,6 +25,10 @@ release_url_prefix = "https://www.federalreserve.gov/newsevents/pressreleases/mo
 # Reuniones programadas por año (las celebradas más las canceladas). Si la página de un año da
 # otra cosa, la carga falla (ADR 0016 §6).
 scheduled_meetings_per_year = 8
+# Una reunión no programada publica su comunicado ese día o después: la del 2-3-2020 el 3, la
+# conferencia del 4-10-2019 el 11-10. Es un control (la hora sale siempre de la página): un
+# comunicado más lejano que esto no se asocia a la reunión y la carga falla.
+max_unscheduled_lag_days = 14
 timezone = "America/New_York"
 
 # Hora del comunicado de una reunión PROGRAMADA cuando su página no la trae (ADR 0016 §3.2).

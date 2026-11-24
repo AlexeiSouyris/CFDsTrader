@@ -1,9 +1,9 @@
 """Calendario histórico oficial del FOMC (ADR 0016, #520), sin red.
 
 La página de 2020 es un extracto real de federalreserve.gov (`fixtures/fed_fomchistorical2020.htm`).
-La de calendarios es sintética con la forma leída el 24-11-2026. Los comunicados y anuncios se
-arman acá con las líneas que traen las páginas reales ("For release at 5:00 p.m. EDT", "For
-immediate release") y sus fechas reales.
+La de calendarios también es un extracto real (`fixtures/fed_fomccalendars.htm`, #523).
+Los comunicados y anuncios se arman acá con las líneas que traen las páginas reales ("For
+release at 5:00 p.m. EDT", "For immediate release") y sus fechas reales.
 """
 
 import json
@@ -102,9 +102,7 @@ PAGES_2020_2021: dict[str, str] = {
     f"{SITE}/monetarypolicy/fomchistorical2020.htm": (
         FIXTURES / "fed_fomchistorical2020.htm"
     ).read_text(),
-    f"{SITE}/monetarypolicy/fomccalendars.htm": (
-        FIXTURES / "fed_fomccalendars_synthetic.htm"
-    ).read_text(),
+    f"{SITE}/monetarypolicy/fomccalendars.htm": (FIXTURES / "fed_fomccalendars.htm").read_text(),
     f"{PR}20190517a.htm": announcement_html(
         date(2019, 5, 17),
         "For release at 2:00 p.m. EDT",
@@ -216,6 +214,10 @@ def test_the_calendars_page_reads_split_months_asterisks_and_notation_votes() ->
     vote = next(m for m in ms if m.year == 2025 and m.first_day.month == 8)
     assert vote.kind == "unscheduled" and vote.statement_url is None
     assert len([m for m in ms if m.year == 2021 and m.press_conference]) == 8
+    # El año es un ancla (`<a id=...>2025 FOMC Meetings</a>`), no texto suelto (#523).
+    for year in range(2021, 2026):
+        assert len([m for m in ms if m.year == year and m.kind == "scheduled"]) == 8
+        assert all(m.statement_url for m in ms if m.year == year and m.kind == "scheduled")
 
 
 def test_emergency_meetings_use_their_own_time_and_are_known_only_at_release() -> None:
@@ -603,3 +605,15 @@ def test_bad_config_is_rejected() -> None:
         assert old in text
         with pytest.raises(OfficialCalendarError):
             load_config(text.replace(old, new, 1))
+
+
+def test_an_unscheduled_statement_may_come_days_later_but_not_weeks() -> None:
+    # Como la conferencia del 4-10-2019, cuyo comunicado salió el 11-10 (#523).
+    url = f"{SITE}/monetarypolicy/fomchistorical2020.htm"
+    pages = dict(PAGES_2020_2021)
+    pages[url] = pages[url].replace("March 2 (unscheduled)", "February 25 (unscheduled)")
+    rows = by_period(load_fed(FED_2020_2021, getter(pages)).releases)
+    assert rows["2020-02-25"].scheduled_at == z("2020-03-03T15:00:00Z")
+    pages[url] = pages[url].replace("February 25 (unscheduled)", "February 10 (unscheduled)")
+    with pytest.raises(OfficialCalendarError, match="fuera de fecha"):
+        load_fed(FED_2020_2021, getter(pages))

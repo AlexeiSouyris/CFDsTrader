@@ -146,6 +146,10 @@ def parse_calendars_page(body: str, url: str, prefix: str) -> list[Meeting]:
     after_label = False  # se vio el rótulo "Statement:" y todavía no otro texto
     just_dated = False  # el token anterior fueron los días de una reunión
     for tok in read_page(body).tokens:
+        # El encabezado del año es un ancla: `<h4><a id="...">2025 FOMC Meetings</a></h4>`.
+        if y := _YEAR_HEADING.match(tok.text):
+            year, month, current, after_label, just_dated = int(y["year"]), None, None, False, False
+            continue
         if isinstance(tok, Link):
             _attach(current, tok, prefix, after_label)
             just_dated = False
@@ -154,9 +158,6 @@ def parse_calendars_page(body: str, url: str, prefix: str) -> list[Meeting]:
         if text in ("|", "/"):  # separador entre "PDF" y "HTML"
             continue
         after_label = _STATEMENT_LABEL.match(text) is not None
-        if y := _YEAR_HEADING.match(text):
-            year, month, current = int(y["year"]), None, None
-            continue
         if year is None:
             continue
         if month is not None and (d := _DAYS.match(text)):
@@ -373,10 +374,12 @@ def load_fed(cfg: FedConfig, get: Callable[[str], str]) -> FedResult:
         if m.kind == "cancelled":
             raise OfficialCalendarError(f"{m.label()}: cancelada pero con comunicado")
         page = parse_release_page(get(m.statement_url), m.statement_url)
-        # Programada: el comunicado sale el último día. No programada: ese día o el siguiente
-        # (la del 2-3-2020 se publicó el 3).
+        # Programada: el comunicado sale el último día. No programada: ese día o después, hasta
+        # `max_unscheduled_lag_days` (la del 2-3-2020 salió el 3; la conferencia del 4-10-2019,
+        # el 11-10). Su hora sale siempre de su página, así que el atraso no se supone.
         lag = (page.day - m.last_day).days
-        if lag != 0 and not (m.kind == "unscheduled" and lag == 1):
+        ok = lag == 0 if m.kind == "scheduled" else 0 <= lag <= cfg.max_unscheduled_lag_days
+        if not ok:
             raise OfficialCalendarError(f"{m.label()}: comunicado del {page.day}, fuera de fecha")
         if m.kind == "scheduled":
             rule = cfg.rule_for(page.day, m.press_conference)
