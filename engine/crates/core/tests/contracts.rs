@@ -1142,3 +1142,45 @@ fn contract_and_rust_reject_the_same_bad_futures_bars() {
         assert_both_reject::<cfds_core::FuturesBar>(schema, d);
     }
 }
+
+fn sample_fx() -> cfds_core::FxRate {
+    cfds_core::FxRate {
+        pair: "EURUSD".into(),
+        ref_date: "2026-11-23".parse().unwrap(),
+        published_at: "2026-11-23T16:00:00Z".parse().unwrap(),
+        rate: dec!(1.0939),
+    }
+}
+
+#[test]
+fn fx_rate_roundtrips_through_the_contract() {
+    assert_roundtrip("fx_rate.v1.schema.json", &sample_fx());
+}
+
+#[test]
+fn contract_and_rust_reject_the_same_bad_fx_rates() {
+    let schema = "fx_rate.v1.schema.json";
+    let doc = || serde_json::to_value(sample_fx()).unwrap();
+    let mut cases: Vec<Value> = Vec::new();
+    for (key, value) in [
+        ("pair", json!("eurusd")),
+        ("pair", json!("EUR/USD")),
+        ("pair", json!("EURUSDX")),
+        ("ref_date", json!("23-11-2026")),
+        ("published_at", json!("2026-11-23T17:00:00+01:00")),
+        ("rate", json!(1.0939)),
+        ("rate", json!("-1.09")),
+        ("rate", json!("1,09")),
+        ("extra", json!(1)),
+    ] {
+        let mut d = doc();
+        d[key] = value;
+        cases.push(d);
+    }
+    let mut d = doc();
+    d.as_object_mut().unwrap().remove("rate");
+    cases.push(d);
+    for d in cases {
+        assert_both_reject::<cfds_core::FxRate>(schema, d);
+    }
+}

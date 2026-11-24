@@ -560,6 +560,68 @@ async fn reference_rates_are_read_only_once_published_in_publication_order() {
 
 #[tokio::test]
 #[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
+async fn fx_rates_are_read_only_once_published_in_publication_order() {
+    let s = store().await;
+    // La tabla es de solo agregar: un par propio por corrida (seis letras al azar).
+    let nanos = Utc::now().timestamp_nanos_opt().unwrap().unsigned_abs();
+    let pair: String = (0..6)
+        .map(|i| char::from(b'A' + ((nanos >> (i * 5)) % 26) as u8))
+        .collect();
+    let pool = sqlx::PgPool::connect(&cfds_storage::test_db::test_database_url())
+        .await
+        .unwrap();
+    for (day, published, rate) in [
+        ("2026-11-23", "2026-11-23T16:00:00Z", "1.0939"),
+        ("2026-11-20", "2026-11-20T16:00:00Z", "1.099"),
+        ("2026-11-20", "2026-11-24T10:00:00Z", "1.1"),
+    ] {
+        sqlx::query(
+            "INSERT INTO fx_rates (pair, ref_date, published_at, rate)
+             VALUES ($1, $2::date, $3::timestamptz, $4::numeric)",
+        )
+        .bind(&pair)
+        .bind(day)
+        .bind(published)
+        .bind(rate)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    let until: DateTime<Utc> = "2026-11-24T00:00:00Z".parse().unwrap();
+    let got = s.fx_rates(&pair, until).await.unwrap();
+    let summary: Vec<(String, Decimal)> = got
+        .iter()
+        .map(|r| (r.ref_date.to_string(), r.rate))
+        .collect();
+    // La corrección del 24 todavía no estaba publicada.
+    assert_eq!(
+        summary,
+        vec![
+            ("2026-11-20".to_string(), dec!(1.099)),
+            ("2026-11-23".to_string(), dec!(1.0939)),
+        ]
+    );
+    assert!(got.iter().all(|r| r.pair == pair));
+    // Ni un tipo publicado antes de su día ni uno no positivo.
+    for (published, rate) in [
+        ("2026-11-26T12:00:00Z", "1.1"),
+        ("2026-11-27T16:00:00Z", "0"),
+    ] {
+        let bad = sqlx::query(
+            "INSERT INTO fx_rates (pair, ref_date, published_at, rate)
+             VALUES ($1, '2026-11-27', $2::timestamptz, $3::numeric)",
+        )
+        .bind(&pair)
+        .bind(published)
+        .bind(rate)
+        .execute(&pool)
+        .await;
+        assert!(bad.is_err(), "{published} {rate}");
+    }
+}
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
 async fn ig_allowance_log_is_append_only_and_returns_the_latest() {
     let s = store().await;
     // Fechas lejanas: esta es la última observación aunque otros tests corran antes.

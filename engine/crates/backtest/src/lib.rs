@@ -36,7 +36,7 @@ pub use portfolio::{
 pub use proposals::{
     Label, Overlap, Proposal, ProposalReport, ProposalRules, Tally, proposals, tally_by,
 };
-pub use rates::{DailyRates, FundingRates};
+pub use rates::{DailyRates, FundingRates, FxRates};
 pub use rollover::mark_rollovers;
 pub use runner::{
     BuyAndHold, CloseReason, ExitRecord, RejectedSignal, Report, RunError, Setup, TradeRecord,
