@@ -78,3 +78,10 @@ Los valores de esta ronda (12 meses, ATR(20) diario, stop a 3 ATR; señal hasta 
 ### 2.7 Registro de corridas
 
 Cada corrida (aunque falle o se repita por un error de código) se anota en el informe `docs/analysis/2026-11-ronda2-tendencia-y-momentum-intradia.md` con su hora y su comando. Si una corrida se repite por un error de código, se dice cuál fue el error y que la regla no cambió.
+
+## 3. Precisiones agregadas antes de correr (segundo commit, sin ninguna corrida hecha)
+
+Al escribir el código y sus tests aparecieron dos detalles que el texto de arriba no dejaba exactos. Se fijan acá, en un commit propio y **antes de la primera corrida contra la base**:
+
+1. **Redondeo del ATR diario de A (precisa §2.2).** Con el ATR de Wilder en `Decimal` (28 cifras), `referencia − 3 × ATR` se redondea y la distancia al stop puede quedar una millonésima de punto **por encima** de 3 ATR: el riesgo la rechazaba por "stop demasiado lejos" aunque la definición lo pone justo en el tope (lo mostró un test). El ATR de A se redondea a **8 decimales** antes de usarlo, para el stop y para el riesgo; así el stop queda exactamente a 3 ATR. El efecto en el tamaño es menor que 10⁻⁸ relativo. B (2 ATR) y la ronda 1 no tienen el problema.
+2. **Comprar y mantener sin valor en un mes (precisa §2.2).** Si en algún mes de la validación no hubiera velas de sesión para valuar comprar y mantener, ese mes cuenta como 0 y el informe lo avisa. Con los datos esperados no debería pasar.
