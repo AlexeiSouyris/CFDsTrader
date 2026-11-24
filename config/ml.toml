@@ -34,3 +34,16 @@ calibration_bins = 10
 models = 200
 low_percentile = 5
 high_percentile = 95
+
+[variants]
+# ML v2 (#432): variantes pre-registradas ANTES de correr ninguna
+# (docs/analysis/2026-11-ml-v2-preregistro.md). Cambiar la familia después de mirar invalida la
+# corrección: se registra una familia nueva.
+family = ["tasas", "vix", "analogos"]
+# Bonferroni: cada variante mejora a B1 solo si el intervalo de la diferencia de log loss, al
+# 1 - family_error / len(family) (98,33 % con 3), queda entero por debajo de 0.
+family_error = "0.05"
+# Un dato publicado (Tesoro, VIX) más viejo que esto, contra su fecha de referencia, falta.
+max_age_days = 7
+# Tenores de la variante "tasas" (rendimiento par, en %), de treasury_yields.
+treasury_tenors = ["3M", "2Y", "10Y"]

@@ -47,12 +47,49 @@ class IntervalConfig:
     high_percentile: int
 
 
+TREASURY_TENORS = (
+    "1M",
+    "1_5M",
+    "2M",
+    "3M",
+    "4M",
+    "6M",
+    "1Y",
+    "2Y",
+    "3Y",
+    "5Y",
+    "7Y",
+    "10Y",
+    "20Y",
+    "30Y",
+)
+
+
+@dataclass(frozen=True)
+class VariantsConfig:
+    """Variantes de ML v2 pre-registradas (#432, docs/analysis/2026-11-ml-v2-preregistro.md)."""
+
+    # La familia de la corrección por comparaciones múltiples, en orden.
+    family: tuple[str, ...]
+    # Error de familia: cada variante usa la confianza 1 - family_error / len(family).
+    family_error: float
+    # Un dato publicado con más días que esto (contra su fecha de referencia) falta.
+    max_age_days: int
+    treasury_tenors: tuple[str, ...]
+
+    @property
+    def confidence(self) -> float:
+        """Bonferroni: la confianza de cada intervalo."""
+        return 1 - self.family_error / len(self.family)
+
+
 @dataclass(frozen=True)
 class MlConfig:
     dataset: DatasetConfig
     training: TrainingConfig
     evaluation: EvaluationConfig
     interval: IntervalConfig
+    variants: VariantsConfig
 
 
 def _evaluation(t: object) -> EvaluationConfig:
@@ -62,6 +99,36 @@ def _evaluation(t: object) -> EvaluationConfig:
         bootstrap_resamples=_int(t, "bootstrap_resamples", 1),
         confidence=_fraction(t.get("confidence"), "confidence"),
         calibration_bins=_int(t, "calibration_bins", 2),
+    )
+
+
+VARIANTS = ("tasas", "vix", "analogos")
+
+
+def _variants(t: object) -> VariantsConfig:
+    if not isinstance(t, dict):
+        raise MlConfigError("falta [variants]")
+    family = t.get("family")
+    if (
+        not isinstance(family, list)
+        or not family
+        or not all(f in VARIANTS for f in family)
+        or len(set(family)) != len(family)
+    ):
+        raise MlConfigError(f"variants.family: lista no vacía, sin repetir, de {VARIANTS}")
+    tenors = t.get("treasury_tenors")
+    if (
+        not isinstance(tenors, list)
+        or not tenors
+        or not all(x in TREASURY_TENORS for x in tenors)
+        or len(set(tenors)) != len(tenors)
+    ):
+        raise MlConfigError(f"variants.treasury_tenors: lista no vacía de {TREASURY_TENORS}")
+    return VariantsConfig(
+        family=tuple(family),
+        family_error=_fraction(t.get("family_error"), "family_error"),
+        max_age_days=_int(t, "max_age_days", 1),
+        treasury_tenors=tuple(tenors),
     )
 
 
@@ -125,6 +192,7 @@ def load_config(text: str) -> MlConfig:
         training=_training(raw.get("training")),
         evaluation=_evaluation(raw.get("evaluation")),
         interval=_interval(raw.get("interval")),
+        variants=_variants(raw.get("variants")),
     )
 
 
