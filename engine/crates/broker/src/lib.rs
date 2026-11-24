@@ -19,6 +19,7 @@ use chrono::{DateTime, Utc};
 pub use live::{LiveAuthorization, LiveBroker, live_trading_status};
 pub use paper::{
     BrokerConfig, BrokerEvent, FundingSetup, MarketSetup, PaperBroker, PaperExit, PaperTrade,
+    rejection_code,
 };
 pub use persist::{
     Flush, JournalStore, ReconcileSchedule, flush_journal, reconcile_periodically,
