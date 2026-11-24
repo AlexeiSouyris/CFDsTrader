@@ -179,9 +179,16 @@ def test_estimate_uses_only_free_metadata_and_respects_dataset_starts() -> None:
 
 def test_the_dataset_start_comes_from_metadata_not_from_the_code() -> None:
     c = FakeClient()
-    c.metadata.ranges = {**c.metadata.ranges, "XEUR.EOBI": {"start": "2025-06-02T00:00:00Z"}}
+    c.metadata.ranges = {
+        **c.metadata.ranges,
+        "XEUR.EOBI": {"start": "2025-06-02T00:00:00Z", "end": "2026-11-23T00:00:00Z"},
+    }
     est = estimate(c, CFG, date(2026, 11, 23), {})
     assert est[3].start == date(2025, 6, 2)
+    # Sin el fin publicado, tampoco se adivina (#396).
+    c.metadata.ranges = {**c.metadata.ranges, "XEUR.EOBI": {"start": "2025-06-02T00:00:00Z"}}
+    with pytest.raises(DatabentoError, match="sin end"):
+        estimate(c, CFG, date(2026, 11, 23), {})
     # Sin el esquema en el dataset, no se adivina.
     c.metadata.ranges = {**c.metadata.ranges, "XEUR.EOBI": {"schema": {"trades": {}}}}
     with pytest.raises(DatabentoError):
@@ -504,3 +511,80 @@ def test_cli_run_fills_before_and_after_what_is_stored(
     assert "ES.c.0 (GLBX.MDP3 → US500) [antes de lo guardado]: 2011-01-01 → 2021-11-01" in out
     assert "[después de lo guardado]: 2026-11-01 → 2026-11-23" in out
     assert "total estimado: USD 1.00" in out
+
+
+def test_nothing_is_requested_past_the_published_end_of_the_dataset() -> None:
+    # Forma real del 24-11-2026: el fin publicado es un instante a media tarde del día anterior.
+    c = FakeClient()
+    ranges = dict(c.metadata.ranges)
+    ranges["GLBX.MDP3"] = {
+        "start": "2010-06-06T00:00:00.000000000Z",
+        "end": "2026-11-23T18:10:06.760366000Z",
+        "schema": {
+            "ohlcv-1m": {
+                "start": "2010-06-06T00:00:00.000000000Z",
+                "end": "2026-11-23T18:10:06.760366000Z",
+            }
+        },
+    }
+    c.metadata.ranges = ranges
+    loaded = {
+        ("GLBX.MDP3", "ES.c.0"): Stored(date(2011, 1, 1), date(2026, 11, 23)),
+        ("GLBX.MDP3", "NQ.c.0"): Stored(date(2011, 1, 1), date(2026, 11, 20)),
+    }
+    est = estimate(c, CFG, date(2026, 11, 24), loaded)
+    # ES ya tiene todo lo publicado (el 23 está a medias): no se pide nada, ni el 23.
+    assert (est[0].symbol.symbol, est[0].skipped) == ("ES.c.0", "ya está todo guardado")
+    # NQ: solo hasta la medianoche del 23, nunca hasta hoy.
+    assert (est[1].start, est[1].end) == (date(2026, 11, 20), date(2026, 11, 23))
+    for _, kw in c.metadata.calls:
+        if "end" in kw and kw.get("dataset") == "GLBX.MDP3":
+            assert kw["end"] <= "2026-11-23"
+
+
+def test_cli_run_reports_a_failing_symbol_and_goes_on_with_the_others(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import contextlib
+
+    import psycopg
+
+    from cfds_intel.databento import store
+
+    key = "db-" + "k" * 29
+    monkeypatch.setenv("DATABENTO_API_KEY", key)
+    monkeypatch.setenv("CFDS_DATA_MACHINE", "1")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://falsa")
+    monkeypatch.setattr(cli, "today_utc", lambda: date(2026, 11, 23))
+    c = FakeClient(cost=0.01)
+    calls: list[str] = []
+
+    def get_range(**kw: Any) -> Iterable[Any]:
+        calls.append(kw["symbols"][0])
+        if kw["symbols"] == ["ES.c.0"]:
+            raise RuntimeError("422 dataset_unavailable_range")
+        return iter(())
+
+    monkeypatch.setattr(c.timeseries, "get_range", get_range)
+    monkeypatch.setattr(cli, "client", lambda: c)
+    monkeypatch.setattr(psycopg, "connect", lambda *a, **k: contextlib.nullcontext(object()))
+    every = {
+        (s.dataset, s.symbol): Stored(date(2011, 1, 1), date(2026, 11, 20)) for s in CFG.symbols
+    }
+    monkeypatch.setattr(store, "loaded_spans", lambda conn: every)
+    saved: list[str] = []
+
+    def insert(conn: object, sym: Any, a: date, b: date, *_: object) -> store.ChunkReport:
+        saved.append(sym.symbol)
+        return store.ChunkReport(0, 0)
+
+    monkeypatch.setattr(store, "insert_chunk", insert)
+    assert cli.main(["x", "--run"]) == 1
+    names = [s.symbol for s in CFG.symbols]
+    assert names[0] == "ES.c.0" and len(names) > 1
+    assert calls == names
+    assert saved == names[1:]
+    err = capsys.readouterr().err
+    assert "ES.c.0: RuntimeError: 422 dataset_unavailable_range" in err
+    assert "tramos con error: ES.c.0" in err
+    assert key not in err

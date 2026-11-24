@@ -208,21 +208,28 @@ class Estimate:
     from_dataset_start: bool = False
 
 
-def dataset_start(client: Client, dataset: str, schema: str) -> date:
-    """Primer día con datos del esquema en el dataset (`get_dataset_range`, gratis)."""
-    r = client.metadata.get_dataset_range(dataset)
+def _range_day(dataset: str, r: Mapping[str, Any], schema: str, key: str) -> date:
     per_schema = r.get("schema")
-    raw = r.get("start")
+    raw = r.get(key)
     if isinstance(per_schema, Mapping) and isinstance(per_schema.get(schema), Mapping):
-        raw = per_schema[schema].get("start", raw)
+        raw = per_schema[schema].get(key, raw)
     if not isinstance(raw, str):
         if isinstance(per_schema, Mapping) and schema not in per_schema:
             raise DatabentoError(f"{dataset} no tiene el esquema {schema}")
-        raise DatabentoError(f"{dataset}: get_dataset_range sin start")
+        raise DatabentoError(f"{dataset}: get_dataset_range sin {key}")
     try:
         return date.fromisoformat(raw[:10])
     except ValueError as e:
-        raise DatabentoError(f"{dataset}: start inválido {raw!r}") from e
+        raise DatabentoError(f"{dataset}: {key} inválido {raw!r}") from e
+
+
+def dataset_range(client: Client, dataset: str, schema: str) -> tuple[date, date]:
+    """`[primer día, último día completo + 1)` con datos del esquema en el dataset
+    (`get_dataset_range`, gratis). El fin que da Databento es un instante (por ejemplo
+    "2026-11-23T18:10:06Z"): se corta a la medianoche UTC anterior, así nunca se pide más allá de
+    lo publicado (422 `dataset_unavailable_range`, #396) ni se guarda un día a medias."""
+    r = client.metadata.get_dataset_range(dataset)
+    return _range_day(dataset, r, schema, "start"), _range_day(dataset, r, schema, "end")
 
 
 def chunk_cost(
@@ -254,21 +261,23 @@ def estimate(
 ) -> list[Estimate]:
     """Costo y cantidad de barras de lo que **falta** bajar de cada símbolo, hasta `end`: el
     tramo anterior a lo ya guardado (si `start` es anterior) y el posterior. Un símbolo puede
-    tener entonces dos tramos; el tope de gasto se aplica al total de todos."""
-    starts: dict[str, date] = {}
+    tener entonces dos tramos; el tope de gasto se aplica al total de todos. El fin de cada tramo
+    es el menor entre `end` y el fin publicado del dataset (#396)."""
+    ranges: dict[str, tuple[date, date]] = {}
     out: list[Estimate] = []
     for sym in cfg.symbols:
-        if sym.dataset not in starts:
-            starts[sym.dataset] = dataset_start(client, sym.dataset, cfg.schema)
+        if sym.dataset not in ranges:
+            ranges[sym.dataset] = dataset_range(client, sym.dataset, cfg.schema)
         # Si el dataset empieza después de `start` (Eurex), se baja desde su inicio.
-        available = starts[sym.dataset]
+        available, published = ranges[sym.dataset]
+        until = min(end, published)
         parts = [
             (part, a, b)
-            for part, a, b in _missing(cfg, available, end, stored.get((sym.dataset, sym.symbol)))
+            for part, a, b in _missing(cfg, available, until, stored.get((sym.dataset, sym.symbol)))
             if a < b
         ]
         if not parts:
-            out.append(Estimate(sym, end, end, Decimal(0), 0, "ya está todo guardado"))
+            out.append(Estimate(sym, until, until, Decimal(0), 0, "ya está todo guardado"))
             continue
         for part, a, b in parts:
             cost = chunk_cost(client, cfg, sym, a, b)
