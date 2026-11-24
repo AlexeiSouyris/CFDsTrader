@@ -12,7 +12,7 @@
 import { useMemo, useRef, useState } from 'react'
 
 import { AnimatedNumber } from '@/components/ui/animated-number'
-import { useChartMeasure } from '@/components/ui/chart-measure'
+import { LABEL_GAP, placeLabels, useChartMeasure } from '@/components/ui/chart-measure'
 import { Segmented } from '@/components/ui/segmented'
 import { dateTimeUtc, dateUtc, decimal } from '@/lib/format'
 import { fvgKey, levelKey, levelName, levelShort, STATE_LABEL } from '@/lib/liquidity-labels'
@@ -54,6 +54,9 @@ const TF_LABEL: Record<ViewTimeframe, { short: string; long: [string, string] }>
 const FILTERS = ['Todos', 'Activos'] as const
 
 const AXIS_W = 70
+/** caja de cada rótulo del eje: de `y - LABEL_UP` a `y + LABEL_DOWN` */
+const LABEL_UP = 6
+const LABEL_DOWN = 5
 
 const STATE_STYLE: Record<LevelState, { stroke: string; dash?: string; opacity: number }> = {
   intact: { stroke: 'var(--chart-accent)', opacity: 0.95 },
@@ -105,8 +108,6 @@ export function LiquidityChart({
   const pad = (hi - lo) * 0.06 || 1
   const yP = (v: number) => top + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * plotH
   const inScale = (v: number) => v >= lo - pad && v <= hi + pad
-  // la inversa de `yP`: el precio a una altura, solo para la herramienta de medición
-  const priceAt = (y: number) => lo - pad + (1 - (y - top) / plotH) * (hi - lo + 2 * pad)
 
   // Ubica una hora (UTC) en el eje x: el borde derecho de las velas que ya cerraron a esa hora.
   // Cuenta velas, no minutos, así que los huecos (noches, fines de semana) no dejan espacio.
@@ -135,22 +136,25 @@ export function LiquidityChart({
       Date.parse(l.exists_from) <= lastClose.getTime() &&
       xAt(l.state_changed_at ?? l.expired_at ?? null) > 0,
   )
-  // Rótulos de los niveles intactos en el eje: los de fuera de escala van al borde con una flecha,
-  // y se separan para que no se pisen (solo geometría de dibujo).
-  const labels = shownLevels
-    .filter((l) => l.state === 'intact' && !expired(l))
-    .map((l) => {
-      const v = Number(l.price)
-      const arrow = v > hi + pad ? ' ↑' : v < lo - pad ? ' ↓' : ''
-      return { l, arrow, y: Math.max(top + 6, Math.min(top + plotH - 2, yP(v))) }
-    })
-    .sort((a, b) => a.y - b.y)
-  labels.forEach((t, k) => {
-    if (k > 0) t.y = Math.max(t.y, labels[k - 1].y + 10)
-  })
+  // Rótulos de los niveles intactos en el eje: los de fuera de escala van al borde con una flecha.
+  // Se separan para que no se pisen entre sí y nunca salgan del panel (solo geometría de dibujo).
+  const labels = placeLabels(
+    shownLevels
+      .filter((l) => l.state === 'intact' && !expired(l))
+      .map((l) => {
+        const v = Number(l.price)
+        const arrow = v > hi + pad ? ' ↑' : v < lo - pad ? ' ↓' : ''
+        return { l, arrow, y: yP(v) }
+      }),
+    top + LABEL_UP,
+    top + plotH - LABEL_DOWN,
+  )
   const fvgEnd = (f: FvgEvent) => f.fill?.at ?? f.expiry?.at ?? null
   const shownFvgs = fvgs.filter((f) => xAt(fvgEnd(f)) > 0)
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => lo - pad + f * (hi - lo + 2 * pad))
+  // los precios del eje que chocarían con un rótulo se ocultan (queda la línea de la grilla)
+  const ticks = [0, 0.25, 0.5, 0.75, 1]
+    .map((f) => lo - pad + f * (hi - lo + 2 * pad))
+    .map((t) => ({ t, hidden: labels.some((lb) => Math.abs(lb.y - yP(t)) < LABEL_GAP) }))
   const timeLabels = Array.from({ length: 4 }, (_, k) =>
     Math.min(count - 1, Math.round((k * (count - 1)) / 3)),
   )
@@ -163,7 +167,7 @@ export function LiquidityChart({
     bottom: top + plotH,
     slot,
     starts: view.map((b) => b.start),
-    priceAt,
+    closes: view.map((b) => Number(b.close)),
     yOf: yP,
     digits: (last?.close.split('.')[1] ?? '').length,
   })
@@ -213,18 +217,21 @@ export function LiquidityChart({
           className="block w-full touch-none select-none"
           {...measure.handlers}
         >
-          {ticks.map((t) => (
+          {ticks.map(({ t, hidden }) => (
             <g key={t}>
               <line x1={0} x2={plotW} y1={yP(t)} y2={yP(t)} stroke="var(--chart-grid)" />
-              <text
-                x={width - 4}
-                y={yP(t) + 3}
-                textAnchor="end"
-                fontSize={10}
-                fill="var(--muted-foreground)"
-              >
-                {decimal(t.toFixed(1))}
-              </text>
+              {!hidden && (
+                <text
+                  data-axis-tick
+                  x={width - 4}
+                  y={yP(t) + 3}
+                  textAnchor="end"
+                  fontSize={10}
+                  fill="var(--muted-foreground)"
+                >
+                  {decimal(t.toFixed(1))}
+                </text>
+              )}
             </g>
           ))}
 
@@ -260,7 +267,7 @@ export function LiquidityChart({
             const yc = yP(Number(b.close))
             const x = i * slot + slot / 2
             return (
-              <g key={b.start}>
+              <g key={b.start} data-candle={b.start}>
                 <line x1={x} x2={x} y1={yP(Number(b.high))} y2={yP(Number(b.low))} stroke={color} />
                 <rect
                   x={x - body / 2}
@@ -352,10 +359,10 @@ export function LiquidityChart({
 
           {/* rótulos de los niveles intactos (los de fuera de escala, con flecha) */}
           {labels.map(({ l, arrow, y }) => (
-            <g key={levelKey(l)}>
+            <g key={levelKey(l)} data-level-label={y.toFixed(1)}>
               <rect
                 x={plotW + 1}
-                y={y - 6}
+                y={y - LABEL_UP}
                 width={AXIS_W - 2}
                 height={11}
                 rx={3}

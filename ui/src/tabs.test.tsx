@@ -209,11 +209,13 @@ describe('terminal con 1, 2 o 4 gráficos (#286)', () => {
     expect(svgs).toHaveLength(4)
     const measureOf = (svg: Element) => svg.querySelector('[data-measure]')
 
+    // los puntos se pegan al cierre de las velas (#355): entre estas dos velas el cierre sube,
+    // así que de izquierda a derecha es subida y al revés es bajada
     svgs.forEach((svg, i) => {
-      const [y0, y1] = i % 2 === 0 ? [220, 60] : [60, 220]
-      fireEvent.pointerDown(svg, { clientX: 200, clientY: y0, button: 0, pointerId: i + 1 })
-      fireEvent.pointerMove(svg, { clientX: 400, clientY: y1, pointerId: i + 1 })
-      fireEvent.pointerUp(svg, { clientX: 400, clientY: y1, pointerId: i + 1 })
+      const [x0, x1] = i % 2 === 0 ? [200, 400] : [400, 200]
+      fireEvent.pointerDown(svg, { clientX: x0, clientY: 150, button: 0, pointerId: i + 1 })
+      fireEvent.pointerMove(svg, { clientX: x1, clientY: 150, pointerId: i + 1 })
+      fireEvent.pointerUp(svg, { clientX: x1, clientY: 150, pointerId: i + 1 })
     })
     // cada gráfico tiene su propia medición: subida en 1 y 3, bajada en 2 y 4
     expect(svgs.map((s) => measureOf(s)?.getAttribute('data-measure'))).toEqual([

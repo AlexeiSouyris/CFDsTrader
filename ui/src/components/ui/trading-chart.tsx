@@ -77,8 +77,6 @@ export function TradingChart({
   const hi = Math.max(...highs)
   const pad = (hi - lo) * 0.08 || 1
   const yP = (v: number) => top.price + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * h.price
-  // la inversa de `yP`: el precio a una altura, solo para la herramienta de medición
-  const priceAt = (y: number) => lo - pad + (1 - (y - top.price) / h.price) * (hi - lo + 2 * pad)
   const maxVol = Math.max(...view.map((b) => Number(b.volume)), 1)
   const yR = (v: number) => top.rsi + (1 - v / 100) * h.rsi
   const macdAbs = Math.max(
@@ -111,9 +109,11 @@ export function TradingChart({
     bottom: top.price + h.price,
     slot,
     starts: view.map((b) => b.start),
-    priceAt,
+    closes: view.map((b) => Number(b.close)),
     yOf: yP,
     digits: (last?.close.split('.')[1] ?? '').length,
+    // el punto sigue a la cruz de lectura, que ya conoce la vela bajo el cursor
+    hover,
   })
 
   const onPointer = (e: PointerEvent<SVGSVGElement>) => {
@@ -224,7 +224,11 @@ export function TradingChart({
               const yo = yP(Number(b.open))
               const yc = yP(Number(b.close))
               return (
-                <g key={b.start} opacity={hover !== null && hover !== i ? 0.5 : 1}>
+                <g
+                  key={b.start}
+                  data-candle={b.start}
+                  opacity={hover !== null && hover !== i ? 0.5 : 1}
+                >
                   <line
                     x1={x(i)}
                     x2={x(i)}
