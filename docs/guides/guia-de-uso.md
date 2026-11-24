@@ -25,6 +25,8 @@ Se hace en el Mac mini, con la Terminal de macOS, desde la carpeta del proyecto.
    El script prende el *gateway*, que es la parte del motor que habla con la pantalla, y la pantalla misma. La primera vez tarda unos minutos en compilar. Cuando termina, dice `✅ gateway en http://127.0.0.1:8787` y abre el navegador solo.
 4. Si el navegador no se abre, entrá a **http://localhost:5173**.
 
+**Al entrar:** después de aceptar el ingreso hay una animación corta, de un segundo y medio: la pantalla avanza por un túnel de marcos blancos sobre negro y se funde con la app. La app ya está cargada debajo, así que no hace esperar. Un clic, un toque o cualquier tecla la saltean. No vuelve a aparecer al recargar la página ni al cambiar de vista. Si en tu computadora está activado "reducir movimiento", en vez del túnel hay un fundido simple.
+
 **Para apagar:** en la ventana de la Terminal donde corre el script, apretá `Ctrl+C`. Se apagan el gateway y la pantalla. La base de datos sigue prendida; no hace falta apagarla.
 
 **Después de bajar código nuevo**, antes de prender, actualizá la base una vez:
@@ -116,6 +118,11 @@ Cómo le fue a la simulación, con costos incluidos: [spread](../GLOSARIO.md#spr
 - **Aprendizaje:** el informe del diario.
   - Trae la **calibración** (¿la probabilidad mostrada se cumplió?), el aporte de cada señal en [R](../GLOSARIO.md#r-múltiplo-de-riesgo) y las propuestas de cambio.
   - Las propuestas de cambio **quedan pendientes de voto**: el sistema no cambia solo.
+- **Modelo (informativo):** el último experimento de *machine learning* (un modelo que aprende de los datos del pasado) de cada instrumento, tal como lo guardó la parte de Python. Es **solo informativo**: no suma al puntaje, no decide operaciones y no promete resultados. La pantalla no calcula nada: muestra lo guardado.
+  - Compara tres formas de estimar la probabilidad de tocar TP1 antes que el stop: **B0** (la frecuencia de siempre, la más simple), **B1** (la tabla de probabilidades que ya muestran las propuestas) y **M1** (el modelo).
+  - Arriba dice el veredicto: "M1 mejora a B1", "M1 no mejora: queda B1" o "En suspenso: se sigue mostrando B1". Debajo, cuánto difiere el error de M1 del de B1 (log loss: más bajo es mejor) con su rango de incertidumbre, cuántas ventanas de tiempo se pudieron entrenar y por qué no las demás, y las medidas de los tres (log loss y Brier: más bajo es mejor; AUC: más alto es mejor, 0,5 es como tirar una moneda).
+  - **Calibración por grupos** (se despliega): por cada modelo, un gráfico que compara la probabilidad que predijo con lo que pasó de verdad, grupo por grupo, con su rango y la diagonal (sobre la diagonal, la predicción se cumplió). Debajo, la tabla de grupos. Los experimentos guardados antes de esta función no la traen, y la tarjeta lo avisa.
+  - Hoy, en US500, **ningún modelo le ganó a B1** (ver [estado de fases](../estado-de-fases.md), fase 4b): se sigue mostrando B1.
 - **Fondo:** el [valor de la unidad](../GLOSARIO.md#valor-de-la-unidad-nav), cuántas unidades hay y, en "Ver el fondo y cada miembro", lo de cada uno ([contabilidad por unidades](../GLOSARIO.md#contabilidad-por-unidades-cuotapartes)).
 
 ---
@@ -130,11 +137,16 @@ Los gráficos de velas (en el Terminal, en Liquidez y en el resto de las vistas 
 
 | Qué querés hacer | Con el mouse o el trackpad | En el celular |
 |---|---|---|
-| Ir al pasado o volver | Apretá sobre el gráfico y arrastrá hacia los costados. Al soltar sigue un poco por inercia. En el trackpad también sirve deslizar dos dedos de lado. | Arrastrá con un dedo. |
+| Ir al pasado o volver | Apretá sobre el gráfico y arrastrá hacia los costados. Al soltar sigue un poco por inercia. En el trackpad también sirve deslizar dos dedos de lado. | Arrastrá con un dedo **hacia los costados**. |
 | Acercar o alejar | La **rueda** del mouse sobre el gráfico. Acerca hacia donde está el puntero. En el trackpad, **pellizcá**. | Pellizcá con dos dedos. |
+| Bajar o subir la página | La rueda **fuera** del gráfico. | Arrastrá con un dedo **hacia arriba o abajo**, aunque el dedo esté sobre el gráfico. |
 | Volver a lo más nuevo | El botón **"Última vela"** (una flecha hacia la derecha), arriba a la derecha del gráfico. Solo aparece cuando la última vela no se ve. | El mismo botón (en el celular es solo la flecha). |
 
-Cuando el mouse está sobre el gráfico, la rueda acerca o aleja en vez de bajar la página. Para bajar la página, usá la rueda fuera del gráfico.
+Cuando el mouse está sobre el gráfico, la rueda acerca o aleja en vez de bajar la página. Para bajar la página, usá la rueda fuera del gráfico. En el celular no hace falta: el dedo en vertical siempre mueve la página, y en horizontal mueve el gráfico (sin cambiar de pestaña).
+
+La ayuda que muestran los gráficos depende de con qué los usás: con el dedo no habla de la rueda ni de `Shift`, que en una pantalla táctil no existen.
+
+**Las fechas del eje de abajo:** en velas de 15m o 1h, la primera marca de cada día muestra la fecha (por ejemplo "19 nov") y las demás, la hora UTC ("12:00"). Así no se repite la misma fecha varias veces.
 
 Los botones de rango de arriba (por ejemplo **"1 día"**, **"3 días"**, **"1 semana"**, **"3 meses"** o **"Todo"**, según el timeframe) ponen el gráfico en ese tramo. Si después lo movés a mano, ningún botón queda marcado y arriba dice cuántas velas estás viendo.
 
@@ -144,7 +156,7 @@ Si el gateway se prendió con código anterior a esta función, siempre dice "No
 **La escala de precio** (el eje de la derecha)
 
 - Sola, se ajusta a las velas que se ven: es la **escala automática**.
-- Si arrastrás hacia arriba o hacia abajo **sobre el eje de precio**, el gráfico se estira o se achica en vertical. Pasa a **escala manual**: en ese modo, arrastrar el gráfico hacia arriba o abajo también mueve el precio.
+- Si arrastrás hacia arriba o hacia abajo **sobre el eje de precio** (con el mouse o con el dedo), el gráfico se estira o se achica en vertical. Pasa a **escala manual**: en ese modo, arrastrar el gráfico hacia arriba o abajo también mueve el precio.
 - Para volver a la automática, apretá el botón **"Escala auto"** que aparece arriba, o hacé **doble clic sobre el eje de precio**.
 
 **Con el teclado:** primero hacé clic en el gráfico (o llegá con la tecla Tab).
@@ -169,10 +181,11 @@ Si el gateway se prendió con código anterior a esta función, siempre dice "No
 
 **Medir**
 
-Arrastrar solo ya no mide: mueve el gráfico. Para medir hay dos formas:
+Arrastrar solo ya no mide: mueve el gráfico. Para medir hay tres formas:
 
-1. **`Shift` + arrastrar** (con el mouse o el trackpad), o
-2. apretá el botón de la **regla** (arriba a la derecha del gráfico; queda resaltado) y después arrastrá. En el celular, la regla es la única forma de medir. Apretala otra vez para apagarla.
+1. **`Shift` + arrastrar** (con el mouse o el trackpad);
+2. en el celular, **mantené el dedo apretado** sobre el gráfico casi medio segundo, sin moverlo, y después arrastrá;
+3. apretá el botón de la **regla** (arriba a la derecha del gráfico; queda resaltado) y después arrastrá. Apretala otra vez para apagarla.
 
 Aparece un rectángulo, verde si el precio subió y rojo si bajó entre los dos puntos. Cada punta se pega al **cierre** de su vela y lleva un punto. Pegada al rectángulo hay una **pestaña** del mismo color con la diferencia: en precio, en %, en cantidad de velas y en tiempo (por ejemplo `+431,3 · +2,28 % · 30 velas · 42 d`). La pestaña va arriba del rectángulo, o abajo si no entra, y nunca tapa las velas de adentro. En un gráfico angosto (celular) ocupa dos renglones.
 
@@ -256,3 +269,32 @@ Después de cambiar el `.env`, apagá con `Ctrl+C` y volvé a correr `infra/scri
 
 **La pantalla muestra "datos de ejemplo"**
 - Esa parte todavía es una maqueta, o el motor no respondió. No es un error, pero esos números no son reales.
+
+---
+
+## 6. Las tareas que corren solas (crontab)
+
+Algunas cargas de datos corren solas en el Mac mini, a horario, con `cron` (el programador de tareas de macOS). Solo corren mientras la computadora está **prendida y despierta**. Cómo se instalan y las líneas exactas están en la [puesta en marcha local](puesta-en-marcha-local.md), sección 7: en cada línea, `RUTA` es la carpeta del proyecto, escrita completa.
+
+**Ya están en el crontab del dueño:**
+
+| Qué hace | Cuándo (hora de Madrid) |
+|---|---|
+| Noticias de la Fed y del BCE | cada 15 minutos |
+| Sentimiento de los clientes de IG | cada 15 minutos |
+| Velas en vivo de IG (`ig_live`). Con el código del 24-11 (#446) guarda también el **spread** de cada vela, sacado del mismo pedido: no gasta más cupo de IG. Sin esos spreads el runner de paper nunca propone, porque el filtro de spread no deja entrar | un minuto después de cada cierre de 15 minutos |
+| €STR del BCE (la tasa de la financiación) | días hábiles, 10:23 |
+| COT (posiciones de los grandes operadores en futuros) | sábados, 10:07 |
+| Análogos históricos con las velas de los futuros (lo que muestra el Panel) | días hábiles, 22:40 |
+| Estados emocionales del mercado (lo que muestra el Panel) | días hábiles, 22:50 |
+| Limpieza de los eventos de operación viejos (`ops_events`): borra los de más de 30 días (`[ops] retention_days` en `config/gateway.toml`) | todos los días, 03:15 |
+
+**Falta agregar:**
+
+- **Tipo de cambio EUR/USD del BCE.** Hace falta para el oro, que se opera en dólares: convierte a euros el resultado, el margen y la financiación. No gasta cupo de IG. El BCE lo publica hacia las 16:00 y el sistema lo toma recién desde las 17:00 (`config/fx_rates.toml`), así que conviene correrlo después, por ejemplo a las 18:07 de los días hábiles:
+  ```cron
+  7 18 * * 1-5 cd "RUTA/intelligence" && set -a && . ../.env && set +a && $HOME/.local/bin/uv run python -m cfds_intel.rates.fx 2026-01-01 >> ../logs/fx.log 2>&1
+  ```
+  La primera vez, a mano y **sin fecha** (`uv run python -m cfds_intel.rates.fx`, en `intelligence/`), carga toda la historia desde 2011. Se puede repetir: lo que ya está no se duplica.
+
+**Las que la puesta en marcha deja para cuando decidas** (no están en el crontab): el índice de sentimiento, el calendario económico, el VIX, la curva del Tesoro y la interpretación de noticias con Ollama.

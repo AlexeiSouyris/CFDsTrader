@@ -1,6 +1,6 @@
 # Estado de las fases (para aprobar)
 
-Actualizado el 24-11-2026. Es un resumen para el dueño: por cada fase de `docs/ROADMAP.md`, el criterio de aprobación, lo mergeado, la evidencia o lo que falta, cómo verificarlo y si la aprobación ya quedó registrada.
+Actualizado el 24-11-2026, con lo mergeado esa noche (#451). Es un resumen para el dueño: por cada fase de `docs/ROADMAP.md`, el criterio de aprobación, lo mergeado, la evidencia o lo que falta, cómo verificarlo y si la aprobación ya quedó registrada.
 
 `CLAUDE.md` §5c pide que **ninguna fase empiece sin que la anterior esté aprobada y registrada en su Issue**. Mientras el dueño construya solo, alcanza con su aprobación explícita (modo de un solo constructor). La fase 11 siempre pide dos personas.
 
@@ -25,7 +25,7 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
 | 6b Fondo | aprobada | [sí, #351](https://github.com/AlexeiSouyris/CFDsTrader/issues/351) |
 | 7 Broker | aprobada para avanzar; criterio pendiente (decisión de la cuenta demo) | para avanzar, [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419) (#278 abierto) |
 | 8 Paper trading | aprobada para avanzar; criterio pendiente (período de paper) | para avanzar, [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419) |
-| 8b Aprendizaje continuo | aprobada para avanzar; criterio pendiente (falta trabajo y datos) | para avanzar, [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419) (#327 abierto) |
+| 8b Aprendizaje continuo | aprobada para avanzar; criterio pendiente (faltan datos de paper) | para avanzar, [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419) (#327 abierto) |
 | 9 Observabilidad | aprobada | [sí, #352](https://github.com/AlexeiSouyris/CFDsTrader/issues/352) |
 | 10 UI y app | aprobada para avanzar; criterio pendiente (falta trabajo) | para avanzar, [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419) (#275 abierto) |
 | 11 Dinero real | bloqueada (ADR de dos personas) | no (no alcanza con el dueño) |
@@ -82,23 +82,31 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
   - análogos: #153 y #295;
   - ML v1: #207 a #212 y #215;
   - sentimiento: #216, #217 y #223;
-  - el reporte de aprobación: #226 (#221).
-- **Evidencia:** los cortes son sin fuga (purga y embargo, #208, con tests). **Falta la medición con datos:**
-  - `phase4b run` corre `backtest_run` sobre velas de IG, y la base no tiene velas de 15m de IG (la tabla `candles` tiene una sola vela).
-  - Hay interpretaciones de noticias solo desde el corte del modelo (2025-12-03).
-  - La spec ML v1 (#158) está aprobada.
+  - el reporte de aprobación: #226 (#221);
+  - ML v1 en US500 con los futuros 2011–2026: etiqueta sin P/L (#403), pipeline e informe (#402), resultado (#430);
+  - ML v2, tres variantes pre-registradas con corrección de Bonferroni (#435);
+  - los experimentos y su calibración por grupos en Performance, tarjeta «Modelo (informativo)» (#434 y #442).
+- **Evidencia:** los cortes son sin fuga (purga y embargo, #208, con tests).
+  - **ML v1** (`docs/analysis/2026-11-ml-v1-us500.md`): 41 de 51 ventanas, 2639 propuestas de validación. M1 tiene AUC 0,525 y M1 − B1 en log loss da −0,0006 (IC 95 % de −0,0046 a +0,0039): **se queda B1**.
+  - **ML v2** (`docs/analysis/2026-11-ml-v2-us500.md`, regla fijada antes en `docs/analysis/2026-11-ml-v2-preregistro.md`): tasas del Tesoro, VIX y análogos. **Ninguna mejora a B1** (AUC 0,502, 0,508 y 0,522).
+  - El fuera de muestra **no se usó**: la spec lo reserva para un modelo que haya ganado en validación. Por ahora, ninguno ganó.
+  - **Falta la medición de la capa entera con datos de IG:**
+    - `phase4b run` corre `backtest_run` sobre velas de IG, y la base no tiene velas de 15m de IG (la tabla `candles` tiene una sola vela).
+    - Hay interpretaciones de noticias solo desde el corte del modelo (2025-12-03).
+    - La spec ML v1 (#158) está aprobada.
 - **Verificar, cuando haya datos:** `cd intelligence && DATABASE_URL=... uv run python -m cfds_intel.phase4b run <INSTRUMENTO> <desde> <hasta> 10000 1 <run_id>`
 - **Aprobación:** aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419). El Issue #99 sigue abierto.
 - **Criterio pendiente:** "mejora medida fuera de muestra frente a no usar la capa" (la parte "sin fuga" tiene tests, pero el criterio entero no se dio por cumplido).
-- **Estado:** **aprobada para avanzar; criterio pendiente.** Sigue **bloqueado por datos.** Hacen falta velas de 15m de IG del período (gastan cupo), o decidir correr el reporte con las velas de los futuros (habría que adaptarlo).
+- **Estado:** **aprobada para avanzar; criterio pendiente.** Sigue **bloqueado por datos.** Hacen falta velas de 15m de IG del período (gastan cupo), o decidir correr el reporte con las velas de los futuros (habría que adaptarlo). Con lo medido hasta ahora en US500, el ML no mejora a B1: cambiar el resultado pide cambiar la pregunta (más índices o qué se predice), y eso es un cambio de spec que decide el dueño.
 
 ## Fase 5: Evaluación y anti-sobreajuste
 
 - **Criterio:** "se sostiene fuera de muestra y con costos realistas".
-- **Mergeado:** métricas (#59); walk-forward, comprar y mantener por ventana y fuera de muestra aparte (#301); sensibilidad (#303); diario (#306); el ejemplo `walk_forward` (#310); el bloque en la UI (#318); el diagnóstico de DE40 (#324).
+- **Mergeado:** métricas (#59); walk-forward, comprar y mantener por ventana y fuera de muestra aparte (#301); sensibilidad (#303); diario (#306); el ejemplo `walk_forward` (#310); el bloque en la UI (#318); el diagnóstico de DE40 (#324); la tasa administrativa del 3 % (#393); el estudio de variantes del DE40 (#373); las propuestas por mes de US500 con futuros 2011–2026 (#398); el estudio de financiación €STR/SOFR de EE. UU. (#411).
 - **Evidencia y lo que falta:**
   - **DE40.FUT** tiene 19 meses de velas y `config/data_split.toml` pide al menos 39 (24 + 3 + 12). El ejemplo se detiene con `NotEnoughData`.
-  - **US500, US100 y US30** tienen 5 años de futuros, pero su `funding_benchmark` está pendiente: sin la tasa de financiación, el backtest no corre.
+  - **US500, US100 y US30** tienen historia de futuros, pero su `funding_benchmark` sigue pendiente en `config/instruments.toml`: sin la tasa de financiación, el backtest oficial no corre.
+  - **Estudio de financiación (#411, `docs/analysis/2026-11-wf-us-escenarios-financiacion.md`):** se corrió el walk-forward de los tres con dos tasas posibles, €STR y SOFR, solo en memoria y sin tocar el fuera de muestra. **El veredicto no cambia con la tasa:** US500 y US30 pierden con las dos, y US100 queda en torno a cero. No es un resultado oficial: la tasa la tiene que confirmar IG. US100 tiene la mitad de las ventanas porque sus futuros (NQ) empiezan en 11-2021.
   - El diagnóstico en sample (#324) muestra que hoy la estrategia **pierde en DE40 antes de costos**: aun con datos, el criterio probablemente no se cumpla sin cambios en la estrategia.
 - **Verificar:** `cd engine && cargo run --release -p cfds-backtest --example walk_forward -- DE40 <desde> <hasta> 10000 1 <report_id> --fuente futuros`; en la UI, Performance → detalle de una corrida → "Walk-forward / fuera de muestra".
 - **Aprobación:** aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419). (#298 se cerró como trabajo, no como aprobación.)
@@ -143,30 +151,45 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
 - **Verificar:** `cd engine && cargo test -p cfds-broker`
 - **Aprobación:** aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419). El Issue #278 sigue abierto.
 - **Criterio pendiente:** "funciona igual contra el simulador y contra la cuenta demo del broker" (falta la cuenta demo).
+- **Oro (XAUUSD, ADR 0013, #418), solo en paper:** ya están la clase `commodity` (#422), la sesión de 23 h de CME (#428), la fórmula de financiación de IG para materias primas (#429), el EUR/USD del BCE (#431), XAUUSD en el catálogo con tope 10:1 (#436) y la conversión con el tipo vigente en el backtest (#445). El broker simulado también convierte con el tipo vigente (#450): sin tipo publicado a la hora de la señal, rechaza la orden (`missing_fx_rate`). **Hoy el oro no opera.** Falta:
+  1. las **horas de entrada** (`config/trading_window.toml`), que elige el dueño: sin ellas no se abre nada;
+  2. los **datos de IG** que siguen `pending` en `config/instruments.toml`: epic, spread típico, valor por punto, tamaño mínimo, tick y horario real;
+  3. la **base de la financiación**: qué futuros usa IG, qué lado la paga y cómo cuenta los fines de semana;
+  4. la **comisión de IG por convertir USD a EUR**;
+  5. con eso, el estudio en backtest y walk-forward del ADR.
 - **Estado:** **aprobada para avanzar; criterio pendiente.** Sigue **bloqueado por decisión:** ¿se habilitan órdenes contra la cuenta **demo** de IG (sin dinero real, con un ADR), o se cambia el criterio para aprobar solo con el simulador?
 
 ## Fase 8: Paper trading
 
 - **Criterio:** "la diferencia está explicada".
-- **Mergeado:** runner (#308) y su modo en el gateway (#311); comparación paper contra backtest (#320 y #322); vistas en la UI (#335); cierre de fin de semana (#336). Abiertos: el diario de paper (#338 y #339).
-- **Evidencia:** la comparación reparte la diferencia por causas y suma exacto (tests de `cfds-runner --test compare`). **Falta un período real de paper:**
-  - la spec pide 3 meses;
-  - el runner está apagado (`config/runner.toml`, `enabled = false`);
-  - hacen falta las velas en vivo de IG (`ig_live`, gasta cupo).
+- **Mergeado:** runner (#308) y su modo en el gateway (#311); comparación paper contra backtest (#320 y #322); vistas en la UI (#335); cierre de fin de semana (#336); el diario de paper (#338 y #339); el ensayo del runner sobre velas guardadas (#443); `ig_live` guarda el spread de cada vela (#446); el backtest de la comparación ya no opera en el calentamiento (#444).
+- **Evidencia:** la comparación reparte la diferencia por causas y suma exacto (tests de `cfds-runner --test compare`).
+  - **Ensayo del runner (#443, `docs/analysis/2026-11-ensayo-runner.md`):** con velas del futuro del DAX como DE40 (22-09 al 30-10) y spreads sintéticos, 79 de 79 decisiones iguales al backtest y 26 de 26 operaciones emparejadas. El kill switch por un hueco salta a tiempo y un reinicio corto no duplica nada.
+  - **Lo que encontró el ensayo:**
+    - #437, sin spreads guardados el runner nunca propone: **arreglado** (#446). El filtro pide 10 muestras por franja de una hora, y con velas de 15m alcanza con unas 3 sesiones de `ig_live` guardando spreads.
+    - #440, el backtest de la comparación operaba en el calentamiento: **arreglado** (#444).
+    - #438, un reinicio después de 10 días de registro deja el gateway con kill switch y la compuerta cerrada: **abierto, bloquea** si el gateway se reinicia después de 10 días de operar.
+    - #439, las tasas de financiación se cargan solo al arrancar: **abierto**.
+    - #441, el kill switch no sobrevive a un reinicio: **abierto** (seguridad).
+  - **Capital de paper:** con los 1000 € de `config/broker.toml`, el riesgo rechazó las 79 propuestas del ensayo. Con ese capital no se ejecuta nada y el diario queda vacío.
+  - **Falta un período real de paper:**
+    - la spec pide 3 meses;
+    - el runner está apagado (`config/runner.toml`, `enabled = false`; prenderlo es el PR #382, abierto);
+    - hacen falta las velas en vivo de IG (`ig_live`, gasta cupo).
 - **Verificar:** `cd engine && DATABASE_URL=... cargo run -p cfds-gateway --example paper_vs_backtest -- DE40 <desde> <hasta>`; en la UI, Performance → "Paper vs backtest".
 - **Aprobación:** aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419).
 - **Criterio pendiente:** "la diferencia está explicada", sobre un período real de paper (la spec pide 3 meses).
-- **Estado:** **aprobada para avanzar; criterio pendiente.** Sigue **bloqueado por decisión** (habilitar el runner) **y por tiempo** (el período de paper).
+- **Estado:** **aprobada para avanzar; criterio pendiente.** Sigue **bloqueado por decisión** (habilitar el runner y el capital de paper), **por trabajo** (#438, #439 y #441) **y por tiempo** (el período de paper).
 
 ## Fase 8b: Aprendizaje continuo
 
 - **Criterio:** "el informe se genera con los datos del paper trading, la calibración se puede verificar a mano con una muestra, y ningún parámetro cambia sin un voto registrado".
-- **Mergeado:** probabilidad §13 con Wilson (#176); el informe con su muestra para verificar a mano (#329); la vista en la UI (#335). Abierto: propuestas de cambio y votos (#330).
-- **Falta:** mergear #330 (votos), que el runner escriba el diario (#338 y #339) y **datos de paper** para generar el informe.
+- **Mergeado:** probabilidad §13 con Wilson (#176); el informe con su muestra para verificar a mano (#329); la vista en la UI (#335); propuestas de cambio y votos (#330); el runner escribe propuestas y resultados en el diario (#338 y #339).
+- **Falta:** **datos de paper** para generar el informe (el runner está apagado; ver la fase 8). Votar desde la pantalla no existe todavía: el gateway muestra el estado de cada propuesta, pero no tiene rutas para votar.
 - **Verificar:** `cd engine && cargo test -p cfds-journal learning`; en la UI, Performance → "Aprendizaje".
 - **Aprobación:** aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419). El Issue #327 sigue abierto.
 - **Criterio pendiente:** "el informe se genera con los datos del paper trading, la calibración se puede verificar a mano con una muestra, y ningún parámetro cambia sin un voto registrado".
-- **Estado:** **aprobada para avanzar; criterio pendiente.** Sigue faltando **trabajo** (#330, #338 y #339) **y datos de paper**.
+- **Estado:** **aprobada para avanzar; criterio pendiente.** Siguen faltando **datos de paper** (y las cuentas para votar, decisión 9).
 
 ## Fase 9: Observabilidad y operación segura
 
@@ -180,7 +203,8 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
 ## Fase 10: UI y app del celular
 
 - **Criterio:** el ROADMAP **no escribe uno**. Pide la app privada para los 6 iPhone, con push, aprobación de propuestas, votaciones, cuentas con 2FA y P&L, gráficos, noticias, parámetros, la vista del fondo y el diccionario.
-- **Mergeado, entre otros:** prototipo (#31, #165 y #172); liquidez (#233 y #244); pestañas (#289); terminal paper (#276 y #293); PWA instalable (#309); fondo (#313); estado (#317); vistas de las fases 8 y 8b (#335).
+- **Mergeado, entre otros:** prototipo (#31, #165 y #172); liquidez (#233 y #244); pestañas (#289); terminal paper (#276 y #293); PWA instalable (#309); fondo (#313); estado (#317); vistas de las fases 8 y 8b (#335); gráficos navegables (#404); aviso «sin velas en vivo» en el ticket (#386); transición de entrada (#416); revisión de calidad de todas las vistas (#423); gestos táctiles de los gráficos, con el scroll de la página libre (#425); la tarjeta «Modelo (informativo)» con su calibración (#434 y #442).
+- **Evidencia:** la revisión #423 recorrió todas las vistas a 1400, 1024, 768 y 375 px, en tema claro y oscuro: 0 errores de consola, ninguna vista con scroll horizontal y ningún texto que prometa ganancias.
 - **Falta:** cuentas con 2FA, notificaciones push, votaciones y acceso desde el celular fuera de esta computadora (el gateway escucha en `127.0.0.1`).
 - **Verificar:** `cd ui && npm test`; abrir la UI con `infra/scripts/ui_liquidez.sh`.
 - **Aprobación:** aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419). El Issue #275 sigue abierto.
@@ -206,3 +230,6 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
 7. **Acceso desde la red local o el celular:** el gateway escucha en `127.0.0.1:8787` (`config/gateway.toml`). Abrirlo pide decidir cómo, por ejemplo LAN con el token o una VPN.
 8. **Telegram:** las alertas están listas (`config/alerts.toml`); falta decidir si se activan y crear el bot (`TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`).
 9. **Cuentas para votar:** quién vota y cómo se identifica cada uno (spec §1.2). Hace falta para las votaciones de la fase 8b y para las cuentas con 2FA de la fase 10.
+10. **Capital de paper:** con los 1000 € de `config/broker.toml`, el riesgo rechaza las propuestas del DE40 del ensayo (#443). Hay que decidir si se sube el capital de la cuenta simulada o se acepta que casi nada se ejecute.
+11. **Oro, horas de entrada:** `[entries.hours.CMEGLOBEX_METALS]` en `config/trading_window.toml`. Sin ellas el oro no opera (#418).
+12. **ML después de v1 y v2:** no cambiar nada (se sigue mostrando B1), o cambiar la pregunta (más índices o qué se predice), que es un cambio de spec.
