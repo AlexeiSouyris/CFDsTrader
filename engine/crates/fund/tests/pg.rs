@@ -7,11 +7,10 @@ use cfds_storage::PgStore;
 use chrono::{DateTime, Utc};
 use rust_decimal::dec;
 
-const NEEDS: &str = "necesita PostgreSQL: DATABASE_URL";
 const REAL: &str = include_str!("../../../../config/fund.toml");
 
 async fn store() -> PgFund {
-    let url = std::env::var("DATABASE_URL").expect(NEEDS);
+    let url = cfds_storage::test_db::test_database_url();
     let store = PgStore::connect(&url).await.unwrap();
     store.migrate().await.unwrap();
     PgFund::new(store.pool().clone())
@@ -95,7 +94,7 @@ async fn the_table_is_append_only() {
     let (tag, day) = unique_day();
     let recs = movements(&tag, &day);
     pg.record(&recs).await.unwrap();
-    let url = std::env::var("DATABASE_URL").expect(NEEDS);
+    let url = cfds_storage::test_db::test_database_url();
     let pool = PgStore::connect(&url).await.unwrap().pool().clone();
     let del = sqlx::query("DELETE FROM fund_movements WHERE id = $1")
         .bind(&recs[0].id)

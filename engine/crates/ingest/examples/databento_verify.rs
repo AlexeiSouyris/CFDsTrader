@@ -4,22 +4,28 @@
 //! ```text
 //! DATABASE_URL=... cargo run -p cfds-ingest --example databento_verify -- [INSTRUMENTO] [desde] [hasta]
 //! ```
-//! Por omisión, DE40 y todo lo guardado. Arma la diaria del futuro dentro de cada diaria cerrada
+//! Por omisión, DE40 y todo lo guardado. Lee solo las barras del dataset y símbolo del
+//! instrumento en `config/databento.toml` (#376). Arma la diaria del futuro dentro de cada diaria cerrada
 //! de IG y muestra cuántos días se comparan, la correlación de los retornos diarios (sin los
 //! saltos de vencimiento) y la base (cierre IG − cierre futuro): media y desvío, en total y por
 //! contrato. También cuenta las velas de 15m y 1h que se arman y las que mezclarían contratos.
 
 use cfds_core::Timeframe;
-use cfds_market_data::{compare_daily, futures_candles};
+use cfds_market_data::{FuturesFeeds, compare_daily, futures_candles};
 use cfds_storage::PgStore;
 use chrono::{NaiveDate, Utc};
 
 const SOURCE: &str = "databento";
+const DATABENTO: &str = include_str!("../../../../config/databento.toml");
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let id = args.first().map_or("DE40", String::as_str).parse()?;
+    let feeds = FuturesFeeds::from_toml(DATABENTO)?;
+    let feed = feeds
+        .get(&id)
+        .ok_or_else(|| format!("{id}: sin futuro en config/databento.toml"))?;
     let now = Utc::now();
     let from: NaiveDate = args.get(1).map_or("2000-01-01", String::as_str).parse()?;
     let to: NaiveDate = match args.get(2) {
@@ -39,14 +45,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     };
     let bars = store
-        .futures_bars(SOURCE, &id, first.start, last.end)
+        .futures_bars(
+            SOURCE,
+            &feed.dataset,
+            &feed.symbol,
+            &id,
+            first.start,
+            last.end,
+        )
         .await?;
     println!(
-        "{id}: {} diarias de IG ({} → {}) y {} barras de 1 minuto de {SOURCE}",
+        "{id}: {} diarias de IG ({} → {}) y {} barras de 1 minuto de {SOURCE} ({} {})",
         ig.len(),
         first.day,
         last.day,
-        bars.len()
+        bars.len(),
+        feed.dataset,
+        feed.symbol
     );
     if bars.is_empty() {
         println!("sin barras del futuro: bajarlas con `python -m cfds_intel.databento --run`");

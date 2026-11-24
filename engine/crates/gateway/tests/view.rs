@@ -60,7 +60,7 @@ fn sources() -> CandleSources {
 }
 
 async fn source() -> PgSource {
-    let url = std::env::var("DATABASE_URL").expect("falta DATABASE_URL (necesita PostgreSQL)");
+    let url = cfds_storage::test_db::test_database_url();
     let store = PgStore::connect(&url).await.unwrap();
     store.migrate().await.unwrap();
     PgSource {
@@ -273,7 +273,7 @@ async fn daily_view_uses_closed_daily_candles() {
 #[tokio::test]
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn the_gateway_session_cannot_write() {
-    let url = std::env::var("DATABASE_URL").expect("falta DATABASE_URL (necesita PostgreSQL)");
+    let url = cfds_storage::test_db::test_database_url();
     source().await; // deja las migraciones hechas
     let ro = PgStore::connect(&cfds_gateway::read_only_url(&url))
         .await

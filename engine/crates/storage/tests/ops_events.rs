@@ -28,7 +28,7 @@ fn event(ts: DateTime<Utc>, run: &str, n: i64) -> OpsEventRecord {
 #[tokio::test]
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn saved_from_a_read_only_session_in_order_append_only_and_purged_only_by_retention() {
-    let url = std::env::var("DATABASE_URL").expect("falta DATABASE_URL (necesita PostgreSQL)");
+    let url = cfds_storage::test_db::test_database_url();
     let rw = PgStore::connect(&url).await.unwrap();
     rw.migrate().await.unwrap();
     let ro = PgStore::connect(&read_only(&url)).await.unwrap();

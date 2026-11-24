@@ -173,7 +173,7 @@ async fn the_store_reads_sentiment_and_analogs_as_their_contracts() {
     use cfds_core::{AssetClass, Currency, Instrument};
     use cfds_storage::PgStore;
 
-    let url = std::env::var("DATABASE_URL").expect("falta DATABASE_URL (necesita PostgreSQL)");
+    let url = cfds_storage::test_db::test_database_url();
     let store = PgStore::connect(&url).await.unwrap();
     store.migrate().await.unwrap();
     let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;

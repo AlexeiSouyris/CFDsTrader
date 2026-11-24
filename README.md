@@ -45,10 +45,10 @@ Inteligencia (Python):
 cd intelligence && uv sync && uv run ruff format --check && uv run ruff check && uv run mypy && uv run pytest
 ```
 
-Tests de integración con PostgreSQL y Redis (los mismos que corre el CI; con el `docker compose` de arriba levantado):
+Tests de integración con PostgreSQL y Redis (los mismos que corre el CI; con el `docker compose` de arriba levantado). Escriben filas de prueba, así que **nunca** van contra la base real: la base tiene que llamarse `cfds_test…` (por ejemplo `cfds_test_<tu-nombre>`, creada con `createdb`); si no, los tests de Rust y los de Python marcados `pg` fallan sin conectarse (#376).
 
 ```bash
-cd engine && DATABASE_URL=postgres://<usuario>:<contraseña>@127.0.0.1:5432/<base> REDIS_URL=redis://127.0.0.1:6379 cargo test --workspace -- --ignored
+cd engine && DATABASE_URL=postgres://<usuario>:<contraseña>@127.0.0.1:5432/cfds_test_<tu-nombre> REDIS_URL=redis://127.0.0.1:6379 cargo test --workspace -- --ignored
 ```
 
 Interfaz (prototipo, TypeScript): `npm run dev` y abrir la dirección que muestra.

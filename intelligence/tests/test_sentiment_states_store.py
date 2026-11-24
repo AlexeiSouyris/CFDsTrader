@@ -29,9 +29,8 @@ CFG = load_states_config((ROOT / "config" / "sentiment.toml").read_text())
 SCHEMA = json.loads((ROOT / "contracts" / "emotional_state.v1.schema.json").read_text())
 T = datetime(2026, 11, 20, 23, tzinfo=UTC)
 
-needs_db = pytest.mark.skipif(
-    "DATABASE_URL" not in os.environ, reason="necesita PostgreSQL con migraciones (DATABASE_URL)"
-)
+# Escribe en PostgreSQL: solo contra una base cfds_test* (guardia en conftest.py, #376).
+needs_db = pytest.mark.pg
 
 
 def vol(pct: str) -> ComponentState:

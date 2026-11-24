@@ -13,15 +13,13 @@ use rust_decimal::dec;
 #[path = "common/run_sample.rs"]
 mod run_sample;
 
-const NEEDS: &str = "necesita PostgreSQL: DATABASE_URL";
-
 fn at(s: &str) -> DateTime<Utc> {
     s.parse().unwrap()
 }
 
 /// Base migrada, con el instrumento cargado y sin entradas previas de `run_id`.
 async fn journal(run_id: &str) -> PgJournal {
-    let url = std::env::var("DATABASE_URL").expect(NEEDS);
+    let url = cfds_storage::test_db::test_database_url();
     let store = PgStore::connect(&url).await.unwrap();
     store.migrate().await.unwrap();
     store
@@ -219,7 +217,7 @@ async fn a_backtest_run_is_stored_once_and_never_rewritten() {
     ));
 
     // La base impide modificar o borrar.
-    let url = std::env::var("DATABASE_URL").expect(NEEDS);
+    let url = cfds_storage::test_db::test_database_url();
     let pool = sqlx::PgPool::connect(&url).await.unwrap();
     for sql in [
         "UPDATE backtest_runs SET timeframe = '1h' WHERE run_id = $1",
@@ -328,7 +326,7 @@ async fn the_run_detail_joins_the_run_its_curve_and_its_trades() {
     assert!(j.record_run_curve(&orphan).await.is_err());
 
     // la base impide modificar o borrar la curva
-    let url = std::env::var("DATABASE_URL").expect(NEEDS);
+    let url = cfds_storage::test_db::test_database_url();
     let pool = sqlx::PgPool::connect(&url).await.unwrap();
     for sql in [
         "UPDATE backtest_run_curves SET buy_and_hold = '[]'::jsonb WHERE run_id = $1",

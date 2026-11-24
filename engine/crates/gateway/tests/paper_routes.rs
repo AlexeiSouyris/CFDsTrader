@@ -421,7 +421,7 @@ async fn bad_orders_and_routes_are_rejected() {
 #[tokio::test]
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn the_read_only_session_writes_only_the_broker_journal() {
-    let url = std::env::var("DATABASE_URL").expect("falta DATABASE_URL (necesita PostgreSQL)");
+    let url = cfds_storage::test_db::test_database_url();
     cfds_storage::PgStore::connect(&url)
         .await
         .unwrap()
@@ -539,7 +539,7 @@ async fn the_run_detail_route_reads_one_run_with_its_curve_and_trades() {
 async fn the_read_only_session_can_write_the_paper_journal() {
     use cfds_journal::pg::{PgJournal, Recorded};
     use cfds_journal::{BreakdownItem, Direction, Proposal, Signal, Source};
-    let url = std::env::var("DATABASE_URL").expect("necesita PostgreSQL: DATABASE_URL");
+    let url = cfds_storage::test_db::test_database_url();
     let rw = cfds_storage::PgStore::connect(&url).await.unwrap();
     rw.migrate().await.unwrap();
     rw.upsert_instrument(&cfds_core::Instrument {

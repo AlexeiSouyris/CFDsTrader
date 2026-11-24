@@ -14,9 +14,8 @@ import pytest
 from cfds_intel.models.config import load_default
 from cfds_intel.models.dataset import DatasetError, load
 
-pytestmark = pytest.mark.skipif(
-    "DATABASE_URL" not in os.environ, reason="necesita PostgreSQL con migraciones (DATABASE_URL)"
-)
+# Escribe en PostgreSQL: solo contra una base cfds_test* (guardia en conftest.py, #376).
+pytestmark = pytest.mark.pg
 
 CFG = load_default().dataset
 T0 = datetime(2026, 11, 20, 15, 0, tzinfo=UTC)

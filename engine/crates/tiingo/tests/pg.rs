@@ -19,7 +19,7 @@ const BODY: &str = r#"[{"date":"2026-01-05T00:00:00.000Z","close":100,"divCash":
                        {"date":"2026-01-06T00:00:00.000Z","close":101,"divCash":0,"splitFactor":1}]"#;
 
 fn url() -> String {
-    std::env::var("DATABASE_URL").expect("falta DATABASE_URL")
+    cfds_storage::test_db::test_database_url()
 }
 
 /// Símbolo único por corrida: las tablas son de solo agregar y no se limpian.

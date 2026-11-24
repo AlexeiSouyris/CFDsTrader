@@ -17,9 +17,8 @@ from cfds_intel.models.config import ROOT, load_config
 from cfds_intel.models.experiment import CONFIG_FILES, run
 from cfds_intel.models.registry import record
 
-pytestmark = pytest.mark.skipif(
-    "DATABASE_URL" not in os.environ, reason="necesita PostgreSQL con migraciones (DATABASE_URL)"
-)
+# Escribe en PostgreSQL: solo contra una base cfds_test* (guardia en conftest.py, #376).
+pytestmark = pytest.mark.pg
 
 TEXTS = {n: (ROOT / "config" / n).read_text() for n in CONFIG_FILES}
 CFG = load_config(TEXTS["ml.toml"])
