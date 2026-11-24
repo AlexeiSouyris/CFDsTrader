@@ -318,6 +318,21 @@ pub struct PgPaper {
     last_reconcile: std::sync::Mutex<Option<ReconcileStatus>>,
     /// Si el kill switch activo ya está guardado (#441). Se mira con el candado del broker.
     kill_switch_saved: std::sync::atomic::AtomicBool,
+    /// `[paper] candles_days`: las velas del broker empiezan esto antes de la primera orden del
+    /// registro (#438).
+    candles_window: TimeDelta,
+}
+
+/// Desde cuándo carga velas el broker (#438): `window` antes de la **primera** orden del
+/// registro, para que la reconstrucción tenga las velas de todas las órdenes y el ATR salga
+/// igual que en la sesión que las procesó ([`PaperBroker::start_candles_at`]). Sin órdenes,
+/// `window` antes de `now`.
+pub fn candles_from(
+    journal: &[(Order, OrderReport)],
+    window: TimeDelta,
+    now: DateTime<Utc>,
+) -> DateTime<Utc> {
+    journal.first().map_or(now, |(o, _)| o.created_at) - window
 }
 
 impl PgPaper {
@@ -337,7 +352,9 @@ impl PgPaper {
     ) -> Result<(Self, Vec<String>), String> {
         let mut markets = BTreeMap::new();
         let mut skipped = Vec::new();
-        let from = now - TimeDelta::days(i64::from(paper.candles_days));
+        let journal = store.paper_journal().await.map_err(|e| e.to_string())?;
+        let candles_window = TimeDelta::days(i64::from(paper.candles_days));
+        let from = candles_from(&journal, candles_window, now);
         for id in catalog.instruments.keys() {
             let terms = match market_terms_from_catalog(catalog, id) {
                 Ok(t) => t,
@@ -393,7 +410,6 @@ impl PgPaper {
                 },
             );
         }
-        let journal = store.paper_journal().await.map_err(|e| e.to_string())?;
         // El kill switch guardado (#441) vuelve en el mismo punto del registro: sobrevive al
         // reinicio y solo lo apaga una liberación guardada (votación de la spec §1.2).
         let marks = kill_switch_marks(&store).await.map_err(|e| e.to_string())?;
@@ -440,6 +456,7 @@ impl PgPaper {
                 &rec,
             ))),
             kill_switch_saved: std::sync::atomic::AtomicBool::new(saved),
+            candles_window,
         };
         // El kill switch de la reconciliación al arrancar también se guarda.
         {
@@ -521,6 +538,15 @@ impl PgPaper {
         log_events(&self.ops.log, &events);
         alert_events(&self.ops.alerts, &events, now).await;
         self.save_kill_switch(broker, now).await;
+    }
+
+    /// Antes de mandar una orden: si es la primera del registro, las velas del broker empiezan
+    /// `[paper] candles_days` antes de ella, como las cargará la reconstrucción (#438).
+    pub(crate) fn anchor_candles(&self, broker: &mut PaperBroker, order: &Order) {
+        if broker.journal().is_empty() {
+            // Sin órdenes procesadas no puede fallar.
+            let _ = broker.start_candles_at(order.created_at - self.candles_window);
+        }
     }
 
     /// `refresh` con sus errores logueados y alertados.
@@ -607,6 +633,7 @@ impl PaperService for PgPaper {
         }
         let now = order.created_at;
         self.refresh_checked(broker, sched, now).await?;
+        self.anchor_candles(broker, &order);
         let r = submit_and_record(broker, &self.store, &order)
             .await
             .map_err(|e| e.to_string());

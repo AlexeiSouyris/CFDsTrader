@@ -374,6 +374,21 @@ impl PaperBroker {
         std::mem::take(&mut self.events)
     }
 
+    /// Fija el comienzo de las velas antes de la **primera** orden (#438): quita las velas que
+    /// empiezan antes de `from`. Quien reconstruye el broker carga las velas desde ese mismo
+    /// punto, así el ATR de Wilder (que depende de la primera vela) sale igual en la sesión y en
+    /// la reconstrucción. Con órdenes ya procesadas no cambia nada y devuelve error: cambiar
+    /// las velas por debajo de un informe es repintado.
+    pub fn start_candles_at(&mut self, from: DateTime<Utc>) -> Result<(), &'static str> {
+        if !self.journal.is_empty() {
+            return Err("el broker ya procesó órdenes: sus velas no se recortan");
+        }
+        for m in self.markets.values_mut() {
+            m.candles.retain(|c| c.start >= from);
+        }
+        Ok(())
+    }
+
     /// Los mercados con sus velas (para reconstruir aparte, por ejemplo al reconciliar).
     pub fn markets(&self) -> &BTreeMap<InstrumentId, MarketSetup> {
         &self.markets

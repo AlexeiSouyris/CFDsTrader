@@ -245,3 +245,65 @@ fn only_a_saved_release_turns_the_kill_switch_off_and_later_orders_rebuild_the_s
     assert!(!again.kill_switch_active());
     assert_eq!(again.journal(), after_vote.journal());
 }
+
+/// 20 velas anchas (rango 20) y después 60 angostas (rango 2), desde `at(0)`.
+fn wide_then_narrow(id: &str) -> Vec<Candle> {
+    (0..80)
+        .map(|i| {
+            let half = if i < 20 { dec!(10) } else { dec!(1) };
+            Candle {
+                instrument_id: id.parse().unwrap(),
+                timeframe: Timeframe::M15,
+                start: at(i),
+                open: dec!(100),
+                high: dec!(100) + half,
+                low: dec!(100) - half,
+                close: dec!(100),
+                volume: None,
+            }
+        })
+        .collect()
+}
+
+fn markets_from(first: usize) -> BTreeMap<InstrumentId, MarketSetup> {
+    let (_, mut markets) = setup(dec!(100));
+    for (id, m) in &mut markets {
+        m.candles = wide_then_narrow(id.as_str())[first..].to_vec();
+    }
+    markets
+}
+
+/// #438: el ATR de Wilder depende de la primera vela. Una sesión que arrancó con más historia
+/// que la que carga la reconstrucción decide distinto (acá, el stop a 6,4 puntos pasa con el
+/// ATR de toda la serie y es `stop_too_far` con el de las últimas 60 velas).
+#[test]
+fn the_candles_start_at_the_first_order_so_a_restart_rebuilds_the_same() {
+    let (cfg, _) = setup(dec!(100));
+    let mut o = order("a", "DE40", dec!(93.6));
+    o.created_at = at(80);
+    let window = TimeDelta::minutes(15 * 60);
+
+    // Sin fijar el comienzo: la sesión tiene velas desde at(0), la reconstrucción desde at(20).
+    let mut loose = PaperBroker::new(cfg.clone(), markets_from(0));
+    let r = loose.submit(&o);
+    let (_, rec) =
+        restore_and_reconcile(cfg.clone(), markets_from(20), loose.journal(), &[], at(80));
+    assert_eq!(rec.drifts.len(), 1, "{r:?}");
+
+    // Fijando el comienzo antes de la primera orden: igual que la reconstrucción.
+    let mut anchored = PaperBroker::new(cfg.clone(), markets_from(0));
+    anchored.start_candles_at(o.created_at - window).unwrap();
+    anchored.submit(&o);
+    let positions = anchored.positions(at(80));
+    let (_, rec) = restore_and_reconcile(
+        cfg,
+        markets_from(20),
+        anchored.journal(),
+        &positions,
+        at(80),
+    );
+    assert!(rec.is_clean(), "{rec:?}");
+    // Con órdenes ya procesadas las velas no se tocan.
+    assert!(anchored.start_candles_at(at(40)).is_err());
+    assert_eq!(anchored.markets()[&o.instrument_id].candles.len(), 60);
+}
