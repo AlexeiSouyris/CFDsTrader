@@ -2,7 +2,7 @@
 # docs/analysis/2026-11-propuesta-investigacion.md (#466) y su pre-registro,
 # docs/analysis/2026-11-ronda1-preregistro.md y docs/analysis/2026-11-ronda2-preregistro.md. Los valores salen de la fuente citada allí: NO se
 # ajustan mirando resultados (cambiarlos es una prueba nueva, con su costo en el presupuesto).
-# Solo los leen los ejemplos `ronda1` y `ronda2` de cfds-backtest: ni el runner ni el paper ni la estrategia en
+# Solo los leen los ejemplos `ronda1`, `ronda2` y `ronda3` de cfds-backtest: ni el runner ni el paper ni la estrategia en
 # uso (config/strategy.toml) los usan.
 
 [orb]
@@ -62,6 +62,46 @@ stop_atr = "2"
 alpha = "0.0125"
 # 350 pruebas registradas hasta la ronda 1 (incluidas C y D1) más A y B.
 dsr_trials = 352
+dsr_min = "0.95"
+cost_stress = "1.5"
+second_half_from = "2020-01-01"
+
+
+# ── Ronda 3 (#493, programa 2) ───────────────────────────────────────────────────────────────
+# Definiciones y regla: docs/analysis/2026-11-programa-2-propuesta.md y
+# docs/analysis/2026-11-ronda3-preregistro.md. Solo los lee el ejemplo `ronda3`.
+
+[vol_managed]
+# Familia V (Moreira y Muir, 2017): peso = min(cap, c / RV), con c estimado en el entrenamiento.
+# El tope lo fijamos nosotros (no viene del artículo): 2 veces el capital.
+cap = "2"
+# Pares (retorno, varianza anterior) mínimos del entrenamiento para estimar c.
+min_training_pairs = 12
+
+[round_number]
+# Familia M1 (Osler 2003 y 2005; informe de #492): salida a `horizon_minutes` del cierre del cruce.
+horizon_minutes = 120
+# Stop de protección a `stop_atr` × ATR(`atr_period`) de 15m (el riesgo mide con ese ATR).
+atr_period = 14
+stop_atr = "2"
+
+[round_number.steps]
+# Paso de los niveles redondos en puntos del futuro (informe de #492 §4.5, fijado antes de mirar).
+US500 = "50"
+US100 = "100"
+US30 = "500"
+
+[overnight_drift]
+# Descriptivo sin voto (Boyarchenko, Larsen y Whelan, 2023): de 02:00 a 03:00 ET.
+timezone = "America/New_York"
+from = "02:00"
+to = "03:00"
+
+[rule_round3]
+# Programa 2: 2,5 % para la ronda 3 dividido por 2 familias (V y M1).
+alpha = "0.0125"
+# 352 pruebas registradas hasta la ronda 2 más V y M1.
+dsr_trials = 354
 dsr_min = "0.95"
 cost_stress = "1.5"
 second_half_from = "2020-01-01"

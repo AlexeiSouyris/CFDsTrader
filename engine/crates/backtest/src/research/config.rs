@@ -56,7 +56,44 @@ pub struct RuleConfig {
     pub second_half_from: NaiveDate,
 }
 
+/// Familia V (exposición manejada por volatilidad), ronda 3 (#493).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VolManagedConfig {
+    /// Peso máximo (veces el capital).
+    pub cap: Decimal,
+    /// Pares mínimos del entrenamiento para estimar `c`.
+    pub min_training_pairs: usize,
+}
+
+/// Familia M1 (cascada al cruzar un número redondo), ronda 3 (#493).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoundNumberConfig {
+    /// Minutos desde el cierre de la vela del cruce hasta la salida.
+    pub horizon_minutes: u32,
+    pub atr_period: usize,
+    pub stop_atr: Decimal,
+    /// Paso de los niveles redondos por instrumento (puntos del futuro).
+    pub steps: Vec<(String, Decimal)>,
+}
+
+impl RoundNumberConfig {
+    pub fn step_for(&self, instrument: &str) -> Option<Decimal> {
+        self.steps
+            .iter()
+            .find(|(k, _)| k == instrument)
+            .map(|(_, v)| *v)
+    }
+}
+
+/// Descriptivo de la deriva nocturna, ronda 3 (#493).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OvernightDriftConfig {
+    pub timezone: chrono_tz::Tz,
+    pub from: NaiveTime,
+    pub to: NaiveTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResearchConfig {
     pub orb: OrbConfig,
     pub turn_of_month: TurnOfMonthConfig,
@@ -66,6 +103,11 @@ pub struct ResearchConfig {
     pub intraday_momentum: IntradayMomentumConfig,
     /// Regla de la ronda 2 (A y B): la misma de #466 §4.3, con su nivel y su N.
     pub rule_round2: RuleConfig,
+    pub vol_managed: VolManagedConfig,
+    pub round_number: RoundNumberConfig,
+    pub overnight_drift: OvernightDriftConfig,
+    /// Regla de la ronda 3 (V y M1), programa 2 (#493).
+    pub rule_round3: RuleConfig,
 }
 
 impl ResearchConfig {
@@ -109,6 +151,27 @@ impl ResearchConfig {
         }
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
+        struct Vol {
+            cap: String,
+            min_training_pairs: usize,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Round {
+            horizon_minutes: u32,
+            atr_period: usize,
+            stop_atr: String,
+            steps: std::collections::BTreeMap<String, String>,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Overnight {
+            timezone: String,
+            from: String,
+            to: String,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Raw {
             orb: Orb,
             turn_of_month: Tom,
@@ -116,6 +179,10 @@ impl ResearchConfig {
             trend: Trend,
             intraday_momentum: Intraday,
             rule_round2: Rule,
+            vol_managed: Vol,
+            round_number: Round,
+            overnight_drift: Overnight,
+            rule_round3: Rule,
         }
         let raw: Raw = toml::from_str(text).map_err(|e| e.to_string())?;
         let dec = |s: &str, name: &str| -> Result<Decimal, String> {
@@ -176,6 +243,39 @@ impl ResearchConfig {
                     .into(),
             );
         }
+        if raw.vol_managed.min_training_pairs < 2 {
+            return Err("vol_managed.min_training_pairs tiene que ser al menos 2".into());
+        }
+        let rn = &raw.round_number;
+        if rn.atr_period == 0 || rn.horizon_minutes == 0 || !rn.horizon_minutes.is_multiple_of(15) {
+            return Err(
+                "round_number: horizon_minutes múltiplo de 15 mayor que 0 y atr_period mayor que 0"
+                    .into(),
+            );
+        }
+        let steps = rn
+            .steps
+            .iter()
+            .map(|(k, v)| Ok((k.clone(), dec(v, &format!("round_number.steps.{k}"))?)))
+            .collect::<Result<Vec<_>, String>>()?;
+        if steps.is_empty() {
+            return Err("round_number.steps está vacío".into());
+        }
+        let od = &raw.overnight_drift;
+        let time = |s: &str, name: &str| {
+            NaiveTime::parse_from_str(s, "%H:%M").map_err(|_| format!("{name} no es HH:MM"))
+        };
+        let overnight_drift = OvernightDriftConfig {
+            timezone: od
+                .timezone
+                .parse()
+                .map_err(|_| format!("overnight_drift.timezone desconocida: {}", od.timezone))?,
+            from: time(&od.from, "overnight_drift.from")?,
+            to: time(&od.to, "overnight_drift.to")?,
+        };
+        if overnight_drift.to <= overnight_drift.from {
+            return Err("overnight_drift: `to` tiene que ser posterior a `from`".into());
+        }
         Ok(Self {
             orb: OrbConfig {
                 range_candles: raw.orb.range_candles,
@@ -203,6 +303,18 @@ impl ResearchConfig {
                 stop_atr: dec(&m.stop_atr, "intraday_momentum.stop_atr")?,
             },
             rule_round2: rule(&raw.rule_round2, "rule_round2")?,
+            vol_managed: VolManagedConfig {
+                cap: dec(&raw.vol_managed.cap, "vol_managed.cap")?,
+                min_training_pairs: raw.vol_managed.min_training_pairs,
+            },
+            round_number: RoundNumberConfig {
+                horizon_minutes: rn.horizon_minutes,
+                atr_period: rn.atr_period,
+                stop_atr: dec(&rn.stop_atr, "round_number.stop_atr")?,
+                steps,
+            },
+            overnight_drift,
+            rule_round3: rule(&raw.rule_round3, "rule_round3")?,
         })
     }
 }
