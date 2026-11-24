@@ -7,7 +7,9 @@
 //! - ronda 3 (#493, `docs/analysis/2026-11-ronda3-preregistro.md`): exposición manejada por
 //!   volatilidad (familia V), cascada al cruzar un número redondo (familia M1) y el descriptivo
 //!   de la deriva nocturna;
-//! - chequeos descriptivos de la revisión externa (#512, sin voto): `review_checks`.
+//! - chequeos descriptivos de la revisión externa (#512, sin voto): `review_checks`;
+//! - programa Nasdaq (#526, `docs/analysis/2026-11-programa-nasdaq-preregistro.md`): H1, deriva
+//!   antes del comunicado del FOMC (`pre_fomc`).
 //!
 //! Están aparte a propósito: ni el runner, ni el paper, ni la estrategia en uso (la confluencia
 //! de `cfds_strategy`) las usan. Solo las corren los ejemplos `ronda1`, `ronda2` y `ronda3`.
@@ -27,6 +29,7 @@ pub mod config;
 pub mod intraday_momentum;
 pub mod orb;
 pub mod overnight;
+pub mod pre_fomc;
 pub mod review_checks;
 pub mod round_number;
 pub mod run;
@@ -42,12 +45,17 @@ use rust_decimal::Decimal;
 
 pub use buy_and_hold::buy_and_hold_returns;
 pub use config::{
-    IntradayMomentumConfig, OrbConfig, OvernightDriftConfig, ResearchConfig, ReviewChecksConfig,
-    RoundNumberConfig, RuleConfig, TrendConfig, TurnOfMonthConfig, VolManagedConfig,
+    IntradayMomentumConfig, MacroDayConfig, OrbConfig, OvernightDriftConfig, ResearchConfig,
+    ReviewChecksConfig, RoundNumberConfig, RuleConfig, TrendConfig, TurnOfMonthConfig,
+    VolManagedConfig,
 };
 pub use intraday_momentum::intraday_momentum_plans;
 pub use orb::orb_plans;
 pub use overnight::window_returns;
+pub use pre_fomc::{
+    CalendarRow, EventOutcome, EventWindow, PreFomcConfig, ReleaseStatus, Skip, event_schedule,
+    pre_fomc_windows,
+};
 pub use review_checks::{
     blend_return, drift_after_close, session_close_returns, strong_drop_flags, vol_match_scale,
 };
