@@ -4,18 +4,19 @@
 # fuente. Uso: `walk_forward ... --supuestos docs/analysis/2026-11-us2000-supuestos-proporcional.toml`.
 #
 # Escenario "proporcional": el spread del US500 llevado al mismo costo relativo (en % del precio).
-# El S&P 500 cotizó entre ~2.400 y ~6.900 puntos en 2017–2026 y el Russell 2000 entre ~1.000 y ~2.600: el
-# cociente ronda 0,4–0,45, así que 0,9 × 0,45 ≈ 0,4 puntos (0,8 × 0,45 ≈ 0,35 de mínimo). Es el escenario optimista.
+# Cociente medido en los futuros, antes del fuera de muestra (cierres de las 19:00 UTC de RTY y
+# ES, 10-07-2017 → 31-10-2025, 2042 días): Russell / S&P 500 = 0,478 de media (0,58 en 2017–2018,
+# 0,39 en 2024). Spread típico 0,9 × 0,478 ≈ 0,43 y mínimo 0,8 × 0,478 ≈ 0,38 puntos. Es el
+# escenario optimista.
 source = "supuesto-estudio-421: spread del US500 de IG escalado al nivel del Russell (no es dato de IG)"
 
 [instruments.US2000]
 # ESMA no trata al Russell 2000 como índice principal: margen mínimo regulatorio 10 % (catálogo).
 margin_retail_pct = "10"
-spread_min_points = "0.35"      # 0,8 × 0,45
-spread_typical_points = "0.4"   # 0,9 × 0,45
+spread_min_points = "0.38"      # 0,8 × 0,478
+spread_typical_points = "0.43"  # 0,9 × 0,478
 value_per_point = "1"           # contrato de 1 € por punto, como los demás índices de EE. UU.
 min_deal_size = "1"             # US500
 tick = "0.1"                    # tick del futuro RTY en CME (más grueso que el 0,01 del US500: slippage de 1 tick más caro)
 funding_admin_fee_pct = "3"     # tasa administrativa publicada para los CFD de índices (#379)
-# RTY es de CME, como ES/NQ/YM: el día del vencimiento todavía es del contrato viejo.
-roll = "after_expiry_day"
+# La regla de vencimiento (RTY de CME: after_expiry_day) ya está en config/candle_sources.toml (#449).

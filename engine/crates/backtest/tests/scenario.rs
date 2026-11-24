@@ -120,7 +120,8 @@ fn assumptions_fill_only_pending_terms_in_memory() {
     let mut catalog = original.clone();
     let mut sources = CandleSources::from_toml(SOURCES).unwrap();
     let us2000: InstrumentId = "US2000".parse().unwrap();
-    assert!(!sources.roll.contains_key(&us2000));
+    // Sin regla de vencimiento en memoria, el supuesto la completa (#449 la agrega a config).
+    sources.roll.remove(&us2000);
     let a = StudyAssumptions::from_toml(US2000_ASSUMED).unwrap();
     let filled = apply_assumptions(&mut catalog, &mut sources, &a).unwrap();
     assert_eq!(filled.len(), 8);
