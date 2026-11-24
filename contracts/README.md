@@ -179,6 +179,18 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Tabla de **solo agregar** (`infra/migrations/0022_economic_events.sql`, trigger), con clave natural `(source, event, country, instrument_id, impact, scheduled_at)` y `NULLS NOT DISTINCT`. Leer otra vez el mismo evento no lo repite y conserva su primer `published_at`. Si la fuente cambia la hora o el impacto, es **otra fila** con su propio `published_at`; la anterior queda.
 - Para leerla sin mirar el futuro: `published_at <= as_of` (`cfds_intel.calendar.store.events_known_at`). La lee el motor (`PgStore::economic_events` y `PgStore::economic_event_sightings`, #243) para el filtro §7.2 de `backtest_run` y `chart_export` (`cfds_market_data::NewsFilter`): un evento cuenta en una vela solo si `published_at ≤` su cierre, y una vela sin una lectura de la ingesta en los `calendar_stale_after_days` anteriores (`config/news_filter.toml`) se informa como "sin calendario".
 
+### Calendario histórico oficial (#520, ADR 0016)
+
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `official_release.v1` | `official_releases` | Una publicación oficial: `source` (`fed_fomc` o `bls`), `series` (`fomc_statement`, `cpi`, `employment_situation`), `reference_period` (día de la reunión del FOMC `AAAA-MM-DD` o mes de referencia del BLS `AAAA-MM`), `status` (`scheduled`, `rescheduled`, `cancelled`, `unscheduled`), `scheduled_at` (null solo si se canceló) y `published_at` en UTC, `time_rule` (`release_page` o la regla de `config/official_calendar.toml`), `with_press_conference` (solo FOMC) y `source_url`. |
+
+- Aparte de `economic_event.v1` a propósito (ADR 0016 §5): otra fuente, otro uso (estudio de la familia E) y campos que ese contrato no tiene. Dice **cuándo** hubo un anuncio, no **qué** dijo.
+- Hoy la escribe Python con `python -m cfds_intel.calendar.official`: los comunicados del FOMC 2011–2025 de federalreserve.gov, con la hora de su página o, si no la trae, la regla de `config/official_calendar.toml` (2:15 p.m. hasta marzo de 2011; desde abril de 2011, ~12:30 con conferencia y 2:15 sin; 2:00 p.m. desde marzo de 2013). La hora del Este pasa a UTC con `America/New_York`. El CPI y el empleo del BLS entran en la misma tabla cuando el dueño elija la forma de acceso (ADR 0016 §1.3).
+- **`published_at` (anti look-ahead, ADR 0016 §4):** una reunión programada, desde el comunicado del calendario tentativo que la anunció con sus fechas exactas (sin hora en la página, el final de ese día ET); una no programada (`unscheduled`, por ejemplo las de marzo de 2020), desde su propio comunicado (`published_at = scheduled_at`). Una reunión que no se puede documentar queda fuera. `CHECK published_at <= scheduled_at`.
+- Tabla de **solo agregar** (`infra/migrations/0046_official_releases.sql`, trigger), clave natural `(source, series, reference_period, status, scheduled_at)` con `NULLS NOT DISTINCT`. Una segunda carga no agrega nada; una fila guardada con otros datos es un error (no se pisa).
+- Para leerla sin mirar el futuro: `published_at <= as_of` (`cfds_intel.calendar.official.store.releases_known_at`).
+
 ### Histórico de futuros (#247, ADR 0011 en propuesta)
 
 | Contrato | Tabla | Contenido |

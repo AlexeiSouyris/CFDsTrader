@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/official_release.v1.schema.json",
+  "title": "Official release v1",
+  "description": "Una publicación oficial programada o no programada (ADR 0016): un comunicado del FOMC (Fed) o una publicación del CPI o del informe de empleo (BLS). Dice CUÁNDO hubo un anuncio, no QUÉ dijo. Una fila solo existe para el sistema desde 'published_at' (CLAUDE.md §5b, ADR 0006 §3).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source",
+    "series",
+    "reference_period",
+    "status",
+    "scheduled_at",
+    "published_at",
+    "time_rule",
+    "with_press_conference",
+    "source_url"
+  ],
+  "properties": {
+    "source": {
+      "description": "Organismo que publica: 'fed_fomc' (federalreserve.gov) o 'bls' (bls.gov).",
+      "enum": ["fed_fomc", "bls"]
+    },
+    "series": {
+      "description": "Qué se publica. 'fomc_statement' sale de 'fed_fomc'; 'cpi' y 'employment_situation', de 'bls'.",
+      "enum": ["fomc_statement", "cpi", "employment_situation"]
+    },
+    "reference_period": {
+      "description": "Para el FOMC, el último día de la reunión (AAAA-MM-DD). Para el BLS, el mes de referencia del dato (AAAA-MM).",
+      "type": "string",
+      "pattern": "^\\d{4}-(0[1-9]|1[0-2])(-(0[1-9]|[12]\\d|3[01]))?$"
+    },
+    "status": {
+      "description": "'scheduled': estaba en el calendario publicado. 'rescheduled': fecha nueva de una publicación movida (la fila original queda). 'cancelled': no se publicó. 'unscheduled': reunión de emergencia o voto por escrito; no se sabía antes del anuncio.",
+      "enum": ["scheduled", "rescheduled", "cancelled", "unscheduled"]
+    },
+    "scheduled_at": {
+      "description": "Hora del anuncio en UTC, ISO 8601 terminado en Z. null solo si status = 'cancelled'.",
+      "oneOf": [
+        { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" },
+        { "type": "null" }
+      ]
+    },
+    "published_at": {
+      "description": "Desde cuándo se sabía, en UTC, ISO 8601 terminado en Z (ADR 0016 §4). Nunca posterior a 'scheduled_at'; igual a 'scheduled_at' si status = 'unscheduled'. Antes de esta hora la fila no existe para el sistema.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "time_rule": {
+      "description": "De dónde salió la hora: 'release_page' (la página del comunicado trae 'For release at ...') o el nombre de la regla de config/official_calendar.toml que se aplicó.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$"
+    },
+    "with_press_conference": {
+      "description": "Solo FOMC: si la reunión tuvo conferencia de prensa. null para el BLS.",
+      "oneOf": [{ "type": "boolean" }, { "type": "null" }]
+    },
+    "source_url": {
+      "description": "Página oficial de la que sale la fila (el comunicado, en el FOMC).",
+      "type": "string",
+      "pattern": "^https://",
+      "maxLength": 500
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "cancelled" } } },
+      "then": { "properties": { "scheduled_at": { "type": "null" } } },
+      "else": { "properties": { "scheduled_at": { "type": "string" } } }
+    },
+    {
+      "if": { "properties": { "source": { "const": "fed_fomc" } } },
+      "then": {
+        "properties": {
+          "series": { "const": "fomc_statement" },
+          "reference_period": { "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+          "with_press_conference": { "type": "boolean" }
+        }
+      },
+      "else": {
+        "properties": {
+          "series": { "enum": ["cpi", "employment_situation"] },
+          "reference_period": { "pattern": "^\\d{4}-\\d{2}$" },
+          "with_press_conference": { "type": "null" }
+        }
+      }
+    }
+  ]
+}
