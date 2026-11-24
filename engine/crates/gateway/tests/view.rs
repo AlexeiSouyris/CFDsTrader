@@ -138,7 +138,19 @@ async fn reads_closed_candles_and_levels_as_known_at_as_of() {
         state_changed_at: Some(at("2026-11-20T15:00:00Z")),
         expired_at: None,
     };
-    src.store.insert_liquidity_levels(&[level]).await.unwrap();
+    // Un número redondo (#504) pasa por la vista igual que los demás niveles.
+    let round = LiquidityLevel {
+        kind: K::RoundHigh,
+        price: dec!(102),
+        exists_from: at("2026-11-20T14:30:00Z"),
+        state: S::Intact,
+        state_changed_at: None,
+        ..level.clone()
+    };
+    src.store
+        .insert_liquidity_levels(&[level, round])
+        .await
+        .unwrap();
 
     // 14:50: la vela de 14:45 (la que barre, cierra a las 15:00) todavía no cerró: as_of = 14:45
     // y el barrido no se ve.
@@ -148,8 +160,9 @@ async fn reads_closed_candles_and_levels_as_known_at_as_of() {
         .unwrap();
     assert_eq!(view.as_of.as_deref(), Some("2026-11-20T14:45:00Z"));
     assert_eq!(view.candles.len(), 3);
-    assert_eq!(view.levels.len(), 1);
+    assert_eq!(view.levels.len(), 2);
     assert_eq!(view.levels[0].state, S::Intact);
+    assert_eq!(view.levels[1].kind, K::RoundHigh);
     assert_valid(&serde_json::to_value(&view).unwrap());
 
     // Con todas las velas cerradas, el nivel llega barrido.
