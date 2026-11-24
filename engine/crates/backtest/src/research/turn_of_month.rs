@@ -19,7 +19,7 @@ use cfds_strategy::Side;
 use chrono::{Datelike, Months, NaiveDate, TimeDelta};
 use rust_decimal::Decimal;
 
-use super::{Plan, TurnOfMonthConfig};
+use super::{Plan, TurnOfMonthConfig, legs};
 
 /// Diaria de la sesión de contado: las velas de 15m que caben enteras en la sesión de `day`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,8 +74,18 @@ pub fn session_bars(m15: &[Candle], session: &Session) -> Vec<SessionBar> {
     out
 }
 
+/// ATR de la última diaria cerrada antes del día `day` (`atr` alineado con `bars`).
+pub(crate) fn atr_before(
+    bars: &[SessionBar],
+    atr: &[Option<Decimal>],
+    day: NaiveDate,
+) -> Option<Decimal> {
+    let i = bars.partition_point(|b| b.day < day);
+    atr.get(i.checked_sub(1)?).copied().flatten()
+}
+
 /// Días con sesión del mes de `day`, en orden. `None` si el calendario no cubre el mes.
-fn business_days(session: &Session, year: i32, month: u32) -> Option<Vec<NaiveDate>> {
+pub(crate) fn business_days(session: &Session, year: i32, month: u32) -> Option<Vec<NaiveDate>> {
     let mut out = Vec::new();
     let mut d = NaiveDate::from_ymd_opt(year, month, 1)?;
     while d.month() == month {
@@ -102,11 +112,7 @@ pub fn turn_of_month_plans(
     };
     let bars = session_bars(m15, session);
     let atr = wilder_atr(&bars, cfg.atr_period);
-    // ATR de la última diaria cerrada antes del día `day`.
-    let atr_before = |day: NaiveDate| -> Option<Decimal> {
-        let i = bars.partition_point(|b| b.day < day);
-        atr.get(i.checked_sub(1)?).copied().flatten()
-    };
+    let atr_before = |day: NaiveDate| atr_before(&bars, &atr, day);
     let start_month = session.trading_day(first.start).with_day(1);
     let end_day = session.trading_day(last.start);
     let mut plans = Vec::new();
@@ -166,13 +172,8 @@ fn event_plans(
         return out;
     };
     // La decisión de la ventana es al cierre de la anteúltima vela del último día hábil.
-    let mut from = m15.partition_point(|c| c.start < last_close - TimeDelta::minutes(30));
-    while let Some(t) = (from..exit_index)
-        .find(|&i| entries.get(i).copied().unwrap_or(false) && m15[i + 1].start == m15[i].end())
-    {
-        let end = (t + 1..exit_index)
-            .find(|&f| force_close.get(f).copied().unwrap_or(false))
-            .unwrap_or(exit_index);
+    let from = m15.partition_point(|c| c.start < last_close - TimeDelta::minutes(30));
+    for (t, end) in legs(m15, entries, force_close, from, exit_index) {
         let reference = m15[t].close;
         if let Some(a) = atr_before(session.trading_day(m15[t].start)) {
             out.push(Plan {
@@ -185,10 +186,6 @@ fn event_plans(
                 exit_index: end,
             });
         }
-        if end == exit_index {
-            break;
-        }
-        from = end + 1;
     }
     out
 }

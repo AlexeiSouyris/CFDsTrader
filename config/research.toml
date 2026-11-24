@@ -1,8 +1,8 @@
-# Estrategias de ESTUDIO de la ronda 1 de investigación (#472). Definiciones y regla de decisión de
+# Estrategias de ESTUDIO de las rondas 1 (#472) y 2 (#486) de investigación. Definiciones y regla de decisión de
 # docs/analysis/2026-11-propuesta-investigacion.md (#466) y su pre-registro,
-# docs/analysis/2026-11-ronda1-preregistro.md. Los valores salen de la fuente citada allí: NO se
+# docs/analysis/2026-11-ronda1-preregistro.md y docs/analysis/2026-11-ronda2-preregistro.md. Los valores salen de la fuente citada allí: NO se
 # ajustan mirando resultados (cambiarlos es una prueba nueva, con su costo en el presupuesto).
-# Solo los lee el ejemplo `ronda1` de cfds-backtest: ni el runner ni el paper ni la estrategia en
+# Solo los leen los ejemplos `ronda1` y `ronda2` de cfds-backtest: ni el runner ni el paper ni la estrategia en
 # uso (config/strategy.toml) los usan.
 
 [orb]
@@ -31,4 +31,37 @@ dsr_min = "0.95"
 # Estrés de costos: multiplicador de todos los costos sobre las mismas operaciones.
 cost_stress = "1.5"
 # Inicio de la segunda mitad de la validación para la consistencia (criterio 3).
+second_half_from = "2020-01-01"
+
+
+# ── Ronda 2 (#486) ────────────────────────────────────────────────────────────────────────────
+
+[trend]
+# Familia A, tendencia mensual (Moskowitz, Ooi y Pedersen, 2012): largo si el retorno de los
+# últimos `lookback_months` meses (encadenado en los vencimientos) es > 0, corto si es < 0.
+lookback_months = 12
+# Stop de protección a `stop_atr` × ATR(`atr_period`) DIARIO (diarias de la sesión de contado).
+# El riesgo mide la distancia con ese mismo ATR diario.
+atr_period = 20
+stop_atr = "3"
+
+[intraday_momentum]
+# Familia B, momentum intradía (Gao, Han, Li y Zhou, 2018), horarios de la bolsa (ET).
+# Señal: retorno desde el cierre de la sesión anterior hasta el cierre de la vela que termina
+# `signal_minutes_after_open` minutos después de la apertura (10:00 ET).
+signal_minutes_after_open = 30
+# Decisión al cierre de la vela que termina `decision_minutes_before_close` minutos antes del
+# cierre (15:30 ET); salida al cierre de la sesión.
+decision_minutes_before_close = 30
+# Stop de protección a `stop_atr` × ATR(`atr_period`) de 15m.
+atr_period = 14
+stop_atr = "2"
+
+[rule_round2]
+# Regla de #466 §4.3 para la ronda 2: el 2,5 % que dejó la ronda 1 dividido por 2 familias.
+alpha = "0.0125"
+# 350 pruebas registradas hasta la ronda 1 (incluidas C y D1) más A y B.
+dsr_trials = 352
+dsr_min = "0.95"
+cost_stress = "1.5"
 second_half_from = "2020-01-01"
