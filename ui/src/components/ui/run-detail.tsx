@@ -7,7 +7,7 @@
  * Es simulación con datos del pasado: no anticipa resultados.
  */
 import { X } from 'lucide-react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 
 import type { ExitReason, RunDetail as Detail } from '@/lib/backtest-contracts'
 import { dateTimeUtc, decimal, signed } from '@/lib/format'
@@ -409,8 +409,10 @@ export function RunDetailView({
   const bh = detail.curve?.buy_and_hold ?? []
   // Al abrir, el foco va al título del detalle y la página lo trae a la vista: sin esto, con
   // teclado o lector de pantalla el detalle aparece más abajo sin aviso.
+  // En `useLayoutEffect`: el foco queda puesto en el mismo commit que muestra el detalle (antes de
+  // pintar), no en un efecto que corre después y que un test podía no esperar (#415).
   const title = useRef<HTMLHeadingElement>(null)
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = title.current
     if (!el) return
     el.focus({ preventScroll: true })

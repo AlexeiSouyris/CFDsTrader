@@ -32,7 +32,7 @@ import { matchRange, useChartNav, useViewport } from '@/components/ui/chart-nav'
 import { ChartReadout } from '@/components/ui/chart-readout'
 import { LineArea } from '@/components/ui/line-area'
 import { niceTicks, renderWindow, timeTicks, visibleRange } from '@/lib/chart-viewport'
-import { dateUtc, decimal } from '@/lib/format'
+import { dateUtc, decimal, timeTickLabel } from '@/lib/format'
 import { useElementWidth } from '@/lib/use-element-width'
 import { Segmented } from '@/components/ui/segmented'
 import { cn } from '@/lib/utils'
@@ -332,7 +332,7 @@ export function TradingChart({
                       </text>
                     </g>
                   ))}
-                  {timeTicks(m, n).map((i) => {
+                  {timeTicks(m, n).map((i, _, ticks) => {
                     const tx = m.x(i)
                     // cerca de los bordes no entra el rótulo entero: se omite (no se pisa con el vecino)
                     if (tx < 22 || tx > plotW - 22) return null
@@ -346,7 +346,10 @@ export function TradingChart({
                         fontSize={10}
                         fill="var(--muted-foreground)"
                       >
-                        {dateUtc(bars[i].start)}
+                        {timeTickLabel(
+                          bars[i].start,
+                          ticks.length > 1 ? bars[i - (ticks[1] - ticks[0])]?.start : undefined,
+                        )}
                       </text>
                     )
                   })}

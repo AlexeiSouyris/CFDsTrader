@@ -15,6 +15,21 @@ const DATE = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', 
 /** "20 nov, 15:45 UTC": la hora interna es UTC (spec §2). */
 export const dateTimeUtc = (iso: string) => `${DATE_TIME.format(new Date(iso))} UTC`
 export const dateUtc = (iso: string) => DATE.format(new Date(iso))
+const TIME = new Intl.DateTimeFormat('es-ES', {
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'UTC',
+})
+
+/**
+ * Rótulo del eje de tiempo: la fecha ("20 nov") en la primera marca de cada día y la hora UTC
+ * ("12:00") en las demás del mismo día. Con velas intradía, solo la fecha repetía "20 nov" (#415).
+ * `prev` es la vela de la marca anterior (un paso fijo atrás), así el rótulo no salta al arrastrar.
+ */
+export function timeTickLabel(iso: string, prev?: string): string {
+  const day = (t: string) => new Date(t).toISOString().slice(0, 10)
+  return prev && day(prev) === day(iso) ? TIME.format(new Date(iso)) : dateUtc(iso)
+}
 
 /** Separa miles con punto y decimales con coma, sin pasar por float para el texto. */
 export function decimal(text: string, digits?: number): string {
