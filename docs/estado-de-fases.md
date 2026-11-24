@@ -1,6 +1,6 @@
 # Estado de las fases (para aprobar)
 
-Actualizado el 24-11-2026, con lo mergeado esa noche (#451). Es un resumen para el dueño: por cada fase de `docs/ROADMAP.md`, el criterio de aprobación, lo mergeado, la evidencia o lo que falta, cómo verificarlo y si la aprobación ya quedó registrada.
+Actualizado el 24-11-2026, con lo mergeado esa noche (#451) y en la madrugada (#458 a #474; ver `docs/analysis/2026-11-24-resumen-noche.md`). Es un resumen para el dueño: por cada fase de `docs/ROADMAP.md`, el criterio de aprobación, lo mergeado, la evidencia o lo que falta, cómo verificarlo y si la aprobación ya quedó registrada.
 
 `CLAUDE.md` §5c pide que **ninguna fase empiece sin que la anterior esté aprobada y registrada en su Issue**. Mientras el dueño construya solo, alcanza con su aprobación explícita (modo de un solo constructor). La fase 11 siempre pide dos personas.
 
@@ -102,16 +102,30 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
 ## Fase 5: Evaluación y anti-sobreajuste
 
 - **Criterio:** "se sostiene fuera de muestra y con costos realistas".
-- **Mergeado:** métricas (#59); walk-forward, comprar y mantener por ventana y fuera de muestra aparte (#301); sensibilidad (#303); diario (#306); el ejemplo `walk_forward` (#310); el bloque en la UI (#318); el diagnóstico de DE40 (#324); la tasa administrativa del 3 % (#393); el estudio de variantes del DE40 (#373); las propuestas por mes de US500 con futuros 2011–2026 (#398); el estudio de financiación €STR/SOFR de EE. UU. (#411).
+- **Mergeado:** métricas (#59); walk-forward, comprar y mantener por ventana y fuera de muestra aparte (#301); sensibilidad (#303); diario (#306); el ejemplo `walk_forward` (#310); el bloque en la UI (#318); el diagnóstico de DE40 (#324); la tasa administrativa del 3 % (#393); el estudio de variantes del DE40 (#373); las propuestas por mes de US500 con futuros 2011–2026 (#398); el estudio de financiación €STR/SOFR de EE. UU. (#411); Russell 2000 y US100 completo en walk-forward (#457); el diagnóstico de EE. UU. con futuros 2011–2025 (#461); la base de los futuros en la financiación y las tasas USD de la NY Fed (#470, ADR 0015); la propuesta de investigación pre-registrada (#466) y su ronda 1 (#474).
 - **Evidencia y lo que falta:**
   - **DE40.FUT** tiene 19 meses de velas y `config/data_split.toml` pide al menos 39 (24 + 3 + 12). El ejemplo se detiene con `NotEnoughData`.
   - **US500, US100 y US30** tienen historia de futuros, pero su `funding_benchmark` sigue pendiente en `config/instruments.toml`: sin la tasa de financiación, el backtest oficial no corre.
   - **Estudio de financiación (#411, `docs/analysis/2026-11-wf-us-escenarios-financiacion.md`):** se corrió el walk-forward de los tres con dos tasas posibles, €STR y SOFR, solo en memoria y sin tocar el fuera de muestra. **El veredicto no cambia con la tasa:** US500 y US30 pierden con las dos, y US100 queda en torno a cero. No es un resultado oficial: la tasa la tiene que confirmar IG. US100 tiene la mitad de las ventanas porque sus futuros (NQ) empiezan en 11-2021.
   - El diagnóstico en sample (#324) muestra que hoy la estrategia **pierde en DE40 antes de costos**: aun con datos, el criterio probablemente no se cumpla sin cambios en la estrategia.
+  - **Diagnóstico de EE. UU. (#461, `docs/analysis/2026-11-diagnostico-us-futuros.md`):** US500, US100 y US30 con futuros de 2011-02 a 2025-11, en 59 bloques trimestrales y en muestra.
+    - Pierden los tres: −0,19 R, −0,12 R y −0,16 R netos por operación.
+    - Antes de costos no hay ventaja (−0,02, +0,01 y −0,05 R); los costos se llevan 0,18, 0,13 y 0,10 R por operación.
+    - Desde 2020, US100 queda cerca de cero neto (−0,01 R); US500 y US30 siguen perdiendo.
+    - Ningún filtro (hora, día, gatillo, tendencia, volatilidad) da vuelta el signo de forma consistente en los tres índices. Son unas 300 comparaciones en muestra: cualquier hipótesis de ahí tiene que pre-registrarse.
+  - **Base de los futuros (#470, ADR 0015):** con velas de futuros, el backtest ya no cuenta dos veces la tasa en la financiación (el doble conteo lo describió #468). En la estrategia actual el cambio es de unos 0,0015 R por operación.
+    - Las tasas USD de la NY Fed (EFFR desde 2010-11 y SOFR desde 2018-04-02) se cargan con el mismo `python -m cfds_intel.rates`.
+    - `config/candle_sources.toml` usa `mode = "rate"`, que supone que IG ajusta los dividendos en los CFD de índices. Está marcado **PENDIENTE para IG España**: hay que confirmarlo con IG.
+  - **Propuesta de investigación (#466, `docs/analysis/2026-11-propuesta-investigacion.md`):** cinco familias de estrategias nuevas con fuente, una regla de decisión pre-registrada común (walk-forward, Bonferroni, Sharpe deflactado, consistencia, costos × 1,5) y el fuera de muestra intocable. Ronda 1 = ruptura del rango de apertura (C) y cambio de mes (D1).
+  - **Ronda 1 (#474, `docs/analysis/2026-11-ronda1-orb-cambio-de-mes.md`): ninguna de las dos pasa y las dos se cierran.**
+    - C pierde en la cartera y en los tres índices: −0,50 % por mes, t = −2,75.
+    - D1 da +0,03 % por mes, no significativo (p ≈ 0,29–0,31, Sharpe deflactado ≈ 0,01), con la primera mitad (2013–2019) negativa. Solo pasa el criterio de costos × 1,5.
+    - El fuera de muestra no se cargó.
+    - Según la regla de #466 §5, **toca parar y revisar el planteo con el dueño** antes de la ronda 2 (decisión 13).
 - **Verificar:** `cd engine && cargo run --release -p cfds-backtest --example walk_forward -- DE40 <desde> <hasta> 10000 1 <report_id> --fuente futuros`; en la UI, Performance → detalle de una corrida → "Walk-forward / fuera de muestra".
 - **Aprobación:** aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419). (#298 se cerró como trabajo, no como aprobación.)
 - **Criterio pendiente:** "se sostiene fuera de muestra y con costos realistas".
-- **Estado:** **aprobada para avanzar; criterio pendiente.** Sigue **bloqueado por decisiones** (tasa de US500, separación de DE40 y cambios de estrategia; ver la lista al final).
+- **Estado:** **aprobada para avanzar; criterio pendiente.** Sigue **bloqueado por decisiones** (tasa de US500, separación de DE40, cambios de estrategia y cómo seguir con la investigación; ver la lista al final).
 
 ## Fase 6: Gestión de riesgo
 
@@ -162,16 +176,19 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
 ## Fase 8: Paper trading
 
 - **Criterio:** "la diferencia está explicada".
-- **Mergeado:** runner (#308) y su modo en el gateway (#311); comparación paper contra backtest (#320 y #322); vistas en la UI (#335); cierre de fin de semana (#336); el diario de paper (#338 y #339); el ensayo del runner sobre velas guardadas (#443); `ig_live` guarda el spread de cada vela (#446); el backtest de la comparación ya no opera en el calentamiento (#444).
+- **Mergeado:** runner (#308) y su modo en el gateway (#311); comparación paper contra backtest (#320 y #322); vistas en la UI (#335); cierre de fin de semana (#336); el diario de paper (#338 y #339); el ensayo del runner sobre velas guardadas (#443); `ig_live` guarda el spread de cada vela (#446); el backtest de la comparación ya no opera en el calentamiento (#444); el kill switch de paper se guarda y sobrevive a un reinicio (#458); reinicio después de 10 días sin drifts (#459); la €STR y el EUR/USD se vuelven a leer a medida que se publican (#460); las lecturas de la cuenta no mueven el máximo del capital (#465); puntos de control del broker simulado (#469); la orden manual queda pendiente de su vela (#473).
 - **Evidencia:** la comparación reparte la diferencia por causas y suma exacto (tests de `cfds-runner --test compare`).
   - **Ensayo del runner (#443, `docs/analysis/2026-11-ensayo-runner.md`):** con velas del futuro del DAX como DE40 (22-09 al 30-10) y spreads sintéticos, 79 de 79 decisiones iguales al backtest y 26 de 26 operaciones emparejadas. El kill switch por un hueco salta a tiempo y un reinicio corto no duplica nada.
   - **Lo que encontró el ensayo:**
     - #437, sin spreads guardados el runner nunca propone: **arreglado** (#446). El filtro pide 10 muestras por franja de una hora, y con velas de 15m alcanza con unas 3 sesiones de `ig_live` guardando spreads.
     - #440, el backtest de la comparación operaba en el calentamiento: **arreglado** (#444).
-    - #438, un reinicio después de 10 días de registro deja el gateway con kill switch y la compuerta cerrada: **abierto, bloquea** si el gateway se reinicia después de 10 días de operar.
-    - #439, las tasas de financiación se cargan solo al arrancar: **abierto**.
-    - #441, el kill switch no sobrevive a un reinicio: **abierto** (seguridad).
-  - **Capital de paper:** con los 1000 € de `config/broker.toml`, el riesgo rechazó las 79 propuestas del ensayo. Con ese capital no se ejecuta nada y el diario queda vacío.
+    - #438, un reinicio después de 10 días de registro deja el gateway con kill switch y la compuerta cerrada: **arreglado** (#459).
+    - #439, las tasas de financiación se cargan solo al arrancar: **arreglado** (#460).
+    - #441, el kill switch no sobrevive a un reinicio: **arreglado** (#458). Ahora queda guardado en `paper_kill_switch` y el motor nunca lo libera: lo libera una persona a mano, con el gateway apagado (ver la guía de uso, sección 5).
+  - **Después del ensayo:**
+    - #463, la reconstrucción del broker crecía sin límite con el registro: **arreglado** con puntos de control verificables (#469, tabla `paper_broker_checkpoints`, de solo agregar). No cambia ninguna decisión ni límite de riesgo.
+    - #471, toda orden manual en vivo salía `no_price` (su vela del fill todavía no existía) y la reconstrucción la llenaba, con drift y kill switch: **arreglado** (#473). Si el riesgo la aceptaría, la orden queda **pendiente** hasta que llega su vela y recién ahí se decide; la UI la muestra como "Pendiente de la próxima vela". Si el gateway se apaga antes, la pendiente se pierde y se avisa.
+  - **Capital de paper:** con los 1000 € de `config/broker.toml`, el riesgo rechazó las 79 propuestas del ensayo. Con ese capital no se ejecuta nada y el diario queda vacío. El resumen de la noche recomienda 10 000 € simulados; la decisión es del dueño (decisión 10).
   - **Falta un período real de paper:**
     - la spec pide 3 meses;
     - el runner está apagado (`config/runner.toml`, `enabled = false`; prenderlo es el PR #382, abierto);
@@ -179,7 +196,7 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
 - **Verificar:** `cd engine && DATABASE_URL=... cargo run -p cfds-gateway --example paper_vs_backtest -- DE40 <desde> <hasta>`; en la UI, Performance → "Paper vs backtest".
 - **Aprobación:** aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419).
 - **Criterio pendiente:** "la diferencia está explicada", sobre un período real de paper (la spec pide 3 meses).
-- **Estado:** **aprobada para avanzar; criterio pendiente.** Sigue **bloqueado por decisión** (habilitar el runner y el capital de paper), **por trabajo** (#438, #439 y #441) **y por tiempo** (el período de paper).
+- **Estado:** **aprobada para avanzar; criterio pendiente.** Los errores que encontró el ensayo están arreglados. Sigue **bloqueado por decisión** (habilitar el runner y el capital de paper) **y por tiempo** (el período de paper, que puede empezar cuando se renueve el cupo de IG, el 27-11).
 
 ## Fase 8b: Aprendizaje continuo
 
@@ -221,7 +238,7 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
 
 ## Decisiones pendientes del dueño
 
-1. **Tasa de financiación de US500, US100 y US30** (`funding_benchmark` pendiente en `config/instruments.toml`: ¿es €STR, como en DE40?). Confirmarlo con IG desbloquea sus backtests y la fase 5 en EE. UU.
+1. **Tasa de financiación de US500, US100 y US30** (`funding_benchmark` pendiente en `config/instruments.toml`: ¿es €STR, como en DE40?). Confirmarlo con IG desbloquea sus backtests y la fase 5 en EE. UU. En el mismo pedido a IG: confirmar que **IG España ajusta los dividendos** en los CFD de índices (`mode` de `[futures.basis]` en `config/candle_sources.toml`, #470).
 2. **DE40: separación de datos o más historia.** `data_split.toml` pide 39 meses y hay 19 de futuros. Las salidas son más historia de FDAX o una separación distinta para la evaluación (también afecta a ML v1, §5).
 3. **Cambios de estrategia** después del diagnóstico (#324): horario de apertura, distancia del stop, TP1 o break-even, peso de "patrón de velas + rechazo en nivel". Se evalúan con walk-forward antes de tocar la config.
 4. **Habilitar el runner de paper** (`config/runner.toml`, `enabled`): es lo que arranca el período de paper de la fase 8.
@@ -230,6 +247,7 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
 7. **Acceso desde la red local o el celular:** el gateway escucha en `127.0.0.1:8787` (`config/gateway.toml`). Abrirlo pide decidir cómo, por ejemplo LAN con el token o una VPN.
 8. **Telegram:** las alertas están listas (`config/alerts.toml`); falta decidir si se activan y crear el bot (`TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`).
 9. **Cuentas para votar:** quién vota y cómo se identifica cada uno (spec §1.2). Hace falta para las votaciones de la fase 8b y para las cuentas con 2FA de la fase 10.
-10. **Capital de paper:** con los 1000 € de `config/broker.toml`, el riesgo rechaza las propuestas del DE40 del ensayo (#443). Hay que decidir si se sube el capital de la cuenta simulada o se acepta que casi nada se ejecute.
+10. **Capital de paper:** con los 1000 € de `config/broker.toml`, el riesgo rechaza las propuestas del DE40 del ensayo (#443). Hay que decidir si se sube el capital de la cuenta simulada o se acepta que casi nada se ejecute. El resumen de la noche recomienda 10 000 € simulados (no es dinero real).
 11. **Oro, horas de entrada:** `[entries.hours.CMEGLOBEX_METALS]` en `config/trading_window.toml`. Sin ellas el oro no opera (#418).
 12. **ML después de v1 y v2:** no cambiar nada (se sigue mostrando B1), o cambiar la pregunta (más índices o qué se predice), que es un cambio de spec.
+13. **Cómo seguir con la investigación** (#466 y #474): la ronda 1 no pasó y la regla pre-registrada pide revisar el planteo antes de la ronda 2. Las opciones del resumen de la noche: (a) ronda 2 con tendencia de baja frecuencia, que pide más capital por el tamaño mínimo de IG; (b) replantear qué se predice; (c) aceptar que con CFD de IG y esta frecuencia los costos se comen cualquier ventaja chica.
