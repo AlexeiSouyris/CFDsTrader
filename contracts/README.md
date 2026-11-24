@@ -252,7 +252,7 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 
 | Contrato | Contenido |
 |---|---|
-| `liquidity_view.v1` | Respuesta de `GET /api/v1/liquidity?instrument=<id>[&timeframe=15m\|1h\|1d]` del gateway: `instrument_id`, `timeframe` (opcional, agregado sin romper v1; ausente = 15m), `generated_at`, `as_of` (cierre de la última vela cerrada guardada de ese timeframe, o `null` si no hay velas) y las listas `candles` (`candle.v1` en 15m y 1h, `daily_candle.v1` en 1d), `levels` (`liquidity_level.v1`), `fvgs` (`fvg_event.v1`), `imbalance` (`imbalance.v1`) y `stats` (`liquidity_stats.v1`), cada elemento con su contrato sin cambios (`$ref`). |
+| `liquidity_view.v1` | Respuesta de `GET /api/v1/liquidity?instrument=<id>[&timeframe=15m\|1h\|1d]` del gateway: `instrument_id`, `timeframe` (opcional, agregado sin romper v1; ausente = 15m), `generated_at`, `as_of` (cierre de la última vela cerrada guardada de ese timeframe, o `null` si no hay velas) y las listas `candles` (`candle.v1` en 15m y 1h, `daily_candle.v1` en 1d), `levels` (`liquidity_level.v1`), `fvgs` (`fvg_event.v1`), `imbalance` (`imbalance.v1`) y `stats` (`liquidity_stats.v1`), cada elemento con su contrato sin cambios (`$ref`). Opcional `analysis` (#501, sin romper v1): el mismo bloque `analysis` de `chart_export.v1` (`$ref`), armado sobre las velas de la vista, solo en 15m con `source` `ig`. |
 
 | `gateway_instruments.v1` | Respuesta de `GET /api/v1/instruments`: los instrumentos del catálogo (`instrument.v1`), los timeframes que acepta la vista y lo que abre primero (`[view]` de `config/gateway.toml`). |
 

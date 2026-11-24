@@ -39,7 +39,7 @@ use cfds_gateway::status::{
     Feed, FeedWriter, StatusConfig, StatusDeps, is_status_route, respond_status,
 };
 use cfds_gateway::walk_forward::{is_walk_forward_route, respond_walk_forward};
-use cfds_gateway::{GatewayConfig, PgSource, Reply, read_only_url, respond};
+use cfds_gateway::{GatewayConfig, PgSource, Reply, ViewAnalysis, read_only_url, respond};
 use cfds_journal::votes::VoteRules;
 use cfds_liquidity::StatsConfig;
 use cfds_market_data::{CandleSources, Catalog};
@@ -67,6 +67,8 @@ const ALERTS: &str = include_str!("../../../../config/alerts.toml");
 const FUND: &str = include_str!("../../../../config/fund.toml");
 const VOTES: &str = include_str!("../../../../config/votes.toml");
 const RUNNER: &str = include_str!("../../../../config/runner.toml");
+const ANALYSIS: &str = include_str!("../../../../config/analysis.toml");
+const PATTERNS: &str = include_str!("../../../../config/patterns.toml");
 
 /// `config/` del repo (sesiones y feriados del calendario se leen de ahí).
 fn config_dir() -> PathBuf {
@@ -420,6 +422,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             config: cfg.clone(),
             reaction_bars: stats.reaction_bars,
             sources: CandleSources::from_toml(SOURCES)?,
+            analysis: Some(ViewAnalysis::from_toml(ANALYSIS, PATTERNS)?),
         },
         catalog: catalog
             .instruments

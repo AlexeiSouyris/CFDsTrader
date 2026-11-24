@@ -14,6 +14,11 @@
  * en el cursor y, al llegar al borde izquierdo, pide velas más viejas (`loadOlder`, que lee el
  * gateway con `before`). Solo se suman velas: los niveles, los FVG y las marcas de
  * desplazamiento son los de la vista actual.
+ *
+ * Herramientas de análisis (#501, `chart-tools.tsx`): las capas del bloque `analysis` que manda el
+ * motor (Fibonacci con su golden pocket, EMA diaria, spring/upthrust, fondos, cruces de medias,
+ * puntos pivote y régimen del VIX), cada una activable desde el menú "Herramientas". Tampoco se
+ * calculan acá: se ubican en la vela que dice el motor.
  */
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
@@ -29,11 +34,23 @@ import { ChartFollower } from '@/components/ui/chart-follower'
 import { ChartNavBar, ViewportLive } from '@/components/ui/chart-nav-bar'
 import { matchRange, useChartNav, useViewport, type HistoryState } from '@/components/ui/chart-nav'
 import { ChartReadout } from '@/components/ui/chart-readout'
+import { ChartToolsMenu } from '@/components/ui/chart-tools'
 import { LineArea } from '@/components/ui/line-area'
 import { Segmented } from '@/components/ui/segmented'
+import { Term } from '@/components/ui/term'
+import type { ChartAnalysis, VixRegime } from '@/lib/analysis-contracts'
+import {
+  activeAt,
+  analysisLayers,
+  MARKER_GLYPH,
+  MARKER_NAME,
+  MARKER_TOOL,
+  VIX_LABEL,
+} from '@/lib/analysis-layers'
 import { niceTicks, renderWindow, timeTicks, visibleRange } from '@/lib/chart-viewport'
 import { dateTimeUtc, decimal, timeTickLabel } from '@/lib/format'
 import { fvgKey, levelKey, levelName, levelShort, STATE_LABEL } from '@/lib/liquidity-labels'
+import { useChartTools } from '@/lib/use-chart-tools'
 import { useCoarsePointer } from '@/lib/use-coarse-pointer'
 import { useElementWidth } from '@/lib/use-element-width'
 import { cn } from '@/lib/utils'
@@ -79,6 +96,20 @@ const LABEL_DOWN = 5
 /** trazos que no cambian de grosor mientras la capa se estira durante el zoom (#401) */
 const THIN = 'non-scaling-stroke'
 
+/** Color de la píldora del VIX: el régimen, no una dirección del precio. */
+const VIX_STYLE: Record<VixRegime, string> = {
+  calm: 'border-border text-muted-foreground',
+  normal: 'border-border text-foreground',
+  elevated: 'border-[var(--chart-signal)] text-[var(--chart-signal)]',
+  stress: 'border-[var(--chart-down)] text-[var(--chart-down)]',
+}
+
+/** "28.440000" → "28.44": solo quita ceros de más del texto, no redondea. */
+const trimZeros = (t: string) => (t.includes('.') ? t.replace(/\.?0+$/, '') : t)
+
+/** Un rótulo del eje de precio: un nivel de liquidez o una línea de una herramienta. */
+type AxisLabel = { key: string; text: string; title: string; color: string; y: number }
+
 const STATE_STYLE: Record<LevelState, { stroke: string; dash?: string; opacity: number }> = {
   intact: { stroke: 'var(--chart-accent)', opacity: 0.95 },
   swept: { stroke: 'var(--chart-signal)', dash: '5 3', opacity: 0.95 },
@@ -93,6 +124,7 @@ export function LiquidityChart({
   fvgs,
   imbalance,
   signals = [],
+  analysis,
   loadOlder,
   height = 440,
   className,
@@ -107,6 +139,11 @@ export function LiquidityChart({
   imbalance: Imbalance[]
   /** señales del motor (cierre de la vela de la señal y dirección), para marcarlas */
   signals?: { at: string; side: 'long' | 'short'; label: string }[]
+  /**
+   * Bloque `analysis` del motor (#501), con índices de `bars` (las velas que llegan, sin las más
+   * viejas que se suman al desplazarse). Sin esto, el menú de herramientas avisa que no hay.
+   */
+  analysis?: ChartAnalysis
   /**
    * Velas cerradas antes de `before` (#401): se piden al gateway al desplazarse hasta el borde
    * izquierdo. Sin esto, el gráfico muestra solo las velas que recibe.
@@ -228,6 +265,16 @@ export function LiquidityChart({
   const axisLevels = shownLevels.filter((l) => l.state === 'intact' && !expired(l))
   const fvgEnd = (f: FvgEvent) => f.fill?.at ?? f.expiry?.at ?? null
   const shownFvgs = fvgs.filter((f) => idxAt(fvgEnd(f)) > 0)
+  // Herramientas de análisis (#501): índices del motor → cierres de vela, una vez por dato.
+  const [tools, toggleTool] = useChartTools()
+  const layers = useMemo(() => (analysis ? analysisLayers(analysis, bars) : null), [analysis, bars])
+  const markers = layers ? layers.markers.filter((mk) => tools[MARKER_TOOL[mk.kind]]) : []
+  const vix = tools.vix ? (layers?.vix ?? null) : null
+  // Fibonacci: solo el último tramo confirmado (con decenas de tramos en la ventana, dibujarlos
+  // todos tapa las velas), desde su confirmación hasta la última vela.
+  const fibLegs = tools.fibonacci && layers?.fibonacci.length ? layers.fibonacci.slice(-1) : []
+  /** centro de la vela que cerró a esa hora */
+  const cx = (iso: string) => xAt(iso) - slot / 2
   const last = all[n - 1]
   const digits = (last?.close.split('.')[1] ?? '').length
   const trend = rangeTrend(closes.slice(va, vb), digits)
@@ -305,9 +352,24 @@ export function LiquidityChart({
     <div className={cn('w-full', className)}>
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase">
-            {instrument} · {TF_LABEL[timeframe].short} · liquidez
-          </p>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p className="text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase">
+              {instrument} · {TF_LABEL[timeframe].short} · liquidez
+            </p>
+            {vix && (
+              <span
+                data-vix={vix.regime}
+                className={cn(
+                  'inline-flex h-5 items-center rounded-full border px-2 text-[10.5px] font-bold',
+                  VIX_STYLE[vix.regime],
+                )}
+              >
+                <Term id="vix">
+                  VIX {decimal(trimZeros(vix.close))} · {VIX_LABEL[vix.regime]}
+                </Term>
+              </span>
+            )}
+          </div>
           <ChartReadout
             store={measure.store}
             starts={starts}
@@ -341,6 +403,7 @@ export function LiquidityChart({
             value={range}
             onChange={(v) => vp.setRange((ranges.find((r) => r.label === v) ?? ranges[1]).bars)}
           />
+          <ChartToolsMenu tools={tools} onToggle={toggleTool} available={layers !== null} />
         </div>
       </div>
 
@@ -375,15 +438,46 @@ export function LiquidityChart({
             {(m) => {
               // Rótulos de los niveles intactos en el eje: los de fuera de escala van al borde con
               // una flecha. Se separan para que no se pisen y nunca salen del panel (geometría).
-              const labels = placeLabels(
-                axisLevels.map((l) => {
-                  const v = Number(l.price)
-                  const arrow = v > m.hi ? ' ↑' : v < m.lo ? ' ↓' : ''
-                  return { l, arrow, y: m.y(v) }
-                }),
-                top + LABEL_UP,
-                top + plotH - LABEL_DOWN,
-              )
+              const items: AxisLabel[] = axisLevels.map((l) => {
+                const v = Number(l.price)
+                const arrow = v > m.hi ? ' ↑' : v < m.lo ? ' ↓' : ''
+                return {
+                  key: levelKey(l),
+                  text: `${levelShort(l)}${arrow}`,
+                  title: `${levelName(l)}: ${decimal(l.price)}`,
+                  color: 'var(--chart-accent)',
+                  y: m.y(v),
+                }
+              })
+              // Herramientas (#501): las líneas del tramo y de los pivotes que valen en la última
+              // vela visible, solo las que entran en la escala.
+              const lastSeen = n ? ends[Math.max(0, Math.min(n, Math.ceil(m.end)) - 1)] : NaN
+              const inScale = (v: number) => v >= m.lo && v <= m.hi
+              const leg = fibLegs[0]
+              for (const f of leg?.lines ?? []) {
+                const v = Number(f.price)
+                if (inScale(v))
+                  items.push({
+                    key: `fib-${f.kind}-${f.ratio}`,
+                    text: `F ${decimal(f.ratio)}`,
+                    title: `Fibonacci ${decimal(f.ratio)}: ${decimal(f.price)}`,
+                    color: 'var(--chart-fib)',
+                    y: m.y(v),
+                  })
+              }
+              const piv = layers && tools.pivots ? activeAt(layers.pivots, lastSeen) : null
+              for (const p of piv?.levels ?? []) {
+                const v = Number(p.price)
+                if (inScale(v))
+                  items.push({
+                    key: `pivot-${p.name}`,
+                    text: p.name,
+                    title: `Punto pivote ${p.name} (del día ${piv!.day}): ${decimal(p.price)}`,
+                    color: 'var(--chart-pivot)',
+                    y: m.y(v),
+                  })
+              }
+              const labels = placeLabels(items, top + LABEL_UP, top + plotH - LABEL_DOWN)
               const { ticks, digits: td } = niceTicks(m.lo, m.hi)
               return (
                 <>
@@ -409,8 +503,8 @@ export function LiquidityChart({
                       </g>
                     )
                   })}
-                  {labels.map(({ l, arrow, y }) => (
-                    <g key={levelKey(l)} data-level-label={y.toFixed(1)}>
+                  {labels.map(({ key, text, title, color, y }) => (
+                    <g key={key} data-level-label={y.toFixed(1)}>
                       <rect
                         x={plotW + 1}
                         y={y - LABEL_UP}
@@ -420,15 +514,9 @@ export function LiquidityChart({
                         fill="var(--background)"
                         opacity={0.9}
                       />
-                      <text
-                        x={plotW + 4}
-                        y={y + 3}
-                        fontSize={9}
-                        fontWeight={700}
-                        fill="var(--chart-accent)"
-                      >
-                        <title>{`${levelName(l)}: ${decimal(l.price)}`}</title>
-                        {`${levelShort(l)}${arrow}`}
+                      <text x={plotW + 4} y={y + 3} fontSize={9} fontWeight={700} fill={color}>
+                        <title>{title}</title>
+                        {text}
                       </text>
                     </g>
                   ))}
@@ -485,6 +573,90 @@ export function LiquidityChart({
                 )
               })}
 
+              {/* Fibonacci (#501): el último tramo, desde su confirmación */}
+              {fibLegs.map((f) => {
+                const x0 = cx(f.from)
+                const x1 = f.to ? cx(f.to) : xAt(null)
+                if (x1 <= x0) return null
+                const yl = yP(Number(f.pocket.low))
+                const yh = yP(Number(f.pocket.high))
+                return (
+                  <g key={f.from} data-fib-leg={f.direction}>
+                    <rect
+                      data-golden-pocket
+                      x={x0}
+                      y={Math.min(yl, yh)}
+                      width={x1 - x0}
+                      height={Math.max(1, Math.abs(yl - yh))}
+                      fill="var(--chart-fib)"
+                      opacity={0.18}
+                    >
+                      <title>{`Golden pocket: ${decimal(f.pocket.low)} – ${decimal(f.pocket.high)}`}</title>
+                    </rect>
+                    <line
+                      x1={cx(f.start.at)}
+                      x2={cx(f.end.at)}
+                      y1={yP(Number(f.start.price))}
+                      y2={yP(Number(f.end.price))}
+                      stroke="var(--chart-fib)"
+                      strokeOpacity={0.45}
+                      strokeDasharray="2 3"
+                      vectorEffect={THIN}
+                    />
+                    {f.lines.map((l) => {
+                      const y = yP(Number(l.price))
+                      return (
+                        <line
+                          key={`${l.kind}-${l.ratio}`}
+                          data-fib-ratio={l.ratio}
+                          x1={x0}
+                          x2={x1}
+                          y1={y}
+                          y2={y}
+                          stroke="var(--chart-fib)"
+                          strokeOpacity={l.kind === 'extension' ? 0.45 : 0.75}
+                          strokeDasharray={l.kind === 'extension' ? '4 3' : undefined}
+                          vectorEffect={THIN}
+                        >
+                          <title>{`Fibonacci ${decimal(l.ratio)}: ${decimal(l.price)}`}</title>
+                        </line>
+                      )
+                    })}
+                  </g>
+                )
+              })}
+
+              {/* puntos pivote diarios (#501): cada día desde su primera vela */}
+              {tools.pivots &&
+                layers?.pivots.map((p) => {
+                  const x0 = xAt(p.from) - slot
+                  const x1 = p.to ? xAt(p.to) - slot : xAt(null)
+                  if (x1 <= x0) return null
+                  return (
+                    <g key={p.day} data-pivots={p.day}>
+                      {p.levels.map((l) => {
+                        const y = yP(Number(l.price))
+                        return (
+                          <line
+                            key={l.name}
+                            x1={x0}
+                            x2={x1}
+                            y1={y}
+                            y2={y}
+                            stroke="var(--chart-pivot)"
+                            strokeOpacity={l.name === 'P' ? 0.8 : 0.55}
+                            strokeWidth={0.8}
+                            strokeDasharray={l.name === 'P' ? undefined : '3 3'}
+                            vectorEffect={THIN}
+                          >
+                            <title>{`Punto pivote ${l.name} (del día ${p.day}): ${decimal(l.price)}`}</title>
+                          </line>
+                        )
+                      })}
+                    </g>
+                  )
+                })}
+
               {/* velas, o la línea de cierre con su área */}
               {mode === 'Línea' ? (
                 <LineArea
@@ -497,6 +669,65 @@ export function LiquidityChart({
               ) : (
                 candles
               )}
+
+              {/* EMA diaria (#501): el valor del último día terminado, en cada vela */}
+              {tools.ema &&
+                layers?.ema.map((run) => (
+                  <polyline
+                    key={run[0].at}
+                    data-ema
+                    points={run.map((p) => `${cx(p.at)},${yP(Number(p.price))}`).join(' ')}
+                    fill="none"
+                    stroke="var(--chart-ema)"
+                    strokeWidth={1.4}
+                    vectorEffect={THIN}
+                  />
+                ))}
+
+              {/* velas que tocan el golden pocket: llena si cerró adentro */}
+              {fibLegs.flatMap((f) =>
+                f.events.map((ev) => (
+                  <circle
+                    key={`${f.from}-${ev.at}`}
+                    data-pocket-touch={ev.closesInside ? 'inside' : 'touch'}
+                    cx={cx(ev.at)}
+                    cy={(yP(Number(f.pocket.low)) + yP(Number(f.pocket.high))) / 2}
+                    r={2.2}
+                    fill={ev.closesInside ? 'var(--chart-fib)' : 'var(--background)'}
+                    stroke="var(--chart-fib)"
+                    vectorEffect={THIN}
+                  >
+                    <title>
+                      {ev.closesInside
+                        ? 'Toca el golden pocket y cierra adentro'
+                        : 'Toca el golden pocket'}
+                    </title>
+                  </circle>
+                )),
+              )}
+
+              {/* spring, upthrust, fondo y cruces (#501): en la vela de la señal */}
+              {markers.map((mk) => {
+                const y = yP(Number(mk.anchor))
+                return (
+                  <text
+                    key={`${mk.kind}-${mk.at}`}
+                    data-marker={mk.kind}
+                    x={cx(mk.at)}
+                    y={mk.side === 'below' ? y + 12 : y - 5}
+                    textAnchor="middle"
+                    fontSize={9}
+                    fontWeight={800}
+                    fill="var(--chart-mark)"
+                    stroke="var(--background)"
+                    strokeWidth={3}
+                    paintOrder="stroke"
+                  >
+                    <title>{`${MARKER_NAME[mk.kind]}: ${mk.detail}`}</title>
+                    {MARKER_GLYPH[mk.kind]}
+                  </text>
+                )
+              })}
 
               {/* niveles: desde que existen hasta la vela que cambió su estado */}
               {shownLevels.map((l) => {
@@ -648,6 +879,45 @@ export function LiquidityChart({
             </li>
             <li>Shift + arrastrar (o la regla) mide; un clic o Esc borra la medición</li>
           </>
+        )}
+        {layers && tools.ema && layers.ema.length > 0 && (
+          <li className="flex items-center gap-1.5">
+            <svg width={22} height={6} aria-hidden>
+              <line x1={0} x2={22} y1={3} y2={3} stroke="var(--chart-ema)" strokeWidth={1.6} />
+            </svg>
+            EMA {layers.emaPeriod} diaria
+          </li>
+        )}
+        {layers && tools.fibonacci && layers.fibonacci.length > 0 && (
+          <li className="flex items-center gap-1.5">
+            <span
+              className="inline-block h-2.5 w-4 rounded-[2px] bg-[var(--chart-fib)]/30"
+              aria-hidden
+            />
+            Fibonacci (F) y golden pocket
+          </li>
+        )}
+        {layers && tools.pivots && layers.pivots.length > 0 && (
+          <li className="flex items-center gap-1.5">
+            <svg width={22} height={6} aria-hidden>
+              <line
+                x1={0}
+                x2={22}
+                y1={3}
+                y2={3}
+                stroke="var(--chart-pivot)"
+                strokeDasharray="3 3"
+              />
+            </svg>
+            Puntos pivote (P, R1–R3, S1–S3)
+          </li>
+        )}
+        {markers.length > 0 && (
+          <li>
+            {[...new Set(markers.map((mk) => mk.kind))]
+              .map((k) => `${MARKER_GLYPH[k]} ${MARKER_NAME[k].toLowerCase()}`)
+              .join(' · ')}
+          </li>
         )}
         {signals.length > 0 && (
           <li className="flex items-center gap-1.5">

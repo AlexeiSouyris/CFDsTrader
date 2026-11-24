@@ -206,6 +206,7 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
             levels={data.levels}
             fvgs={data.fvgs}
             imbalance={data.imbalance}
+            analysis={data.analysis}
             loadOlder={(before) =>
               fetchOlderBars(data.instrument_id, tf, before, data.source?.id ?? 'ig')
             }

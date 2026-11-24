@@ -12,6 +12,10 @@
 //! - `GET /api/v1/instruments` → `contracts/gateway_instruments.v1`: los instrumentos del
 //!   catálogo, los timeframes y los valores por defecto de la vista.
 //!
+//! En 15m con las velas de IG, la vista trae además el bloque opcional `analysis` (#501): las
+//! herramientas de análisis tal como las arma `cfds_backtest::analysis` (el mismo bloque de
+//! `chart_export.v1`), sobre las velas de la vista. Solo se muestran: no entran al puntaje.
+//!
 //! No calcula nada nuevo, no envía órdenes ni escribe en la base.
 
 pub mod context;
@@ -30,13 +34,14 @@ use std::future::Future;
 use std::net::SocketAddr;
 use std::num::NonZeroU32;
 
+use cfds_backtest::{AnalysisConfig, ExportAnalysis, analysis_export};
 use cfds_core::{
     Candle, DailyCandle, FvgEvent, Imbalance, Instrument, InstrumentId, LiquidityLevel,
     LiquidityStats, StatsTimeframe, Timeframe,
 };
 use cfds_market_data::{CandleSource, CandleSources};
 use cfds_storage::{CandleFeed, PgStore, StorageError};
-use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
+use chrono::{DateTime, NaiveDate, SecondsFormat, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 
 /// Los timeframes de la vista, en el orden en que se ofrecen.
@@ -218,6 +223,48 @@ pub struct LiquidityView {
     pub fvgs: Vec<FvgEvent>,
     pub imbalance: Vec<Imbalance>,
     pub stats: Vec<LiquidityStats>,
+    /// Herramientas de análisis (#501), un valor por vela de `candles` donde corresponde. Solo
+    /// en 15m con las velas de IG ([`has_analysis`]); ausente en los demás casos.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub analysis: Option<ExportAnalysis>,
+}
+
+/// Si la vista lleva `analysis` (#501): solo en 15m (el timeframe para el que están
+/// parametrizadas en `config/analysis.toml`) y con las velas del CFD de IG (los futuros no
+/// tienen diarias).
+pub fn has_analysis(source: CandleSource, tf: StatsTimeframe) -> bool {
+    source == CandleSource::Ig && tf == StatsTimeframe::M15
+}
+
+/// Lo que necesita el bloque `analysis`: `config/analysis.toml` y `[pivots] strength` de
+/// `config/patterns.toml` (los mismos pivotes que el export).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ViewAnalysis {
+    pub config: AnalysisConfig,
+    pub pivot_strength: usize,
+}
+
+impl ViewAnalysis {
+    pub fn from_toml(analysis: &str, patterns: &str) -> Result<Self, String> {
+        Ok(Self {
+            config: AnalysisConfig::from_toml(analysis).map_err(|e| format!("analysis: {e}"))?,
+            pivot_strength: cfds_patterns::PatternsConfig::from_toml(patterns)
+                .map_err(|e| format!("patterns: {e}"))?
+                .pivots
+                .strength,
+        })
+    }
+
+    /// El bloque sobre las velas de la vista. `daily` y `vix` se leen hasta `as_of`; las funciones
+    /// de `cfds_backtest::analysis` usan para cada vela solo lo ya cerrado o publicado a su cierre.
+    pub fn block(
+        &self,
+        m15: &[Candle],
+        daily: &[DailyCandle],
+        vix: &[(DateTime<Utc>, rust_decimal::Decimal)],
+    ) -> ExportAnalysis {
+        analysis_export(m15, daily, vix, self.pivot_strength, &self.config)
+    }
 }
 
 fn ser_timeframe<S: serde::Serializer>(tf: &StatsTimeframe, s: S) -> Result<S::Ok, S::Error> {
@@ -250,6 +297,7 @@ impl LiquidityView {
             fvgs: Vec::new(),
             imbalance: Vec::new(),
             stats: Vec::new(),
+            analysis: None,
         }
     }
 }
@@ -285,6 +333,8 @@ pub struct PgSource {
     pub reaction_bars: Vec<NonZeroU32>,
     /// `config/candle_sources.toml`.
     pub sources: CandleSources,
+    /// Herramientas de análisis (#501); `None` = la vista no las trae.
+    pub analysis: Option<ViewAnalysis>,
 }
 
 impl PgSource {
@@ -346,6 +396,33 @@ impl PgSource {
         };
         Ok(Some((Bars::Daily(daily), as_of, first)))
     }
+
+    /// El bloque `analysis` (#501) de las velas de 15m de la vista. La EMA diaria necesita los
+    /// días anteriores a la ventana (calentamiento): se leen todas las diarias guardadas hasta
+    /// `as_of`, como en el export. El VIX, desde dos semanas antes de la primera vela.
+    async fn analysis(
+        &self,
+        va: &ViewAnalysis,
+        id: &InstrumentId,
+        m15: &[Candle],
+        as_of: DateTime<Utc>,
+    ) -> Result<ExportAnalysis, StorageError> {
+        let first_day = NaiveDate::from_ymd_opt(2000, 1, 1).unwrap_or(NaiveDate::MIN);
+        let daily: Vec<DailyCandle> = self
+            .store
+            .daily_candles(id, first_day, as_of.date_naive() + TimeDelta::days(1))
+            .await?
+            .into_iter()
+            .filter(|d| d.end <= as_of)
+            .collect();
+        let from = m15.first().map_or(as_of, |c| c.start) - TimeDelta::days(14);
+        // `vix_closes` deja afuera `to`: un segundo más para incluir lo publicado justo en `as_of`.
+        let vix = self
+            .store
+            .vix_closes(from, as_of + TimeDelta::seconds(1))
+            .await?;
+        Ok(va.block(m15, &daily, &vix))
+    }
 }
 
 impl LiquiditySource for PgSource {
@@ -385,6 +462,12 @@ impl LiquiditySource for PgSource {
             .into_iter()
             .filter(|g| g.timeframe == tf && g.as_of <= as_of)
             .collect();
+        let analysis = match (&self.analysis, &candles) {
+            (Some(va), Bars::Intraday(m15)) if has_analysis(source, tf) && !m15.is_empty() => {
+                Some(self.analysis(va, id, m15, as_of).await?)
+            }
+            _ => None,
+        };
         Ok(LiquidityView {
             instrument_id: base.clone(),
             source: view_source,
@@ -396,6 +479,7 @@ impl LiquiditySource for PgSource {
             fvgs,
             imbalance,
             stats,
+            analysis,
         })
     }
 }
@@ -585,6 +669,26 @@ mod tests {
             now(),
         )
         .await
+    }
+
+    #[test]
+    fn analysis_only_in_15m_from_ig() {
+        assert!(has_analysis(CandleSource::Ig, StatsTimeframe::M15));
+        assert!(!has_analysis(CandleSource::Ig, StatsTimeframe::H1));
+        assert!(!has_analysis(CandleSource::Ig, StatsTimeframe::D1));
+        assert!(!has_analysis(CandleSource::Futures, StatsTimeframe::M15));
+        // Sin bloque, la respuesta no trae la clave (la forma de antes, #501).
+        let s = ViewSource::new(CandleSource::Ig, &sources());
+        let v = LiquidityView::empty("US100".parse().unwrap(), s, StatsTimeframe::M15, now());
+        let doc = serde_json::to_value(&v).unwrap();
+        assert!(doc.get("analysis").is_none());
+        let va = ViewAnalysis::from_toml(
+            include_str!("../../../../config/analysis.toml"),
+            include_str!("../../../../config/patterns.toml"),
+        )
+        .unwrap();
+        assert_eq!(va.config.ema_daily_period, 365);
+        assert!(ViewAnalysis::from_toml("x = 1", "").is_err());
     }
 
     #[test]

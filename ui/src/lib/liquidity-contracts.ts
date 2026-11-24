@@ -5,6 +5,8 @@
  * Mismos campos, decimales como texto y los mismos enums. La UI no calcula nada (CLAUDE.md §1).
  */
 
+import type { ChartAnalysis } from '@/lib/analysis-contracts'
+
 export type Utc = string
 /** Decimal exacto como texto, nunca como número JSON. */
 export type Decimal = string
@@ -160,6 +162,11 @@ export type LiquidityViewData = {
   /** un valor por vela de la ventana; el último es el actual */
   imbalance: Imbalance[]
   stats: LiquidityStats[]
+  /**
+   * opcional en el contrato (#501): las herramientas de análisis del motor, solo en 15m con las
+   * velas de IG; los índices se refieren a `candles`
+   */
+  analysis?: ChartAnalysis
 }
 
 /** `instrument.v1` */
