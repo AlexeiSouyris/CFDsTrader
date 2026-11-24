@@ -249,6 +249,43 @@ export function measureText(from: number, to: number, digits: number) {
 
 export type Trend = ReturnType<typeof measureText>['trend']
 
+/** Ancho aproximado de un carácter de la pestaña (11 px) y su relleno, para medir sin el DOM. */
+const TAB_CHAR = 6.1
+const TAB_PAD = 14
+const TAB_LINE = 13
+
+/**
+ * Dónde va la pestaña de la medición (#394): pegada al rectángulo y centrada en x sobre él;
+ * arriba si entra, si no abajo, y si tampoco, colgada por dentro del borde de arriba. Nunca sale
+ * del panel. Una sola línea si entra en el ancho del panel; si no, dos. Solo geometría de dibujo.
+ */
+export function measureTab(o: {
+  x0: number
+  x1: number
+  yTop: number
+  yBot: number
+  top: number
+  bottom: number
+  plotW: number
+  /** cambio en precio, en %, velas y lapso */
+  parts: [string, string, string, string]
+}) {
+  const [price, pct, bars, lapse] = o.parts
+  const one = o.parts.join(' · ')
+  const lines =
+    one.length * TAB_CHAR + TAB_PAD <= o.plotW ? [one] : [`${price} · ${pct}`, `${bars} · ${lapse}`]
+  const w = Math.max(...lines.map((l) => l.length)) * TAB_CHAR + TAB_PAD
+  const h = 6 + TAB_LINE * lines.length
+  const x = Math.max(0, Math.min(o.plotW - w, (o.x0 + o.x1) / 2 - w / 2))
+  let side: 'above' | 'below' | 'inside' = 'above'
+  let y = o.yTop - h
+  if (y < o.top) {
+    side = o.yBot + h <= o.bottom ? 'below' : 'inside'
+    y = side === 'below' ? o.yBot : Math.max(o.top, Math.min(o.bottom - h, o.yTop))
+  }
+  return { x, y, w, h, side, lines }
+}
+
 /**
  * El cambio para la cabecera (#377): "+312,28 ▲ 4,49 %" o "−482,25 ▼ 6,42 %". Solo texto de
  * pantalla, con las mismas cuentas que la medición.

@@ -113,12 +113,17 @@ describe('herramienta de medición de los gráficos (#281, #355)', () => {
     const g = measure()!
     expect(g).toHaveAttribute('data-measure', 'up')
     expect(g.querySelector('[data-measure-box]')).toHaveAttribute('fill', 'var(--chart-up)')
-    const [head, foot] = g.querySelectorAll('[data-measure-line]')
-    expect(head.textContent).toMatch(/^\+[\d.]+,\d+ \(\+\d+,\d{2} %\)$/)
-    expect(head.textContent).toContain(`(${expectedPct(g)})`)
+    // una sola línea en la pestaña (#394): precio · % · velas · lapso
+    const lines = g.querySelectorAll('[data-measure-line]')
+    expect(lines).toHaveLength(1)
+    const head = lines[0].textContent!
+    expect(head).toMatch(/^\+[\d.]+,\d+ · \+\d+,\d{2} % · \d+ velas · .+$/)
+    expect(head).toContain(` · ${expectedPct(g)} · `)
     expect(Number(g.getAttribute('data-to'))).toBeGreaterThan(Number(g.getAttribute('data-from')))
-    expect(foot.textContent).toBe(
-      `${j - i} velas · ${span(Date.parse(view[j].start) - Date.parse(view[i].start))}`,
+    expect(head).toMatch(
+      new RegExp(
+        ` · ${j - i} velas · ${span(Date.parse(view[j].start) - Date.parse(view[i].start))}$`,
+      ),
     )
   })
 
@@ -130,8 +135,8 @@ describe('herramienta de medición de los gráficos (#281, #355)', () => {
     expect(g).toHaveAttribute('data-measure', 'down')
     expect(g.querySelector('[data-measure-box]')).toHaveAttribute('fill', 'var(--chart-down)')
     const head = g.querySelector('[data-measure-line="0"]')!.textContent!
-    expect(head).toMatch(/^−[\d.]+,\d+ \(−\d+,\d{2} %\)$/)
-    expect(head).toContain(`(${expectedPct(g)})`)
+    expect(head).toMatch(/^−[\d.]+,\d+ · −\d+,\d{2} % · \d+ velas · .+$/)
+    expect(head).toContain(` · ${expectedPct(g)} · `)
   })
 
   it('los dos puntos se pegan al cierre de su vela, no a la altura del cursor (#355)', () => {
@@ -226,7 +231,9 @@ describe('herramienta de medición de los gráficos (#281, #355)', () => {
     drag(svg, xOf(i), 200, xOf(j), 60)
     const g = container.querySelector('[data-measure]')!
     expect(g).toHaveAttribute('data-measure', 'up')
-    expect(g.querySelector('[data-measure-line="0"]')!.textContent).toContain(`(${expectedPct(g)})`)
+    expect(g.querySelector('[data-measure-line="0"]')!.textContent).toContain(
+      ` · ${expectedPct(g)} · `,
+    )
     // la cruz de lectura (hover) se sigue dibujando
     expect(container.querySelector('line[opacity="0.3"]')).not.toBeNull()
     fireEvent.keyDown(window, { key: 'Escape' })
