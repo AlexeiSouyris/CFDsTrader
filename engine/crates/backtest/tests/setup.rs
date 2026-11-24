@@ -57,7 +57,7 @@ fn de40_setup_comes_only_from_the_configuration() {
             spread: dec!(1.8),
             tick: dec!(0.1),
             commission: Commission::None,
-            funding_admin_fee_pct: dec!(2.5),
+            funding_admin_fee_pct: dec!(3),
             funding_day_count: dec!(360),
         }
     );
@@ -169,8 +169,8 @@ fn buy_and_hold_on_real_de40_matches_the_hand_calculation() {
     assert_eq!(bh.gross_pnl, dec!(-1057.46));
     // Cortes de las 23:00 de Madrid (22:00 UTC) del 9 al 20 de noviembre: 12 noches.
     assert_eq!(bh.nights, 12);
-    // 12 × 25669,3 × 1 × (2,441 + 2,5) % / 360 = 42,277337 1.
-    assert_eq!(bh.funding, dec!(42.2773371));
+    // 12 × 25669,3 × 1 × (2,441 + 3) % / 360 = 46,555553 766 666…
+    assert_eq!(bh.funding, dec!(46.555553766666666666666666667));
     assert_eq!(bh.commission, dec!(0));
-    assert_eq!(bh.net_pnl, dec!(-1099.7373371));
+    assert_eq!(bh.net_pnl, dec!(-1104.0155537666666666666666667));
 }
