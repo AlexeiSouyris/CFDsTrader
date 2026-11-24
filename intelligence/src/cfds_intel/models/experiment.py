@@ -28,7 +28,7 @@ import psycopg
 
 from cfds_intel.analogs.data import futures_suffix
 from cfds_intel.models.baselines import load_probability_config
-from cfds_intel.models.compare import compare
+from cfds_intel.models.compare import Comparison, compare
 from cfds_intel.models.config import ROOT, MlConfig, load_config
 from cfds_intel.models.dataset import (
     BacktestOutcomes,
@@ -81,25 +81,9 @@ def run(
     suffix = futures_suffix(texts["candle_sources.toml"]) if source == "futuros" else None
     dataset = load_from(conn, labels, cfg.dataset, suffix)
     first, last = labels.span(conn)
-    split = plan(first, last, load_split_config(texts["data_split.toml"]))
-    fs = folds(dataset.examples, split, load_embargo(texts["backtest.toml"]))
-    probability = load_probability_config(texts["probability.toml"])
-    evaluation = evaluate(fs, cfg.training, probability)
-    comparison = None
-    if not evaluation.suspended:
-        trained = [r for r in evaluation.windows if r.skipped is None]
-        val = [e for r in trained for e in r.validation]
-        y = [e.y for e in val]
-        m1 = log_losses(y, [q for r in trained for q in r.predictions["M1"]])
-        b1 = log_losses(y, [q for r in trained for q in r.predictions["B1"]])
-        comparison = compare(
-            val,
-            m1,
-            b1,
-            cfg.evaluation.bootstrap_resamples,
-            cfg.evaluation.confidence,
-            cfg.training.seed,
-        )
+    evaluation, comparison, excluded = assess(
+        dataset, first, last, cfg, texts, cfg.evaluation.confidence
+    )
     doc = document(
         created_at=datetime.now(UTC),
         code_version=code_version(),
@@ -112,8 +96,36 @@ def run(
         evaluation=evaluation,
         comparison=comparison,
     )
-    excluded = len(dataset.examples) - len(research(dataset.examples, split))
     return dataset, evaluation, doc, excluded
+
+
+def assess(
+    dataset: Dataset,
+    first: datetime,
+    last: datetime,
+    cfg: MlConfig,
+    texts: dict[str, str],
+    confidence: float,
+) -> tuple[Evaluation, Comparison | None, int]:
+    """Cortes walk-forward del período `[first, last]`, B0, B1 y M1 por ventana y la regla de
+    mejora de M1 sobre B1 con el intervalo a `confidence` (spec §6; en v2, la corregida por
+    comparaciones múltiples). Devuelve también cuántas propuestas quedaron fuera de muestra."""
+    split = plan(first, last, load_split_config(texts["data_split.toml"]))
+    fs = folds(dataset.examples, split, load_embargo(texts["backtest.toml"]))
+    probability = load_probability_config(texts["probability.toml"])
+    evaluation = evaluate(fs, cfg.training, probability)
+    comparison = None
+    if not evaluation.suspended:
+        trained = [r for r in evaluation.windows if r.skipped is None]
+        val = [e for r in trained for e in r.validation]
+        y = [e.y for e in val]
+        m1 = log_losses(y, [q for r in trained for q in r.predictions["M1"]])
+        b1 = log_losses(y, [q for r in trained for q in r.predictions["B1"]])
+        comparison = compare(
+            val, m1, b1, cfg.evaluation.bootstrap_resamples, confidence, cfg.training.seed
+        )
+    excluded = len(dataset.examples) - len(research(dataset.examples, split))
+    return evaluation, comparison, excluded
 
 
 def main(argv: list[str]) -> int:

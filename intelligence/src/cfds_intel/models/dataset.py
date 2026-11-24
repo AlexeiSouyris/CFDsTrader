@@ -100,6 +100,8 @@ class Dataset:
     other_instrument: int
     without_outcome: int
     without_features: int
+    # Sin alguna variable de una variante de ML v2 (#432): tampoco se rellena.
+    without_context: int = 0
 
 
 class DatasetError(ValueError):
