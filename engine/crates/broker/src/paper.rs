@@ -26,7 +26,7 @@
 //! (`missing_fx_rate`); si falta para valuar algo ya abierto, ese monto no se cuenta y se activa
 //! el kill switch por error de datos, como con la financiación.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use std::cell::Cell;
 
@@ -38,7 +38,7 @@ use cfds_core::{
     AccountCurrency, Candle, ClientId, InstrumentId, KillSwitch, Order, OrderRejection,
     OrderReport, OrderSide, OrderStatus, PaperAccount, PaperMode, Position, TicketVerdict,
 };
-use cfds_indicators::wilder_atr;
+use cfds_indicators::{AtrSeed, wilder_atr, wilder_atr_after};
 use cfds_market_data::{ExchangeCalendar, Session, trading_window};
 use cfds_risk::{Account, InstrumentLimits, Rejection, Request, RiskConfig, Sizing, check};
 use cfds_strategy::Side;
@@ -171,8 +171,10 @@ pub struct FundingSetup {
     pub rates: FundingRates,
 }
 
-#[derive(Debug, Clone)]
-struct OpenTrade {
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct OpenTrade {
+    /// Posición de su orden en el registro (para devolver las operaciones en ese orden).
+    pub(crate) seq: usize,
     position_id: ClientId,
     order_id: ClientId,
     instrument: InstrumentId,
@@ -182,16 +184,41 @@ struct OpenTrade {
     entry_mid: Decimal,
     /// Precio pagado (con medio spread y slippage).
     entry_fill: Decimal,
-    entry_index: usize,
+    /// Índice de la vela del fill en las velas del broker (que pueden empezar en un punto de
+    /// control, #463).
+    pub(crate) entry_index: usize,
     entry_commission: Decimal,
     stop: Decimal,
     tp1: Option<Decimal>,
     margin: Decimal,
-    opened_at: DateTime<Utc>,
+    pub(crate) opened_at: DateTime<Utc>,
+}
+
+impl OpenTrade {
+    pub(crate) fn instrument(&self) -> &InstrumentId {
+        &self.instrument
+    }
+}
+
+/// Operaciones ya cerradas que selló un punto de control (#463): su resultado no cambia más, así
+/// que no se vuelven a valuar ni hacen falta sus velas.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct Sealed {
+    /// Lo realizado por cada una, en EUR (comisiones, salidas y financiación), con la posición
+    /// de su orden en el registro: el capital se suma en ese mismo orden, así da exactamente lo
+    /// mismo que valuándolas (la suma de decimales redondea según el orden).
+    pub(crate) realized: Vec<(usize, Decimal)>,
+    /// Momento de su último movimiento: antes de esto no se puede valuar sin ellas.
+    pub(crate) until: Option<DateTime<Utc>>,
+    /// Sus instrumentos: valuarlas en `t` miraba el tipo de cambio de `t` (aunque el monto sea
+    /// 0), y sin tipo activaba el kill switch. Se sigue mirando igual.
+    pub(crate) instruments: BTreeSet<InstrumentId>,
+    /// Su resultado final (`trade_outcomes`), con la posición de su orden en el registro.
+    pub(crate) outcomes: Vec<(usize, PaperTrade)>,
 }
 
 /// Una salida de una operación del broker simulado.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaperExit {
     /// Fin de la vela de la salida.
     pub time: DateTime<Utc>,
@@ -206,7 +233,7 @@ pub struct PaperExit {
 
 /// Una operación del broker simulado, valuada (ver [`PaperBroker::trade_outcomes`]). Montos en la
 /// moneda del instrumento.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaperTrade {
     pub order_id: ClientId,
     pub instrument: InstrumentId,
@@ -267,11 +294,19 @@ pub struct PaperBroker {
     /// para reconstruir el broker al arrancar (ver `crate::reconcile`).
     journal: Vec<(Order, OrderReport)>,
     events: Vec<BrokerEvent>,
-    trades: Vec<OpenTrade>,
-    kill_switch: Option<(String, DateTime<Utc>)>,
+    pub(crate) trades: Vec<OpenTrade>,
+    pub(crate) kill_switch: Option<(String, DateTime<Utc>)>,
     /// Máximo del capital para el drawdown. Solo lo actualiza `assess` (cada orden), nunca una
     /// lectura: así la reconstrucción desde el registro llega al mismo valor (#464).
-    peak_equity: Decimal,
+    pub(crate) peak_equity: Decimal,
+    /// Estado del ATR de Wilder antes de la primera vela de cada instrumento cuyas velas
+    /// empiezan en un punto de control (#463): el ATR sigue igual que con todas las velas.
+    pub(crate) atr_seeds: BTreeMap<InstrumentId, AtrSeed>,
+    /// Lo que selló el último punto de control (#463).
+    pub(crate) sealed: Sealed,
+    /// Una valuación anterior al último movimiento de lo sellado (no se puede repetir igual sin
+    /// las velas): se activa el kill switch, nunca se adivina.
+    before_checkpoint: Cell<Option<DateTime<Utc>>>,
     /// Primer corte sin tasa de referencia que encontró una valuación (error de datos).
     missing_rate: Cell<Option<DateTime<Utc>>>,
     /// Primer momento sin tipo de cambio que encontró una valuación (error de datos).
@@ -340,6 +375,9 @@ impl PaperBroker {
             trades: Vec::new(),
             kill_switch: None,
             peak_equity: peak,
+            atr_seeds: BTreeMap::new(),
+            sealed: Sealed::default(),
+            before_checkpoint: Cell::new(None),
             missing_rate: Cell::new(None),
             missing_fx: Cell::new(None),
         }
@@ -430,6 +468,64 @@ impl PaperBroker {
         &self.markets
     }
 
+    pub(crate) fn markets_mut(&mut self) -> &mut BTreeMap<InstrumentId, MarketSetup> {
+        &mut self.markets
+    }
+
+    /// Solo para arrancar desde un punto de control (#463): las órdenes que ya cubre, con sus
+    /// informes (para la idempotencia y la reconciliación).
+    pub(crate) fn set_journal(&mut self, journal: &[(Order, OrderReport)]) {
+        self.reports = journal
+            .iter()
+            .map(|(o, r)| (o.order_id.clone(), r.clone()))
+            .collect();
+        self.journal = journal.to_vec();
+    }
+
+    /// El ATR de Wilder de `candles` (velas del broker de `instrument`, desde la primera): si
+    /// empiezan en un punto de control, sigue desde su estado (#463).
+    pub(crate) fn atr(
+        &self,
+        instrument: &InstrumentId,
+        candles: &[Candle],
+    ) -> Vec<Option<Decimal>> {
+        match self.atr_seeds.get(instrument) {
+            Some(seed) => wilder_atr_after(*seed, candles, self.cfg.atr_period),
+            None => wilder_atr(candles, self.cfg.atr_period),
+        }
+    }
+
+    /// Lo sellado por un punto de control, mirado en `t` (#463): su resultado es constante
+    /// desde su último movimiento. Mira el tipo de cambio de `t` de sus instrumentos como lo
+    /// hacía su valuación (`with_last`: solo si el instrumento ya tiene una vela cerrada en `t`).
+    fn touch_sealed(&self, t: DateTime<Utc>, with_last: bool) {
+        if self.sealed.until.is_some_and(|until| t < until)
+            && self.before_checkpoint.get().is_none_or(|prev| t < prev)
+        {
+            self.before_checkpoint.set(Some(t));
+        }
+        for id in &self.sealed.instruments {
+            let closed = self
+                .markets
+                .get(id)
+                .is_some_and(|m| m.candles.first().is_some_and(|c| c.end() <= t));
+            if !with_last || closed {
+                self.to_eur(id, Decimal::ZERO, t);
+            }
+        }
+    }
+
+    /// Las marcas de error de datos pendientes (para que un punto de control no selle nada
+    /// valuado con datos faltantes).
+    pub(crate) fn take_data_flags(&self) -> (Option<DateTime<Utc>>, Option<DateTime<Utc>>) {
+        (self.missing_rate.take(), self.missing_fx.take())
+    }
+
+    pub(crate) fn restore_data_flags(&self, flags: (Option<DateTime<Utc>>, Option<DateTime<Utc>>)) {
+        self.missing_rate.set(flags.0);
+        self.missing_fx.set(flags.1);
+    }
+
     pub fn config(&self) -> &BrokerConfig {
         &self.cfg
     }
@@ -464,6 +560,15 @@ impl PaperBroker {
         if let Some(at) = self.missing_fx.take() {
             self.activate_kill_switch(
                 format!("Falta el tipo de cambio de {at} (ADR 0013, spec §12)."),
+                at,
+            );
+        }
+        if let Some(at) = self.before_checkpoint.take() {
+            self.activate_kill_switch(
+                format!(
+                    "Valuación en {at}, antes de lo que selló el punto de control del broker \
+                     (#463): no se puede repetir igual."
+                ),
                 at,
             );
         }
@@ -513,11 +618,27 @@ impl PaperBroker {
     /// cierra al último cierre ya cerrado, como `EndOfData` en el backtest. Montos en la moneda
     /// del instrumento.
     pub fn trade_outcomes(&self, now: DateTime<Utc>) -> Vec<PaperTrade> {
-        self.trades
+        // Las selladas por un punto de control (#463) ya terminaron: su resultado guardado.
+        let mut out: Vec<(usize, PaperTrade)> = self
+            .sealed
+            .outcomes
             .iter()
-            .filter(|t| t.opened_at <= now)
-            .map(|t| self.outcome(t, now))
-            .collect()
+            .filter(|(_, t)| t.opened_at <= now)
+            .cloned()
+            .collect();
+        out.extend(
+            self.trades
+                .iter()
+                .filter(|t| t.opened_at <= now)
+                .map(|t| (t.seq, self.outcome(t, now))),
+        );
+        out.sort_by_key(|(seq, _)| *seq);
+        out.into_iter().map(|(_, t)| t).collect()
+    }
+
+    /// La operación valuada en `now` (para sellarla en un punto de control, #463).
+    pub(crate) fn outcome_of(&self, t: &OpenTrade, now: DateTime<Utc>) -> PaperTrade {
+        self.outcome(t, now)
     }
 
     fn outcome(&self, t: &OpenTrade, now: DateTime<Utc>) -> PaperTrade {
@@ -597,7 +718,7 @@ impl PaperBroker {
         if closed.len() <= t.entry_index {
             return (Vec::new(), Decimal::ONE);
         }
-        let atr = wilder_atr(closed, self.cfg.atr_period);
+        let atr = self.atr(&t.instrument, closed);
         let trade = Trade {
             side: strategy_side(t.side),
             entry_index: t.entry_index,
@@ -619,6 +740,15 @@ impl PaperBroker {
                 Decimal::ZERO,
             ),
         }
+    }
+
+    pub(crate) fn valuate_open_fraction_and_events(
+        &self,
+        t: &OpenTrade,
+        now: DateTime<Utc>,
+    ) -> (Decimal, Decimal, Vec<(DateTime<Utc>, Decimal)>) {
+        let v = self.valuate(t, now);
+        (v.open_fraction, v.realized_eur, v.realized_events)
     }
 
     fn valuate(&self, t: &OpenTrade, now: DateTime<Utc>) -> Valued {
@@ -673,19 +803,27 @@ impl PaperBroker {
 
     /// Capital en `now` (realizado + no realizado), y lo realizado antes de `day_start`.
     fn equity_at(&self, now: DateTime<Utc>) -> (Decimal, Decimal, Decimal) {
+        self.touch_sealed(now, false);
         let mut equity = self.cfg.initial_equity;
         let mut unrealized = Decimal::ZERO;
         let mut margin_used = Decimal::ZERO;
+        let mut sealed = self.sealed.realized.iter().peekable();
         for t in self.trades.iter().filter(|t| t.opened_at <= now) {
+            while let Some((_, r)) = sealed.next_if(|(seq, _)| *seq < t.seq) {
+                equity += *r;
+            }
             let v = self.valuate(t, now);
             equity += v.realized_eur + v.unrealized;
             unrealized += v.unrealized;
             margin_used += self.to_eur(&t.instrument, v.open_fraction * t.margin, now);
         }
+        for (_, r) in sealed {
+            equity += *r;
+        }
         (equity, unrealized, margin_used)
     }
 
-    fn day_start(&self, now: DateTime<Utc>) -> DateTime<Utc> {
+    pub(crate) fn day_start(&self, now: DateTime<Utc>) -> DateTime<Utc> {
         let local = now.with_timezone(&self.cfg.day_tz).date_naive();
         local
             .and_hms_opt(0, 0, 0)
@@ -694,6 +832,7 @@ impl PaperBroker {
     }
 
     fn open_instruments(&self, now: DateTime<Utc>) -> Vec<InstrumentId> {
+        self.touch_sealed(now, true);
         self.trades
             .iter()
             // También las que esperan su fill (abren en la apertura siguiente).
@@ -737,7 +876,8 @@ impl PaperBroker {
         if wrong_side {
             return fail(OrderRejection::StopWrongSide);
         }
-        let atr = wilder_atr(&m.candles[..closed], self.cfg.atr_period)
+        let atr = self
+            .atr(&order.instrument_id, &m.candles[..closed])
             .last()
             .copied()
             .flatten();
@@ -872,6 +1012,7 @@ impl crate::Broker for PaperBroker {
                     .parse()
                     .expect("prefijo y order_id válidos");
                 self.trades.push(OpenTrade {
+                    seq: self.journal.len(),
                     position_id: position_id.clone(),
                     order_id: order.order_id.clone(),
                     instrument: order.instrument_id.clone(),
@@ -917,6 +1058,7 @@ impl crate::Broker for PaperBroker {
     }
 
     fn positions(&mut self, now: DateTime<Utc>) -> Vec<Position> {
+        self.touch_sealed(now, true);
         let mut out = Vec::new();
         for t in self.trades.iter().filter(|t| t.opened_at <= now) {
             let v = self.valuate(t, now);
