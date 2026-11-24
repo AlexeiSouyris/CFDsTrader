@@ -36,6 +36,7 @@ El dueño decidió en #371 (24-11-2026, «dale, hacé la A») bajar el históric
 | Horario de negociación del oro en IG | La página de costes solo dice que «las horas de negociación varían según el mercado» | Ficha del mercado en la API (`openingHours`) o la plataforma |
 | Qué futuros usa IG como P2 y P3 de la base, y cuándo pasa al siguiente | La página da la fórmula, no los contratos | Preguntar a IG o medir en la demo |
 | Cómo cuenta las noches del fin de semana para materias primas | La página no lo dice | Medir en la demo |
+| Qué lado (largo o corto) paga la base y cuál la recibe | La página solo dice «Si pagas la base de tu operación, se añade la cifra del coste de IG; si recibes la base, se substrae» (releída el 24-11-2026, #418). También aclara que el ajuste se multiplica por el número de noches | Preguntar a IG o medir en la demo |
 | Comisión o margen de IG al convertir USD a EUR | No se buscó una cifra en la web de IG | Página de costes de IG o la demo |
 | Spread típico del oro (no el mínimo) | Solo está el mínimo publicado | Medir en la demo como en #67 |
 | Feriados de CME para el oro | No hay archivo `holidays/` para CME | Calendario oficial de CME |

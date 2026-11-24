@@ -345,21 +345,89 @@ mod from_catalog {
     }
 
     #[test]
-    fn commodities_pay_no_commission_but_wait_for_their_funding_model() {
+    fn commodities_pay_no_commission_but_wait_for_their_funding_basis() {
         // ADR 0013: el oro no paga comisión, pero su financiación no es la de los índices.
         let toml = REAL.replacen(
             r#"asset_class = "index""#,
-            r#"asset_class = "commodity""#,
+            "asset_class = \"commodity\"\nfunding_model = \"commodity_basis\"",
             1,
         );
         let errs = costs(&toml, "US100").unwrap_err();
         assert!(
-            errs.contains(&("US100".to_string(), "funding_model")),
+            errs.contains(&("US100".to_string(), "funding_basis")),
             "{errs:?}"
         );
         assert!(
             !errs.contains(&("US100".to_string(), "commission")),
             "{errs:?}"
         );
+    }
+}
+
+// ---------- Financiación de materias primas (ADR 0013 §3) ----------
+
+mod commodity {
+    use cfds_backtest::{BasisFlow, commodity_basis, commodity_funding};
+    use chrono::NaiveDate;
+    use rust_decimal::dec;
+
+    fn d(s: &str) -> NaiveDate {
+        s.parse().unwrap()
+    }
+
+    #[test]
+    fn the_basis_is_the_price_gap_per_day_between_expiries() {
+        // 61 días entre vencimientos y 12,2 puntos de diferencia → 0,2 por día.
+        assert_eq!(
+            commodity_basis(dec!(2000), dec!(2012.2), d("2026-06-26"), d("2026-08-26")),
+            Some(dec!(0.2))
+        );
+        // Backwardation: base negativa.
+        assert_eq!(
+            commodity_basis(dec!(2012.2), dec!(2000), d("2026-06-26"), d("2026-08-26")),
+            Some(dec!(-0.2))
+        );
+        // Vencimientos iguales o invertidos: no hay base (nunca una división por cero).
+        assert_eq!(
+            commodity_basis(dec!(1), dec!(2), d("2026-08-26"), d("2026-08-26")),
+            None
+        );
+        assert_eq!(
+            commodity_basis(dec!(1), dec!(2), d("2026-08-26"), d("2026-06-26")),
+            None
+        );
+    }
+
+    #[test]
+    fn paying_the_basis_adds_the_ig_cost_and_receiving_subtracts_it() {
+        // Costo de IG por noche: 2190 × 3 % / 365 = 0,18 puntos.
+        let f = |flow, basis| {
+            commodity_funding(flow, 2, dec!(1), basis, dec!(2190), dec!(3), dec!(365))
+        };
+        // Paga: 2 noches × 1 × (0,2 + 0,18) = 0,76 de costo.
+        assert_eq!(f(BasisFlow::Pays, dec!(0.2)), dec!(0.76));
+        // Recibe: −2 × (0,2 − 0,18) = −0,04 (cobra).
+        assert_eq!(f(BasisFlow::Receives, dec!(0.2)), dec!(-0.04));
+        // Si la base es menor que el costo de IG, recibirla igual cuesta.
+        assert_eq!(f(BasisFlow::Receives, dec!(0.1)), dec!(0.16));
+        // El signo de la base no cambia quién paga: lo dice `flow`.
+        assert_eq!(f(BasisFlow::Pays, dec!(-0.2)), dec!(0.76));
+    }
+
+    #[test]
+    fn no_nights_no_funding_and_size_scales_it() {
+        let f = |nights, size| {
+            commodity_funding(
+                BasisFlow::Pays,
+                nights,
+                size,
+                dec!(0.2),
+                dec!(2190),
+                dec!(3),
+                dec!(365),
+            )
+        };
+        assert_eq!(f(0, dec!(5)), dec!(0));
+        assert_eq!(f(1, dec!(0.5)), dec!(0.19));
     }
 }

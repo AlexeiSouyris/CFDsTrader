@@ -9,7 +9,17 @@
 //! financiación: noches × cierre × tamaño × tasa / base_días
 //!              largo: tasa = referencia + adm. · corto: tasa = adm. − referencia (puede cobrar)
 //! noches:      cortes de las 23:00 (Madrid) cruzados entre la apertura y el cierre
+//!
+//! materias primas al contado (ADR 0013 §3, fórmula publicada por IG en ig-es-costes):
+//!   ajuste = noches × tamaño × (base ± costo de IG)
+//!   base   = (P3 − P2) / (T2 − T1)      P2, P3: futuro anterior y siguiente
+//!                                       T1, T2: vencimientos del previo al anterior y del anterior
+//!   costo de IG = precio medio sin vencimiento × 3 % / 365
+//!   si se paga la base se suma el costo de IG; si se recibe, se resta
 //! ```
+//! De la fórmula de materias primas falta (pendiente, no se inventa): qué futuros usa IG como
+//! P2 y P3, qué lado paga la base y cómo cuenta las noches del fin de semana. Por eso una
+//! materia prima todavía no se puede simular ([`InstrumentCosts::from_spec`]).
 //! Tamaño en moneda del instrumento por punto; en acciones equivale a la cantidad de acciones.
 
 use cfds_strategy::Side;
@@ -18,7 +28,7 @@ use chrono_tz::Tz;
 use rust_decimal::Decimal;
 
 use cfds_core::AssetClass;
-use cfds_market_data::{InstrumentSpec, PendingField};
+use cfds_market_data::{FundingModel, InstrumentSpec, PendingField};
 
 use crate::CostConfig;
 use crate::rates::FundingRates;
@@ -55,24 +65,24 @@ impl InstrumentCosts {
     /// - Spread: el típico del catálogo (ya es el mayor entre el medido y el mínimo publicado).
     /// - Comisión: índices y materias primas, ninguna (IG cobra el spread). Acciones: todavía no
     ///   están en el catálogo, quedan pendientes.
-    /// - Materias primas (ADR 0013): la financiación usa otra fórmula de IG (base de la curva de
-    ///   futuros ± costo de IG). Mientras el motor no la implemente queda pendiente: nunca se
+    /// - Materias primas (ADR 0013): la financiación usa otra fórmula de IG
+    ///   ([`commodity_funding`]). Mientras falten los datos de su base queda pendiente: nunca se
     ///   simula una materia prima con la fórmula de los índices.
     pub fn from_spec(spec: &InstrumentSpec) -> Result<Self, Vec<PendingField>> {
         let mut missing = spec.missing_costs();
         let item = spec.instrument.id.as_str().to_owned();
+        if spec.funding_model == FundingModel::CommodityBasis {
+            missing.push(PendingField {
+                item: item.clone(),
+                field: "funding_basis",
+                reason: "base de la financiación de materias primas (ADR 0013 §3): faltan qué \
+                         futuros usa IG como P2 y P3, qué lado paga la base y cómo cuenta las \
+                         noches del fin de semana, y la serie de la base en el motor"
+                    .into(),
+            });
+        }
         let commission = match spec.instrument.asset_class {
-            AssetClass::Index => Some(Commission::None),
-            AssetClass::Commodity => {
-                missing.push(PendingField {
-                    item: item.clone(),
-                    field: "funding_model",
-                    reason: "la financiación de materias primas de IG (ADR 0013 §3) todavía no \
-                             está en el motor"
-                        .into(),
-                });
-                Some(Commission::None)
-            }
+            AssetClass::Index | AssetClass::Commodity => Some(Commission::None),
             AssetClass::Share => {
                 missing.push(PendingField {
                     item,
@@ -212,4 +222,49 @@ pub fn funding_over(
         };
     }
     Ok(close * size * rate_nights / Decimal::ONE_HUNDRED / costs.funding_day_count)
+}
+
+/// Base de la financiación de una materia prima al contado, en puntos por día:
+/// `(P3 − P2) / (T2 − T1)`, con `T1` y `T2` los vencimientos del futuro previo al anterior y del
+/// anterior (fórmula de IG, ADR 0013 §3). `None` si `T2` no es posterior a `T1`.
+pub fn commodity_basis(
+    p2: Decimal,
+    p3: Decimal,
+    t1: chrono::NaiveDate,
+    t2: chrono::NaiveDate,
+) -> Option<Decimal> {
+    let days = (t2 - t1).num_days();
+    (days > 0).then(|| (p3 - p2) / Decimal::from(days))
+}
+
+/// Quién paga la base en una operación. La fórmula de IG no dice qué lado (largo o corto) la
+/// paga: lo decide quien llama con el dato confirmado (pendiente, ADR 0013).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BasisFlow {
+    Pays,
+    Receives,
+}
+
+/// Financiación de una materia prima al contado, en la moneda del instrumento: positivo es un
+/// costo, negativo un cobro.
+///
+/// `noches × tamaño × (|base| + costo de IG)` si se paga la base, y
+/// `−noches × tamaño × (|base| − costo de IG)` si se recibe; el costo de IG por noche es
+/// `precio medio sin vencimiento × tasa / base_días`. `basis` en puntos por día
+/// ([`commodity_basis`]), `size` en moneda por punto.
+pub fn commodity_funding(
+    flow: BasisFlow,
+    nights: u32,
+    size: Decimal,
+    basis: Decimal,
+    undated_mid: Decimal,
+    admin_fee_pct: Decimal,
+    day_count: Decimal,
+) -> Decimal {
+    let ig_cost = undated_mid * admin_fee_pct / Decimal::ONE_HUNDRED / day_count;
+    let per_night = match flow {
+        BasisFlow::Pays => basis.abs() + ig_cost,
+        BasisFlow::Receives => -(basis.abs() - ig_cost),
+    };
+    Decimal::from(nights) * size * per_night
 }

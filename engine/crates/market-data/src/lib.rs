@@ -33,7 +33,9 @@ pub use futures::{
     futures_daily,
 };
 pub use futures_feeds::{FuturesFeed, FuturesFeeds};
-pub use instruments::{BrokerTerms, Catalog, CatalogError, InstrumentSpec, PendingField, Sourced};
+pub use instruments::{
+    BrokerTerms, Catalog, CatalogError, FundingModel, InstrumentSpec, PendingField, Sourced,
+};
 pub use news_filter::{NewsFilter, NewsFilterConfig, calendar_coverage, news_flags};
 pub use provider::{MarketDataProvider, ProviderError, StaticProvider};
 pub use split::{DataSplit, Period, SplitConfig, SplitError, Window, plan};
