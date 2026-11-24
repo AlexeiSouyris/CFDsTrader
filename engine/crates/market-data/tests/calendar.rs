@@ -200,3 +200,143 @@ fn invalid_configuration_is_rejected_at_load_time() {
     let wrong = HashMap::from([(id("US100"), "XTKS".to_string())]); // bolsa que no existe
     assert!(ExchangeCalendar::load(&config_dir(), wrong).is_err());
 }
+
+// ---------- Sesión que cruza la medianoche: oro de CME Globex (ADR 0013) ----------
+
+fn gold() -> cfds_market_data::Session {
+    calendar().session("CMEGLOBEX_METALS").unwrap().clone()
+}
+
+#[test]
+fn the_gold_session_opens_the_evening_before() {
+    let g = gold();
+    assert!(g.is_overnight());
+    // Miércoles 25-11-2026 (CST, UTC−6): abre el martes 17:00 CT, cierra el miércoles 16:00 CT.
+    assert_eq!(
+        g.hours(date("2026-11-25")),
+        Some(Some((
+            utc("2026-11-24T23:00:00Z"),
+            utc("2026-11-25T22:00:00Z")
+        )))
+    );
+    // Verano (CDT, UTC−5): una hora antes en UTC. 18:00–17:00 en Nueva York en los dos casos.
+    assert_eq!(
+        g.hours(date("2026-07-08")),
+        Some(Some((
+            utc("2026-07-07T22:00:00Z"),
+            utc("2026-07-08T21:00:00Z")
+        )))
+    );
+    // La sesión del lunes abre el domingo; sábado y domingo no son días hábiles.
+    assert_eq!(
+        g.hours(date("2026-11-23")).unwrap().unwrap().0,
+        utc("2026-11-22T23:00:00Z")
+    );
+    assert_eq!(g.hours(date("2026-11-28")), Some(None));
+    assert_eq!(g.hours(date("2026-11-29")), Some(None));
+}
+
+#[test]
+fn each_instant_belongs_to_the_session_that_contains_it() {
+    let g = gold();
+    // Domingo 17:30 CT → día hábil lunes.
+    assert_eq!(
+        g.trading_day(utc("2026-11-22T23:30:00Z")),
+        date("2026-11-23")
+    );
+    // Miércoles 09:00 CT → miércoles.
+    assert_eq!(
+        g.trading_day(utc("2026-11-25T15:00:00Z")),
+        date("2026-11-25")
+    );
+    // Una sesión normal no cambia: Nueva York 23:30 UTC es el mismo día local.
+    let nyse = calendar().session("XNYS").unwrap().clone();
+    assert_eq!(
+        nyse.trading_day(utc("2026-11-25T23:30:00Z")),
+        date("2026-11-25")
+    );
+}
+
+#[test]
+fn the_daily_pause_and_the_weekend_are_closed() {
+    let g = gold();
+    // Pausa diaria de 60 minutos: 16:00–17:00 CT (22:00–23:00 UTC en invierno).
+    assert_eq!(g.is_open_at(utc("2026-11-25T21:59:59Z")), Some(true));
+    assert_eq!(g.is_open_at(utc("2026-11-25T22:00:00Z")), Some(false));
+    assert_eq!(g.is_open_at(utc("2026-11-25T22:59:59Z")), Some(false));
+    assert_eq!(g.is_open_at(utc("2026-11-25T23:00:00Z")), Some(true));
+    // Fin de semana: cierra el viernes 16:00 CT y abre el domingo 17:00 CT.
+    assert_eq!(g.is_open_at(utc("2026-12-04T22:00:00Z")), Some(false));
+    assert_eq!(g.is_open_at(utc("2026-12-05T12:00:00Z")), Some(false));
+    assert_eq!(g.is_open_at(utc("2026-12-06T22:59:59Z")), Some(false));
+    assert_eq!(g.is_open_at(utc("2026-12-06T23:00:00Z")), Some(true));
+}
+
+#[test]
+fn cme_holidays_and_early_closes() {
+    let g = gold();
+    // Navidad: sin sesión. Thanksgiving y el viernes siguiente: cierre anticipado.
+    assert_eq!(g.hours(date("2026-12-25")), Some(None));
+    assert_eq!(
+        g.hours(date("2026-11-26")).unwrap().unwrap().1,
+        utc("2026-11-26T19:30:00Z")
+    );
+    assert_eq!(
+        g.hours(date("2026-11-27")).unwrap().unwrap().1,
+        utc("2026-11-27T19:45:00Z")
+    );
+    // Fuera de la cobertura del archivo: "no sé", nunca cerrado ni abierto.
+    assert_eq!(g.hours(date("2028-03-01")), None);
+}
+
+#[test]
+fn expected_gold_candles_across_midnight() {
+    let g = gold();
+    let day = |d: &str| g.hours(date(d)).unwrap().unwrap();
+    let (open, close) = day("2026-11-25");
+    // 23 h → 92 velas de 15m y 23 de 1h, la primera a la apertura del día anterior.
+    let m15 = g.candle_starts(Timeframe::M15, open, close).unwrap();
+    assert_eq!((m15.len(), m15[0]), (92, open));
+    assert_eq!(
+        g.candle_starts(Timeframe::H1, open, close).unwrap().len(),
+        23
+    );
+    // Un rango de un día UTC toma partes de dos sesiones y ninguna vela de la pausa.
+    let d = utc("2026-11-25T00:00:00Z");
+    let starts = g
+        .candle_starts(Timeframe::M15, d, d + TimeDelta::days(1))
+        .unwrap();
+    assert_eq!(starts.len(), 92);
+    assert!(
+        !starts
+            .iter()
+            .any(|s| *s >= utc("2026-11-25T22:00:00Z") && *s < utc("2026-11-25T23:00:00Z"))
+    );
+}
+
+#[test]
+fn an_overnight_session_needs_distinct_open_and_close() {
+    let dir = std::env::temp_dir().join(format!("cfds-cal-oro-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("holidays")).unwrap();
+    let holidays = "exchange = \"X\"\nsource = \"prueba\"\ngenerated_on = \"2026-11-24\"\n\
+                    from = \"2026-01-01\"\nto = \"2026-12-31\"\nclosed = []\n[early_closes]\n";
+    std::fs::write(dir.join("holidays/X.toml"), holidays).unwrap();
+    let write = |open: &str, close: &str, extra: &str| {
+        std::fs::write(
+            dir.join("sessions.toml"),
+            format!(
+                "[sessions.X]\nname = \"x\"\ntimezone = \"America/Chicago\"\nopen = \"{open}\"\n\
+                 close = \"{close}\"\nholidays = \"holidays/X.toml\"\n"
+            ),
+        )
+        .unwrap();
+        std::fs::write(dir.join("holidays/X.toml"), format!("{holidays}{extra}")).unwrap();
+        ExchangeCalendar::load(&dir, HashMap::new())
+    };
+    assert!(write("17:00", "16:00", "").is_ok());
+    assert!(write("17:00", "17:00", "").is_err());
+    // Cierre anticipado de una sesión nocturna: antes del cierre habitual, no después.
+    assert!(write("17:00", "16:00", "\"2026-11-26\" = \"12:00\"\n").is_ok());
+    assert!(write("17:00", "16:00", "\"2026-11-26\" = \"16:30\"\n").is_err());
+    std::fs::remove_dir_all(&dir).ok();
+}

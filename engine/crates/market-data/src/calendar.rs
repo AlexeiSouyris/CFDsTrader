@@ -5,6 +5,10 @@
 //! - Feriados y cierres anticipados vienen de `config/holidays/<BOLSA>.toml`, con su fuente.
 //! - Fuera del rango que cubre el archivo de feriados, el calendario responde "no sé" (`None`):
 //!   nunca supone que un día es hábil o feriado sin datos.
+//! - Sesión que cruza la medianoche (`open` posterior a `close`, por ejemplo el oro de CME
+//!   Globex, ADR 0013): la sesión del día hábil D abre el día **anterior** a la hora `open` y
+//!   cierra D a la hora `close`. Un instante pertenece al día hábil de la sesión que lo contiene
+//!   ([`Session::trading_day`]); la pausa entre sesiones no es de ninguna.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
@@ -32,7 +36,7 @@ pub enum CalendarError {
     Invalid(String),
 }
 
-/// Sesión de contado de una bolsa, con sus feriados.
+/// Sesión de una bolsa, con sus feriados.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Session {
     pub exchange: String,
@@ -47,6 +51,8 @@ pub struct Session {
 impl Session {
     /// Apertura y cierre en UTC de ese día local. `Some(None)` = no hay sesión (fin de semana
     /// o feriado). `None` = la fecha está fuera de lo que cubre el archivo de feriados.
+    ///
+    /// En una sesión que cruza la medianoche, la apertura es del día anterior a `date`.
     pub fn hours(&self, date: NaiveDate) -> Option<Option<(DateTime<Utc>, DateTime<Utc>)>> {
         if date < self.covered.0 || date > self.covered.1 {
             return None;
@@ -55,21 +61,45 @@ impl Session {
             return Some(None);
         }
         let close = self.early_closes.get(&date).copied().unwrap_or(self.close);
-        let to_utc = |t: NaiveTime| {
+        let to_utc = |day: NaiveDate, t: NaiveTime| {
             // Las bolsas abren y cierran lejos de la hora del cambio de horario (2–3 AM),
             // así que la hora local siempre existe y es única.
             self.tz
-                .from_local_datetime(&date.and_time(t))
+                .from_local_datetime(&day.and_time(t))
                 .single()
                 .map(|d| d.with_timezone(&Utc))
         };
-        Some(Some((to_utc(self.open)?, to_utc(close)?)))
+        let open_day = if self.is_overnight() {
+            date.pred_opt()?
+        } else {
+            date
+        };
+        Some(Some((to_utc(open_day, self.open)?, to_utc(date, close)?)))
+    }
+
+    /// `true` si la sesión cruza la medianoche (abre el día anterior al día hábil).
+    pub fn is_overnight(&self) -> bool {
+        self.open > self.close
+    }
+
+    /// Día hábil al que pertenece el instante `t`: su fecha local, o el día siguiente si la
+    /// sesión cruza la medianoche y `t` ya pasó la hora de apertura.
+    pub fn trading_day(&self, t: DateTime<Utc>) -> NaiveDate {
+        let local = t.with_timezone(&self.tz);
+        let date = local.date_naive();
+        if self.is_overnight() && local.time() >= self.open {
+            date.succ_opt().unwrap_or(date)
+        } else {
+            date
+        }
     }
 
     /// `true` si la bolsa está en sesión en el instante `t`. `None` si la fecha no está cubierta.
     pub fn is_open_at(&self, t: DateTime<Utc>) -> Option<bool> {
-        let date = t.with_timezone(&self.tz).date_naive();
-        Some(self.hours(date)?.is_some_and(|(o, c)| o <= t && t < c))
+        Some(
+            self.hours(self.trading_day(t))?
+                .is_some_and(|(o, c)| o <= t && t < c),
+        )
     }
 
     /// Velas de `timeframe` que caben enteras en la sesión, con inicio en `[from, to)`.
@@ -81,8 +111,9 @@ impl Session {
     ) -> Option<Vec<DateTime<Utc>>> {
         let step = timeframe.duration();
         let mut out = Vec::new();
-        let mut date = from.with_timezone(&self.tz).date_naive();
-        let last = to.with_timezone(&self.tz).date_naive();
+        let mut date = self.trading_day(from);
+        // `to` es excluyente: el último día que importa es el del instante anterior.
+        let last = self.trading_day(to - TimeDelta::nanoseconds(1));
         while date <= last {
             if let Some((open, close)) = self.hours(date)? {
                 let mut s = align_up(open, step);
@@ -221,9 +252,11 @@ fn build_session(code: &str, s: RawSession, h: RawHolidays) -> Result<Session, C
         parse_time(code, "open", &s.open)?,
         parse_time(code, "close", &s.close)?,
     );
-    if open >= close {
-        return invalid("open tiene que ser anterior a close".into());
+    // `open` posterior a `close`: la sesión cruza la medianoche (abre el día anterior).
+    if open == close {
+        return invalid("open y close no pueden ser iguales".into());
     }
+    let overnight = open > close;
     if h.exchange != code {
         return invalid(format!(
             "el archivo de feriados es de {}, no de {code}",
@@ -236,7 +269,13 @@ fn build_session(code: &str, s: RawSession, h: RawHolidays) -> Result<Session, C
     let mut early_closes = BTreeMap::new();
     for (date, t) in h.early_closes {
         let t = parse_time(code, "early_close", &t)?;
-        if t <= open || t >= close {
+        // El cierre anticipado cae el mismo día del cierre habitual, antes que él.
+        let outside = if overnight {
+            t >= close
+        } else {
+            t <= open || t >= close
+        };
+        if outside {
             return invalid(format!("cierre anticipado {date} {t} fuera de la sesión"));
         }
         early_closes.insert(date, t);
