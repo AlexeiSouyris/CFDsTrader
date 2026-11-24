@@ -129,7 +129,7 @@ Reglas para usarlos:
 
 ## 3. Interactive Brokers: CFD de índices, datos y cuenta paper
 
-**Antecedentes:** IBKR es una alternativa evaluada para datos y ejecución. Los residentes en España son atendidos por la entidad irlandesa de IBKR. Ningún dato de esta sección se pudo leer de su web (rechazó la lectura automática el 24-11-2026), por eso todo va como pregunta.
+**Antecedentes:** IBKR es una alternativa evaluada para datos y ejecución. Ningún dato de esta sección se pudo leer de su web (rechazó la lectura automática el 24-11-2026), por eso todo va como pregunta.
 
 **Canal:** no verificado. En la web de IBKR, la página de atención al cliente ofrece un formulario de consulta para quien todavía no es cliente.
 
