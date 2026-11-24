@@ -74,6 +74,13 @@ async fn futures_candles_are_idempotent_separate_from_ig_and_refuse_to_repaint()
         .await
         .unwrap();
     assert_eq!(m15, vec![batch[0].candle.clone(), batch[1].candle.clone()]);
+    // Con el contrato de cada vela (#449).
+    assert_eq!(
+        s.futures_candles_with_contract("databento", &id, Timeframe::M15, from, to)
+            .await
+            .unwrap(),
+        batch[..2]
+    );
     let h1 = s
         .futures_candles("databento", &id, Timeframe::H1, from, to)
         .await

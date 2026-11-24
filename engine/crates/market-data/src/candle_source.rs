@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-use cfds_core::{Candle, Instrument, InstrumentId};
+use cfds_core::{Candle, FuturesCandle, Instrument, InstrumentId};
 use chrono::{DateTime, Datelike, Days, NaiveDate, Utc, Weekday};
 use serde::Deserialize;
 
@@ -66,6 +66,10 @@ pub enum RollDay {
     AfterExpiryDay,
     /// El día del vencimiento ya es del contrato nuevo (Eurex).
     OnExpiryDay,
+    /// Sin calendario: el contrato cambia donde cambia el contrato de las velas (#449). Para el
+    /// continuo por volumen (`GC.v.0`), que no vence en una fecha fija. Ver
+    /// [`CandleSources::roll_instants_with_contracts`].
+    ContractChange,
 }
 
 #[derive(Deserialize)]
@@ -225,6 +229,12 @@ impl CandleSources {
             .roll
             .get(base)
             .ok_or_else(|| format!("{base} no está en [futures.roll] de candle_sources.toml"))?;
+        if rule == RollDay::ContractChange {
+            return Err(format!(
+                "{base}: la regla contract_change necesita el contrato de cada vela \
+                 (roll_instants_with_contracts)"
+            ));
+        }
         let (Some(first), Some(last)) = (m15.first(), m15.last()) else {
             return Ok(Vec::new());
         };
@@ -241,6 +251,7 @@ impl CandleSources {
                         Some(d) => d,
                         None => continue,
                     },
+                    RollDay::ContractChange => continue,
                 };
                 let k = m15.partition_point(|c| c.start.date_naive() < boundary);
                 if k > 0 && k < m15.len() {
@@ -252,6 +263,37 @@ impl CandleSources {
         out.dedup();
         Ok(out)
     }
+
+    /// Como [`CandleSources::roll_instants`], con el contrato de cada vela (en orden). Con las
+    /// reglas de calendario da lo mismo; con [`RollDay::ContractChange`] da
+    /// [`contract_changes`].
+    pub fn roll_instants_with_contracts(
+        &self,
+        base: &InstrumentId,
+        session: &Session,
+        m15: &[FuturesCandle],
+    ) -> Result<Vec<DateTime<Utc>>, String> {
+        match self.roll.get(base) {
+            Some(RollDay::ContractChange) => Ok(contract_changes(m15)),
+            _ => {
+                let candles: Vec<Candle> = m15.iter().map(|c| c.candle.clone()).collect();
+                self.roll_instants(base, session, &candles)
+            }
+        }
+    }
+}
+
+/// Cambios de contrato observados en `m15` (velas en orden): el inicio de cada vela cuyo
+/// contrato es distinto del de la vela anterior (#449).
+///
+/// No mira el futuro: un cambio en `R` sale solo de las velas hasta `R`, así que llegar datos
+/// nuevos nunca agrega, mueve ni borra un cambio ya visto (no repinta). La primera vela no es
+/// un cambio (no hay anterior).
+pub fn contract_changes(m15: &[FuturesCandle]) -> Vec<DateTime<Utc>> {
+    m15.windows(2)
+        .filter(|w| w[0].contract_id != w[1].contract_id)
+        .map(|w| w[1].candle.start)
+        .collect()
 }
 
 #[cfg(test)]

@@ -1,11 +1,12 @@
 //! Vencimientos de los futuros por calendario (#269), contra las fechas en que cambió el
-//! contrato en los datos reales de Databento (ES `c.0` y FDAX `c.0`, medidas el 23-11-2026).
+//! contrato en los datos reales de Databento (ES `c.0` y FDAX `c.0`, medidas el 23-11-2026; RTY
+//! `c.0` y GC `v.0`, medidas el 24-11-2026, #449).
 
 use std::collections::HashMap;
 use std::path::Path;
 
-use cfds_core::{Candle, InstrumentId, Timeframe};
-use cfds_market_data::{CandleSources, ExchangeCalendar, Session};
+use cfds_core::{Candle, FuturesCandle, InstrumentId, Timeframe};
+use cfds_market_data::{CandleSources, ExchangeCalendar, Session, contract_changes};
 use chrono::{DateTime, Datelike, NaiveDate, Utc, Weekday};
 use rust_decimal::dec;
 
@@ -161,5 +162,118 @@ fn no_roll_outside_the_series_and_an_unknown_instrument_is_an_error() {
         s.roll_instants(&id("US500"), &session("XNYS"), &from_roll)
             .unwrap()
             .is_empty()
+    );
+}
+
+#[test]
+fn rty_rolls_match_the_real_contract_changes_since_2017() {
+    let m15 = series("2017-07-10", "2026-11-20", 14, 30, true);
+    let rolls = sources()
+        .roll_instants(&id("US2000"), &session("XNYS"), &m15)
+        .unwrap();
+    let dates: Vec<NaiveDate> = rolls.iter().map(|t| t.date_naive()).collect();
+    // Primer día del contrato nuevo de RTY.c.0 en `futures_bars_1m` (38 contratos, 37 cambios):
+    // el domingo después del vencimiento, salvo el 19-06-2026 (Juneteenth, venció el jueves 18).
+    let real = [
+        "2017-09-17",
+        "2017-12-17",
+        "2018-03-18",
+        "2018-06-17",
+        "2018-09-23",
+        "2018-12-23",
+        "2019-03-17",
+        "2019-06-23",
+        "2019-09-22",
+        "2019-12-22",
+        "2020-03-22",
+        "2020-06-21",
+        "2020-09-20",
+        "2020-12-20",
+        "2021-03-21",
+        "2021-06-20",
+        "2021-09-19",
+        "2021-12-19",
+        "2022-03-20",
+        "2022-06-19",
+        "2022-09-18",
+        "2022-12-18",
+        "2023-03-19",
+        "2023-06-18",
+        "2023-09-17",
+        "2023-12-17",
+        "2024-03-17",
+        "2024-06-23",
+        "2024-09-22",
+        "2024-12-22",
+        "2025-03-23",
+        "2025-06-22",
+        "2025-09-21",
+        "2025-12-21",
+        "2026-03-22",
+        "2026-06-19",
+        "2026-09-20",
+    ]
+    .map(day);
+    assert_eq!(dates, real);
+}
+
+fn with_contract(c: Candle, contract: u64) -> FuturesCandle {
+    FuturesCandle {
+        candle: c,
+        contract_id: contract,
+    }
+}
+
+fn at(s: &str) -> DateTime<Utc> {
+    s.parse().unwrap()
+}
+
+#[test]
+fn gold_rolls_where_the_contract_of_the_candles_changes() {
+    // Cambios reales de GC.v.0 (`futures_bars_1m`): el miércoles 31-07-2024 a las 00:00 UTC
+    // (2017 → 393) y en la apertura del domingo 30-03-2025 a las 22:00 UTC (19604 → 287; la
+    // última barra del viejo fue el viernes 28 a las 20:55).
+    let m15 = vec![
+        with_contract(candle(at("2024-07-30T23:45:00Z")), 2017),
+        with_contract(candle(at("2024-07-31T00:00:00Z")), 393),
+        with_contract(candle(at("2024-07-31T00:15:00Z")), 393),
+        with_contract(candle(at("2025-03-28T20:45:00Z")), 393),
+        with_contract(candle(at("2025-03-30T22:00:00Z")), 287),
+        with_contract(candle(at("2025-03-30T22:15:00Z")), 287),
+    ];
+    let expected = vec![at("2024-07-31T00:00:00Z"), at("2025-03-30T22:00:00Z")];
+    assert_eq!(contract_changes(&m15), expected);
+    let s = sources();
+    let metals = session("CMEGLOBEX_METALS");
+    assert_eq!(
+        s.roll_instants_with_contracts(&id("XAUUSD"), &metals, &m15)
+            .unwrap(),
+        expected
+    );
+    // Sin las ids de contrato no se puede: error, nunca un calendario inventado.
+    let candles: Vec<Candle> = m15.iter().map(|c| c.candle.clone()).collect();
+    assert!(s.roll_instants(&id("XAUUSD"), &metals, &candles).is_err());
+    // Un solo contrato, una sola vela o ninguna: sin cambios.
+    assert!(contract_changes(&m15[1..4]).is_empty());
+    assert!(contract_changes(&m15[..1]).is_empty());
+    assert!(contract_changes(&[]).is_empty());
+    // No repinta: con cualquier prefijo, los cambios son un prefijo de los de la serie entera.
+    for n in 0..=m15.len() {
+        let part = contract_changes(&m15[..n]);
+        assert_eq!(part[..], expected[..part.len()], "{n}");
+    }
+}
+
+#[test]
+fn the_calendar_rules_give_the_same_rolls_with_or_without_contracts() {
+    let m15 = series("2021-11-01", "2023-11-20", 14, 30, true);
+    let with: Vec<FuturesCandle> = m15.iter().cloned().map(|c| with_contract(c, 1)).collect();
+    let s = sources();
+    let nyse = session("XNYS");
+    // Con las reglas de calendario, el contrato de las velas no cuenta.
+    assert_eq!(
+        s.roll_instants_with_contracts(&id("US500"), &nyse, &with)
+            .unwrap(),
+        s.roll_instants(&id("US500"), &nyse, &m15).unwrap()
     );
 }
