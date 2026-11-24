@@ -138,6 +138,10 @@ def test_the_repository_config_maps_the_futures() -> None:
         ('schema = "ohlcv-1m"', 'schema = "trades"'),
         ("min_session_hours = 18", "min_session_hours = 25"),
         ("max_gap_minutes = 5", "max_gap_minutes = 0"),
+        # El inicio propio de un símbolo (#410) es una fecha y solo puede ser posterior al global.
+        ('start = "2017-07-09"', 'start = "9/7/2017"'),
+        ('start = "2017-07-09"', 'start = "2010-01-01"'),
+        ('start = "2017-07-09"', 'start = "2011-01-01"'),
     ],
 )
 def test_bad_config_is_rejected(old: str, new: str) -> None:
@@ -227,7 +231,8 @@ def test_estimate_also_fills_the_part_before_what_is_stored() -> None:
         ("YM.c.0", None, date(2011, 1, 1), date(2026, 11, 23), None),
         # Eurex empieza el 2025-03-10: no hay nada anterior que pedir.
         ("FDAX.c.0", None, date(2026, 11, 23), date(2026, 11, 23), "ya está todo guardado"),
-        ("RTY.c.0", None, date(2011, 1, 1), date(2026, 11, 23), None),
+        # Inicio propio del símbolo (#410): RTY está en CME desde julio de 2017.
+        ("RTY.c.0", None, date(2017, 7, 9), date(2026, 11, 23), None),
         ("GC.v.0", None, date(2011, 1, 1), date(2026, 11, 23), None),
     ]
     assert c.timeseries.calls == [], "estimar nunca baja datos"
@@ -470,7 +475,8 @@ def test_check_month_counts_duplicates_without_storing_and_only_filters_symbols(
     assert "publisher 103: 1; 1 minutos" in out
     assert "ES.c.0" not in out
     req = c.timeseries.calls[0]
-    assert (req["symbols"], req["start"], req["end"]) == (["FDAX.c.0"], "2026-11-01", "2026-12-01")
+    # Hasta el fin publicado del dataset (2026-11-23 en el cliente falso), no hasta fin de mes.
+    assert (req["symbols"], req["start"], req["end"]) == (["FDAX.c.0"], "2026-11-01", "2026-11-23")
     assert cli.main(["x", "--run", "--only", "XX.c.0"]) == 2
     assert cli.main(["x", "--check-month"]) == 2
 
@@ -588,3 +594,39 @@ def test_cli_run_reports_a_failing_symbol_and_goes_on_with_the_others(
     assert "ES.c.0: RuntimeError: 422 dataset_unavailable_range" in err
     assert "tramos con error: ES.c.0" in err
     assert key not in err
+
+
+def test_a_symbol_start_wins_over_the_global_one() -> None:
+    rty = next(s for s in CFG.symbols if s.symbol == "RTY.c.0")
+    assert rty.start == date(2017, 7, 9)
+    assert all(s.start is None for s in CFG.symbols if s is not rty)
+    c = FakeClient()
+    est = estimate(c, replace(CFG, symbols=(rty,)), date(2026, 11, 23), {})
+    assert (est[0].start, est[0].from_dataset_start) == (date(2017, 7, 9), False)
+    # Nunca se pide nada anterior a su inicio (en CME daría 422 symbology_invalid_request).
+    assert all(k["start"] >= "2017-07-09" for n, k in c.metadata.calls if "start" in k)
+    # Con lo guardado desde su inicio, no hay tramo anterior que pedir.
+    stored = {("GLBX.MDP3", "RTY.c.0"): Stored(date(2017, 7, 9), date(2026, 11, 23))}
+    est = estimate(c, replace(CFG, symbols=(rty,)), date(2026, 11, 23), stored)
+    assert est[0].skipped == "ya está todo guardado"
+    # Un período anterior a su inicio (--sample, --check-month) no pide nada.
+    est = estimate(c, replace(CFG, start=date(2015, 3, 1), symbols=(rty,)), date(2015, 4, 1), {})
+    assert est[0].skipped == "no hay datos en el período pedido"
+
+
+def test_check_month_skips_a_symbol_before_its_own_start(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("DATABENTO_API_KEY", "db-" + "k" * 29)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    c = FakeClient(cost=0.01)
+    monkeypatch.setattr(cli, "client", lambda: c)
+    assert cli.main(["x", "--check-month", "2015-03", "--only", "RTY.c.0"]) == 0
+    assert c.timeseries.calls == []
+    assert "no hay datos en el período pedido" in capsys.readouterr().out
+    # El mes en que empieza: solo desde su inicio.
+    assert cli.main(["x", "--check-month", "2017-07", "--only", "RTY.c.0"]) == 0
+    assert (c.timeseries.calls[0]["start"], c.timeseries.calls[0]["end"]) == (
+        "2017-07-09",
+        "2017-08-01",
+    )

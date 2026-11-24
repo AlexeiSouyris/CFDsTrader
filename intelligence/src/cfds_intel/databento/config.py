@@ -25,6 +25,10 @@ class SymbolConfig:
     # Publisher del libro central (el único que se guarda) y su id numérico.
     publisher: str
     publisher_id: int
+    # Inicio propio del símbolo (#410), cuando el futuro empezó a cotizar en el dataset después
+    # del `start` global (RTY en CME desde 2017). Solo puede ser posterior al global, así que el
+    # inicio efectivo es siempre el mayor de los dos (`effective_start`).
+    start: date | None = None
 
 
 @dataclass(frozen=True)
@@ -35,6 +39,11 @@ class DatabentoConfig:
     max_usd: Decimal
     max_gap_minutes: int
     symbols: tuple[SymbolConfig, ...]
+
+
+def effective_start(cfg: DatabentoConfig, sym: SymbolConfig) -> date:
+    """Desde cuándo se baja `sym`: su `start` propio gana sobre el global."""
+    return max(cfg.start, sym.start) if sym.start else cfg.start
 
 
 def _positive_int(v: object, name: str) -> int:
@@ -99,11 +108,19 @@ def load_config(text: str) -> DatabentoConfig:
         hours = _positive_int(x.get("min_session_hours"), f"{sym}: min_session_hours")
         if hours > 24:
             raise ConfigError(f"{sym}: min_session_hours no puede pasar de 24")
-        if set(x) - {"dataset", "symbol", "instrument_id", "min_session_hours", "publisher"}:
+        allowed = {"dataset", "symbol", "instrument_id", "min_session_hours", "publisher", "start"}
+        if set(x) - allowed:
             raise ConfigError(f"{sym}: claves desconocidas")
+        own_start = None
+        if "start" in x:
+            own_start = _date(x["start"], f"{sym}: start")
+            if own_start <= start:
+                raise ConfigError(
+                    f"{sym}: start ({own_start}) tiene que ser posterior a download.start ({start})"
+                )
         pub = x.get("publisher")
         pub_id = _publisher_id(pub, ds, sym)
-        symbols.append(SymbolConfig(ds, sym, inst, hours, str(pub), pub_id))
+        symbols.append(SymbolConfig(ds, sym, inst, hours, str(pub), pub_id, own_start))
     if not symbols:
         raise ConfigError("no hay símbolos configurados")
     if len({(x.dataset, x.symbol) for x in symbols}) != len(symbols):
