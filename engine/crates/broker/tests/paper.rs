@@ -22,7 +22,7 @@ use std::sync::Mutex;
 
 const RISK: &str = include_str!("../../../../config/risk.toml");
 const BACKTEST: &str = include_str!("../../../../config/backtest.toml");
-const BROKER: &str = include_str!("../../../../config/broker.toml");
+const BROKER: &str = include_str!("fixtures/broker.toml");
 
 fn t0() -> DateTime<Utc> {
     "2026-11-18T09:00:00Z".parse().unwrap()
@@ -822,4 +822,25 @@ fn reading_the_account_does_not_change_the_peak_nor_later_decisions() {
         at(28),
     );
     assert!(rec.is_clean(), "{rec:?}");
+}
+
+#[test]
+fn the_real_broker_config_is_valid() {
+    // Los demás tests usan el fixture con capital fijo; este valida el archivo real que arranca el
+    // gateway, sea cual sea el capital que elija el dueño.
+    let real = include_str!("../../../../config/broker.toml");
+    let exits = ExitConfig::from_toml(BACKTEST).unwrap();
+    let costs = CostConfig {
+        slippage_spread_fraction: dec!(0.1),
+        slippage_ticks: dec!(1),
+    };
+    let cfg = BrokerConfig::from_toml(
+        real,
+        RiskConfig::from_toml(RISK).unwrap(),
+        costs,
+        exits,
+        chrono_tz::Europe::Madrid,
+    )
+    .unwrap();
+    assert!(cfg.initial_equity > dec!(0));
 }

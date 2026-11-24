@@ -24,7 +24,7 @@ use tokio::sync::Mutex;
 const GATEWAY: &str = include_str!("../../../../config/gateway.toml");
 const RISK: &str = include_str!("../../../../config/risk.toml");
 const BACKTEST: &str = include_str!("../../../../config/backtest.toml");
-const BROKER: &str = include_str!("../../../../config/broker.toml");
+const BROKER: &str = include_str!("../../broker/tests/fixtures/broker.toml");
 const TOKEN: &str = "token-local-de-prueba-123";
 
 fn at(i: i64) -> DateTime<Utc> {
