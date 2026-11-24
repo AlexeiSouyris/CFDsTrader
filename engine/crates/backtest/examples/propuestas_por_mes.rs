@@ -23,60 +23,25 @@
 //! El tramo fuera de muestra (los últimos `out_of_sample.months`) se cuenta aparte y no entra en
 //! las ventanas de entrenamiento.
 
+#[path = "common/futures_series.rs"]
+mod futures_series;
 #[path = "common/news_filter.rs"]
 mod news_filter;
 
 use std::collections::BTreeMap;
-use std::path::PathBuf;
 
-use cfds_backtest::{
-    BacktestConfig, ExitReason, Label, Overlap, Proposal, ProposalRules, Tally, mark_rollovers,
-    proposals, tally_by,
-};
-use cfds_core::{Candle, InstrumentId};
-use cfds_indicators::TrendConfig;
-use cfds_liquidity::LiquidityConfig;
-use cfds_market_data::{
-    CandleSources, Catalog, ExchangeCalendar, FuturesFeeds, NewsFilterConfig, SplitConfig,
-    TradingWindowConfig, ValidationConfig, check_series, decision_flags, futures_candles, plan,
-    trading_window,
-};
-use cfds_patterns::PatternsConfig;
-use cfds_risk::{InstrumentLimits, RiskConfig};
-use cfds_storage::PgStore;
-use cfds_strategy::{Configs, Side, StrategyConfig, TriggerKind};
-use chrono::{DateTime, Datelike, NaiveDate, TimeZone, Utc};
+use cfds_backtest::{ExitReason, Label, Overlap, Proposal, Tally, proposals, tally_by};
+use cfds_core::InstrumentId;
+use cfds_market_data::{SplitConfig, plan};
+use cfds_strategy::{Side, TriggerKind};
+use chrono::{DateTime, Datelike, TimeZone, Utc};
+use futures_series::{FuturesSeries, month_start};
 use rust_decimal::Decimal;
 
 macro_rules! cfg {
     ($f:literal) => {
         include_str!(concat!("../../../../config/", $f))
     };
-}
-
-const SOURCE: &str = "databento";
-/// Capital de la cuenta para el tamaño (solo decide los rechazos por tamaño mínimo o margen).
-const EQUITY: Decimal = Decimal::from_parts(10000, 0, 0, false, 0);
-
-fn month_start(t: DateTime<Utc>) -> DateTime<Utc> {
-    Utc.from_utc_datetime(
-        &NaiveDate::from_ymd_opt(t.year(), t.month(), 1)
-            .and_then(|d| d.and_hms_opt(0, 0, 0))
-            .unwrap_or_default(),
-    )
-}
-
-fn next_month(t: DateTime<Utc>) -> DateTime<Utc> {
-    let (y, m) = if t.month() == 12 {
-        (t.year() + 1, 1)
-    } else {
-        (t.year(), t.month() + 1)
-    };
-    Utc.from_utc_datetime(
-        &NaiveDate::from_ymd_opt(y, m, 1)
-            .and_then(|d| d.and_hms_opt(0, 0, 0))
-            .unwrap_or_default(),
-    )
 }
 
 fn month_index(y: i32, m: u32) -> i32 {
@@ -132,54 +97,6 @@ fn tally_table(title: &str, first: &str, rows: &BTreeMap<String, Tally>) {
     }
 }
 
-/// Velas de 15m y 1h del futuro de `id`, armadas en memoria desde las barras de 1 minuto. Quedan
-/// bajo `id`, igual que en `backtest_run`: el calendario y la sesión son los del CFD.
-async fn candles(
-    store: &PgStore,
-    id: &InstrumentId,
-    (from, to): (DateTime<Utc>, DateTime<Utc>),
-) -> Result<(Vec<Candle>, Vec<Candle>), Box<dyn std::error::Error>> {
-    let feeds = FuturesFeeds::from_toml(cfg!("databento.toml"))?;
-    let feed = feeds.get(id).ok_or("sin futuro en config/databento.toml")?;
-    let (loaded_from, loaded_to) = store
-        .futures_loaded_range(SOURCE, &feed.dataset, &feed.symbol, id)
-        .await?
-        .ok_or("sin barras bajadas")?;
-    let (from, until) = (from.max(loaded_from), to.min(loaded_to).min(Utc::now()));
-    eprintln!(
-        "{} ({}): bajado del {loaded_from} al {loaded_to}; se usa del {from} al {until}",
-        feed.symbol, feed.dataset
-    );
-    let (mut m15, mut h1, mut mixed) = (Vec::new(), Vec::new(), 0);
-    let mut month = month_start(from);
-    while month < until {
-        let end = next_month(month).min(until);
-        let bars = store
-            .futures_bars(
-                SOURCE,
-                &feed.dataset,
-                &feed.symbol,
-                id,
-                month.max(from),
-                end,
-            )
-            .await?;
-        if !bars.is_empty() {
-            let f = futures_candles(&bars, id, end)?;
-            mixed += f.mixed.len();
-            m15.extend(f.m15.into_iter().map(|c| c.candle));
-            h1.extend(f.h1.into_iter().map(|c| c.candle));
-        }
-        month = next_month(month);
-    }
-    eprintln!(
-        "{} velas de 15m y {} de 1h; {mixed} ventanas no se armaron por un vencimiento",
-        m15.len(),
-        h1.len()
-    );
-    Ok((m15, h1))
-}
-
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -193,89 +110,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => Utc::now(),
     };
 
-    let catalog = Catalog::from_toml(cfg!("instruments.toml"))?;
-    let spec = catalog
-        .instruments
-        .get(&id)
-        .ok_or("instrumento fuera del catálogo")?;
-    if catalog.account_currency.value() != Some(&spec.instrument.currency) {
-        return Err(
-            "la moneda del instrumento no es la de la cuenta: falta el tipo de cambio".into(),
-        );
-    }
-    let limits = InstrumentLimits::from_spec(spec).ok_or("el instrumento no tiene margen")?;
-    let rules = ProposalRules {
-        instrument: id.clone(),
-        strategy: Configs {
-            patterns: PatternsConfig::from_toml(cfg!("patterns.toml"))?,
-            liquidity: LiquidityConfig::from_toml(cfg!("liquidity.toml"))?,
-            trend: TrendConfig::from_toml(cfg!("indicators.toml"))?,
-            strategy: StrategyConfig::from_toml(cfg!("strategy.toml"))?,
-        },
-        risk: RiskConfig::from_toml(cfg!("risk.toml"))?,
-        limits,
-        exits: BacktestConfig::from_toml(cfg!("backtest.toml"))?.exits,
-        equity: EQUITY,
-        account_to_instrument: Decimal::ONE,
-    };
-    let sources = CandleSources::from_toml(cfg!("candle_sources.toml"))?;
-    let out = sources.instrument_for(cfds_market_data::CandleSource::Futures, &id)?;
-
-    // Solo lectura: la sesión de PostgreSQL no puede escribir.
-    let url = std::env::var("DATABASE_URL")?;
-    let sep = if url.contains('?') { '&' } else { '?' };
-    let store = PgStore::connect(&format!(
-        "{url}{sep}options=-c%20default_transaction_read_only%3Don"
-    ))
-    .await?;
-
-    let (raw_m15, raw_h1) = candles(&store, &id, (from, to)).await?;
-    let config_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../config");
-    let calendar = ExchangeCalendar::load(&config_dir, catalog.exchange_map())?;
-    let validation = ValidationConfig::from_toml(cfg!("data_validation.toml"))?;
-    let a = check_series(&raw_m15, &calendar, &validation);
-    let b = check_series(&raw_h1, &calendar, &validation);
-    let suspicious = a.issues.len() + b.issues.len();
-    {
-        let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
-        for i in a.issues.iter().chain(&b.issues) {
-            let k = format!("{:?}", i.kind);
-            let k = k
-                .split([' ', '{', '('])
-                .next()
-                .unwrap_or_default()
-                .to_owned();
-            *kinds.entry(k).or_insert(0) += 1;
-        }
-        eprintln!("datos sospechosos por tipo: {kinds:?}");
-    }
-    let decisions = decision_flags(&a.candles, &[&a, &b]);
-    let mut data_errors = [a.data_errors, b.data_errors].concat();
-    data_errors.sort();
-    let (m15, h1) = (a.candles, b.candles);
-    let session = calendar.session_for(&id).ok_or("instrumento sin bolsa")?;
-    let window = TradingWindowConfig::from_toml(cfg!("trading_window.toml"))?;
-    let (mut entries, mut force_close) = trading_window::flags(session, &m15, &window)
-        .ok_or("fechas fuera del calendario de feriados (config/holidays)")?;
-    for (e, d) in entries.iter_mut().zip(&decisions) {
-        *e &= *d;
-    }
-    let rolls = sources.roll_instants(&id, session, &m15)?;
-    mark_rollovers(
-        &m15,
-        &rolls,
-        &mut entries,
-        &mut force_close,
-        &mut data_errors,
-    );
-    eprintln!(
-        "velas donde se puede entrar (horario y datos): {} de {}",
-        entries.iter().filter(|e| **e).count(),
-        entries.len()
-    );
-    let news_cfg = NewsFilterConfig::from_toml(cfg!("news_filter.toml"))?;
-    let entries = news_filter::apply(&store, &m15, &entries, &news_cfg).await?;
-
+    let store = futures_series::read_only_store().await?;
+    let FuturesSeries {
+        rules,
+        out,
+        session: _,
+        m15,
+        h1,
+        entries,
+        force_close,
+        data_errors,
+        suspicious,
+        rolls,
+    } = futures_series::prepare(&store, &id, (from, to)).await?;
     let one = proposals(
         &m15,
         &h1,
@@ -328,7 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         last.end(),
         h1.len(),
         data_errors.len(),
-        rolls.len()
+        rolls
     );
     let all = tally_by(&one.proposals, |_| ())
         .remove(&())

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/ml_label.v1.schema.json",
+  "title": "ML label v1",
+  "description": "Etiqueta de una propuesta para el modelo de ML v1, sin P/L (docs/spec/ml-v1.md §1, #399, opción C del dueño). La arma el motor (Rust, cfds_backtest::proposals) con las mismas salidas del backtest (cfds_backtest::simulate), a precio medio y sin costos: no necesita la financiación. Una fila por propuesta resuelta; si los datos terminan antes de conocer el resultado, no hay fila. No reemplaza a outcome.v1 (resultado con costos y P/L).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["proposal_id", "signal_at", "y", "exit_reason", "resolved_at", "method"],
+  "properties": {
+    "proposal_id": {
+      "description": "Id de la propuesta (proposal.v1.id).",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,200}$"
+    },
+    "signal_at": {
+      "description": "Cierre de la vela de la señal (proposal.v1.signal_at), en UTC.",
+      "$ref": "#/$defs/utc"
+    },
+    "y": {
+      "description": "1 si toca TP1 antes que el stop; 0 si sale por el stop (también con gap en la entrada), por tiempo o por un cierre forzado (spec ML decisión abierta 1).",
+      "enum": [0, 1]
+    },
+    "exit_reason": {
+      "description": "Qué decidió la etiqueta: 'tp1' (y = 1) o la salida final sin TP1: 'stop', 'time' o 'forced' (y = 0).",
+      "enum": ["tp1", "stop", "time", "forced"]
+    },
+    "resolved_at": {
+      "description": "Fin de la vela en la que se conoce el resultado (la de TP1 o la de la salida final, la última si TP1 llega antes). Mayor que signal_at. Para la purga de la spec ML §5: una propuesta de entrenamiento con resolved_at después del inicio de su validación se saca.",
+      "$ref": "#/$defs/utc"
+    },
+    "method": {
+      "description": "Cómo se midió. 'mid_no_costs': entrada en la apertura de t+1 a precio medio, TP1 y stop desde ahí, sin spread, slippage, comisión ni financiación.",
+      "const": "mid_no_costs"
+    }
+  },
+  "$defs": {
+    "utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    }
+  }
+}

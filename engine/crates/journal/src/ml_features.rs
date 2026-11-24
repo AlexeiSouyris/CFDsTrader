@@ -93,10 +93,28 @@ pub fn from_backtest(
     daily: &[DailyVolTercile],
     session: &Session,
 ) -> Option<MlFeatures> {
-    let as_of = trade.signal_at;
-    let atr14 = (*atr.get(trade.signal_index)?).filter(|a| *a > Decimal::ZERO)?;
+    of_signal(
+        crate::proposal_id(run_id, instrument, trade.signal_at, trade.side),
+        trade.signal_index,
+        trade.signal_at,
+        atr,
+        daily,
+        session,
+    )
+}
+
+/// Las variables de la señal de la vela `index`, que cierra en `as_of`. `None` si falta alguna.
+pub(crate) fn of_signal(
+    proposal_id: String,
+    index: usize,
+    as_of: DateTime<Utc>,
+    atr: &[Option<Decimal>],
+    daily: &[DailyVolTercile],
+    session: &Session,
+) -> Option<MlFeatures> {
+    let atr14 = (*atr.get(index)?).filter(|a| *a > Decimal::ZERO)?;
     Some(MlFeatures {
-        proposal_id: crate::proposal_id(run_id, instrument, as_of, trade.side),
+        proposal_id,
         as_of,
         atr14_m15: atr14.normalize(),
         realized_vol_tercile: vol_tercile(daily, as_of)?,

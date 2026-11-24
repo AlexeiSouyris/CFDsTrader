@@ -8,6 +8,7 @@
 pub mod curve;
 pub mod learning;
 pub mod ml_features;
+pub mod ml_label;
 pub mod pg;
 pub mod probability;
 pub mod run;

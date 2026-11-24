@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/ml_label_run.v1.schema.json",
+  "title": "ML label run v1",
+  "description": "Una corrida de etiquetas sin P/L (#399): de qué datos salen las propuestas de un run_id con su ml_label.v1. Es el equivalente de backtest_run.v1 para estas corridas, sin costos ni métricas. Idempotente por run_id: la misma corrida otra vez no guarda nada; con otro contenido es un error (un run_id no se reusa).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["run_id", "instrument_id", "candle_source", "from", "to", "method", "config_sha256"],
+  "properties": {
+    "run_id": {
+      "description": "Corrida (proposal.v1.run_id de sus propuestas).",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,100}$"
+    },
+    "instrument_id": {
+      "description": "Instrumento bajo el que se guardan las propuestas (con futuros, el derivado: US500.FUT).",
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$"
+    },
+    "candle_source": {
+      "description": "De dónde salen las velas: 'futures' (armadas desde las barras de 1 minuto de Databento) o 'ig'.",
+      "enum": ["futures", "ig"]
+    },
+    "from": {
+      "description": "Inicio de la primera vela de 15m de los datos, en UTC.",
+      "$ref": "#/$defs/utc"
+    },
+    "to": {
+      "description": "Fin de la última vela de 15m de los datos, en UTC. Mayor que from.",
+      "$ref": "#/$defs/utc"
+    },
+    "method": {
+      "description": "Cómo se midieron las etiquetas (ml_label.v1.method).",
+      "const": "mid_no_costs"
+    },
+    "config_sha256": {
+      "description": "SHA-256 de los archivos de config/ que leyó, cada uno con su nombre (como backtest_run.v1).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "$defs": {
+    "utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    }
+  }
+}

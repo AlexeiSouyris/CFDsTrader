@@ -30,7 +30,13 @@ from cfds_intel.analogs.data import futures_suffix
 from cfds_intel.models.baselines import load_probability_config
 from cfds_intel.models.compare import compare
 from cfds_intel.models.config import ROOT, MlConfig, load_config
-from cfds_intel.models.dataset import BacktestOutcomes, Dataset, LabelSource, load_from
+from cfds_intel.models.dataset import (
+    BacktestOutcomes,
+    Dataset,
+    LabelSource,
+    MlLabels,
+    load_from,
+)
 from cfds_intel.models.metrics import log_losses
 from cfds_intel.models.registry import document, record, sha256_hex
 from cfds_intel.models.report import render
@@ -113,16 +119,23 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="python -m cfds_intel.models.experiment")
     parser.add_argument("run_id")
     parser.add_argument("--fuente", choices=SOURCES, default="cfd")
+    parser.add_argument(
+        "--etiquetas",
+        choices=("backtest", "sin-pl"),
+        default="backtest",
+        help="backtest: outcomes de backtest_runs (#200); sin-pl: ml_labels de ml_dataset (#399)",
+    )
     parser.add_argument("--sin-registrar", action="store_true")
     parser.add_argument("--informe", type=Path)
     args = parser.parse_args(argv)
     texts = {n: (ROOT / "config" / n).read_text() for n in CONFIG_FILES}
     cfg = load_config(texts["ml.toml"])
     options = "-c default_transaction_read_only=on" if args.sin_registrar else ""
+    labels: LabelSource = (
+        MlLabels(args.run_id) if args.etiquetas == "sin-pl" else BacktestOutcomes(args.run_id)
+    )
     with psycopg.connect(os.environ["DATABASE_URL"], options=options) as conn:
-        dataset, evaluation, doc, excluded = run(
-            conn, BacktestOutcomes(args.run_id), cfg, texts, args.fuente
-        )
+        dataset, evaluation, doc, excluded = run(conn, labels, cfg, texts, args.fuente)
         new = None if args.sin_registrar else record(conn, doc)
     print(
         f"{len(dataset.examples)} propuestas ({dataset.without_features} sin variables, "
