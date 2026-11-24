@@ -196,8 +196,10 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 | Contrato | Tabla | Contenido |
 |---|---|---|
 | `futures_bar.v1` | `futures_bars_1m` | Una barra de 1 minuto de un futuro, tal como la publica la fuente: `source` (`databento`), `dataset`, `symbol` (contrato continuo, por ejemplo `ES.c.0`), `instrument_id` (nuestro CFD: US500, US100, US30, DE40), `contract_id` (el contrato real: si cambia, hubo vencimiento), `start` (inicio en UTC, justo en un minuto), OHLC como string decimal y `volume`. |
+| `futures_bar_1d.v1` | `futures_bars_1d` | Una vela **diaria** de un futuro tal como la publica la fuente (#522; Databento `ohlcv-1d`): mismos campos que `futures_bar.v1`, pero `start` es la **medianoche UTC** del día que cubre. No es la vela de la hora de liquidación de la bolsa ni la diaria de IG. Hoy son datos de investigación: `instrument_id` es la raíz del futuro (por ejemplo `NKD`) y no está en `config/instruments.toml`. |
 
 - La escribe Python (`python -m cfds_intel.databento --run`, solo con `CFDS_DATA_MACHINE=1`). La lee Rust con `cfds_core::FuturesBar` (`PgStore::futures_bars`), que acepta lo mismo que el contrato, y la agrupa y verifica `cfds_market_data::futures` (#248).
+- `futures_bar_1d.v1` la escribe Python (`python -m cfds_intel.databento --daily --run`, config `config/databento_daily.toml`, tope de USD 1 por corrida). Tabla de solo agregar (`infra/migrations/0047_futures_bars_1d.sql`). `futures_bar_loads` lleva desde #522 la columna `schema` (`ohlcv-1m` u `ohlcv-1d`) en su clave.
 - Tabla de **solo agregar** (`infra/migrations/0023_futures_bars.sql`, trigger), con clave `(source, dataset, symbol, start_at)`. La misma barra otra vez no cambia nada, y otra con la misma clave es un conflicto: no se guarda nada del tramo. `futures_bar_loads` registra cada tramo bajado y su costo estimado, para no volver a pagarlo.
 - Solo barras del **libro central**: en Eurex, OHLCV trae un registro aparte por publisher cuando en el minuto hubo operaciones fuera de libro (`XEUR.EOBI.XOFF`). Esas se descartan y se cuentan (`publisher` en `config/databento.toml`, #254).
 - Precios **sin ajustar** por vencimientos.

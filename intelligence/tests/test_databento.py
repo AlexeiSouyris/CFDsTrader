@@ -16,11 +16,13 @@ from jsonschema import Draft202012Validator
 from cfds_intel.databento import __main__ as cli
 from cfds_intel.databento.bars import (
     BACKWARD,
+    BAR_NS,
     FORWARD,
     BudgetError,
     DatabentoError,
     Stored,
     check_budget,
+    check_spend,
     chunks,
     estimate,
     fetch_bars,
@@ -358,7 +360,7 @@ def day_of_cme(skip: set[str] = frozenset()) -> list[SimpleNamespace]:  # type: 
 
 def test_a_full_cme_day_passes_the_sample_validation() -> None:
     bars = fetch_bars(FakeClient(records=day_of_cme()), CFG, ES, DAY, date(2026, 11, 19)).bars
-    r = validate_day(bars, ES, DAY, CFG.max_gap_minutes)
+    r = validate_day(bars, ES, DAY, 5)
     assert r.problems == []
     assert (r.bars, r.hours, r.longest_gap_minutes, r.contracts) == (1380, Decimal(23), 60, [42])
 
@@ -366,7 +368,7 @@ def test_a_full_cme_day_passes_the_sample_validation() -> None:
 def test_the_sample_validation_reports_gaps_and_short_sessions() -> None:
     hole = {f"2026-11-18T10:{m:02d}:00" for m in range(10)}  # 10 min sin barras
     bars = fetch_bars(FakeClient(records=day_of_cme(hole)), CFG, ES, DAY, date(2026, 11, 19)).bars
-    r = validate_day(bars, ES, DAY, CFG.max_gap_minutes)
+    r = validate_day(bars, ES, DAY, 5)
     assert r.gaps == [(datetime(2026, 11, 18, 9, 59, tzinfo=UTC), 10)]
     assert any("huecos" in p for p in r.problems)
     short = validate_day(bars[:600], replace(ES, min_session_hours=22), DAY, 5)
@@ -499,7 +501,9 @@ def test_cli_run_fills_before_and_after_what_is_stored(
     monkeypatch.setattr(cli, "client", lambda: c)
     monkeypatch.setattr(psycopg, "connect", lambda *a, **k: contextlib.nullcontext(object()))
     stored_es = Stored(date(2021, 11, 1), date(2026, 11, 1))
-    monkeypatch.setattr(store, "loaded_spans", lambda conn: {("GLBX.MDP3", "ES.c.0"): stored_es})
+    monkeypatch.setattr(
+        store, "loaded_spans", lambda conn, *_: {("GLBX.MDP3", "ES.c.0"): stored_es}
+    )
     saved: list[tuple[date, date]] = []
 
     def insert(conn: object, sym: object, a: date, b: date, *_: object) -> store.ChunkReport:
@@ -577,7 +581,7 @@ def test_cli_run_reports_a_failing_symbol_and_goes_on_with_the_others(
     every = {
         (s.dataset, s.symbol): Stored(date(2011, 1, 1), date(2026, 11, 20)) for s in CFG.symbols
     }
-    monkeypatch.setattr(store, "loaded_spans", lambda conn: every)
+    monkeypatch.setattr(store, "loaded_spans", lambda conn, *_: every)
     saved: list[str] = []
 
     def insert(conn: object, sym: Any, a: date, b: date, *_: object) -> store.ChunkReport:
@@ -630,3 +634,176 @@ def test_check_month_skips_a_symbol_before_its_own_start(
         "2017-07-09",
         "2017-08-01",
     )
+
+
+# --- Velas diarias (`--daily`, `config/databento_daily.toml`, #522) ---
+
+DAILY_TEXT = (ROOT / "config" / "databento_daily.toml").read_text()
+DAILY_CFG = load_config(DAILY_TEXT)
+NKD = DAILY_CFG.symbols[0]
+ROOTS = ["NKD", "ZN", "ZB", "6E", "6J", "6B", "6A", "SI", "CL", "HG"]
+
+
+def test_the_daily_config_has_the_ten_research_futures_and_a_one_dollar_cap() -> None:
+    assert [(s.dataset, s.symbol, s.instrument_id) for s in DAILY_CFG.symbols] == [
+        ("GLBX.MDP3", f"{r}.v.0", r) for r in ROOTS
+    ]
+    assert (DAILY_CFG.schema, DAILY_CFG.stype_in) == ("ohlcv-1d", "continuous")
+    assert (DAILY_CFG.start, DAILY_CFG.max_usd) == (date(2011, 1, 1), Decimal(1))
+    assert DAILY_CFG.max_gap_minutes is None
+    assert all(s.min_session_hours is None and s.publisher_id == 1 for s in DAILY_CFG.symbols)
+    # Datos de investigación: ninguno es un instrumento operable del catálogo.
+    import tomllib
+
+    catalog = tomllib.loads((ROOT / "config" / "instruments.toml").read_text())
+    ids = set(catalog["instruments"])
+    assert ids and not ids & set(ROOTS)
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ('max_usd = "1"', "max_usd = 1"),
+        ('schema = "ohlcv-1d"', 'schema = "ohlcv-1h"'),
+        # `[sample]` y `min_session_hours` son solo de 1 minuto.
+        ('max_usd = "1"', 'max_usd = "1"\n\n[sample]\nmax_gap_minutes = 5'),
+        ('instrument_id = "NKD"', 'instrument_id = "NKD"\nmin_session_hours = 22'),
+        ('instrument_id = "ZB"', 'instrument_id = "NKD"'),
+    ],
+)
+def test_bad_daily_config_is_rejected(old: str, new: str) -> None:
+    assert old in DAILY_TEXT
+    with pytest.raises(ConfigError):
+        load_config(DAILY_TEXT.replace(old, new, 1))
+
+
+def test_daily_records_start_at_utc_midnight_and_follow_their_contract() -> None:
+    b = to_bar(rec("2026-11-18T00:00:00"), NKD, BAR_NS["ohlcv-1d"])
+    assert b.start == datetime(2026, 11, 18, tzinfo=UTC)
+    doc = json.loads((ROOT / "contracts" / "futures_bar_1d.v1.schema.json").read_text())
+    d = b.to_contract()
+    assert not list(Draft202012Validator(doc).iter_errors(d)), d
+    assert d["start"] == "2026-11-18T00:00:00Z" and d["instrument_id"] == "NKD"
+    # Una barra de 1 minuto no es una diaria, ni para la función ni para el contrato.
+    with pytest.raises(DatabentoError, match="medianoche"):
+        to_bar(rec("2026-11-18T14:31:00"), NKD, BAR_NS["ohlcv-1d"])
+    minute = to_bar(rec("2026-11-18T14:31:00"), NKD).to_contract()
+    assert list(Draft202012Validator(doc).iter_errors(minute))
+
+
+def test_daily_fetch_asks_for_ohlcv_1d_and_checks_the_period() -> None:
+    recs = [rec("2026-11-18T00:00:00"), rec("2026-11-19T00:00:00")]
+    c = FakeClient(records=recs)
+    f = fetch_bars(c, DAILY_CFG, NKD, date(2026, 11, 18), date(2026, 11, 20))
+    assert [b.start.day for b in f.bars] == [18, 19]
+    assert c.timeseries.calls[0]["schema"] == "ohlcv-1d"
+    assert c.timeseries.calls[0]["symbols"] == ["NKD.v.0"]
+    with pytest.raises(DatabentoError, match="fuera del período"):
+        fetch_bars(FakeClient(records=recs), DAILY_CFG, NKD, date(2026, 11, 18), DAY)
+
+
+def test_daily_requests_go_year_by_year() -> None:
+    e = estimate(FakeClient(cost=0.0489), DAILY_CFG, date(2026, 11, 23), {})[0]
+    assert (e.start, e.end) == (date(2011, 1, 1), date(2026, 11, 23))
+    got = chunks(e, "ohlcv-1d")
+    assert got[0] == (date(2011, 1, 1), date(2012, 1, 1))
+    assert got[-1] == (date(2026, 1, 1), date(2026, 11, 23)) and len(got) == 16
+    back = replace(e, part=BACKWARD)
+    assert chunks(back, "ohlcv-1d")[0] == (date(2026, 1, 1), date(2026, 11, 23))
+
+
+def test_the_approved_daily_estimate_fits_and_a_bigger_one_is_refused(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("DATABENTO_API_KEY", "db-" + "k" * 29)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setattr(cli, "today_utc", lambda: date(2026, 11, 23))
+    ok = FakeClient(cost=0.0489)
+    monkeypatch.setattr(cli, "client", lambda: ok)
+    assert cli.main(["x", "--daily", "--estimate"]) == 0
+    out = capsys.readouterr().out
+    assert "NKD.v.0 (GLBX.MDP3 → NKD): 2011-01-01 → 2026-11-23" in out
+    assert "total estimado: USD 0.49 (tope USD 1)" in out
+    assert {k for k, _ in ok.metadata.calls} <= {
+        "get_cost",
+        "get_record_count",
+        "get_dataset_range",
+    }
+    # USD 0,11 por mercado = USD 1,10 > 1: ni --estimate ni --run siguen, y no se baja nada.
+    big = FakeClient(cost=0.11)
+    monkeypatch.setattr(cli, "client", lambda: big)
+    monkeypatch.setenv("CFDS_DATA_MACHINE", "1")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://falsa")
+    import contextlib
+
+    import psycopg
+
+    from cfds_intel.databento import store
+
+    monkeypatch.setattr(psycopg, "connect", lambda *a, **k: contextlib.nullcontext(object()))
+    monkeypatch.setattr(store, "loaded_spans", lambda conn, *_: {})
+    assert cli.main(["x", "--daily", "--estimate"]) == 2
+    assert cli.main(["x", "--daily", "--run"]) == 2
+    assert "pasa el tope de USD 1" in capsys.readouterr().err
+    assert big.timeseries.calls == []
+
+
+def test_daily_run_stops_hard_when_the_requests_reach_the_cap(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import contextlib
+
+    import psycopg
+
+    from cfds_intel.databento import store
+
+    monkeypatch.setenv("DATABENTO_API_KEY", "db-" + "k" * 29)
+    monkeypatch.setenv("CFDS_DATA_MACHINE", "1")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://falsa")
+    monkeypatch.setattr(cli, "today_utc", lambda: date(2026, 11, 23))
+    # La estimación total da USD 0,50 (10 por 0,05), pero cada pedido de un año también da 0,05
+    # según get_cost: a los 20 pedidos la corrida llega a USD 1 y el 21 ya no se hace.
+    c = FakeClient(cost=0.05)
+    monkeypatch.setattr(cli, "client", lambda: c)
+    monkeypatch.setattr(psycopg, "connect", lambda *a, **k: contextlib.nullcontext(object()))
+    schemas: list[str] = []
+
+    def spans(conn: object, schema: str) -> dict[tuple[str, str], Stored]:
+        schemas.append(schema)
+        return {}
+
+    monkeypatch.setattr(store, "loaded_spans", spans)
+    saved: list[tuple[str, date, str]] = []
+
+    def insert(
+        conn: object, sym: Any, a: date, b: date, bars: object, cost: object, schema: str
+    ) -> store.ChunkReport:
+        saved.append((sym.symbol, a, schema))
+        return store.ChunkReport(0, 0)
+
+    monkeypatch.setattr(store, "insert_chunk", insert)
+    assert cli.main(["x", "--daily", "--run"]) == 2
+    assert schemas == ["ohlcv-1d"]
+    assert len(c.timeseries.calls) == 20 and len(saved) == 20
+    assert all(s == "ohlcv-1d" for *_, s in saved)
+    assert saved[16] == ("ZN.v.0", date(2011, 1, 1), "ohlcv-1d")
+    assert "más que el tope de USD 1" in capsys.readouterr().err
+
+
+def test_check_spend_is_a_hard_cap() -> None:
+    assert check_spend(Decimal("0.5"), Decimal("0.5"), Decimal(1)) == Decimal(1)
+    with pytest.raises(BudgetError):
+        check_spend(Decimal("0.5"), Decimal("0.51"), Decimal(1))
+
+
+def test_there_is_no_daily_sample(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("DATABENTO_API_KEY", "db-" + "k" * 29)
+    c = FakeClient()
+    monkeypatch.setattr(cli, "client", lambda: c)
+    assert cli.main(["x", "--daily", "--sample"]) == 2
+    assert "--sample es solo para ohlcv-1m" in capsys.readouterr().err
+    assert c.metadata.calls == [] and c.timeseries.calls == []
+    with pytest.raises(DatabentoError):
+        validate_day([], NKD, DAY, 5)
