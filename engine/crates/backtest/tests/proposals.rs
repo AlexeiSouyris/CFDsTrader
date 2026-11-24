@@ -174,6 +174,11 @@ fn one_at_a_time_proposals_are_the_frictionless_backtest_trades() {
             (t.signal_index, t.side, t.score)
         );
         assert_eq!(p.signal_at, t.signal_at);
+        assert_eq!(
+            (p.reference, p.stop, p.tp1, &p.breakdown),
+            (t.reference, t.stop, t.tp1, &t.breakdown)
+        );
+        assert!(p.size > Decimal::ZERO && p.leverage > Decimal::ZERO);
         let hit_tp1 = t
             .exits
             .iter()

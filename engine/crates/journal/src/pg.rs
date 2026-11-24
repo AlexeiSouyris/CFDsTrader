@@ -12,6 +12,7 @@ use sqlx::{Postgres, Row, Transaction};
 use crate::curve::{CurveInvalid, RunCurve, RunDetail, RunTrade};
 use crate::learning::LearningReport;
 use crate::ml_features::MlFeatures;
+use crate::ml_label::{MlLabel, MlLabelRun};
 use crate::votes::{ChangeStatus, StoredChange, Vote, VoteRules, changes_of, tally};
 use crate::walk_forward::WalkForwardReport;
 use crate::{BacktestRun, Outcome, OutcomeKind, Proposal, RunInvalid, Source};
@@ -30,6 +31,8 @@ pub enum JournalError {
     InvalidCurve(#[from] CurveInvalid),
     #[error("reporte de walk-forward inválido: report_id o config_sha256 con otro formato")]
     InvalidReport,
+    #[error("corrida de etiquetas inválida: config_sha256 con otro formato o período vacío")]
+    InvalidLabelRun,
     #[error("comparación paper vs backtest inválida: falta o no sirve {0}")]
     InvalidComparison(&'static str),
 }
@@ -399,6 +402,117 @@ impl PgJournal {
             });
         }
         Ok(Recorded::Unchanged)
+    }
+
+    /// Guarda una corrida de etiquetas (`ml_label_run.v1`, #399). Idempotente por `run_id`: la
+    /// misma otra vez no hace nada y otra distinta es `Conflict` (un `run_id` no se reusa).
+    pub async fn record_ml_label_run(&self, r: &MlLabelRun) -> Result<Recorded, JournalError> {
+        let hash_ok = r.config_sha256.len() == 64
+            && r.config_sha256
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b));
+        if !hash_ok || r.to <= r.from {
+            return Err(JournalError::InvalidLabelRun);
+        }
+        let done = sqlx::query(
+            "INSERT INTO ml_label_runs (run_id, instrument_id, candle_source, from_at, to_at,
+               method, config_sha256)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (run_id) DO NOTHING",
+        )
+        .bind(&r.run_id)
+        .bind(r.instrument_id.as_str())
+        .bind(name(&r.candle_source)?)
+        .bind(r.from)
+        .bind(r.to)
+        .bind(name(&r.method)?)
+        .bind(&r.config_sha256)
+        .execute(&self.pool)
+        .await?;
+        if done.rows_affected() == 1 {
+            return Ok(Recorded::Inserted);
+        }
+        if self.ml_label_run(&r.run_id).await?.as_ref() != Some(r) {
+            return Err(JournalError::Conflict {
+                id: r.run_id.clone(),
+            });
+        }
+        Ok(Recorded::Unchanged)
+    }
+
+    pub async fn ml_label_run(&self, run_id: &str) -> Result<Option<MlLabelRun>, JournalError> {
+        let Some(r) = sqlx::query(
+            "SELECT run_id, instrument_id, candle_source, from_at, to_at, method, config_sha256
+             FROM ml_label_runs WHERE run_id = $1",
+        )
+        .bind(run_id)
+        .fetch_optional(&self.pool)
+        .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(MlLabelRun {
+            run_id: r.try_get("run_id")?,
+            instrument_id: serde_json::from_value(serde_json::Value::String(
+                r.try_get("instrument_id")?,
+            ))?,
+            candle_source: parse_name(r.try_get::<&str, _>("candle_source")?)?,
+            from: r.try_get("from_at")?,
+            to: r.try_get("to_at")?,
+            method: parse_name(r.try_get::<&str, _>("method")?)?,
+            config_sha256: r.try_get("config_sha256")?,
+        }))
+    }
+
+    /// Guarda la etiqueta sin P/L de una propuesta ya guardada (`ml_label.v1`, #399). Solo
+    /// agregar: la misma etiqueta otra vez no hace nada y otra distinta es `Conflict`.
+    pub async fn record_ml_label(&self, l: &MlLabel) -> Result<Recorded, JournalError> {
+        let done = sqlx::query(
+            "INSERT INTO ml_labels (proposal_id, signal_at, y, exit_reason, resolved_at, method)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (proposal_id) DO NOTHING",
+        )
+        .bind(&l.proposal_id)
+        .bind(l.signal_at)
+        .bind(i16::from(l.y))
+        .bind(name(&l.exit_reason)?)
+        .bind(l.resolved_at)
+        .bind(name(&l.method)?)
+        .execute(&self.pool)
+        .await?;
+        if done.rows_affected() == 1 {
+            return Ok(Recorded::Inserted);
+        }
+        if self.ml_label(&l.proposal_id).await?.as_ref() != Some(l) {
+            return Err(JournalError::Conflict {
+                id: l.proposal_id.clone(),
+            });
+        }
+        Ok(Recorded::Unchanged)
+    }
+
+    pub async fn ml_label(&self, proposal_id: &str) -> Result<Option<MlLabel>, JournalError> {
+        let Some(r) = sqlx::query(
+            "SELECT proposal_id, signal_at, y, exit_reason, resolved_at, method
+             FROM ml_labels WHERE proposal_id = $1",
+        )
+        .bind(proposal_id)
+        .fetch_optional(&self.pool)
+        .await?
+        else {
+            return Ok(None);
+        };
+        let y: i16 = r.try_get("y")?;
+        Ok(Some(MlLabel {
+            proposal_id: r.try_get("proposal_id")?,
+            signal_at: r.try_get("signal_at")?,
+            y: u8::try_from(y).map_err(|_| JournalError::Conflict {
+                id: proposal_id.to_owned(),
+            })?,
+            exit_reason: parse_name(r.try_get::<&str, _>("exit_reason")?)?,
+            resolved_at: r.try_get("resolved_at")?,
+            method: parse_name(r.try_get::<&str, _>("method")?)?,
+        }))
     }
 
     pub async fn ml_features(&self, proposal_id: &str) -> Result<Option<MlFeatures>, JournalError> {

@@ -379,3 +379,94 @@ async fn the_shown_probability_is_stored_with_the_proposal() {
     let (bt, _) = entry("it-journal-shown-bt");
     assert_eq!(bt.shown, None);
 }
+
+/// #399: corrida de etiquetas, etiqueta y variables, todo de solo agregar e idempotente.
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn ml_labels_and_their_run_are_stored_once_and_never_rewritten() {
+    use cfds_journal::ml_label::{LabelCandles, LabelMethod, LabelReason, MlLabel, MlLabelRun};
+    // Tablas de solo agregar: este run_id no se borra entre corridas, todo es idempotente.
+    let j = journal("it-ml-labels-setup").await;
+    let (p, _) = entry("it-ml-labels");
+    j.record(&p, None).await.unwrap();
+    let run = MlLabelRun {
+        run_id: "it-ml-labels".into(),
+        instrument_id: p.instrument_id.clone(),
+        candle_source: LabelCandles::Futures,
+        from: at("2026-11-19T00:00:00Z"),
+        to: at("2026-11-20T00:00:00Z"),
+        method: LabelMethod::MidNoCosts,
+        config_sha256: cfds_journal::config_sha256(&[("strategy.toml", "x = 1")]),
+    };
+    assert!(matches!(
+        j.record_ml_label_run(&run).await.unwrap(),
+        Recorded::Inserted | Recorded::Unchanged
+    ));
+    assert_eq!(
+        j.record_ml_label_run(&run).await.unwrap(),
+        Recorded::Unchanged
+    );
+    assert_eq!(
+        j.ml_label_run("it-ml-labels").await.unwrap(),
+        Some(run.clone())
+    );
+    let mut longer = run.clone();
+    longer.to = at("2026-11-21T00:00:00Z");
+    assert!(matches!(
+        j.record_ml_label_run(&longer).await,
+        Err(JournalError::Conflict { .. })
+    ));
+    let mut empty = run;
+    empty.run_id = "it-ml-labels-empty".into();
+    empty.to = empty.from;
+    assert!(matches!(
+        j.record_ml_label_run(&empty).await,
+        Err(JournalError::InvalidLabelRun)
+    ));
+
+    let l = MlLabel {
+        proposal_id: p.id.clone(),
+        signal_at: p.signal_at,
+        y: 1,
+        exit_reason: LabelReason::Tp1,
+        resolved_at: p.signal_at + chrono::TimeDelta::minutes(45),
+        method: LabelMethod::MidNoCosts,
+    };
+    assert!(matches!(
+        j.record_ml_label(&l).await.unwrap(),
+        Recorded::Inserted | Recorded::Unchanged
+    ));
+    assert_eq!(j.record_ml_label(&l).await.unwrap(), Recorded::Unchanged);
+    assert_eq!(j.ml_label(&p.id).await.unwrap(), Some(l.clone()));
+    let mut other = l.clone();
+    other.y = 0;
+    other.exit_reason = LabelReason::Stop;
+    assert!(matches!(
+        j.record_ml_label(&other).await,
+        Err(JournalError::Conflict { .. })
+    ));
+    // La base rechaza una clase que no coincide con el motivo y una propuesta inexistente.
+    let pool = cfds_storage::PgStore::connect(&cfds_storage::test_db::test_database_url())
+        .await
+        .unwrap()
+        .pool()
+        .clone();
+    assert!(
+        sqlx::query(
+            "INSERT INTO ml_labels (proposal_id, signal_at, y, exit_reason, resolved_at, method)
+             VALUES ($1, now(), 1, 'stop', now() + interval '1 hour', 'mid_no_costs')"
+        )
+        .bind("it-ml-labels:otra")
+        .execute(&pool)
+        .await
+        .is_err()
+    );
+    assert!(
+        sqlx::query("DELETE FROM ml_labels WHERE proposal_id = $1")
+            .bind(&p.id)
+            .execute(&pool)
+            .await
+            .is_err(),
+        "solo agregar"
+    );
+}

@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 use cfds_core::Candle;
 use cfds_indicators::wilder_atr;
 use cfds_risk::{Account, InstrumentLimits, Rejection, Request, RiskConfig, check};
-use cfds_strategy::{Analysis, Configs, ScoreError, Side, TriggerKind};
+use cfds_strategy::{Analysis, Component, Configs, ScoreError, Side, TriggerKind};
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 
@@ -81,8 +81,18 @@ pub struct Proposal {
     pub signal_at: DateTime<Utc>,
     pub side: Side,
     pub score: i32,
+    /// Qué sumó cada señal al puntaje (spec §6).
+    pub breakdown: Vec<(Component, i32)>,
     /// Gatillos, sin repetir y en orden.
     pub triggers: Vec<TriggerKind>,
+    /// Entrada de referencia: el cierre de la vela de la señal.
+    pub reference: Decimal,
+    pub stop: Decimal,
+    /// TP1 desde la referencia: referencia ± `tp1_r` × R (como `TradeRecord::tp1`).
+    pub tp1: Decimal,
+    /// Tamaño y apalancamiento que aprobó el riesgo con la cuenta en su capital inicial.
+    pub size: Decimal,
+    pub leverage: Decimal,
     pub label: Label,
     /// Vela en la que se conoce el resultado (la de la salida final, o la última de la serie).
     pub resolved_index: usize,
@@ -140,14 +150,17 @@ pub fn proposals(
             atr: atr_t,
             account_to_instrument: rules.account_to_instrument,
         };
-        if let Err(reason) = check(&request, &account, &rules.limits, &rules.risk) {
-            let name = match reason {
-                Rejection::InvalidInput(_) => "InvalidInput".to_owned(),
-                other => format!("{other:?}"),
-            };
-            *report.rejected.entry(name).or_insert(0) += 1;
-            continue;
-        }
+        let sizing = match check(&request, &account, &rules.limits, &rules.risk) {
+            Ok(s) => s,
+            Err(reason) => {
+                let name = match reason {
+                    Rejection::InvalidInput(_) => "InvalidInput".to_owned(),
+                    other => format!("{other:?}"),
+                };
+                *report.rejected.entry(name).or_insert(0) += 1;
+                continue;
+            }
+        };
         let trade = Trade {
             side: signal.side,
             entry_index: t + 1,
@@ -189,13 +202,29 @@ pub fn proposals(
             signal_at: m15[t].end(),
             side: signal.side,
             score: signal.score.total,
+            breakdown: signal.score.breakdown.clone(),
             triggers,
+            reference: signal.reference,
+            stop: signal.stop,
+            tp1: signal.reference
+                + side_sign(signal.side)
+                    * rules.exits.tp1_r
+                    * (signal.reference - signal.stop).abs(),
+            size: sizing.size,
+            leverage: sizing.leverage,
             label,
             resolved_index,
             resolved_at: m15[resolved_index].end(),
         });
     }
     Ok(report)
+}
+
+fn side_sign(side: Side) -> Decimal {
+    match side {
+        Side::Long => Decimal::ONE,
+        Side::Short => Decimal::NEGATIVE_ONE,
+    }
 }
 
 /// Conteo de un grupo de propuestas.

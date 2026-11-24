@@ -54,8 +54,17 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 | `ml_features.v1` | `ml_features` | Variables de una propuesta que no viajan en `proposal.v1` (spec ML §3): `proposal_id`, `as_of` (= `signal_at`), `atr14_m15` (string decimal, > 0), `realized_vol_tercile` (`low`/`mid`/`high`) y `session_band` (`open`/`mid`/`close`). |
 
 - Una fila por propuesta, de **solo agregar** (`infra/migrations/0013_ml_features.sql`, trigger): una variable ya armada no cambia (sin repintado). La escribe el motor (`cfds_journal::ml_features`, desde `backtest_run` con `run_id`). Si a una propuesta le falta alguna variable (calentamiento), no hay fila: no se rellena.
-- La arma el motor en Rust, solo con información al cierre de la vela de la señal. **Todavía no la escribe nadie:** el productor va en otro PR de #158.
-- La lee Python (`cfds_intel.models.dataset`), junto con `proposals` y `outcomes` de una corrida de `backtest_runs`.
+- La arma el motor en Rust, solo con información al cierre de la vela de la señal. La escriben `backtest_run` con `run_id` y el ejemplo `ml_dataset` (#399).
+- La lee Python (`cfds_intel.models.dataset`), junto con `proposals` y `outcomes` de una corrida de `backtest_runs`, o con `ml_labels` (abajo).
+
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `ml_label_run.v1` | `ml_label_runs` | Una corrida de etiquetas sin P/L (#399): `run_id`, `instrument_id` (por ejemplo `US500.FUT`), `candle_source` (`futures` o `ig`), período de los datos `[from, to)` (inicio de la primera vela de 15m y fin de la última), `method` y `config_sha256`. Idempotente por `run_id`: otro contenido con el mismo `run_id` es un error. |
+| `ml_label.v1` | `ml_labels` | Etiqueta de una propuesta sin P/L (spec ML §1, #399): `proposal_id`, `signal_at`, `y` (0 o 1), `exit_reason` (`tp1`, `stop`, `time` o `forced`), `resolved_at` (fin de la vela en la que se conoce el resultado, para la purga) y `method` (`mid_no_costs`: precio medio, sin costos ni financiación). |
+
+- Las dos tablas son de **solo agregar** (`infra/migrations/0037_ml_labels.sql`, trigger). Una etiqueta por propuesta **resuelta**. Si los datos terminan antes del resultado, no hay fila.
+- La escribe el motor (`cfds_journal::ml_label`, ejemplo `ml_dataset` de `cfds-backtest`) junto con las `proposals` (`source = 'backtest'`, con su `run_id`) y las `ml_features` de la misma corrida. No hay fila en `backtest_runs` ni en `outcomes`: esas corridas no tienen P/L (las tasas de financiación no cubren 2011–2019).
+- La lee Python (#400): el período de `ml_label_runs` y las `proposals` del `run_id` con `ml_labels` y `ml_features`.
 
 | Contrato | Tabla | Contenido |
 |---|---|---|
