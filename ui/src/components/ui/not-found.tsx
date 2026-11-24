@@ -1,10 +1,19 @@
 /**
  * Página 404. Inspirada en "Not Found 2" (21st.dev), reescrita sin dependencias de shadcn
  * (#164): el resto de la app no usa Button/Empty, así que no se suman solo por esto.
+ * «Buscar una vista o un instrumento» abre el buscador del encabezado (#362).
  */
 import { Compass, Home } from 'lucide-react'
 
-export function NotFound({ onHome, onExplore }: { onHome: () => void; onExplore: () => void }) {
+import { openSearch } from '@/lib/terminal-focus'
+
+export function NotFound({
+  onHome,
+  onExplore = openSearch,
+}: {
+  onHome: () => void
+  onExplore?: () => void
+}) {
   return (
     <section className="grid min-h-[60svh] place-items-center text-center">
       <div>
@@ -29,7 +38,7 @@ export function NotFound({ onHome, onExplore }: { onHome: () => void; onExplore:
             className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2.5 text-[13px] font-bold"
           >
             <Compass className="size-4" aria-hidden="true" />
-            Buscar una vista
+            Buscar una vista o un instrumento
           </button>
         </div>
       </div>
