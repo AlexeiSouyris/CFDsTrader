@@ -168,3 +168,22 @@ fn invalid_configuration_is_rejected() {
         assert!(SpreadFilterConfig::from_toml(&text).is_err(), "{to}");
     }
 }
+
+#[test]
+fn with_every_15m_spread_saved_the_history_fills_in_under_three_sessions() {
+    // Lo que guarda `ig_live` desde #437: el spread de cada vela de 15m. La franja es de 60
+    // minutos, así que cada sesión suma 4 muestras por franja (no 1): con 2 sesiones previas
+    // y 2 velas de hoy en la misma hora ya hay 10.
+    let day = |d: i64, m: i64| at(T) - TimeDelta::days(d) + TimeDelta::minutes(m);
+    let mut saved: Vec<_> = [2, 1]
+        .into_iter()
+        .flat_map(|d| [0, 15, 30, 45].map(|m| spread(day(d, m), dec!(1.4))))
+        .collect();
+    saved.extend([0, 15].map(|m| spread(day(0, m), dec!(1.4))));
+    let (t9, t10) = (day(0, 15), day(0, 30));
+    // 10:15 UTC: 9 muestras antes (8 de ayer y anteayer + la de las 10:00) → no abre.
+    assert!(!spread_flags(&[candle(t9)], &saved, Berlin, &cfg())[0]);
+    // 10:30 UTC: 10 muestras → ya juzga, y un spread normal deja abrir.
+    saved.push(spread(t10, dec!(1.4)));
+    assert!(spread_flags(&[candle(t10)], &saved, Berlin, &cfg())[0]);
+}

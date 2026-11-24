@@ -8,7 +8,7 @@
 //! Regla (CLAUDE.md §5b): solo velas **cerradas**, y además `delay` después del cierre, para que
 //! IG ya las tenga consolidadas.
 
-use cfds_core::{InstrumentId, Timeframe};
+use cfds_core::{Candle, CandleSpread, InstrumentId, Timeframe};
 use cfds_market_data::SessionCalendar;
 use chrono::{DateTime, TimeDelta, Utc};
 
@@ -93,6 +93,28 @@ pub fn next_wake(
         .into_iter()
         .map(|s| s + tf.duration() + delay)
         .find(|ready| *ready > now)
+}
+
+/// Spreads de cierre que se guardan después de una ingesta correcta (#437): solo los de velas
+/// que llegaron en el mismo pedido **y ya cerraron** en `now` (las que la ingesta guardó). El
+/// spread de una vela abierta nunca se guarda: su cierre todavía puede cambiar (sin repintado,
+/// CLAUDE.md §5b), y `candle_spreads` exige que la vela exista.
+pub fn spreads_to_store(
+    spreads: Vec<CandleSpread>,
+    candles: &[Candle],
+    now: DateTime<Utc>,
+) -> Vec<CandleSpread> {
+    spreads
+        .into_iter()
+        .filter(|s| {
+            candles.iter().any(|c| {
+                c.instrument_id == s.instrument_id
+                    && c.timeframe == s.timeframe
+                    && c.start == s.start
+                    && c.is_closed_at(now)
+            })
+        })
+        .collect()
 }
 
 /// Kill switch (CLAUDE.md §5b): `true` si una vela que cerró en `closed_at` todavía no se pudo
@@ -236,6 +258,56 @@ mod tests {
             ),
             None
         );
+    }
+
+    fn candle(start: &str) -> Candle {
+        let p = rust_decimal::Decimal::ONE;
+        Candle {
+            instrument_id: us100(),
+            timeframe: Timeframe::M15,
+            start: at(start),
+            open: p,
+            high: p,
+            low: p,
+            close: p,
+            volume: None,
+        }
+    }
+
+    fn spread(id: InstrumentId, tf: Timeframe, start: &str) -> CandleSpread {
+        CandleSpread {
+            instrument_id: id,
+            timeframe: tf,
+            start: at(start),
+            spread: rust_decimal::Decimal::TWO,
+            source: "ig_demo".to_owned(),
+        }
+    }
+
+    #[test]
+    fn only_spreads_of_received_closed_candles_are_stored() {
+        let candles = [
+            candle("2026-11-20T15:00:00Z"),
+            candle("2026-11-20T15:15:00Z"),
+        ];
+        let spreads = vec![
+            spread(us100(), Timeframe::M15, "2026-11-20T15:00:00Z"),
+            // Vela abierta a las 15:29: su spread de cierre todavía no existe.
+            spread(us100(), Timeframe::M15, "2026-11-20T15:15:00Z"),
+            // Sin vela en el pedido (o de otro instrumento o timeframe): no se guarda.
+            spread(us100(), Timeframe::M15, "2026-11-20T14:45:00Z"),
+            spread(
+                "DE40".parse().unwrap(),
+                Timeframe::M15,
+                "2026-11-20T15:00:00Z",
+            ),
+            spread(us100(), Timeframe::H1, "2026-11-20T15:00:00Z"),
+        ];
+        let kept = spreads_to_store(spreads.clone(), &candles, at("2026-11-20T15:29:00Z"));
+        assert_eq!(kept, spreads[..1]);
+        // Al cierre exacto de la segunda vela, entra también la suya.
+        let kept = spreads_to_store(spreads.clone(), &candles, at("2026-11-20T15:30:00Z"));
+        assert_eq!(kept, spreads[..2]);
     }
 
     #[test]
