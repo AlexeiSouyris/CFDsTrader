@@ -41,12 +41,26 @@ Medido con `get_cost` y `get_billable_size`, `ohlcv-1m`, contrato continuo `c.0`
 
 Los **USD 125 de crédito gratis cubren el total**, y queda margen para repetir algo o sumar meses.
 
+### Extensión a 2011 (24-11-2026, #369)
+
+El dueño decidió el 24-11-2026 bajar más historia de ES, NQ y YM: «dale, hagamos 15 años de datos entonces» (#369). `start` pasa a **2011-01-01** en `config/databento.toml`, y `--run` baja también el tramo que falta **antes** de lo ya guardado. Estimado con `--estimate` (solo metadata, gratis) el 24-11-2026, con lo guardado desde el 2021-11-01:
+
+| Símbolo | Tramo | Costo |
+|---|---|---|
+| `ES.c.0` | 2011-01-01 → 2021-11-01 | USD 13,60 |
+| `NQ.c.0` | 2011-01-01 → 2021-11-01 | USD 12,90 |
+| `YM.c.0` | 2011-01-01 → 2021-11-01 | USD 12,86 |
+| Los cuatro | lo que falta después de lo guardado (hasta hoy) | USD 0,40 |
+| **Total** | | **USD 39,75** (tope `max_usd` USD 100) |
+
+El DAX no cambia: Eurex en Databento empieza el 2025-03-10.
+
 ## Decisión (propuesta)
 
 1. **Fuente:** Databento, solo **histórico**, con el SDK oficial de Python (`databento`, versión 0.90 al 23-11-2026). Se usan:
    - CME Globex (`GLBX.MDP3`): **ES**, **NQ** y **YM**;
    - Eurex (`XEUR.EOBI`): **FDAX**;
-   - el esquema **`ohlcv-1m`**, desde **2021-11-01**, o desde el inicio del dataset si es posterior. El inicio sale de `get_dataset_range` en cada corrida, no está fijo en el código.
+   - el esquema **`ohlcv-1m`**, desde **2011-01-01** (era 2021-11-01 hasta #369), o desde el inicio del dataset si es posterior. El inicio sale de `get_dataset_range` en cada corrida, no está fijo en el código. Si ya hay datos guardados desde una fecha posterior a `start`, `--run` baja el tramo anterior (del mes más nuevo al más viejo, para que lo guardado no tenga huecos si se corta) además del posterior, y el tope de gasto se aplica al total.
    - **DE40 tiene 15m de Databento solo desde 2025-03** (Eurex arranca el 2025-03-10). Lo anterior de DE40 sale de IG, con el cupo.
 2. **Mapeo** a nuestros instrumentos, por contrato continuo de calendario (`c.0`, el más cercano al vencimiento):
 

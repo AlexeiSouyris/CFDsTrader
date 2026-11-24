@@ -181,6 +181,19 @@ def _request(cfg: DatabentoConfig, sym: SymbolConfig, start: date, end: date) ->
 
 
 @dataclass(frozen=True)
+class Stored:
+    """Lo ya guardado de un símbolo según `futures_bar_loads`: desde `first` (el primer día del
+    tramo más viejo) hasta `until` (exclusivo, el fin del tramo más nuevo)."""
+
+    first: date
+    until: date
+
+
+BACKWARD = "anterior"
+FORWARD = "siguiente"
+
+
+@dataclass(frozen=True)
 class Estimate:
     symbol: SymbolConfig
     start: date
@@ -188,6 +201,11 @@ class Estimate:
     cost_usd: Decimal
     records: int
     skipped: str | None = None
+    # `BACKWARD`: el tramo que falta antes de lo guardado; `FORWARD`: el que falta después.
+    # `None`: no hay nada guardado del símbolo.
+    part: str | None = None
+    # El tramo arranca en el inicio del dataset porque `start` de la config es anterior.
+    from_dataset_start: bool = False
 
 
 def dataset_start(client: Client, dataset: str, schema: str) -> date:
@@ -214,13 +232,29 @@ def chunk_cost(
     return Decimal(repr(float(client.metadata.get_cost(**_request(cfg, sym, start, end)))))
 
 
+def _missing(
+    cfg: DatabentoConfig, available: date, end: date, stored: Stored | None
+) -> list[tuple[str | None, date, date]]:
+    """Tramos que faltan de un símbolo: `[desde, hasta)` con su parte. Lo que hay entre el primer
+    y el último tramo guardado no se vuelve a pedir: los tramos se guardan sin huecos."""
+    first = max(cfg.start, available)
+    if stored is None:
+        return [(None, first, end)]
+    return [
+        (BACKWARD, first, min(stored.first, end)),
+        (FORWARD, max(first, stored.until), end),
+    ]
+
+
 def estimate(
     client: Client,
     cfg: DatabentoConfig,
     end: date,
-    loaded_until: Mapping[tuple[str, str], date],
+    stored: Mapping[tuple[str, str], Stored],
 ) -> list[Estimate]:
-    """Costo y cantidad de barras de lo que **falta** bajar de cada símbolo, hasta `end`."""
+    """Costo y cantidad de barras de lo que **falta** bajar de cada símbolo, hasta `end`: el
+    tramo anterior a lo ya guardado (si `start` es anterior) y el posterior. Un símbolo puede
+    tener entonces dos tramos; el tope de gasto se aplica al total de todos."""
     starts: dict[str, date] = {}
     out: list[Estimate] = []
     for sym in cfg.symbols:
@@ -228,16 +262,30 @@ def estimate(
             starts[sym.dataset] = dataset_start(client, sym.dataset, cfg.schema)
         # Si el dataset empieza después de `start` (Eurex), se baja desde su inicio.
         available = starts[sym.dataset]
-        start = max(cfg.start, available, loaded_until.get((sym.dataset, sym.symbol), cfg.start))
-        if start >= end:
-            out.append(Estimate(sym, start, end, Decimal(0), 0, "ya está todo guardado"))
+        parts = [
+            (part, a, b)
+            for part, a, b in _missing(cfg, available, end, stored.get((sym.dataset, sym.symbol)))
+            if a < b
+        ]
+        if not parts:
+            out.append(Estimate(sym, end, end, Decimal(0), 0, "ya está todo guardado"))
             continue
-        cost = chunk_cost(client, cfg, sym, start, end)
-        records = int(client.metadata.get_record_count(**_request(cfg, sym, start, end)))
-        if cost < 0 or records < 0:
-            raise DatabentoError(f"{sym.symbol}: estimación negativa")
-        out.append(Estimate(sym, start, end, cost, records))
+        for part, a, b in parts:
+            cost = chunk_cost(client, cfg, sym, a, b)
+            records = int(client.metadata.get_record_count(**_request(cfg, sym, a, b)))
+            if cost < 0 or records < 0:
+                raise DatabentoError(f"{sym.symbol}: estimación negativa")
+            from_dataset = a == available and available > cfg.start
+            out.append(Estimate(sym, a, b, cost, records, None, part, from_dataset))
     return out
+
+
+def chunks(e: Estimate) -> list[tuple[date, date]]:
+    """Los meses de un tramo en el orden de bajada. El tramo anterior va del mes más nuevo al
+    más viejo: si la corrida se corta, lo guardado sigue sin huecos y la próxima retoma desde
+    el primer día guardado."""
+    out = months(e.start, e.end)
+    return out[::-1] if e.part == BACKWARD else out
 
 
 def check_budget(estimates: Iterable[Estimate], max_usd: Decimal) -> Decimal:

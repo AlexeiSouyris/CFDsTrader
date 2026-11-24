@@ -12,8 +12,9 @@ uv run python -m cfds_intel.databento --run --only FDAX.c.0   # cualquier modo, 
   (`config/databento.toml`), frena con código 2.
 - `--sample` y `--run` vuelven a estimar y frenan igual antes de bajar nada.
 - `--run` solo corre en la máquina de datos (`CFDS_DATA_MACHINE=1`): los datos quedan en su base
-  local, nunca en el repo. Sigue desde el último tramo guardado, mes por mes, así que repetirlo
-  no vuelve a pagar lo ya bajado.
+  local, nunca en el repo. Baja lo que falta antes del primer tramo guardado (si `start` de la
+  config es anterior, del mes más nuevo al más viejo) y después del último, mes por mes, así que
+  repetirlo no vuelve a pagar lo ya bajado. El tope de gasto es para todos los tramos juntos.
 """
 
 import os
@@ -29,8 +30,10 @@ from cfds_intel.databento.bars import (
     DatabentoError,
     Estimate,
     Fetched,
+    Stored,
     check_budget,
     chunk_cost,
+    chunks,
     estimate,
     fetch_bars,
     months,
@@ -60,24 +63,28 @@ def today_utc() -> date:
     return datetime.now(UTC).date()
 
 
-def print_estimates(estimates: list[Estimate], cfg: DatabentoConfig) -> None:
+PARTS = {"anterior": "antes de lo guardado", "siguiente": "después de lo guardado"}
+
+
+def print_estimates(estimates: list[Estimate]) -> None:
     for e in estimates:
         s = e.symbol
         if e.skipped:
             print(f"{s.symbol} ({s.dataset} → {s.instrument_id}): no se baja: {e.skipped}")
         else:
+            part = f" [{PARTS[e.part]}]" if e.part else ""
             print(
-                f"{s.symbol} ({s.dataset} → {s.instrument_id}): {e.start} → {e.end}, "
+                f"{s.symbol} ({s.dataset} → {s.instrument_id}){part}: {e.start} → {e.end}, "
                 f"{e.records} barras, USD {e.cost_usd:.2f}"
-                + (f" (el dataset empieza el {e.start})" if e.start > cfg.start else "")
+                + (f" (el dataset empieza el {e.start})" if e.from_dataset_start else "")
             )
 
 
 def guarded_estimate(
-    c: Client, cfg: DatabentoConfig, end: date, loaded: dict[tuple[str, str], date]
+    c: Client, cfg: DatabentoConfig, end: date, loaded: dict[tuple[str, str], Stored]
 ) -> list[Estimate]:
     est = estimate(c, cfg, end, loaded)
-    print_estimates(est, cfg)
+    print_estimates(est)
     total = check_budget(est, cfg.max_usd)
     print(f"total estimado: USD {total:.2f} (tope USD {cfg.max_usd})")
     return est
@@ -138,15 +145,15 @@ def run(c: Client, cfg: DatabentoConfig) -> int:
         return 2
     import psycopg
 
-    from cfds_intel.databento.store import insert_chunk, loaded_until
+    from cfds_intel.databento.store import insert_chunk, loaded_spans
 
     end = today_utc()
     with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as conn:
-        loaded = loaded_until(conn)
+        loaded = loaded_spans(conn)
         for e in guarded_estimate(c, cfg, end, loaded):
             if e.skipped:
                 continue
-            for a, b in months(e.start, e.end):
+            for a, b in chunks(e):
                 req_cost = chunk_cost(c, cfg, e.symbol, a, b)
                 f = fetch_bars(c, cfg, e.symbol, a, b)
                 r = insert_chunk(conn, e.symbol, a, b, f.bars, req_cost)
@@ -180,14 +187,14 @@ def main(argv: list[str]) -> int:
     try:
         c = client()
         if args[0] == "--estimate":
-            loaded: dict[tuple[str, str], date] = {}
+            loaded: dict[tuple[str, str], Stored] = {}
             if os.environ.get("DATABASE_URL"):
                 import psycopg
 
-                from cfds_intel.databento.store import loaded_until
+                from cfds_intel.databento.store import loaded_spans
 
                 with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as conn:
-                    loaded = loaded_until(conn)
+                    loaded = loaded_spans(conn)
             guarded_estimate(c, cfg, today_utc(), loaded)
             return 0
         if args[0] == "--sample":
