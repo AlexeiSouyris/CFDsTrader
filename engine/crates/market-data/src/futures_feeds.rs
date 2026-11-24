@@ -97,7 +97,12 @@ mod tests {
         );
         assert_eq!(f.get(&id("DE40")).unwrap().dataset, "XEUR.EOBI");
         assert_eq!(f.get(&id("DE40")).unwrap().symbol, "FDAX.c.0");
-        assert_eq!(f.by_instrument.len(), 4);
+        // El oro (#378) puede estar acá aunque no esté en el catálogo de instrumentos: no se
+        // valida contra `instruments.toml`.
+        assert_eq!(f.get(&id("XAUUSD")).unwrap().symbol, "GC.v.0");
+        for i in ["US100", "US30", "US2000"] {
+            assert_eq!(f.get(&id(i)).unwrap().dataset, "GLBX.MDP3", "{i}");
+        }
         assert_eq!(f.get(&id("UK100")), None);
     }
 
