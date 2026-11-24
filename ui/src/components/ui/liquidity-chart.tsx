@@ -9,8 +9,13 @@
  * Lleva la herramienta de medición (#281, `chart-measure.tsx`): una medición visual del usuario
  * sobre la escala del eje Y, no lógica de trading. Se ve con velas o en modo línea (#377), y la
  * cabecera muestra el cambio del rango, de la vela bajo el cursor o de la medición.
+ *
+ * Navegable (#401, `chart-nav.tsx`): arrastrar desplaza en el tiempo, la rueda hace zoom anclado
+ * en el cursor y, al llegar al borde izquierdo, pide velas más viejas (`loadOlder`, que lee el
+ * gateway con `before`). Solo se suman velas: los niveles, los FVG y las marcas de
+ * desplazamiento son los de la vista actual.
  */
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import {
   CHART_MODES,
@@ -21,14 +26,17 @@ import {
   type ChartMode,
 } from '@/components/ui/chart-measure'
 import { ChartFollower } from '@/components/ui/chart-follower'
+import { ChartNavBar, ViewportLive } from '@/components/ui/chart-nav-bar'
+import { matchRange, useChartNav, useViewport, type HistoryState } from '@/components/ui/chart-nav'
 import { ChartReadout } from '@/components/ui/chart-readout'
 import { LineArea } from '@/components/ui/line-area'
 import { Segmented } from '@/components/ui/segmented'
+import { niceTicks, renderWindow, timeTicks, visibleRange } from '@/lib/chart-viewport'
 import { dateTimeUtc, dateUtc, decimal } from '@/lib/format'
 import { fvgKey, levelKey, levelName, levelShort, STATE_LABEL } from '@/lib/liquidity-labels'
 import { useElementWidth } from '@/lib/use-element-width'
 import { cn } from '@/lib/utils'
-import type { ChartBar } from '@/lib/liquidity-bars'
+import { mergeBars, type ChartBar } from '@/lib/liquidity-bars'
 import type {
   FvgEvent,
   Imbalance,
@@ -67,6 +75,8 @@ const AXIS_W = 70
 /** caja de cada rótulo del eje: de `y - LABEL_UP` a `y + LABEL_DOWN` */
 const LABEL_UP = 6
 const LABEL_DOWN = 5
+/** trazos que no cambian de grosor mientras la capa se estira durante el zoom (#401) */
+const THIN = 'non-scaling-stroke'
 
 const STATE_STYLE: Record<LevelState, { stroke: string; dash?: string; opacity: number }> = {
   intact: { stroke: 'var(--chart-accent)', opacity: 0.95 },
@@ -82,6 +92,7 @@ export function LiquidityChart({
   fvgs,
   imbalance,
   signals = [],
+  loadOlder,
   height = 440,
   className,
 }: {
@@ -95,88 +106,129 @@ export function LiquidityChart({
   imbalance: Imbalance[]
   /** señales del motor (cierre de la vela de la señal y dirección), para marcarlas */
   signals?: { at: string; side: 'long' | 'short'; label: string }[]
+  /**
+   * Velas cerradas antes de `before` (#401): se piden al gateway al desplazarse hasta el borde
+   * izquierdo. Sin esto, el gráfico muestra solo las velas que recibe.
+   */
+  loadOlder?: (before: string) => Promise<ChartBar[]>
   height?: number
   className?: string
 }) {
   const ranges = RANGES[timeframe]
-  const [range, setRange] = useState(ranges[1].label)
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('Todos')
   const [mode, setMode] = useState<ChartMode>('Velas')
+  const [ruler, setRuler] = useState(false)
   const [boxRef, width] = useElementWidth<HTMLDivElement>(720, 300)
   const svgRef = useRef<SVGSVGElement>(null)
+  const clipPrice = useId()
+  const clipMarks = useId()
 
-  const n = (ranges.find((r) => r.label === range) ?? ranges[1]).bars
-  const view = useMemo(() => bars.slice(Math.max(0, bars.length - n)), [bars, n])
-  const count = view.length
+  // Historia (#401): las velas más viejas que se van pidiendo se suman a las que llegan.
+  const [older, setOlder] = useState<ChartBar[]>([])
+  const [history, setHistory] = useState<HistoryState>('idle')
+  const all = useMemo(() => (older.length ? mergeBars(older, bars) : bars), [older, bars])
+  const live = useRef({ all, history, busy: false, alive: true })
+  useLayoutEffect(() => {
+    live.current.all = all
+    live.current.history = history
+  })
+  useEffect(() => {
+    const l = live.current
+    l.alive = true
+    return () => {
+      l.alive = false
+    }
+  }, [])
+  const loadMore = (retry = false) => {
+    const l = live.current
+    if (!loadOlder || l.busy || l.all.length === 0) return
+    if (l.history === 'done' || (l.history === 'error' && !retry)) return
+    l.busy = true
+    setHistory('loading')
+    const seen = l.all
+    loadOlder(seen[0].start).then(
+      (page) => {
+        l.busy = false
+        if (!live.current.alive) return
+        const first = Date.parse(live.current.all[0].start)
+        const fresh = page.filter((b) => Date.parse(b.start) < first)
+        if (fresh.length === 0) return setHistory('done')
+        // se guardan también las que se veían: si la ventana de las últimas se corre, no queda hueco
+        setOlder((o) => mergeBars(mergeBars(o, seen), fresh))
+        setHistory('idle')
+      },
+      () => {
+        l.busy = false
+        if (live.current.alive) setHistory('error')
+      },
+    )
+  }
+
+  const n = all.length
   const plotW = width - AXIS_W
-  const slot = plotW / Math.max(count, 1)
-  const body = Math.max(1.5, Math.min(slot * 0.62, 10))
   const top = 6
   const plotH = height - top - 22
+  const starts = useMemo(() => all.map((b) => b.start), [all])
+  const closeTexts = useMemo(() => all.map((b) => b.close), [all])
+  const closes = useMemo(() => all.map((b) => Number(b.close)), [all])
+  const lows = useMemo(() => all.map((b) => Number(b.low)), [all])
+  const highs = useMemo(() => all.map((b) => Number(b.high)), [all])
 
-  const lo = Math.min(...view.map((b) => Number(b.low)))
-  const hi = Math.max(...view.map((b) => Number(b.high)))
-  const pad = (hi - lo) * 0.06 || 1
-  const yP = useMemo(
-    () => (v: number) => top + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * plotH,
-    [lo, hi, pad, plotH, top],
-  )
-  const inScale = (v: number) => v >= lo - pad && v <= hi + pad
+  const vp = useViewport({
+    starts,
+    lows,
+    highs,
+    initial: ranges[1].bars,
+    plotW,
+    top,
+    h: plotH,
+    onNearStart: () => loadMore(),
+  })
+  const { base, baseMap, priceLayer, xLayer } = vp
+  const [a, b] = renderWindow(base, n)
+  const [va, vb] = visibleRange(base, n)
+  const count = vb - va
+  const slot = baseMap.slot
+  const body = Math.max(1.5, Math.min(slot * 0.62, 10))
+  const yP = baseMap.y
+  const range = matchRange(base, n, ranges)
 
-  // Ubica una hora (UTC) en el eje x: el borde derecho de las velas que ya cerraron a esa hora.
-  // Cuenta velas, no minutos, así que los huecos (noches, fines de semana) no dejan espacio.
-  const ends = useMemo(() => view.map((b) => Date.parse(b.end)), [view])
-  const xAt = (iso: string | null) => {
-    if (iso === null) return plotW
+  // Ubica una hora (UTC) en el eje de índices: cuántas velas ya cerraron a esa hora. Cuenta
+  // velas, no minutos, así que los huecos (noches, fines de semana) no dejan espacio.
+  const ends = useMemo(() => all.map((bar) => Date.parse(bar.end)), [all])
+  const idxAt = (iso: string | null) => {
+    if (iso === null) return n
     const t = Date.parse(iso)
-    let a = 0
-    let z = ends.length
-    while (a < z) {
-      const mid = (a + z) >> 1
-      if (ends[mid] <= t) a = mid + 1
-      else z = mid
+    let lo = 0
+    let hi = ends.length
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (ends[mid] <= t) lo = mid + 1
+      else hi = mid
     }
-    return Math.min(plotW, a * slot)
+    return lo
   }
-  const lastClose = count ? new Date(ends[count - 1]) : null
+  /** borde derecho de las velas que cerraron a esa hora, en lo dibujado */
+  const xAt = (iso: string | null) => (idxAt(iso) - base.start) * slot
+  const lastClose = n ? new Date(ends[n - 1]) : null
 
   // Activo = intacto y sin vencer (`expired_at` de liquidity_level.v1). Los vencidos se dibujan
   // atenuados hasta la vela en que vencieron.
   const expired = (l: LiquidityLevel) => l.state === 'intact' && l.expired_at != null
+  const levelEnd = (l: LiquidityLevel) => l.state_changed_at ?? l.expired_at ?? null
   const shownLevels = levels.filter(
     (l) =>
       (filter === 'Todos' || (l.state === 'intact' && !expired(l))) &&
       lastClose !== null &&
       Date.parse(l.exists_from) <= lastClose.getTime() &&
-      xAt(l.state_changed_at ?? l.expired_at ?? null) > 0,
+      idxAt(levelEnd(l)) > 0,
   )
-  // Rótulos de los niveles intactos en el eje: los de fuera de escala van al borde con una flecha.
-  // Se separan para que no se pisen entre sí y nunca salgan del panel (solo geometría de dibujo).
-  const labels = placeLabels(
-    shownLevels
-      .filter((l) => l.state === 'intact' && !expired(l))
-      .map((l) => {
-        const v = Number(l.price)
-        const arrow = v > hi + pad ? ' ↑' : v < lo - pad ? ' ↓' : ''
-        return { l, arrow, y: yP(v) }
-      }),
-    top + LABEL_UP,
-    top + plotH - LABEL_DOWN,
-  )
+  const axisLevels = shownLevels.filter((l) => l.state === 'intact' && !expired(l))
   const fvgEnd = (f: FvgEvent) => f.fill?.at ?? f.expiry?.at ?? null
-  const shownFvgs = fvgs.filter((f) => xAt(fvgEnd(f)) > 0)
-  // los precios del eje que chocarían con un rótulo se ocultan (queda la línea de la grilla)
-  const ticks = [0, 0.25, 0.5, 0.75, 1]
-    .map((f) => lo - pad + f * (hi - lo + 2 * pad))
-    .map((t) => ({ t, hidden: labels.some((lb) => Math.abs(lb.y - yP(t)) < LABEL_GAP) }))
-  const timeLabels = Array.from({ length: 4 }, (_, k) =>
-    Math.min(count - 1, Math.round((k * (count - 1)) / 3)),
-  )
-  const last = view[count - 1]
-  const starts = useMemo(() => view.map((b) => b.start), [view])
-  const closeTexts = useMemo(() => view.map((b) => b.close), [view])
-  const closes = useMemo(() => view.map((b) => Number(b.close)), [view])
+  const shownFvgs = fvgs.filter((f) => idxAt(fvgEnd(f)) > 0)
+  const last = all[n - 1]
   const digits = (last?.close.split('.')[1] ?? '').length
+  const trend = rangeTrend(closes.slice(va, vb), digits)
   const measure = useChartMeasure(svgRef, {
     width,
     height,
@@ -189,40 +241,62 @@ export function LiquidityChart({
     yOf: yP,
     digits,
     mode,
+    frame: vp.frame,
+    trend,
+  })
+  const nav = useChartNav(svgRef, {
+    vp,
+    width,
+    height,
+    plotW,
+    top,
+    bottom: top + plotH,
+    measure,
+    ruler,
   })
 
-  // Las velas (o la línea) se arman una vez por rango, ancho y modo: mover el cursor no las toca.
-  const candles = useMemo(
-    () =>
-      mode === 'Línea'
-        ? null
-        : view.map((b, i) => {
-            const color =
-              Number(b.close) >= Number(b.open) ? 'var(--chart-up)' : 'var(--chart-down)'
-            const yo = yP(Number(b.open))
-            const yc = yP(Number(b.close))
-            const x = i * slot + slot / 2
-            return (
-              <g key={b.start} data-candle={b.start}>
-                <line x1={x} x2={x} y1={yP(Number(b.high))} y2={yP(Number(b.low))} stroke={color} />
-                <rect
-                  x={x - body / 2}
-                  y={Math.min(yo, yc)}
-                  width={body}
-                  height={Math.max(1, Math.abs(yc - yo))}
-                  fill={color}
-                />
-              </g>
-            )
-          }),
-    [mode, view, yP, slot, body],
-  )
-  const linePoints = useMemo(
-    () =>
-      closes.map((c, i): [number, number] | null =>
-        Number.isFinite(c) ? [i * slot + slot / 2, yP(c)] : null,
-      ),
-    [closes, slot, yP],
+  // Las velas (o la línea) se arman una vez por tramo dibujado, ancho y modo: ni el cursor ni el
+  // arrastre las tocan (el arrastre las mueve con la transformación de la capa).
+  const candles = useMemo(() => {
+    if (mode === 'Línea') return null
+    const out = []
+    for (let i = a; i < b; i++) {
+      const bar = all[i]
+      const color = Number(bar.close) >= Number(bar.open) ? 'var(--chart-up)' : 'var(--chart-down)'
+      const yo = yP(Number(bar.open))
+      const yc = yP(Number(bar.close))
+      const x = baseMap.x(i)
+      out.push(
+        <g key={bar.start} data-candle={bar.start}>
+          <line
+            x1={x}
+            x2={x}
+            y1={yP(Number(bar.high))}
+            y2={yP(Number(bar.low))}
+            stroke={color}
+            vectorEffect={THIN}
+          />
+          <rect
+            x={x - body / 2}
+            y={Math.min(yo, yc)}
+            width={body}
+            height={Math.max(1, Math.abs(yc - yo))}
+            fill={color}
+          />
+        </g>,
+      )
+    }
+    return out
+  }, [mode, all, a, b, baseMap, yP, body])
+  const linePoints = useMemo(() => {
+    const out: ([number, number] | null)[] = []
+    for (let i = a; i < b; i++)
+      out.push(Number.isFinite(closes[i]) ? [baseMap.x(i), yP(closes[i])] : null)
+    return out
+  }, [closes, a, b, baseMap, yP])
+  const gridX = useMemo(
+    () => timeTicks(base, n, 4, [a, b]).map((i) => baseMap.x(i)),
+    [base, n, a, b, baseMap],
   )
 
   return (
@@ -236,7 +310,9 @@ export function LiquidityChart({
             store={measure.store}
             starts={starts}
             closes={closeTexts}
-            rangeLabel={range}
+            rangeLabel={range || `${count} ${TF_LABEL[timeframe].long[count === 1 ? 0 : 1]}`}
+            from={va}
+            to={vb - 1}
           />
           {lastClose && (
             <p className="mt-1 text-[11px] text-muted-foreground">
@@ -261,7 +337,7 @@ export function LiquidityChart({
             label="Rango"
             options={ranges.map((r) => r.label)}
             value={range}
-            onChange={setRange}
+            onChange={(v) => vp.setRange((ranges.find((r) => r.label === v) ?? ranges[1]).bars)}
           />
         </div>
       </div>
@@ -273,184 +349,246 @@ export function LiquidityChart({
           height={height}
           viewBox={`0 0 ${width} ${height}`}
           role="img"
-          aria-label={`${instrument}, ${count} ${TF_LABEL[timeframe].long[count === 1 ? 0 : 1]} con ${shownLevels.length} niveles de liquidez y ${shownFvgs.length} FVG.`}
-          className="block w-full touch-none select-none"
-          {...measure.handlers}
+          tabIndex={0}
+          aria-label={`${instrument}, ${count} ${TF_LABEL[timeframe].long[count === 1 ? 0 : 1]} con ${shownLevels.length} niveles de liquidez y ${shownFvgs.length} FVG. Arrastrá para moverte en el tiempo y usá la rueda para acercar o alejar; con el foco, flechas para desplazar y + y − para el zoom.`}
+          className={cn(
+            'block w-full touch-none select-none focus-visible:outline-2 focus-visible:outline-ring',
+            ruler ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing',
+          )}
+          {...nav.handlers}
+          onKeyDown={nav.onKeyDown}
         >
-          {ticks.map(({ t, hidden }) => (
-            <g key={t}>
-              <line x1={0} x2={plotW} y1={yP(t)} y2={yP(t)} stroke="var(--chart-grid)" />
-              {!hidden && (
-                <text
-                  data-axis-tick
-                  x={width - 4}
-                  y={yP(t) + 3}
-                  textAnchor="end"
-                  fontSize={10}
-                  fill="var(--muted-foreground)"
-                >
-                  {decimal(t.toFixed(1))}
-                </text>
+          <defs>
+            <clipPath id={clipPrice}>
+              <rect x={0} y={top} width={plotW} height={plotH} />
+            </clipPath>
+            <clipPath id={clipMarks}>
+              <rect x={0} y={0} width={plotW} height={height} />
+            </clipPath>
+          </defs>
+
+          {/* eje de precio, rótulos de los niveles y fechas: siguen al encuadre en cada cuadro */}
+          <ViewportLive vp={vp}>
+            {(m) => {
+              // Rótulos de los niveles intactos en el eje: los de fuera de escala van al borde con
+              // una flecha. Se separan para que no se pisen y nunca salen del panel (geometría).
+              const labels = placeLabels(
+                axisLevels.map((l) => {
+                  const v = Number(l.price)
+                  const arrow = v > m.hi ? ' ↑' : v < m.lo ? ' ↓' : ''
+                  return { l, arrow, y: m.y(v) }
+                }),
+                top + LABEL_UP,
+                top + plotH - LABEL_DOWN,
+              )
+              const { ticks, digits: td } = niceTicks(m.lo, m.hi)
+              return (
+                <>
+                  {ticks.map((t) => {
+                    const y = m.y(t)
+                    // los precios del eje que chocarían con un rótulo se ocultan (queda la grilla)
+                    const hidden = labels.some((lb) => Math.abs(lb.y - y) < LABEL_GAP)
+                    return (
+                      <g key={t}>
+                        <line x1={0} x2={plotW} y1={y} y2={y} stroke="var(--chart-grid)" />
+                        {!hidden && (
+                          <text
+                            data-axis-tick
+                            x={width - 4}
+                            y={y + 3}
+                            textAnchor="end"
+                            fontSize={10}
+                            fill="var(--muted-foreground)"
+                          >
+                            {decimal(t.toFixed(td))}
+                          </text>
+                        )}
+                      </g>
+                    )
+                  })}
+                  {labels.map(({ l, arrow, y }) => (
+                    <g key={levelKey(l)} data-level-label={y.toFixed(1)}>
+                      <rect
+                        x={plotW + 1}
+                        y={y - LABEL_UP}
+                        width={AXIS_W - 2}
+                        height={11}
+                        rx={3}
+                        fill="var(--background)"
+                        opacity={0.9}
+                      />
+                      <text
+                        x={plotW + 4}
+                        y={y + 3}
+                        fontSize={9}
+                        fontWeight={700}
+                        fill="var(--chart-accent)"
+                      >
+                        <title>{`${levelName(l)}: ${decimal(l.price)}`}</title>
+                        {`${levelShort(l)}${arrow}`}
+                      </text>
+                    </g>
+                  ))}
+                  {timeTicks(m, n, 4).map((i) => {
+                    const tx = m.x(i)
+                    // cerca de los bordes no entra el rótulo entero: se omite (no se pisa con el vecino)
+                    if (tx < 22 || tx > plotW - 22) return null
+                    return (
+                      <text
+                        key={i}
+                        data-time-tick={all[i].start}
+                        x={tx}
+                        y={height - 4}
+                        textAnchor="middle"
+                        fontSize={10}
+                        fill="var(--muted-foreground)"
+                      >
+                        {dateUtc(all[i].start)}
+                      </text>
+                    )
+                  })}
+                </>
+              )
+            }}
+          </ViewportLive>
+
+          <g clipPath={`url(#${clipPrice})`}>
+            <g ref={priceLayer} data-price-layer>
+              {/* FVG: zona desde la vela de creación hasta la que la llena (o hasta ahora) */}
+              {shownFvgs.map((f) => {
+                const x0 = xAt(f.created_at)
+                const x1 = xAt(fvgEnd(f))
+                const yTop = yP(Number(f.top))
+                const yBot = yP(Number(f.bottom))
+                const color = f.direction === 'bullish' ? 'var(--chart-up)' : 'var(--chart-down)'
+                return (
+                  <rect
+                    key={fvgKey(f)}
+                    data-fvg={f.status}
+                    x={x0}
+                    y={yTop}
+                    width={Math.max(1, x1 - x0)}
+                    height={Math.max(1, yBot - yTop)}
+                    fill={color}
+                    opacity={f.status === 'open' ? 0.22 : 0.08}
+                    stroke={color}
+                    strokeOpacity={f.status === 'open' ? 0.5 : 0.25}
+                    strokeDasharray={f.status === 'open' ? undefined : '2 2'}
+                    vectorEffect={THIN}
+                  />
+                )
+              })}
+
+              {/* velas, o la línea de cierre con su área */}
+              {mode === 'Línea' ? (
+                <LineArea
+                  points={linePoints}
+                  top={top}
+                  bottom={top + plotH}
+                  gridX={gridX}
+                  trend={trend}
+                />
+              ) : (
+                candles
               )}
+
+              {/* niveles: desde que existen hasta la vela que cambió su estado */}
+              {shownLevels.map((l) => {
+                const v = Number(l.price)
+                const s = STATE_STYLE[l.state]
+                const x0 = xAt(l.exists_from)
+                const x1 = xAt(levelEnd(l))
+                const y = yP(v)
+                const old = expired(l)
+                return (
+                  <g
+                    key={levelKey(l)}
+                    data-level-state={l.state}
+                    data-expired={old || undefined}
+                    opacity={old ? 0.3 : s.opacity}
+                  >
+                    <line
+                      x1={x0}
+                      x2={x1}
+                      y1={y}
+                      y2={y}
+                      stroke={s.stroke}
+                      strokeWidth={1.3}
+                      strokeDasharray={s.dash}
+                      vectorEffect={THIN}
+                    />
+                    {l.state !== 'intact' && (
+                      <circle cx={x1} cy={y} r={2.6} fill={s.stroke}>
+                        <title>{`${levelName(l)}: ${STATE_LABEL[l.state].toLowerCase()}`}</title>
+                      </circle>
+                    )}
+                  </g>
+                )
+              })}
             </g>
-          ))}
+          </g>
 
-          {/* FVG: zona desde la vela de creación hasta la que la llena (o hasta ahora) */}
-          {shownFvgs.map((f) => {
-            const x0 = xAt(f.created_at)
-            const x1 = xAt(fvgEnd(f))
-            const yTop = yP(Number(f.top))
-            const yBot = yP(Number(f.bottom))
-            const color = f.direction === 'bullish' ? 'var(--chart-up)' : 'var(--chart-down)'
-            return (
-              <rect
-                key={fvgKey(f)}
-                data-fvg={f.status}
-                x={x0}
-                y={yTop}
-                width={Math.max(1, x1 - x0)}
-                height={Math.max(1, yBot - yTop)}
-                fill={color}
-                opacity={f.status === 'open' ? 0.22 : 0.08}
-                stroke={color}
-                strokeOpacity={f.status === 'open' ? 0.5 : 0.25}
-                strokeDasharray={f.status === 'open' ? undefined : '2 2'}
-              />
-            )
-          })}
+          <g clipPath={`url(#${clipMarks})`}>
+            <g ref={xLayer}>
+              {/* velas de desplazamiento (marca del motor) */}
+              {imbalance.map((d) => {
+                if (d.displacement === null) return null
+                const k = idxAt(d.at)
+                if (k <= a || k > b) return null
+                const x = xAt(d.at) - slot / 2
+                const y = d.displacement === 'bullish' ? height - 26 : top + 4
+                return (
+                  <text
+                    key={d.at}
+                    x={x}
+                    y={y}
+                    textAnchor="middle"
+                    fontSize={9}
+                    fill={d.displacement === 'bullish' ? 'var(--chart-up)' : 'var(--chart-down)'}
+                  >
+                    {d.displacement === 'bullish' ? '▲' : '▼'}
+                  </text>
+                )
+              })}
 
-          {/* velas, o la línea de cierre con su área */}
-          {mode === 'Línea' ? (
-            <LineArea
-              points={linePoints}
-              top={top}
-              bottom={top + plotH}
-              gridX={timeLabels.map((i) => i * slot + slot / 2)}
-              trend={rangeTrend(closes, digits)}
-            />
-          ) : (
-            candles
-          )}
-
-          {/* velas de desplazamiento (marca del motor) */}
-          {imbalance.map((d) => {
-            if (d.displacement === null) return null
-            const x = xAt(d.at) - slot / 2
-            if (x < 0) return null
-            const y = d.displacement === 'bullish' ? height - 26 : top + 4
-            return (
-              <text
-                key={d.at}
-                x={x}
-                y={y}
-                textAnchor="middle"
-                fontSize={9}
-                fill={d.displacement === 'bullish' ? 'var(--chart-up)' : 'var(--chart-down)'}
-              >
-                {d.displacement === 'bullish' ? '▲' : '▼'}
-              </text>
-            )
-          })}
-
-          {/* señales del motor: una línea vertical en la vela de la señal y su rótulo */}
-          {signals.map((sg) => {
-            const x = xAt(sg.at) - slot / 2
-            if (x < 0) return null
-            const color = sg.side === 'long' ? 'var(--chart-up)' : 'var(--chart-down)'
-            return (
-              <g key={`${sg.at}-${sg.side}`} data-signal={sg.side}>
-                <line
-                  x1={x}
-                  x2={x}
-                  y1={top + 14}
-                  y2={top + plotH}
-                  stroke={color}
-                  strokeOpacity={0.35}
-                  strokeDasharray="2 3"
-                />
-                <rect x={x - 3} y={top + 2} width={6} height={6} rx={1.5} fill={color}>
-                  <title>{`Señal ${sg.side === 'long' ? 'larga' : 'corta'}: ${sg.label}`}</title>
-                </rect>
-              </g>
-            )
-          })}
-
-          {/* niveles: desde que existen hasta la vela que cambió su estado */}
-          {shownLevels.map((l) => {
-            const v = Number(l.price)
-            if (!inScale(v)) return null
-            const s = STATE_STYLE[l.state]
-            const x0 = xAt(l.exists_from)
-            const x1 = xAt(l.state_changed_at ?? l.expired_at ?? null)
-            const y = yP(v)
-            const old = expired(l)
-            return (
-              <g
-                key={levelKey(l)}
-                data-level-state={l.state}
-                data-expired={old || undefined}
-                opacity={old ? 0.3 : s.opacity}
-              >
-                <line
-                  x1={x0}
-                  x2={x1}
-                  y1={y}
-                  y2={y}
-                  stroke={s.stroke}
-                  strokeWidth={1.3}
-                  strokeDasharray={s.dash}
-                />
-                {l.state !== 'intact' && (
-                  <circle cx={x1} cy={y} r={2.6} fill={s.stroke}>
-                    <title>{`${levelName(l)}: ${STATE_LABEL[l.state].toLowerCase()}`}</title>
-                  </circle>
-                )}
-              </g>
-            )
-          })}
-
-          {/* rótulos de los niveles intactos (los de fuera de escala, con flecha) */}
-          {labels.map(({ l, arrow, y }) => (
-            <g key={levelKey(l)} data-level-label={y.toFixed(1)}>
-              <rect
-                x={plotW + 1}
-                y={y - LABEL_UP}
-                width={AXIS_W - 2}
-                height={11}
-                rx={3}
-                fill="var(--background)"
-                opacity={0.9}
-              />
-              <text
-                x={plotW + 4}
-                y={y + 3}
-                fontSize={9}
-                fontWeight={700}
-                fill="var(--chart-accent)"
-              >
-                <title>{`${levelName(l)}: ${decimal(l.price)}`}</title>
-                {`${levelShort(l)}${arrow}`}
-              </text>
+              {/* señales del motor: una línea vertical en la vela de la señal y su rótulo */}
+              {signals.map((sg) => {
+                const k = idxAt(sg.at)
+                if (k <= 0) return null
+                const x = xAt(sg.at) - slot / 2
+                const color = sg.side === 'long' ? 'var(--chart-up)' : 'var(--chart-down)'
+                return (
+                  <g key={`${sg.at}-${sg.side}`} data-signal={sg.side}>
+                    <line
+                      x1={x}
+                      x2={x}
+                      y1={top + 14}
+                      y2={top + plotH}
+                      stroke={color}
+                      strokeOpacity={0.35}
+                      strokeDasharray="2 3"
+                      vectorEffect={THIN}
+                    />
+                    <rect x={x - 3} y={top + 2} width={6} height={6} rx={1.5} fill={color}>
+                      <title>{`Señal ${sg.side === 'long' ? 'larga' : 'corta'}: ${sg.label}`}</title>
+                    </rect>
+                  </g>
+                )
+              })}
             </g>
-          ))}
-
-          {timeLabels.map((i) =>
-            view[i] ? (
-              <text
-                key={i}
-                x={Math.max(24, Math.min(plotW - 24, i * slot + slot / 2))}
-                y={height - 4}
-                textAnchor="middle"
-                fontSize={10}
-                fill="var(--muted-foreground)"
-              >
-                {dateUtc(view[i].start)}
-              </text>
-            ) : null,
-          )}
+          </g>
 
           <ChartFollower store={measure.store} plot={measure.plot} />
         </svg>
+        <ChartNavBar
+          vp={vp}
+          ruler={ruler}
+          onRuler={setRuler}
+          right={AXIS_W}
+          bottom={top + plotH}
+          history={history}
+          onRetry={() => loadMore(true)}
+        />
       </div>
 
       <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
@@ -488,7 +626,11 @@ export function LiquidityChart({
           FVG lleno o vencido
         </li>
         <li>▲ ▼ vela de desplazamiento</li>
-        <li>Arrastrá sobre el precio para medir; un clic o Esc la borra</li>
+        <li>
+          Arrastrá para moverte en el tiempo · rueda: zoom · eje de precio: arrastrá para estirarlo,
+          doble clic vuelve a automático
+        </li>
+        <li>Shift + arrastrar (o la regla) mide; un clic o Esc borra la medición</li>
         {signals.length > 0 && (
           <li className="flex items-center gap-1.5">
             <span className="inline-block size-2 rounded-[2px] bg-up" aria-hidden />

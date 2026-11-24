@@ -1,11 +1,14 @@
 //! Gateway: API **de solo lectura** del motor para la UI (#231). Dos rutas:
 //!
-//! - `GET /api/v1/liquidity?instrument=<id>[&timeframe=15m|1h|1d][&source=ig|futures]` →
-//!   `contracts/liquidity_view.v1`: lo que ya está guardado en PostgreSQL (velas, niveles, FVG,
+//! - `GET /api/v1/liquidity?instrument=<id>[&timeframe=15m|1h|1d][&source=ig|futures][&before=<UTC>]`
+//!   → `contracts/liquidity_view.v1`: lo que ya está guardado en PostgreSQL (velas, niveles, FVG,
 //!   desequilibrio y agregados) de ese timeframe, tal como se conocía al cierre de su última vela.
 //!   Sin `timeframe`, 15m. Sin `source`, las velas del CFD de IG; con `futures`, lo calculado
 //!   con las velas de los futuros (#259, guardado bajo el instrumento derivado de
-//!   `config/candle_sources.toml`). La respuesta dice de qué fuente es.
+//!   `config/candle_sources.toml`). La respuesta dice de qué fuente es. Con `before` (RFC 3339 en
+//!   UTC, terminado en `Z`), la misma vista tal como se conocía en ese momento: solo velas que
+//!   cerraron a más tardar en `before`. La UI lo usa para pedir historia al desplazarse al
+//!   pasado (#401, paginación por fecha). Un `before` futuro cuenta como ahora.
 //! - `GET /api/v1/instruments` → `contracts/gateway_instruments.v1`: los instrumentos del
 //!   catálogo, los timeframes y los valores por defecto de la vista.
 //!
@@ -439,6 +442,15 @@ pub(crate) fn param<'q>(query: Option<&'q str>, name: &str) -> Option<&'q str> {
         .find_map(|kv| kv.strip_prefix(name)?.strip_prefix('='))
 }
 
+/// `before` de la query: RFC 3339 en UTC (`…Z`); los `:` pueden llegar codificados (`%3A`).
+fn parse_before(s: &str) -> Option<DateTime<Utc>> {
+    let s = s.replace("%3A", ":").replace("%3a", ":");
+    if !s.ends_with('Z') {
+        return None;
+    }
+    s.parse::<DateTime<Utc>>().ok()
+}
+
 /// Atiende un pedido (ver el encabezado del módulo). Todo lo demás es 4xx. Los errores de la
 /// base no se muestran al cliente.
 #[allow(clippy::too_many_arguments)]
@@ -489,11 +501,23 @@ pub async fn respond<S: LiquiditySource>(
             None => return text(400, "source: ig o futures"),
         },
     };
+    // `before` (#401): la vista "tal como se conocía" en ese momento, nunca después de ahora.
+    let at = match param(query, "before") {
+        None => now,
+        Some(s) => match parse_before(s) {
+            Some(t) => t.min(now),
+            None => return text(400, "before: fecha RFC 3339 en UTC (…Z)"),
+        },
+    };
     if !catalog.iter().any(|i| i.id == id) {
         return text(404, "instrumento fuera del catálogo");
     }
-    match source.view(&id, candle_source, tf, now).await {
-        Ok(view) => json(&view, &format!("la vista de {id}")),
+    match source.view(&id, candle_source, tf, at).await {
+        Ok(mut view) => {
+            // `generated_at` es cuándo se armó la respuesta, aunque se lea el pasado.
+            view.generated_at = utc(now);
+            json(&view, &format!("la vista de {id}"))
+        }
         Err(e) => {
             eprintln!(
                 "gateway: error leyendo la vista de {id} {}: {e}",
@@ -662,6 +686,73 @@ mod tests {
             get(path, Some("instrument=US100&source=cfd")).await.status,
             400
         );
+    }
+
+    /// Devuelve en `as_of` el momento con que se leyó la vista, para ver qué llega a la fuente.
+    struct Echo;
+
+    impl LiquiditySource for Echo {
+        async fn view(
+            &self,
+            id: &InstrumentId,
+            source: CandleSource,
+            tf: StatsTimeframe,
+            at: DateTime<Utc>,
+        ) -> Result<LiquidityView, StorageError> {
+            let s = ViewSource::new(source, &sources());
+            let mut v = LiquidityView::empty(id.clone(), s, tf, at);
+            v.as_of = Some(utc(at));
+            Ok(v)
+        }
+    }
+
+    async fn echo(q: &str) -> Reply {
+        let path = "/api/v1/liquidity";
+        respond(
+            &Echo,
+            &config(),
+            &sources(),
+            &catalog(),
+            "GET",
+            path,
+            Some(q),
+            now(),
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn before_reads_the_view_as_known_at_that_time() {
+        // sin before: ahora
+        let r = echo("instrument=US100&timeframe=1h").await;
+        let v: serde_json::Value = serde_json::from_str(&r.body).unwrap();
+        assert_eq!(v["as_of"], "2026-11-23T10:00:00Z");
+        // con before (también con los ':' codificados): ese momento; generated_at sigue siendo ahora
+        for q in [
+            "instrument=US100&timeframe=1h&before=2026-11-20T08:15:00Z",
+            "instrument=US100&before=2026-11-20T08%3A15%3A00Z&timeframe=1h",
+        ] {
+            let r = echo(q).await;
+            assert_eq!(r.status, 200, "{q}");
+            let v: serde_json::Value = serde_json::from_str(&r.body).unwrap();
+            assert_eq!(v["as_of"], "2026-11-20T08:15:00Z", "{q}");
+            assert_eq!(v["generated_at"], "2026-11-23T10:00:00Z", "{q}");
+            assert_eq!(v["timeframe"], "1h", "{q}");
+        }
+        // un before futuro no deja mirar más allá de ahora
+        let r = echo("instrument=US100&before=2030-01-01T00:00:00Z").await;
+        let v: serde_json::Value = serde_json::from_str(&r.body).unwrap();
+        assert_eq!(v["as_of"], "2026-11-23T10:00:00Z");
+        // fechas mal formadas o sin zona UTC
+        for bad in [
+            "ayer",
+            "2026-11-20T08:15:00",
+            "2026-11-20T08:15:00+01:00",
+            "",
+        ] {
+            let r = echo(&format!("instrument=US100&before={bad}")).await;
+            assert_eq!(r.status, 400, "{bad}");
+        }
     }
 
     #[tokio::test]

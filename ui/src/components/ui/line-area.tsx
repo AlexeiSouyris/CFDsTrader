@@ -5,6 +5,10 @@
  *
  * Solo dibuja los cierres que llegan; no calcula nada (CLAUDE.md §1). Está memoizado: el
  * gráfico no lo vuelve a dibujar al mover el cursor (eso lo hace la capa de `chart-measure`).
+ *
+ * En los gráficos navegables (#401) va dentro de una capa que se estira durante el gesto: los
+ * trazos no cambian de grosor (`non-scaling-stroke`) y el área baja más allá del panel (el
+ * recorte del panel la corta), así no se despega del borde mientras la escala cambia.
  */
 import { memo, useId } from 'react'
 
@@ -31,10 +35,11 @@ export const LineArea = memo(function LineArea({
   if (pts.length === 0) return null
   const xy = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`)
   const [lx, ly] = pts[pts.length - 1]
+  const floor = bottom + (bottom - top) * 2
   return (
     <g data-line-area={trend} pointerEvents="none">
       <defs>
-        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={id} gradientUnits="userSpaceOnUse" x1="0" y1={top} x2="0" y2={bottom}>
           <stop offset="0" stopColor={color} stopOpacity={0.3} />
           <stop offset="0.65" stopColor={color} stopOpacity={0.08} />
           <stop offset="1" stopColor={color} stopOpacity={0} />
@@ -50,11 +55,12 @@ export const LineArea = memo(function LineArea({
           y2={bottom}
           stroke="var(--chart-grid)"
           strokeDasharray="2 4"
+          vectorEffect="non-scaling-stroke"
         />
       ))}
       <path
         data-area
-        d={`M${pts[0][0].toFixed(1)},${bottom}L${xy.join('L')}L${lx.toFixed(1)},${bottom}Z`}
+        d={`M${pts[0][0].toFixed(1)},${floor}L${xy.join('L')}L${lx.toFixed(1)},${floor}Z`}
         fill={`url(#${id})`}
       />
       <path
@@ -65,6 +71,7 @@ export const LineArea = memo(function LineArea({
         strokeWidth={1.8}
         strokeLinejoin="round"
         strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
       />
       <circle cx={lx} cy={ly} r={7} fill={color} fillOpacity={0.18} />
       <circle

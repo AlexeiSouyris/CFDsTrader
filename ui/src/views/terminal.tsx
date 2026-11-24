@@ -24,7 +24,7 @@ import {
   OrderTicket,
   PositionsTable,
 } from '@/components/ui/trading-terminal'
-import { useInstruments, useLiquidityView } from '@/lib/liquidity-api'
+import { fetchOlderBars, useInstruments, useLiquidityView } from '@/lib/liquidity-api'
 import { chartBars } from '@/lib/liquidity-bars'
 import { useOpsStatus } from '@/lib/ops-api'
 import { clearFocusedInstrument, FOCUS_EVENT, focusedInstrument } from '@/lib/terminal-focus'
@@ -165,6 +165,12 @@ function ChartSlot({
           fvgs={data.fvgs}
           imbalance={data.imbalance}
           signals={data === example ? CHART_SIGNALS : []}
+          loadOlder={
+            live
+              ? (before) =>
+                  fetchOlderBars(live.instrument_id, live.timeframe ?? sel.timeframe, before)
+              : undefined
+          }
           height={height}
         />
       ) : (

@@ -213,7 +213,13 @@ describe('terminal con 1, 2 o 4 gráficos (#286)', () => {
     // así que de izquierda a derecha es subida y al revés es bajada
     svgs.forEach((svg, i) => {
       const [x0, x1] = i % 2 === 0 ? [200, 400] : [400, 200]
-      fireEvent.pointerDown(svg, { clientX: x0, clientY: 150, button: 0, pointerId: i + 1 })
+      fireEvent.pointerDown(svg, {
+        clientX: x0,
+        clientY: 150,
+        button: 0,
+        pointerId: i + 1,
+        shiftKey: true,
+      })
       fireEvent.pointerMove(svg, { clientX: x1, clientY: 150, pointerId: i + 1 })
       fireEvent.pointerUp(svg, { clientX: x1, clientY: 150, pointerId: i + 1 })
     })
@@ -236,7 +242,13 @@ describe('terminal con 1, 2 o 4 gráficos (#286)', () => {
     expect(measureOf(svgs[1])!.textContent).toMatch(/ · −\d+,\d{2} % · /)
 
     // un clic en el gráfico 2 borra solo la suya
-    fireEvent.pointerDown(svgs[1], { clientX: 300, clientY: 150, button: 0, pointerId: 9 })
+    fireEvent.pointerDown(svgs[1], {
+      clientX: 300,
+      clientY: 150,
+      button: 0,
+      pointerId: 9,
+      shiftKey: true,
+    })
     fireEvent.pointerUp(svgs[1], { clientX: 300, clientY: 150, pointerId: 9 })
     expect(svgs.map((s) => measureOf(s) !== null)).toEqual([true, false, true, true])
 

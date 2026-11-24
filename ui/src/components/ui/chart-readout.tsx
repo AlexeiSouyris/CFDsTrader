@@ -28,12 +28,18 @@ export function ChartReadout({
   starts,
   closes,
   rangeLabel,
+  from = 0,
+  to,
 }: {
   store: PointerStore
   starts: string[]
   /** cierres como llegan (texto decimal) */
   closes: string[]
   rangeLabel: string
+  /** primera vela del tramo visible (#401): contra su cierre se mide el cambio */
+  from?: number
+  /** última vela del tramo visible (por defecto, la última) */
+  to?: number
 }) {
   const hover = usePointer(store, (s) => s.hover)
   const measure = usePointer(store, (s) => s.measure)
@@ -43,8 +49,10 @@ export function ChartReadout({
   const at = (iso: string) => starts.indexOf(iso)
 
   let state: 'idle' | 'hover' | 'measure' = 'idle'
-  let price = closes[n - 1]
-  let change = changeText(Number(closes[0]), Number(closes[n - 1]), digits)
+  const clampI = (i: number) => Math.max(0, Math.min(n - 1, i))
+  const first = closes[clampI(from)]
+  let price = closes[clampI(to ?? n - 1)]
+  let change = changeText(Number(first), Number(price), digits)
   let note = rangeLabel
   if (measure && at(measure.from.start) >= 0 && at(measure.to.start) >= 0) {
     state = 'measure'
@@ -54,7 +62,7 @@ export function ChartReadout({
   } else if (hover !== null && hover >= 0 && hover < n) {
     state = 'hover'
     price = closes[hover]
-    change = changeText(Number(closes[0]), Number(closes[hover]), digits)
+    change = changeText(Number(first), Number(closes[hover]), digits)
     note = dateTimeUtc(starts[hover])
   }
   return (

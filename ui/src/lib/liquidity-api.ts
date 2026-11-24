@@ -2,12 +2,13 @@
  * Lectura de la vista de liquidez desde el gateway del motor (#231):
  * - `GET /api/v1/instruments` (`contracts/gateway_instruments.v1`): instrumentos del catálogo,
  *   timeframes y lo que se abre primero;
- * - `GET /api/v1/liquidity?instrument=<id>&timeframe=<tf>[&source=futures]`
+ * - `GET /api/v1/liquidity?instrument=<id>&timeframe=<tf>[&source=futures][&before=<UTC>]`
  *   (`contracts/liquidity_view.v1`). Sin `source`, las velas del CFD de IG.
  * La UI solo pide y muestra; no calcula nada. En desarrollo, Vite manda `/api` al gateway.
  */
 import { useEffect, useState } from 'react'
 
+import { chartBars } from '@/lib/liquidity-bars'
 import type {
   GatewayInstruments,
   LiquidityViewData,
@@ -32,12 +33,23 @@ export const fetchLiquidityView = (
   timeframe: ViewTimeframe,
   signal?: AbortSignal,
   source: ViewSource['id'] = 'ig',
+  /** la vista tal como se conocía en ese momento (UTC): velas más viejas (#401) */
+  before?: string,
 ) =>
   getJson<LiquidityViewData>(
     `/api/v1/liquidity?instrument=${encodeURIComponent(instrument)}&timeframe=${timeframe}` +
-      (source === 'ig' ? '' : `&source=${source}`),
+      (source === 'ig' ? '' : `&source=${source}`) +
+      (before ? `&before=${encodeURIComponent(before)}` : ''),
     signal,
   )
+
+/** Velas cerradas antes de `before` (#401), para el gráfico que se desplaza al pasado. */
+export const fetchOlderBars = (
+  instrument: string,
+  timeframe: ViewTimeframe,
+  before: string,
+  source: ViewSource['id'] = 'ig',
+) => fetchLiquidityView(instrument, timeframe, undefined, source, before).then(chartBars)
 
 export type Remote<T> =
   { status: 'loading' } | { status: 'error'; message: string } | { status: 'ok'; data: T }
