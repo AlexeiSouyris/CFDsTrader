@@ -22,6 +22,26 @@ export type MlByModel = Partial<Record<MlModel, MlScores>>
 
 export type MlStatus = 'suspended' | 'm1_improves' | 'b1_stays'
 
+/** Un grupo de `ml_experiment.v1` `$defs.calibration_bins` (#433): probabilidades de 0 a 1. */
+export type MlCalibrationBin = {
+  /** Predicción más baja y más alta del grupo (desde/hasta). */
+  p_min: number
+  p_max: number
+  n: number
+  mean_predicted: number
+  observed: number
+  /** Intervalo de la frecuencia observada (`interval`). */
+  low: number
+  high: number
+}
+
+/** `ml_experiment.v1` `calibration` (opcional, #433): lo calcula Python; la UI solo lo dibuja. */
+export type MlCalibration = {
+  bins: number
+  interval: 'wilson_95'
+  pooled: Partial<Record<MlModel, MlCalibrationBin[]>>
+}
+
 /** `contracts/ml_experiment.v1`. */
 export type MlExperiment = {
   experiment_id: string
@@ -62,6 +82,8 @@ export type MlExperiment = {
     high: number | null
     blocks: number | null
   }
+  /** Falta en los experimentos guardados antes de #433 y en los que quedaron en suspenso. */
+  calibration?: MlCalibration
 }
 
 /** `contracts/ml_experiment_entry.v1`: el experimento con el instrumento de su corrida. */

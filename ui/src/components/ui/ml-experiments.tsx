@@ -1,11 +1,18 @@
 /**
  * «Modelo (informativo)» en Performance (#426): el último experimento de ML v1 de cada
  * instrumento, tal como lo guardó Python (`ml_experiment.v1`). Muestra el veredicto contra B1, las
- * métricas de B0, B1 y M1 y la fecha. Solo presenta: no calcula métricas ni decide nada, y el
+ * métricas de B0, B1 y M1, la calibración por grupos (#433) y la fecha. Solo presenta: no calcula métricas ni decide nada, y el
  * modelo no decide operaciones.
  */
 import { dateTimeUtc } from '@/lib/format'
-import { ML_MODELS, type MlExperimentEntry, type MlModel, type MlStatus } from '@/lib/ml-api'
+import {
+  ML_MODELS,
+  type MlCalibration,
+  type MlCalibrationBin,
+  type MlExperimentEntry,
+  type MlModel,
+  type MlStatus,
+} from '@/lib/ml-api'
 import { cn } from '@/lib/utils'
 
 const th =
@@ -55,6 +62,141 @@ const num = (x: number | null | undefined, digits: number) =>
         .replace('-', '−')
 
 const signedNum = (x: number, digits: number) => (x > 0 ? '+' : '') + num(x, digits)
+
+/** Una probabilidad guardada (de 0 a 1) escrita como porcentaje: solo formato. */
+const pct = (x: number) => `${num(x * 100, 1)} %`
+
+const INTERVAL_LABEL: Record<MlCalibration['interval'], string> = {
+  wilson_95: 'intervalo de Wilson del 95 %',
+}
+
+/** Lado del gráfico de calibración, en unidades del `viewBox`. */
+const SIDE = 160
+const PAD = 22
+
+/**
+ * Predicha contra observada, con el intervalo de cada grupo y la diagonal de la calibración
+ * perfecta. Solo ubica en el dibujo los números que guardó Python.
+ */
+function CalibrationChart({ model, bins }: { model: MlModel; bins: MlCalibrationBin[] }) {
+  const at = (p: number) => PAD + p * SIDE
+  const up = (p: number) => PAD + (1 - p) * SIDE
+  const size = SIDE + 2 * PAD
+  return (
+    <svg
+      viewBox={`0 0 ${size} ${size}`}
+      role="img"
+      aria-label={`Calibración de ${model}: predicción media de cada grupo contra la frecuencia observada, con su intervalo.`}
+      className="block w-full max-w-[220px] select-none"
+    >
+      <rect x={PAD} y={PAD} width={SIDE} height={SIDE} fill="none" stroke="var(--chart-grid)" />
+      <line
+        x1={at(0)}
+        y1={up(0)}
+        x2={at(1)}
+        y2={up(1)}
+        stroke="var(--chart-grid)"
+        strokeDasharray="4 4"
+      />
+      {[0, 0.5, 1].map((t) => (
+        <g key={t} fontSize={9} fill="var(--muted-foreground)">
+          <text x={at(t)} y={size - 6} textAnchor="middle">
+            {Math.round(t * 100)}
+          </text>
+          <text x={PAD - 4} y={up(t) + 3} textAnchor="end">
+            {Math.round(t * 100)}
+          </text>
+        </g>
+      ))}
+      {bins.map((b, i) => (
+        <g key={i} data-bin={i + 1}>
+          <line
+            x1={at(b.mean_predicted)}
+            x2={at(b.mean_predicted)}
+            y1={up(b.low)}
+            y2={up(b.high)}
+            stroke="var(--chart-line)"
+            strokeOpacity={0.5}
+            strokeWidth={1.5}
+          />
+          <circle cx={at(b.mean_predicted)} cy={up(b.observed)} r={2.6} fill="var(--chart-line)" />
+        </g>
+      ))}
+    </svg>
+  )
+}
+
+/** La calibración por grupos tal como la guardó el experimento (`calibration`, #433). */
+function Calibration({ calibration }: { calibration: MlCalibration }) {
+  const models = ML_MODELS.filter((m) => calibration.pooled[m]?.length)
+  if (models.length === 0) return null
+  return (
+    <details className="group rounded-xl border border-border px-3 py-2" data-calibration>
+      <summary className="cursor-pointer text-[12px] font-bold">
+        Calibración por grupos
+        <span className="font-normal text-muted-foreground">
+          {' '}
+          · {calibration.bins} grupos iguales por orden de la predicción
+        </span>
+      </summary>
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        Validaciones juntas. Cada punto es un grupo: su predicción media (horizontal) contra la
+        frecuencia observada (vertical), con el {INTERVAL_LABEL[calibration.interval]}. Sobre la
+        diagonal, la predicción coincide con lo observado. Debajo de cada predicción media, la más
+        baja y la más alta del grupo.
+      </p>
+      <div className="mt-2 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {models.map((m) => {
+          const bins = calibration.pooled[m]!
+          return (
+            <section key={m} aria-label={`Calibración de ${m}`} className="grid gap-2">
+              <h4 className="text-[12px]">
+                <strong>{m}</strong>{' '}
+                <span className="text-[11px] text-muted-foreground">{MODEL_LABEL[m]}</span>
+              </h4>
+              <CalibrationChart model={m} bins={bins} />
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px]" aria-label={`Grupos de ${m}`}>
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className={th}>Grupo</th>
+                      <th className={th}>N</th>
+                      <th className={th}>Predicha</th>
+                      <th className={th}>Observada</th>
+                      <th className={th}>Intervalo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bins.map((b, i) => (
+                      <tr
+                        key={i}
+                        data-bin={i + 1}
+                        className="border-b border-border/60 last:border-0"
+                      >
+                        <td className={td}>{i + 1}</td>
+                        <td className={td}>{b.n}</td>
+                        <td className={td}>
+                          {pct(b.mean_predicted)}
+                          <span className="block text-[10px] text-muted-foreground">
+                            de {pct(b.p_min)} a {pct(b.p_max)}
+                          </span>
+                        </td>
+                        <td className={td}>{pct(b.observed)}</td>
+                        <td className={td}>
+                          {pct(b.low)} a {pct(b.high)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )
+        })}
+      </div>
+    </details>
+  )
+}
 
 /** Cuántos motivos distintos de las ventanas sin entrenar se listan (los más frecuentes). */
 const SHOWN_REASONS = 3
@@ -159,9 +301,18 @@ function Experiment({ entry }: { entry: MlExperimentEntry }) {
           </table>
         </div>
       )}
+      {e.calibration ? (
+        <Calibration calibration={e.calibration} />
+      ) : (
+        models.length > 0 && (
+          <p className="text-[11px] text-muted-foreground">
+            Este experimento se guardó sin la calibración por grupos (es anterior a que se
+            guardara): está en el informe de texto.
+          </p>
+        )
+      )}
       <p className="text-[11px] text-muted-foreground">
-        Más bajo es mejor en log loss y Brier; en AUC, más alto. La calibración por grupos todavía
-        no se guarda con el experimento.
+        Más bajo es mejor en log loss y Brier; en AUC, más alto.
       </p>
     </article>
   )
