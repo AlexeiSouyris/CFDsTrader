@@ -26,7 +26,7 @@ function Chip({ children, className }: { children: React.ReactNode; className?: 
   return (
     <span
       className={cn(
-        'inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-bold',
+        'inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-bold whitespace-nowrap',
         className,
       )}
     >
@@ -67,17 +67,25 @@ export function OpsKillSwitchBanner({ status }: { status: OpsStatus }) {
   )
 }
 
-/** Barra compacta: compuerta, kill switch, pérdida del día, apalancamiento y reconciliación. */
+/**
+ * Barra compacta: compuerta, kill switch, pérdida del día, apalancamiento y reconciliación.
+ *
+ * Fluye en bloques que bajan de línea enteros (#356): los chips juntos, la pérdida del día con su
+ * barra (se estira, nunca baja de ~15rem), el apalancamiento sin cortar, y la reconciliación en
+ * su propia franja abajo. Así ningún texto se encima con otro en ningún ancho.
+ */
 export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
   if (!status) {
     return (
       <section
         aria-label="Estado de la operación"
         data-ops-status="offline"
-        className="glass flex flex-wrap items-center gap-2 rounded-[20px] px-4 py-3 text-[12px] text-muted-foreground"
+        className="glass flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[20px] px-4 py-3 text-[12px] text-muted-foreground"
       >
         <Chip className="border-border">Sin conexión con el gateway</Chip>
-        <span>No se sabe el estado del broker: no se muestra uno de ejemplo.</span>
+        <span className="min-w-0">
+          No se sabe el estado del broker: no se muestra uno de ejemplo.
+        </span>
       </section>
     )
   }
@@ -88,65 +96,83 @@ export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
     <section
       aria-label="Estado de la operación"
       data-ops-status={status.gate}
-      className="glass flex flex-wrap items-center gap-x-4 gap-y-3 rounded-[20px] px-4 py-3"
+      className="glass relative grid gap-3 rounded-[20px] px-4 py-3 has-[[role=dialog]]:z-30 sm:px-5"
     >
-      <Chip className={gate.tone}>
-        <span className="size-2 rounded-full bg-current" aria-hidden="true" />
-        {gate.label}
-      </Chip>
-      {a ? (
-        <>
-          <Chip
-            className={a.kill_switch.active ? 'border-down bg-down text-white' : 'border-border'}
-          >
-            <Term id="kill-switch">Kill switch</Term> {a.kill_switch.active ? 'ACTIVO' : 'apagado'}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Chip className={gate.tone}>
+            <span className="size-2 shrink-0 rounded-full bg-current" aria-hidden="true" />
+            {gate.label}
           </Chip>
-          <div className="grid min-w-[180px] flex-1 gap-1 text-[11.5px]">
-            <span className="flex flex-wrap justify-between gap-x-2">
-              <span className="font-bold">Pérdida del día</span>
-              <span className="text-muted-foreground tabular-nums">
-                {decimal(a.daily_loss_used_pct)} % del máximo ({decimal(a.daily_loss_limit_pct)} %
-                del capital)
-              </span>
-            </span>
-            <span
-              className="block h-2 overflow-hidden rounded-full bg-border"
-              role="meter"
-              aria-label="Pérdida del día usada"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Number(a.daily_loss_used_pct)}
-              aria-valuetext={`${decimal(a.daily_loss_used_pct)} % del máximo diario`}
+          {a && (
+            <Chip
+              className={a.kill_switch.active ? 'border-down bg-down text-white' : 'border-border'}
             >
+              <Term id="kill-switch">Kill switch</Term>{' '}
+              {a.kill_switch.active ? 'ACTIVO' : 'apagado'}
+            </Chip>
+          )}
+        </div>
+        {a ? (
+          <>
+            <div className="grid min-w-[min(100%,15rem)] flex-[1_1_15rem] gap-1.5 text-[11.5px]">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                <span className="font-bold">Pérdida del día</span>
+                <span className="text-muted-foreground tabular-nums">
+                  <strong
+                    className={cn(
+                      'font-bold',
+                      a.kill_switch.active ? 'text-down' : 'text-foreground',
+                    )}
+                  >
+                    {decimal(a.daily_loss_used_pct)} % del máximo
+                  </strong>{' '}
+                  ({decimal(a.daily_loss_limit_pct)} % del capital)
+                </span>
+              </div>
               <span
-                data-daily-loss-bar
-                className={cn(
-                  'block h-full rounded-full transition-[width] duration-500',
-                  a.kill_switch.active ? 'bg-down' : 'bg-foreground/60',
-                )}
-                style={{ width: `min(${a.daily_loss_used_pct}%, 100%)` }}
-              />
-            </span>
-          </div>
-          <span className="text-[11.5px] tabular-nums">
-            <Term id="apalancamiento">Apalancamiento</Term> {decimal(a.leverage)}:1 ·{' '}
-            {a.open_positions} de {a.max_positions} posiciones
-          </span>
-        </>
-      ) : (
-        <Chip className="border-down/40 text-down">Sin datos de la cuenta</Chip>
-      )}
+                className="block h-2 overflow-hidden rounded-full bg-border"
+                role="meter"
+                aria-label="Pérdida del día usada"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Number(a.daily_loss_used_pct)}
+                aria-valuetext={`${decimal(a.daily_loss_used_pct)} % del máximo diario`}
+              >
+                <span
+                  data-daily-loss-bar
+                  className={cn(
+                    'block h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none',
+                    a.kill_switch.active ? 'bg-down' : 'bg-foreground/60',
+                  )}
+                  style={{ width: `min(${a.daily_loss_used_pct}%, 100%)` }}
+                />
+              </span>
+            </div>
+            <p className="text-[11.5px] text-muted-foreground tabular-nums sm:whitespace-nowrap">
+              <Term id="apalancamiento">Apalancamiento</Term>{' '}
+              <strong className="font-bold text-foreground">{decimal(a.leverage)}:1</strong> ·{' '}
+              {a.open_positions} de {a.max_positions} posiciones
+            </p>
+          </>
+        ) : (
+          <Chip className="border-down/40 text-down">Sin datos de la cuenta</Chip>
+        )}
+      </div>
       {rec && (
-        <span
-          className={cn('text-[11.5px]', rec.clean ? 'text-muted-foreground' : 'text-down')}
+        <p
+          className={cn(
+            'border-t border-border pt-2.5 text-[11.5px] leading-snug',
+            rec.clean ? 'text-muted-foreground' : 'font-semibold text-down',
+          )}
           data-reconcile={rec.clean ? 'clean' : 'dirty'}
         >
           Reconciliación {rec.kind === 'startup' ? 'al arrancar' : 'periódica'}:{' '}
           {rec.clean
             ? `limpia (${rec.matched} coinciden)`
             : `${rec.mismatches} posiciones distintas y ${rec.drifts} órdenes que no se reconstruyen igual`}{' '}
-          · {dateTimeUtc(rec.at)}
-        </span>
+          <span className="whitespace-nowrap tabular-nums">· {dateTimeUtc(rec.at)}</span>
+        </p>
       )}
     </section>
   )

@@ -54,45 +54,65 @@ function Stat({
   children,
   hint,
   big = false,
+  className,
 }: {
   label: ReactNode
   children: ReactNode
   hint?: ReactNode
   big?: boolean
+  className?: string
 }) {
   return (
-    <div className="min-w-0">
+    <div className={cn('min-w-0', className)}>
       <dt className="text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
         {label}
       </dt>
       <dd
         className={cn(
-          'mt-1 leading-none font-extrabold whitespace-nowrap tracking-[-0.03em] tabular-nums',
-          big ? 'text-[clamp(26px,3vw,38px)]' : 'text-[clamp(18px,1.8vw,22px)]',
+          'mt-1.5 leading-none font-extrabold tracking-[-0.03em] whitespace-nowrap tabular-nums',
+          big ? 'text-[clamp(30px,3.2vw,42px)]' : 'text-[20px]',
         )}
       >
         {children}
       </dd>
-      {hint && <p className="mt-1.5 text-[11px] text-muted-foreground">{hint}</p>}
+      {hint && (
+        <p
+          className={cn(
+            'text-[11px] leading-snug text-muted-foreground',
+            big ? 'mt-2.5' : 'mt-1.5',
+          )}
+        >
+          {hint}
+        </p>
+      )}
     </div>
   )
 }
 
 const tone = (v: string) => (isNegative(v) ? 'text-down' : 'text-up')
 
-/** Capital, P/L, margen y apalancamiento de la cuenta de simulación, tal como llegan. */
+/**
+ * Capital, P/L, margen y apalancamiento de la cuenta de simulación, tal como llegan.
+ *
+ * El capital va en su propia columna (#356): con la cifra grande en la misma grilla que el resto
+ * se pisaba con el P/L abierto. El resto de las cifras se acomoda solo (`auto-fit`) según el ancho.
+ */
 export function AccountStrip({ account }: { account: PaperAccount }) {
   const used = Number(account.daily_loss_used_pct)
   return (
     <section
       aria-label="Cuenta de simulación"
-      className="glass relative grid gap-5 rounded-[20px] p-5 has-[[role=dialog]]:z-30 xl:grid-cols-[auto_minmax(0,1fr)] xl:items-center"
+      className="glass relative grid gap-5 rounded-[20px] p-5 has-[[role=dialog]]:z-30 xl:grid-cols-[minmax(17rem,21rem)_minmax(0,1fr)] xl:gap-8"
     >
-      <PaperBadge />
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-3 2xl:grid-cols-6">
-        <Stat label="Capital" big hint={`${account.currency}, al ${dateTimeUtc(account.as_of)}`}>
-          <AnimatedNumber value={account.equity} format={(t) => decimal(t, 2)} />
-        </Stat>
+      <div className="grid content-start gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-center xl:grid-cols-1">
+        <dl>
+          <Stat label="Capital" big hint={`${account.currency}, al ${dateTimeUtc(account.as_of)}`}>
+            <AnimatedNumber value={account.equity} format={(t) => decimal(t, 2)} />
+          </Stat>
+        </dl>
+        <PaperBadge />
+      </div>
+      <dl className="grid grid-cols-2 content-center gap-x-6 gap-y-5 border-t border-border pt-5 sm:grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] xl:border-t-0 xl:border-l xl:pt-0 xl:pl-8">
         <Stat label={<Term id="pl">P/L abierto</Term>} hint="posiciones abiertas">
           <span className={tone(account.unrealized_pl)}>
             <AnimatedNumber value={account.unrealized_pl} format={(t) => signed(t, 2)} />
@@ -115,15 +135,20 @@ export function AccountStrip({ account }: { account: PaperAccount }) {
         >
           {decimal(account.leverage)}:1
         </Stat>
-        <Stat label="Pérdida del día usada" hint="del máximo diario (§10)">
+        <Stat
+          label="Pérdida del día"
+          hint="usada del máximo diario (§10)"
+          className="max-sm:col-span-2"
+        >
           {decimal(account.daily_loss_used_pct)} %
           <span
-            className="mt-2 block h-1.5 overflow-hidden rounded-full bg-border"
+            className="mt-2.5 block h-1.5 overflow-hidden rounded-full bg-border"
             role="meter"
             aria-label="Pérdida del día usada"
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={used}
+            aria-valuetext={`${decimal(account.daily_loss_used_pct)} % del máximo diario`}
           >
             <span
               className={cn(
@@ -268,11 +293,17 @@ export function OrderTicket({
   }
 
   const field =
-    'mt-1 w-full rounded-xl border border-border bg-transparent px-3 py-2.5 text-[15px] font-semibold tabular-nums outline-none focus-visible:border-ring'
-  const label = 'text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase'
+    'mt-1.5 block min-h-11 w-full rounded-xl border border-border bg-transparent px-3 py-2.5 text-[15px] font-semibold tracking-normal normal-case tabular-nums transition-colors outline-none hover:border-foreground/30 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 aria-[invalid=true]:border-down/60'
+  const label =
+    'block min-w-0 text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase'
 
   return (
-    <form onSubmit={validate} aria-label="Ticket de orden" className="grid gap-4">
+    <form
+      onSubmit={validate}
+      aria-label="Ticket de orden"
+      aria-busy={busy !== null}
+      className="@container grid gap-4"
+    >
       <p
         data-paper-banner
         className="flex items-center gap-2 rounded-xl border border-[var(--chart-signal)]/50 bg-[var(--chart-signal)]/10 px-3 py-2 text-[11.5px] font-bold text-[var(--chart-signal)]"
@@ -290,7 +321,7 @@ export function OrderTicket({
             aria-pressed={draft.side === s}
             onClick={() => change({ side: s })}
             className={cn(
-              'rounded-xl border px-3 py-2.5 text-[14px] font-extrabold transition-colors',
+              'min-h-11 rounded-xl border px-3 py-2.5 text-[14px] font-extrabold transition-colors',
               draft.side === s
                 ? s === 'long'
                   ? 'border-up/50 bg-up/15 text-up'
@@ -327,6 +358,8 @@ export function OrderTicket({
             inputMode="decimal"
             required
             aria-required="true"
+            aria-invalid={missing ? true : undefined}
+            aria-describedby={missing ? `${id}-missing` : undefined}
             className={field}
             value={draft.stop}
             onChange={(e) => change({ stop: e.target.value })}
@@ -350,7 +383,7 @@ export function OrderTicket({
       </p>
 
       {missing && (
-        <p role="alert" className="text-[12.5px] font-semibold text-down">
+        <p id={`${id}-missing`} role="alert" className="text-[12.5px] font-semibold text-down">
           {missing}
         </p>
       )}
@@ -358,7 +391,8 @@ export function OrderTicket({
       <button
         type="submit"
         disabled={Boolean(locked) || busy !== null}
-        className="glass-strong flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[13px] font-bold disabled:opacity-40"
+        aria-describedby={locked ? `${id}-locked` : undefined}
+        className="glass-strong flex min-h-11 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[13px] font-bold disabled:cursor-not-allowed disabled:opacity-40"
       >
         <ShieldCheck className="size-4" aria-hidden="true" />
         {busy === 'preview' ? 'Validando…' : 'Validar con el motor'}
@@ -434,7 +468,7 @@ export function OrderTicket({
             disabled={Boolean(locked) || busy !== null}
             onClick={() => (coarsePointer() ? setConfirming(true) : void send())}
             className={cn(
-              'rounded-full px-4 py-2.5 text-[14px] font-extrabold disabled:opacity-40',
+              'min-h-11 rounded-full px-4 py-2.5 text-[14px] font-extrabold disabled:cursor-not-allowed disabled:opacity-40',
               draft.side === 'long' ? 'bg-up text-white' : 'bg-down text-white',
             )}
           >
@@ -442,7 +476,11 @@ export function OrderTicket({
           </button>
         ))}
 
-      {locked && <p className="text-[12px] font-semibold text-down">{locked}</p>}
+      {locked && (
+        <p id={`${id}-locked`} className="text-[12px] font-semibold text-down">
+          {locked}
+        </p>
+      )}
     </form>
   )
 }
@@ -491,7 +529,7 @@ function Verdict({ verdict: v }: { verdict: TicketVerdict }) {
           {REJECTION_LABEL[v.rejection]}
         </p>
       )}
-      <dl className="mt-2 grid grid-cols-2 gap-2 text-[12px] sm:grid-cols-3">
+      <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5 text-[12px] @md:grid-cols-3">
         <div>
           <dt className="text-muted-foreground">Tamaño</dt>
           <dd className="font-bold tabular-nums">{or(v.size, (t) => `${decimal(t)} €/pt`)}</dd>
@@ -521,7 +559,7 @@ function Verdict({ verdict: v }: { verdict: TicketVerdict }) {
         </div>
         <div>
           <dt className="text-muted-foreground">Vela usada</dt>
-          <dd className="font-bold">{dateTimeUtc(v.as_of)}</dd>
+          <dd className="font-bold tabular-nums">{dateTimeUtc(v.as_of)}</dd>
         </div>
       </dl>
       {v.leverage_capped && (
@@ -537,28 +575,58 @@ function Verdict({ verdict: v }: { verdict: TicketVerdict }) {
 /** Posiciones abiertas de la simulación (`position.v1`), con el P/L que manda el motor. */
 export function PositionsTable({ positions }: { positions: Position[] }) {
   if (positions.length === 0)
-    return <p className="text-[13px] text-muted-foreground">No hay posiciones abiertas.</p>
-  const th = 'py-2 px-2 font-bold'
+    return (
+      <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-[13px] text-muted-foreground">
+        <strong className="block text-[13.5px] font-bold text-foreground">
+          No hay posiciones abiertas.
+        </strong>
+        Las que se abran desde el ticket aparecen acá, con el P/L del motor.
+      </p>
+    )
+  const th = 'px-2 py-2 font-bold'
+  // En el celular cada fila se apila como una tarjeta (#356): la cabecera queda para lectores de
+  // pantalla y cada celda muestra su nombre con `data-label`. Sigue siendo la misma tabla.
+  const cell =
+    'px-2 py-3 max-md:p-0 max-md:text-left max-md:before:mb-0.5 max-md:before:block max-md:before:text-[10px] max-md:before:font-bold max-md:before:tracking-[0.08em] max-md:before:text-muted-foreground max-md:before:uppercase max-md:before:content-[attr(data-label)]'
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] text-[13px]">
+    <div className="md:overflow-x-auto">
+      <table className="w-full text-[13px] max-md:block md:min-w-[720px]">
         <caption className="sr-only">Posiciones abiertas</caption>
-        <thead>
+        <thead className="max-md:sr-only">
           <tr className="border-b border-border text-left text-[10px] tracking-[0.1em] text-muted-foreground uppercase">
-            <th className={th}>Instrumento</th>
-            <th className={cn(th, 'text-right')}>Tamaño</th>
-            <th className={cn(th, 'text-right')}>Entrada</th>
-            <th className={cn(th, 'text-right')}>Último</th>
-            <th className={cn(th, 'text-right')}>Stop · TP1</th>
-            <th className={cn(th, 'text-right')}>P/L</th>
-            <th className={cn(th, 'text-right')}>Margen</th>
-            <th className={th}>Abierta</th>
+            <th scope="col" className={th}>
+              Instrumento
+            </th>
+            <th scope="col" className={cn(th, 'text-right')}>
+              Tamaño
+            </th>
+            <th scope="col" className={cn(th, 'text-right')}>
+              Entrada
+            </th>
+            <th scope="col" className={cn(th, 'text-right')}>
+              Último
+            </th>
+            <th scope="col" className={cn(th, 'text-right')}>
+              Stop · TP1
+            </th>
+            <th scope="col" className={cn(th, 'text-right')}>
+              P/L
+            </th>
+            <th scope="col" className={cn(th, 'text-right')}>
+              Margen
+            </th>
+            <th scope="col" className={th}>
+              Abierta
+            </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="max-md:grid max-md:gap-3">
           {positions.map((p) => (
-            <tr key={p.position_id} className="border-b border-border last:border-b-0">
-              <td className="px-2 py-3">
+            <tr
+              key={p.position_id}
+              className="border-b border-border last:border-b-0 max-md:grid max-md:grid-cols-2 max-md:gap-x-4 max-md:gap-y-3 max-md:rounded-2xl max-md:border max-md:p-4 max-md:last:border-b"
+            >
+              <td className="px-2 py-3 whitespace-nowrap max-md:col-span-2 max-md:p-0">
                 <span className="font-extrabold">{p.instrument_id}</span>{' '}
                 <span
                   className={cn(
@@ -569,23 +637,47 @@ export function PositionsTable({ positions }: { positions: Position[] }) {
                   {p.side === 'long' ? 'Largo' : 'Corto'}
                 </span>
               </td>
-              <td className="px-2 py-3 text-right tabular-nums">{decimal(p.size)} €/pt</td>
-              <td className="px-2 py-3 text-right tabular-nums">{decimal(p.entry)}</td>
-              <td className="px-2 py-3 text-right font-semibold tabular-nums">{decimal(p.last)}</td>
-              <td className="px-2 py-3 text-right text-muted-foreground tabular-nums">
+              <td data-label="Tamaño" className={cn(cell, 'text-right tabular-nums')}>
+                {decimal(p.size)} €/pt
+              </td>
+              <td data-label="Entrada" className={cn(cell, 'text-right tabular-nums')}>
+                {decimal(p.entry)}
+              </td>
+              <td data-label="Último" className={cn(cell, 'text-right font-semibold tabular-nums')}>
+                {decimal(p.last)}
+              </td>
+              <td
+                data-label="Stop · TP1"
+                className={cn(
+                  cell,
+                  'text-right whitespace-nowrap text-muted-foreground tabular-nums',
+                )}
+              >
                 {decimal(p.stop)} · {p.tp1 === null ? '—' : decimal(p.tp1)}
               </td>
               <td
+                data-label="P/L"
                 className={cn(
-                  'px-2 py-3 text-right font-extrabold tabular-nums',
+                  cell,
+                  'text-right font-extrabold whitespace-nowrap tabular-nums',
                   tone(p.unrealized_pl),
                 )}
               >
                 {signed(p.unrealized_pl, 2)} €
                 <span className="block text-[11px] font-semibold">{signed(p.unrealized_r)} R</span>
               </td>
-              <td className="px-2 py-3 text-right tabular-nums">{decimal(p.margin, 2)} €</td>
-              <td className="px-2 py-3 text-muted-foreground">{dateTimeUtc(p.opened_at)}</td>
+              <td
+                data-label="Margen"
+                className={cn(cell, 'text-right whitespace-nowrap tabular-nums')}
+              >
+                {decimal(p.margin, 2)} €
+              </td>
+              <td
+                data-label="Abierta"
+                className={cn(cell, 'whitespace-nowrap text-muted-foreground tabular-nums')}
+              >
+                {dateTimeUtc(p.opened_at)}
+              </td>
             </tr>
           ))}
         </tbody>
