@@ -77,3 +77,10 @@ Nada de esto es una recomendación de operar. Los resultados pasados no prometen
 ### 2.7 Registro de corridas
 
 Cada corrida que se haga (aunque falle o se repita por un error de código) se anota en el informe `docs/analysis/2026-11-ronda1-orb-cambio-de-mes.md`, con su comando. Si una corrida se repite por un error de código, se dice cuál fue el error y que la regla no cambió.
+
+## 3. Precisiones agregadas antes de correr (segundo commit, sin ninguna corrida hecha)
+
+Al escribir el código aparecieron dos detalles que el texto de arriba no dejaba exactos. Se fijan acá, en un commit propio y **antes de la primera corrida contra la base**:
+
+1. **Retorno mensual (precisa §2.5).** El retorno de una operación es su P/L neto (en la moneda de la cuenta) sobre el capital realizado de su cuenta al decidir. El retorno de un mes de un índice compone los retornos de las operaciones que **se cierran** en ese mes calendario (UTC); sin operaciones, 0. Dentro de una ventana es lo mismo que el capital realizado a fin de mes sobre el del mes anterior. Una operación de D1 decidida al final de una ventana se ejecuta con la cuenta de esa ventana y cuenta en el mes en que se cierra (el primero de la ventana siguiente). Por eso el primer mes de la validación (02-2013) no tiene operación de D1: la del cambio de mes de enero de 2013 se decide en el entrenamiento.
+2. **Parámetros en config.** Los valores de las dos familias y de la regla (rango de 2 velas, ruptura hasta las 15:00, tercer día hábil, ATR(20), stop a 2 ATR, nivel 0,0125, N = 350, DSR ≥ 0,95, estrés × 1,5, segunda mitad desde 2020-01-01) quedan en `config/research.toml`, validado al cargar. Son los mismos de arriba. Solo los lee el ejemplo `ronda1`.

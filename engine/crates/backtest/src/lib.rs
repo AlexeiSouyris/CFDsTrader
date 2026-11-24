@@ -11,6 +11,7 @@ pub mod metrics;
 pub mod portfolio;
 pub mod proposals;
 pub mod rates;
+pub mod research;
 pub mod rollover;
 pub mod runner;
 pub mod scenario;
