@@ -33,6 +33,11 @@
   --chart-accent: #9fb4ff;
   --chart-signal: #e3b25b;
   --chart-grid: rgb(214 220 228 / 10%);
+  /* herramientas de análisis (#501): colores propios, que no se confundan con la dirección */
+  --chart-ema: #c49bff;
+  --chart-fib: #d9a441;
+  --chart-pivot: #8fa3b8;
+  --chart-mark: #6fd0e4;
   color-scheme: dark;
 }
 
@@ -57,6 +62,10 @@
   --chart-accent: #3a55c9;
   --chart-signal: #9a6500;
   --chart-grid: rgb(23 25 28 / 9%);
+  --chart-ema: #7238bd;
+  --chart-fib: #8a5a00;
+  --chart-pivot: #50637a;
+  --chart-mark: #0b7189;
   color-scheme: light;
 }
 

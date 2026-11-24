@@ -97,6 +97,10 @@
       "items": {
         "$ref": "liquidity_stats.v1.schema.json"
       }
+    },
+    "analysis": {
+      "description": "Opcional (agregado sin romper v1, #501): herramientas de análisis (Fibonacci, golden pocket, EMA diaria, spring/upthrust, fondos, cruces de medias, puntos pivote diarios y régimen del VIX), el mismo bloque 'analysis' de chart_export.v1 armado por cfds_backtest::analysis sobre las velas de esta vista: los índices y las listas por vela se refieren a 'candles', en el mismo orden. Solo en 15m con source 'ig'; ausente en los demás casos o sin velas. Solo se muestran: no entran al puntaje, a la estrategia ni al riesgo.",
+      "$ref": "chart_export.v1.schema.json#/properties/analysis"
     }
   },
   "$defs": {

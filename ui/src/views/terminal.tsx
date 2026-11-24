@@ -165,6 +165,7 @@ function ChartSlot({
           fvgs={data.fvgs}
           imbalance={data.imbalance}
           signals={data === example ? CHART_SIGNALS : []}
+          analysis={data.analysis}
           loadOlder={
             live
               ? (before) =>
