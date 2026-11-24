@@ -80,7 +80,7 @@ Donde se opera **en simulación**.
   - la pérdida del día usada sobre el máximo (3 % del capital);
   - el [apalancamiento](../GLOSARIO.md#apalancamiento) y las posiciones abiertas (máximo 5);
   - la última reconciliación.
-- **Aviso del kill switch:** si se activa, aparece un aviso rojo, "Kill switch activo: no se opera". Desde ahí no se abre nada. Reactivarlo pide la votación de la spec (§1.2): no se hace desde la pantalla.
+- **Aviso del kill switch:** si se activa, aparece un aviso rojo, "Kill switch activo: no se opera". Desde ahí no se abre nada. Reactivarlo pide la votación de la spec (§1.2): no se hace desde la pantalla. **Apagar y volver a prender el sistema no lo libera:** queda guardado en la base. Cómo se libera está en la sección 5.
 - **Tarjetas de cuenta:** capital, P/L abierto, P/L del día, [margen](../GLOSARIO.md#margen), apalancamiento y pérdida del día usada.
 - **Gráficos:** con los botones **1, 2 y 4** se ven uno, dos o cuatro gráficos a la vez. En cada uno se elige el instrumento y el timeframe. Se mueven, se acercan y se miden como se explica en la sección 3.
 - **Ticket** (para mandar una orden simulada):
@@ -266,6 +266,30 @@ Después de cambiar el `.env`, apagá con `Ctrl+C` y volvé a correr `infra/scri
   rm -rf engine/target
   ```
 - Para ver el espacio libre: `df -h ~`.
+
+**El kill switch está activo y no se va** (aviso rojo "Kill switch activo: no se opera")
+- El [kill switch](../GLOSARIO.md#kill-switch) es el freno de emergencia de la simulación: salta solo si se pasa un límite de pérdida, si fallan los datos, si se corta la conexión o si la cuenta guardada no coincide con la del motor. Mientras está activo, no se abre ninguna operación.
+- **Desde el 24-11 (#458) queda guardado** en la base, en la tabla `paper_kill_switch`. Apagar y volver a prender el sistema **no** lo libera, a propósito: antes un reinicio lo borraba y el sistema volvía a operar sin que nadie lo decidiera.
+- **El motor nunca lo libera solo.** Lo libera una persona, a mano, y solo después de la votación de la spec (§1.2). Hasta que exista la votación en la app, se hace así:
+  1. **Mirá por qué saltó.** En el Panel están los eventos del broker (se borran al reiniciar el gateway). Lo guardado se ve siempre en la Terminal, desde la carpeta del proyecto:
+     ```text
+     docker compose -f infra/docker-compose.yml --env-file .env exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT seq, change, after_orders, reason, at FROM paper_kill_switch ORDER BY seq;"'
+     ```
+     Cada fila es un cambio: `activated` (lo activó el motor, con el motivo en `reason`) o `released` (lo liberó una persona). Arreglá primero la causa: si los datos siguen fallando, vuelve a saltar.
+  2. **Apagá el sistema** con `Ctrl+C` en la ventana del script. La liberación se agrega con el gateway apagado.
+  3. **Abrí la base** (mismo lugar):
+     ```text
+     docker compose -f infra/docker-compose.yml --env-file .env exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+     ```
+  4. **Pegá esta línea**, cambiando `<motivo / votación>` por el resultado de la votación (por ejemplo, quién votó y cuándo). El motivo no puede quedar vacío:
+     ```sql
+     INSERT INTO paper_kill_switch (change, after_orders, reason, at)
+     VALUES ('released', (SELECT count(*) FROM paper_orders), '<motivo / votación>', now());
+     ```
+     Tiene que responder `INSERT 0 1`. Salí con `\q`.
+  5. **Volvé a prender** con `infra/scripts/ui_liquidez.sh`. La liberación vale desde ese arranque: el aviso rojo ya no aparece.
+- La tabla es de **solo agregar**: no se puede borrar ni corregir una fila. Si te equivocaste en el motivo, no pasa nada grave: queda registrado tal cual. Si el kill switch vuelve a saltar, aparece una fila `activated` nueva y hay que repetir los pasos.
+- Todo esto es **solo de la simulación**: no hay dinero real en juego.
 
 **La pantalla muestra "datos de ejemplo"**
 - Esa parte todavía es una maqueta, o el motor no respondió. No es un error, pero esos números no son reales.
