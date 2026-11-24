@@ -6,7 +6,7 @@
  * solo para dirección y P/L, ámbar solo para "simulación"). **No calcula nada:** el P/L, el
  * margen, el apalancamiento y la validación de riesgo llegan del motor; la UI los muestra.
  */
-import { Check, OctagonAlert, ShieldCheck, X } from 'lucide-react'
+import { Check, Clock, OctagonAlert, ShieldCheck, X } from 'lucide-react'
 import { useId, useState, type FormEvent, type ReactNode } from 'react'
 
 import { AnimatedNumber } from '@/components/ui/animated-number'
@@ -430,7 +430,7 @@ export function OrderTicket({
 
       {verdict?.accepted &&
         (report ? (
-          <Report report={report} />
+          <Report report={report} since={verdict.as_of} />
         ) : confirming ? (
           <div
             role="group"
@@ -485,13 +485,40 @@ export function OrderTicket({
   )
 }
 
-function Report({ report: r }: { report: OrderReport | 'mock' }) {
+/**
+ * Aviso de que el motor no tiene velas en vivo (`no_recent_candles`, #384): suele ser el cupo de
+ * IG agotado. Es un aviso de espera, no un error: va en tono neutro (ni rojo de error ni el ámbar
+ * reservado a "simulación") y con `role="status"`. La fecha es la que manda el motor (`as_of`); la UI no la calcula.
+ */
+function NoCandlesNotice({ since, className }: { since?: string; className?: string }) {
+  return (
+    <p
+      role="status"
+      className={cn(
+        'flex items-start gap-2 rounded-2xl border border-border bg-foreground/5 p-3 text-[12.5px]',
+        className,
+      )}
+    >
+      <Clock className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <span>
+        <strong className="font-bold">
+          {since ? `Sin velas en vivo desde ${dateTimeUtc(since)}.` : 'Sin velas en vivo.'}
+        </strong>{' '}
+        Vuelven cuando se renueve el cupo de IG.
+      </span>
+    </p>
+  )
+}
+
+function Report({ report: r, since }: { report: OrderReport | 'mock'; since?: string }) {
   if (r === 'mock')
     return (
       <p role="status" className="text-[12.5px] font-bold">
         Maqueta sin gateway: no se envió nada al broker simulado.
       </p>
     )
+  if (r.status === 'rejected' && r.rejection === 'no_recent_candles')
+    return <NoCandlesNotice since={since} />
   if (r.status === 'rejected')
     return (
       <p role="status" className="rounded-2xl border border-down/40 p-3 text-[12.5px]">
@@ -512,18 +539,34 @@ function Report({ report: r }: { report: OrderReport | 'mock' }) {
 
 function Verdict({ verdict: v }: { verdict: TicketVerdict }) {
   const or = (x: string | null, f: (t: string) => string) => (x === null ? '—' : f(x))
+  // sin velas en vivo es una espera (cupo de IG), no un error: se avisa en tono neutro (#384)
+  const noCandles = v.rejection === 'no_recent_candles'
   return (
     <section
       aria-label="Validación de riesgo del motor"
       className={cn(
         'rounded-2xl border p-3',
-        v.accepted ? 'border-up/40 bg-up/5' : 'border-down/40 bg-down/5',
+        v.accepted
+          ? 'border-up/40 bg-up/5'
+          : noCandles
+            ? 'border-border'
+            : 'border-down/40 bg-down/5',
       )}
     >
-      <p className={cn('text-[13px] font-extrabold', v.accepted ? 'text-up' : 'text-down')}>
-        {v.accepted ? 'El motor la acepta' : 'El motor la rechaza'}
+      <p
+        className={cn(
+          'text-[13px] font-extrabold',
+          v.accepted ? 'text-up' : noCandles ? 'text-foreground' : 'text-down',
+        )}
+      >
+        {v.accepted
+          ? 'El motor la acepta'
+          : noCandles
+            ? 'En espera de datos'
+            : 'El motor la rechaza'}
       </p>
-      {v.rejection && (
+      {noCandles && <NoCandlesNotice since={v.as_of} className="mt-2" />}
+      {v.rejection && !noCandles && (
         <p className="mt-1 flex items-start gap-2 text-[12.5px]">
           <X className="mt-0.5 size-3.5 shrink-0 text-down" aria-hidden="true" />
           {REJECTION_LABEL[v.rejection]}
