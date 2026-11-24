@@ -73,6 +73,7 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Se registran **todos**, también los que no funcionan o quedan en suspenso. Sirve para el Sharpe deflactado y el PBO de la fase 5.
 - Tabla de **solo agregar** (`infra/migrations/0015_ml_experiments.sql`): las columnas de arriba más `document`, el `JSONB` con el documento entero. El mismo experimento no se repite.
 - Lo escribe Python (`python -m cfds_intel.models.experiment <run_id>`).
+- `calibration` (opcional, #433, cambio compatible): la calibración por grupos de la predicción (spec ML §6) sobre todas las validaciones juntas, la misma que muestra el informe. Lleva `bins` (de `config/ml.toml`), `interval` (`wilson_95`) y, por modelo en `pooled`, cada grupo con `p_min` y `p_max` (desde/hasta), `n`, `mean_predicted`, `observed` y el intervalo `low`/`high`. Falta en los experimentos guardados antes de #433 y en los que quedaron en suspenso; quien lo lea (la UI) lo muestra tal cual, sin calcular nada.
 
 | Contrato | Tabla | Contenido |
 |---|---|---|

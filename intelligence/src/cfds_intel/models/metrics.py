@@ -66,6 +66,9 @@ class CalibrationBin:
     low: float
     high: float
     n: int
+    # Predicción más chica y más grande del grupo (desde/hasta, #433).
+    p_min: float
+    p_max: float
 
 
 def calibration(y: Sequence[int], p: Sequence[float], bins: int = 10) -> list[CalibrationBin]:
@@ -81,7 +84,13 @@ def calibration(y: Sequence[int], p: Sequence[float], bins: int = 10) -> list[Ca
         low, high = wilson(hits, len(chunk))
         out.append(
             CalibrationBin(
-                sum(q for q, _ in chunk) / len(chunk), hits / len(chunk), low, high, len(chunk)
+                sum(q for q, _ in chunk) / len(chunk),
+                hits / len(chunk),
+                low,
+                high,
+                len(chunk),
+                chunk[0][0],
+                chunk[-1][0],
             )
         )
     return out
