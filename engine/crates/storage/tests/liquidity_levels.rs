@@ -236,3 +236,63 @@ async fn the_database_rejects_what_the_contract_rejects() {
             .is_err()
     );
 }
+
+/// Números redondos (#497, #504): la migración 0045 acepta `round_high` y `round_low`, que se
+/// guardan y se leen como los demás niveles: sin sesión, idempotentes y sin repintado.
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn round_number_levels_are_stored_like_the_others() {
+    let s = store().await;
+    let us = fresh_instrument(&s).await;
+    let high = level(
+        &us,
+        K::RoundHigh,
+        dec!(6900),
+        "2026-11-17T10:00:00Z",
+        S::Broken,
+        Some("2026-11-17T14:30:00Z"),
+    );
+    // El mismo número, roto hacia arriba, nace como round_low en el cierre que lo rompió.
+    let low = level(
+        &us,
+        K::RoundLow,
+        dec!(6900),
+        "2026-11-17T14:30:00Z",
+        S::Intact,
+        None,
+    );
+    assert_eq!((high.session, low.session), (None, None));
+    let all = vec![high.clone(), low.clone()];
+
+    let r = s.insert_liquidity_levels(&all).await.unwrap();
+    assert_eq!((r.new_levels, r.new_events, r.unchanged), (2, 1, 0));
+    let r = s.insert_liquidity_levels(&all).await.unwrap();
+    assert_eq!((r.new_levels, r.new_events, r.unchanged), (0, 0, 2));
+    let from = at("2026-11-01T00:00:00Z");
+    assert_eq!(
+        s.liquidity_levels(&us, from, at("2026-12-01T00:00:00Z"))
+            .await
+            .unwrap(),
+        all
+    );
+
+    // Repintado: el round_high ya roto no puede volver como barrido.
+    let swept = LiquidityLevel {
+        state: S::Swept,
+        ..high.clone()
+    };
+    assert!(matches!(
+        s.insert_liquidity_levels(&[swept]).await,
+        Err(StorageError::LiquidityLevelConflict { .. })
+    ));
+
+    // Un nivel redondo con sesión no entra (la sesión es solo de los niveles de sesión).
+    let r = sqlx::query(
+        "INSERT INTO liquidity_levels (instrument_id, kind, session, price, exists_from)
+         VALUES ($1, 'round_low', 'ny', 6800, '2026-11-16T21:00:00Z')",
+    )
+    .bind(us.as_str())
+    .execute(s.pool())
+    .await;
+    assert!(r.is_err());
+}
