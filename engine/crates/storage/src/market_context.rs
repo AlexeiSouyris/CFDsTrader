@@ -36,7 +36,8 @@ fn sentiment(row: SentimentRow) -> Result<SentimentIndex, StorageError> {
 }
 
 const SENTIMENT_COLUMNS: &str =
-    "instrument_id, as_of, published_at, value, warmup_complete, min_components, components";
+    "instrument_id, as_of, published_at, round(value, 28) AS value, warmup_complete, min_components,
+     components";
 
 impl PgStore {
     /// El último índice de sentimiento publicado hasta `at` de cada instrumento.
@@ -46,8 +47,8 @@ impl PgStore {
     ) -> Result<Vec<SentimentIndex>, StorageError> {
         let rows: Vec<SentimentRow> = sqlx::query_as(
             "SELECT DISTINCT ON (instrument_id)
-               instrument_id, as_of, published_at, value, warmup_complete, min_components,
-               components
+               instrument_id, as_of, published_at, round(value, 28) AS value, warmup_complete,
+               min_components, components
              FROM sentiment_index WHERE published_at <= $1
              ORDER BY instrument_id, published_at DESC",
         )
