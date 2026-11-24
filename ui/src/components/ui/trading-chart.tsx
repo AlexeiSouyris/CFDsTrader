@@ -14,7 +14,8 @@
  *
  * Navegable (#401, `chart-nav.tsx`): arrastrar desplaza en el tiempo, la rueda hace zoom anclado
  * en el cursor y el eje de precio se ajusta solo o se estira a mano. Medir es Shift + arrastrar
- * o el botón de regla.
+ * o el botón de regla. Con el dedo (#424), el vertical queda para la página y medir es mantener
+ * apretado y arrastrar.
  */
 import { useId, useMemo, useRef, useState } from 'react'
 
@@ -33,6 +34,7 @@ import { ChartReadout } from '@/components/ui/chart-readout'
 import { LineArea } from '@/components/ui/line-area'
 import { niceTicks, renderWindow, timeTicks, visibleRange } from '@/lib/chart-viewport'
 import { dateUtc, decimal, timeTickLabel } from '@/lib/format'
+import { useCoarsePointer } from '@/lib/use-coarse-pointer'
 import { useElementWidth } from '@/lib/use-element-width'
 import { Segmented } from '@/components/ui/segmented'
 import { cn } from '@/lib/utils'
@@ -68,6 +70,7 @@ export function TradingChart({
   const clipSub = useId()
   const svgRef = useRef<SVGSVGElement>(null)
   const [boxRef, width] = useElementWidth<HTMLDivElement>(720, 300)
+  const coarse = useCoarsePointer()
   const num = (s: string | null) => (s === null ? null : Number(s))
 
   const plotW = width - AXIS_W
@@ -294,9 +297,10 @@ export function TradingChart({
           viewBox={`0 0 ${width} ${height}`}
           role="img"
           tabIndex={0}
-          aria-label={`${instrument}, ${count} velas de 1 hora desde ${first ? dateUtc(first.start) : ''}. Arrastrá para moverte en el tiempo y usá la rueda para acercar o alejar; con el foco, flechas para desplazar, + y − para el zoom y Shift + flechas para leer cada vela.`}
+          data-swipe-ignore
+          aria-label={`${instrument}, ${count} velas de 1 hora desde ${first ? dateUtc(first.start) : ''}. ${coarse ? 'Deslizá un dedo en horizontal para moverte en el tiempo y pellizcá con dos para acercar o alejar' : 'Arrastrá para moverte en el tiempo y usá la rueda para acercar o alejar'}; con el foco, flechas para desplazar, + y − para el zoom y Shift + flechas para leer cada vela.`}
           className={cn(
-            'block w-full touch-none select-none focus-visible:outline-2 focus-visible:outline-ring',
+            'block w-full touch-pan-y select-none focus-visible:outline-2 focus-visible:outline-ring',
             ruler ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing',
           )}
           {...nav.handlers}
