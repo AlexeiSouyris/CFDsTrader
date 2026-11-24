@@ -12,6 +12,14 @@ use cfds_core::{InstrumentId, Timeframe};
 use cfds_market_data::SessionCalendar;
 use chrono::{DateTime, TimeDelta, Utc};
 
+use crate::budget::{Usage, WeekSpend, check};
+use crate::config::UsageBudget;
+
+/// Código de salida de `ig_live` cuando se pone en pausa por falta de cupo (#360). Es distinto
+/// del kill switch por datos (código 1): no hay un error de datos, solo no se puede pedir nada
+/// hasta que IG renueve el cupo.
+pub const PAUSED_EXIT_CODE: i32 = 3;
+
 /// Rango `[from, to)` de velas cerradas que toca pedir ahora, o `None` si no hay ninguna.
 ///
 /// - `last_start`: inicio de la última vela ya guardada; sin ella se arranca `lookback` atrás.
@@ -91,6 +99,23 @@ pub fn next_wake(
 /// guardar y ya pasó `give_up`. El modo en vivo se detiene en vez de seguir sin datos.
 pub fn overdue(closed_at: DateTime<Utc>, now: DateTime<Utc>, give_up: TimeDelta) -> bool {
     now - closed_at > give_up
+}
+
+/// Motivo para no pedir nada en este ciclo si **ni una vela** (1 punto) entra en el
+/// presupuesto (#360): la parte del uso está agotada o la cuenta ya está en la reserva. Las reglas
+/// son las de [`check`] (#167); acá no se agrega ni se afloja ninguna.
+pub fn out_of_allowance(usage: Usage, spend: &WeekSpend, budget: &UsageBudget) -> Option<String> {
+    check(usage, 1, spend, budget).err()
+}
+
+/// Mensaje de la pausa por cupo (#360): «en pausa hasta <renovación UTC>» y el motivo de
+/// [`check`]. Sin una renovación observada, se dice que se espera la renovación sin fecha.
+pub fn pause_message(why: &str, resets_at: Option<DateTime<Utc>>) -> String {
+    let until = resets_at.map_or_else(
+        || "la renovación del cupo de IG (fecha sin observar)".to_owned(),
+        |r| r.format("%Y-%m-%d %H:%M UTC").to_string(),
+    );
+    format!("en pausa hasta {until}: sin cupo de IG, no se pide nada ({why})")
 }
 
 #[cfg(test)]
@@ -239,6 +264,80 @@ mod tests {
                 "2026-11-20T21:12:00Z"
             ),
             due(Timeframe::M15, None, "2026-11-20T21:12:00Z")
+        );
+    }
+
+    const BUDGET: UsageBudget = UsageBudget {
+        live: 3_400,
+        history: 5_000,
+        off_data_machine: 1_000,
+        reserve: 600,
+    };
+
+    #[test]
+    fn below_the_reserve_not_even_one_candle_is_requested() {
+        // El caso del #360: a la cuenta le quedan 320 puntos, con una reserva de 600.
+        let spend = WeekSpend {
+            live: 1,
+            remaining: Some(320),
+            resets_at: Some(at("2026-11-27T20:30:39Z")),
+            ..WeekSpend::default()
+        };
+        let why = out_of_allowance(Usage::Live, &spend, &BUDGET).expect("sin cupo");
+        assert!(why.contains("budget.reserve"), "{why}");
+        let msg = pause_message(&why, spend.resets_at);
+        assert!(
+            msg.starts_with("en pausa hasta 2026-11-27 20:30 UTC: "),
+            "{msg}"
+        );
+        assert!(msg.contains("no se pide nada"), "{msg}");
+    }
+
+    #[test]
+    fn an_exhausted_live_share_also_pauses() {
+        let spend = WeekSpend {
+            live: 3_400,
+            remaining: Some(5_000),
+            resets_at: Some(at("2026-11-27T20:30:00Z")),
+            ..WeekSpend::default()
+        };
+        let why = out_of_allowance(Usage::Live, &spend, &BUDGET).expect("sin cupo");
+        assert!(why.contains("budget.live"), "{why}");
+    }
+
+    #[test]
+    fn with_room_for_one_candle_there_is_no_pause() {
+        // Exactamente una vela por encima de la reserva: se pide (la regla de #167 no cambia).
+        let spend = WeekSpend {
+            remaining: Some(601),
+            ..WeekSpend::default()
+        };
+        assert_eq!(out_of_allowance(Usage::Live, &spend, &BUDGET), None);
+        // Sin observaciones en la ventana: solo manda la parte del uso.
+        assert_eq!(
+            out_of_allowance(Usage::Live, &WeekSpend::default(), &BUDGET),
+            None
+        );
+    }
+
+    #[test]
+    fn a_gap_that_does_not_fit_is_refused_even_if_one_candle_fits() {
+        // El hueco de 33 velas no entra aunque entre una sola: `ig_live` no lo pide a medias,
+        // se pone en pausa (ver ig_live). Llenarlo es de `ig_backfill` (#137).
+        let spend = WeekSpend {
+            remaining: Some(620),
+            ..WeekSpend::default()
+        };
+        assert_eq!(out_of_allowance(Usage::Live, &spend, &BUDGET), None);
+        assert!(check(Usage::Live, 33, &spend, &BUDGET).is_err());
+    }
+
+    #[test]
+    fn without_an_observed_renewal_the_pause_says_so() {
+        let msg = pause_message("motivo", None);
+        assert!(
+            msg.starts_with("en pausa hasta la renovación del cupo de IG (fecha sin observar)"),
+            "{msg}"
         );
     }
 
