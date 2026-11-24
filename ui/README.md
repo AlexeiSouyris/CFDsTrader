@@ -60,7 +60,7 @@ La vista `#liquidez` pide al gateway del motor los instrumentos y timeframes (`G
 infra/scripts/ui_liquidez.sh
 ```
 
-Sin velas guardadas muestra "Sin datos todavía"; si el gateway no responde, lo dice y reintenta. `VITE_SKIP_SIGNIN=1` (lo pone el script) saltea la pantalla de ingreso de la maqueta, solo en desarrollo.
+Sin velas guardadas muestra "Sin datos todavía"; si el gateway no responde, lo dice y reintenta. `VITE_SKIP_SIGNIN=1` (lo pone el script) saltea la pantalla de ingreso de la maqueta, solo en desarrollo. Al entrar por el ingreso se ve una transición de entrada (túnel de marcos blancos, #414); con el ingreso salteado no aparece, salvo que agregues `VITE_PORTAL_PREVIEW=1` para probarla.
 
 ## Comandos
 
