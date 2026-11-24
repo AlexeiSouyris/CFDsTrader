@@ -1,6 +1,6 @@
 # Estado de las fases (para aprobar)
 
-Actualizado el 23-11-2026. Es un resumen para el dueño: por cada fase de `docs/ROADMAP.md`, el criterio de aprobación, lo mergeado, la evidencia o lo que falta, cómo verificarlo y si la aprobación ya quedó registrada.
+Actualizado el 24-11-2026. Es un resumen para el dueño: por cada fase de `docs/ROADMAP.md`, el criterio de aprobación, lo mergeado, la evidencia o lo que falta, cómo verificarlo y si la aprobación ya quedó registrada.
 
 `CLAUDE.md` §5c pide que **ninguna fase empiece sin que la anterior esté aprobada y registrada en su Issue**. Mientras el dueño construya solo, alcanza con su aprobación explícita (modo de un solo constructor). La fase 11 siempre pide dos personas.
 
@@ -19,12 +19,12 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
 | 4 Estrategia | aprobada | [sí, #86](https://github.com/AlexeiSouyris/CFDsTrader/issues/86#issuecomment-7056065342) |
 | 4b Inteligencia | bloqueado por datos | no (#99 abierto) |
 | 5 Evaluación | bloqueado por datos y decisiones | no |
-| 6 Riesgo | listo para aprobar | no (no hay Issue de fase) |
-| 6b Fondo | listo para aprobar | no (no hay Issue de fase) |
+| 6 Riesgo | aprobada | [sí, #350](https://github.com/AlexeiSouyris/CFDsTrader/issues/350) |
+| 6b Fondo | aprobada | [sí, #351](https://github.com/AlexeiSouyris/CFDsTrader/issues/351) |
 | 7 Broker | bloqueado por decisión (cuenta demo) | no (#278 abierto) |
 | 8 Paper trading | bloqueado por decisión y tiempo | no |
 | 8b Aprendizaje continuo | falta trabajo y datos | no (#327 abierto) |
-| 9 Observabilidad | listo para aprobar (sin criterio escrito) | no |
+| 9 Observabilidad | aprobada | [sí, #352](https://github.com/AlexeiSouyris/CFDsTrader/issues/352) |
 | 10 UI y app | falta trabajo | no (#275 abierto) |
 | 11 Dinero real | bloqueada (ADR de dos personas) | — |
 
@@ -117,8 +117,8 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
   La orden duplicada la cubre la idempotencia del broker (`cfds-broker`, tests de `paper`).
   **Salvedad:** el "precio razonable" de la validación hoy solo rechaza precios imposibles (≤ 0, o el stop en la entrada). No hay un control de distancia al mercado.
 - **Verificar:** `cd engine && cargo test -p cfds-risk --test risk && cargo test -p cfds-broker --test paper`
-- **Aprobación:** no registrada. No hay Issue de fase: abrirlo y registrar ahí.
-- **Estado:** **listo para aprobar** (o pedir antes el control de precio razonable).
+- **Aprobación:** registrada en #350 (24-11-2026), fuera de orden y con la salvedad del precio razonable aceptada.
+- **Estado:** **aprobada**.
 
 ## Fase 6b: Fondo del grupo
 
@@ -126,8 +126,8 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
 - **Mergeado:** contabilidad por unidades (#178), historial en PostgreSQL (#180), el fondo real en la UI (#313).
 - **Evidencia:** el test `glossary_example_comes_out_exact_through_the_route` da NAV 1,10, 275 € y 250 unidades, con lo de cada miembro igual al cálculo a mano. Hay otro test para repartos que no cierran en céntimos.
 - **Verificar:** `cd engine && cargo test -p cfds-fund && cargo test -p cfds-gateway --test fund_routes`; en la UI, la vista del fondo.
-- **Aprobación:** no registrada. No hay Issue de fase.
-- **Estado:** **listo para aprobar**.
+- **Aprobación:** registrada en #351 (24-11-2026), fuera de orden.
+- **Estado:** **aprobada**.
 
 ## Fase 7: Broker
 
@@ -167,8 +167,8 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
 - **Mergeado:** logs JSON sin secretos y alertas (#300); arranque y parada seguros (#302); estado de la operación y del riesgo en la UI (#317).
 - **Evidencia:** tests de `cfds-obs` y del gateway (`ops`, arranque y parada). Telegram es opcional y está apagado si no hay token.
 - **Verificar:** `cd engine && cargo test -p cfds-obs -p cfds-gateway`; en la UI, la barra de estado.
-- **Aprobación:** no registrada (#297 cerrado como trabajo).
-- **Estado:** **listo para aprobar**, si el dueño acepta este alcance como criterio. Telegram queda pendiente de su decisión.
+- **Aprobación:** registrada en #352 (24-11-2026), fuera de orden, con este alcance como criterio.
+- **Estado:** **aprobada**. Prender Telegram sigue a decisión del dueño.
 
 ## Fase 10: UI y app del celular
 
