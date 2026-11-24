@@ -2,9 +2,13 @@
  * Profundidad de mercado: compras (bid) a la izquierda del medio, ventas (ask) a la derecha.
  * Inspirado en "Depth Chart" (21st.dev), reescrito (#164) sin el motor de gráficos que
  * faltaba en el original. Los totales acumulados llegan en los datos: la UI no los suma.
+ *
+ * La sonda (línea vertical y punto) se desliza con el mismo movimiento que los gráficos de precio
+ * (#377, `PointerStore`): mover el cursor solo vuelve a dibujar la sonda, no las escaleras.
  */
-import { useState, type PointerEvent } from 'react'
+import { useMemo, useState, type PointerEvent } from 'react'
 
+import { PointerStore, usePointer } from '@/components/ui/chart-measure'
 import { decimal } from '@/lib/format'
 import { useElementWidth } from '@/lib/use-element-width'
 import type { BookLevel, OrderBook } from '@/mocks'
@@ -21,7 +25,7 @@ export function DepthChart({
   height?: number
 }) {
   const [ref, width] = useElementWidth<HTMLDivElement>(560)
-  const [probe, setProbe] = useState<{ x: number; level: BookLevel; bid: boolean } | null>(null)
+  const [store] = useState(() => new PointerStore())
   const mid = Number(book.mid)
   const lastBid = book.bids[book.bids.length - 1]
   const lastAsk = book.asks[book.asks.length - 1]
@@ -34,7 +38,7 @@ export function DepthChart({
   const xOf = (p: number) => x0 + ((p - (mid - half)) / (2 * half)) * (x1 - x0)
   const yOf = (t: number) => y1 - (t / maxTotal) * (y1 - y0)
 
-  const step = (levels: BookLevel[]) => {
+  const step = (levels: BookLevel[]): string => {
     let d = `M${xOf(mid)},${y1}`
     let prev = y1
     for (const l of levels) {
@@ -45,6 +49,14 @@ export function DepthChart({
     return `${d}L${xOf(Number(levels[levels.length - 1].price))},${y1}Z`
   }
 
+  const levels = useMemo(
+    () => [
+      ...book.bids.map((level) => ({ level, bid: true })),
+      ...book.asks.map((level) => ({ level, bid: false })),
+    ],
+    [book],
+  )
+
   const onMove = (e: PointerEvent<SVGSVGElement>) => {
     const r = e.currentTarget.getBoundingClientRect()
     const px = ((e.clientX - r.left) / r.width) * width
@@ -54,7 +66,15 @@ export function DepthChart({
     // el último nivel alcanzado desde el medio hacia el puntero
     const reached = side.filter((l) => (bid ? price <= Number(l.price) : price >= Number(l.price)))
     const level = reached[reached.length - 1]
-    setProbe(level ? { x: Math.max(x0, Math.min(x1, px)), level, bid } : null)
+    const k = level ? levels.findIndex((l) => l.level === level) : -1
+    store.set(
+      k < 0
+        ? { hover: null, dotGoal: null }
+        : {
+            hover: k,
+            dotGoal: { idx: Math.max(x0, Math.min(x1, px)), price: Number(level.total) },
+          },
+    )
   }
 
   return (
@@ -90,7 +110,7 @@ export function DepthChart({
           aria-label={`Profundidad de ${instrument}: medio ${decimal(book.mid)}, spread ${decimal(book.spread)}.`}
           className="block w-full touch-pan-y select-none"
           onPointerMove={onMove}
-          onPointerLeave={() => setProbe(null)}
+          onPointerLeave={() => store.set({ hover: null, dotGoal: null })}
         >
           {[0.25, 0.5, 0.75, 1].map((f) => (
             <g key={f}>
@@ -157,38 +177,61 @@ export function DepthChart({
               {decimal(p.toFixed(1))}
             </text>
           ))}
-          {probe && (
-            <g pointerEvents="none">
-              <line
-                x1={probe.x}
-                x2={probe.x}
-                y1={y0}
-                y2={y1}
-                stroke="var(--foreground)"
-                opacity={0.35}
-                strokeDasharray="3 3"
-              />
-              <circle
-                cx={probe.x}
-                cy={yOf(Number(probe.level.total))}
-                r={4}
-                fill="var(--surface)"
-                stroke={probe.bid ? 'var(--chart-up)' : 'var(--chart-down)'}
-                strokeWidth={2}
-              />
-              <text
-                x={Math.min(x1 - 60, probe.x + 8)}
-                y={y0 + 12}
-                fontSize={11}
-                fontWeight={700}
-                fill="var(--foreground)"
-              >
-                {decimal(probe.level.price)} · {decimal(probe.level.total)}
-              </text>
-            </g>
-          )}
+          <DepthProbe store={store} levels={levels} yOf={yOf} top={y0} bottom={y1} right={x1} />
         </svg>
       </div>
     </div>
+  )
+}
+
+/** La sonda: se desliza hacia el nivel bajo el cursor (o va directo con reduced-motion). */
+function DepthProbe({
+  store,
+  levels,
+  yOf,
+  top,
+  bottom,
+  right,
+}: {
+  store: PointerStore
+  levels: { level: BookLevel; bid: boolean }[]
+  yOf: (total: number) => number
+  top: number
+  bottom: number
+  right: number
+}) {
+  const s = usePointer(store, (st) => st)
+  const probe = s.hover === null ? null : levels[s.hover]
+  if (!probe || !s.dot || !s.dotGoal) return null
+  const x = s.dot.idx
+  return (
+    <g data-depth-probe={probe.bid ? 'bid' : 'ask'} data-x={s.dotGoal.idx} pointerEvents="none">
+      <line
+        x1={x}
+        x2={x}
+        y1={top}
+        y2={bottom}
+        stroke="var(--foreground)"
+        opacity={0.35}
+        strokeDasharray="3 3"
+      />
+      <circle
+        cx={x}
+        cy={yOf(s.dot.price)}
+        r={4}
+        fill="var(--surface)"
+        stroke={probe.bid ? 'var(--chart-up)' : 'var(--chart-down)'}
+        strokeWidth={2}
+      />
+      <text
+        x={Math.min(right - 60, x + 8)}
+        y={top + 12}
+        fontSize={11}
+        fontWeight={700}
+        fill="var(--foreground)"
+      >
+        {decimal(probe.level.price)} · {decimal(probe.level.total)}
+      </text>
+    </g>
   )
 }

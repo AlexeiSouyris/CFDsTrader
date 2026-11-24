@@ -7,12 +7,22 @@
  * posición y los textos se muestran tal cual llegan.
  *
  * Lleva la herramienta de medición (#281, `chart-measure.tsx`): una medición visual del usuario
- * sobre la escala del eje Y, no lógica de trading.
+ * sobre la escala del eje Y, no lógica de trading. Se ve con velas o en modo línea (#377), y la
+ * cabecera muestra el cambio del rango, de la vela bajo el cursor o de la medición.
  */
 import { useMemo, useRef, useState } from 'react'
 
-import { AnimatedNumber } from '@/components/ui/animated-number'
-import { LABEL_GAP, placeLabels, useChartMeasure } from '@/components/ui/chart-measure'
+import {
+  CHART_MODES,
+  LABEL_GAP,
+  placeLabels,
+  rangeTrend,
+  useChartMeasure,
+  type ChartMode,
+} from '@/components/ui/chart-measure'
+import { ChartFollower } from '@/components/ui/chart-follower'
+import { ChartReadout } from '@/components/ui/chart-readout'
+import { LineArea } from '@/components/ui/line-area'
 import { Segmented } from '@/components/ui/segmented'
 import { dateTimeUtc, dateUtc, decimal } from '@/lib/format'
 import { fvgKey, levelKey, levelName, levelShort, STATE_LABEL } from '@/lib/liquidity-labels'
@@ -91,6 +101,7 @@ export function LiquidityChart({
   const ranges = RANGES[timeframe]
   const [range, setRange] = useState(ranges[1].label)
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('Todos')
+  const [mode, setMode] = useState<ChartMode>('Velas')
   const [boxRef, width] = useElementWidth<HTMLDivElement>(720, 300)
   const svgRef = useRef<SVGSVGElement>(null)
 
@@ -106,7 +117,10 @@ export function LiquidityChart({
   const lo = Math.min(...view.map((b) => Number(b.low)))
   const hi = Math.max(...view.map((b) => Number(b.high)))
   const pad = (hi - lo) * 0.06 || 1
-  const yP = (v: number) => top + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * plotH
+  const yP = useMemo(
+    () => (v: number) => top + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * plotH,
+    [lo, hi, pad, plotH, top],
+  )
   const inScale = (v: number) => v >= lo - pad && v <= hi + pad
 
   // Ubica una hora (UTC) en el eje x: el borde derecho de las velas que ya cerraron a esa hora.
@@ -159,6 +173,10 @@ export function LiquidityChart({
     Math.min(count - 1, Math.round((k * (count - 1)) / 3)),
   )
   const last = view[count - 1]
+  const starts = useMemo(() => view.map((b) => b.start), [view])
+  const closeTexts = useMemo(() => view.map((b) => b.close), [view])
+  const closes = useMemo(() => view.map((b) => Number(b.close)), [view])
+  const digits = (last?.close.split('.')[1] ?? '').length
   const measure = useChartMeasure(svgRef, {
     width,
     height,
@@ -166,11 +184,46 @@ export function LiquidityChart({
     top,
     bottom: top + plotH,
     slot,
-    starts: view.map((b) => b.start),
-    closes: view.map((b) => Number(b.close)),
+    starts,
+    closes,
     yOf: yP,
-    digits: (last?.close.split('.')[1] ?? '').length,
+    digits,
+    mode,
   })
+
+  // Las velas (o la línea) se arman una vez por rango, ancho y modo: mover el cursor no las toca.
+  const candles = useMemo(
+    () =>
+      mode === 'Línea'
+        ? null
+        : view.map((b, i) => {
+            const color =
+              Number(b.close) >= Number(b.open) ? 'var(--chart-up)' : 'var(--chart-down)'
+            const yo = yP(Number(b.open))
+            const yc = yP(Number(b.close))
+            const x = i * slot + slot / 2
+            return (
+              <g key={b.start} data-candle={b.start}>
+                <line x1={x} x2={x} y1={yP(Number(b.high))} y2={yP(Number(b.low))} stroke={color} />
+                <rect
+                  x={x - body / 2}
+                  y={Math.min(yo, yc)}
+                  width={body}
+                  height={Math.max(1, Math.abs(yc - yo))}
+                  fill={color}
+                />
+              </g>
+            )
+          }),
+    [mode, view, yP, slot, body],
+  )
+  const linePoints = useMemo(
+    () =>
+      closes.map((c, i): [number, number] | null =>
+        Number.isFinite(c) ? [i * slot + slot / 2, yP(c)] : null,
+      ),
+    [closes, slot, yP],
+  )
 
   return (
     <div className={cn('w-full', className)}>
@@ -179,11 +232,12 @@ export function LiquidityChart({
           <p className="text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase">
             {instrument} · {TF_LABEL[timeframe].short} · liquidez
           </p>
-          {last && (
-            <p className="mt-1 text-[26px] leading-none font-bold tracking-[-0.03em]">
-              <AnimatedNumber value={last.close} format={decimal} />
-            </p>
-          )}
+          <ChartReadout
+            store={measure.store}
+            starts={starts}
+            closes={closeTexts}
+            rangeLabel={range}
+          />
           {lastClose && (
             <p className="mt-1 text-[11px] text-muted-foreground">
               Última vela cerrada: {dateTimeUtc(lastClose.toISOString())}
@@ -191,6 +245,12 @@ export function LiquidityChart({
           )}
         </div>
         <div className="flex flex-wrap gap-2">
+          <Segmented
+            label="Tipo de gráfico"
+            options={CHART_MODES}
+            value={mode}
+            onChange={(v) => setMode(v as ChartMode)}
+          />
           <Segmented
             label="Niveles"
             options={FILTERS}
@@ -259,26 +319,18 @@ export function LiquidityChart({
             )
           })}
 
-          {/* velas */}
-          {view.map((b, i) => {
-            const color =
-              Number(b.close) >= Number(b.open) ? 'var(--chart-up)' : 'var(--chart-down)'
-            const yo = yP(Number(b.open))
-            const yc = yP(Number(b.close))
-            const x = i * slot + slot / 2
-            return (
-              <g key={b.start} data-candle={b.start}>
-                <line x1={x} x2={x} y1={yP(Number(b.high))} y2={yP(Number(b.low))} stroke={color} />
-                <rect
-                  x={x - body / 2}
-                  y={Math.min(yo, yc)}
-                  width={body}
-                  height={Math.max(1, Math.abs(yc - yo))}
-                  fill={color}
-                />
-              </g>
-            )
-          })}
+          {/* velas, o la línea de cierre con su área */}
+          {mode === 'Línea' ? (
+            <LineArea
+              points={linePoints}
+              top={top}
+              bottom={top + plotH}
+              gridX={timeLabels.map((i) => i * slot + slot / 2)}
+              trend={rangeTrend(closes, digits)}
+            />
+          ) : (
+            candles
+          )}
 
           {/* velas de desplazamiento (marca del motor) */}
           {imbalance.map((d) => {
@@ -397,7 +449,7 @@ export function LiquidityChart({
             ) : null,
           )}
 
-          {measure.overlay}
+          <ChartFollower store={measure.store} plot={measure.plot} />
         </svg>
       </div>
 
