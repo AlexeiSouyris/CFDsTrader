@@ -10,8 +10,9 @@
 //! - **Backtest:** el recorrido sobre las mismas velas cerradas de 15m y 1h (validadas igual) y la
 //!   misma config, con los mismos filtros de entrada que usa el runner del gateway (horario,
 //!   spread §7.3 y noticias de alto impacto §7.2), el ajuste de noticias §9 y la financiación
-//!   diaria guardada. Las velas empiezan `[runner] lookback_days` antes de `desde`, para el
-//!   calentamiento. Arranca con el capital que tenía la cuenta paper en `desde`.
+//!   diaria guardada. Las velas empiezan `[runner] lookback_days` antes de `desde`, solo para
+//!   el calentamiento: el backtest no abre operaciones antes de `desde` (#440). Arranca con el
+//!   capital que tenía la cuenta paper en `desde` y llega a `desde` con ese mismo capital.
 //! - Empareja por vela de decisión y reparte la diferencia por causa (`paper_comparison.v1`).
 //! - Además (#406) compara **todas las decisiones**, no solo las operaciones: cada orden del
 //!   registro (llenada o rechazada por el riesgo) contra la señal del backtest en la misma vela y
@@ -39,7 +40,7 @@ use cfds_market_data::{
     trading_window,
 };
 use cfds_risk::RiskConfig;
-use cfds_runner::compare::{Inputs, compare};
+use cfds_runner::compare::{Inputs, compare, entries_from};
 use cfds_storage::PgStore;
 use chrono::{DateTime, Utc};
 
@@ -159,6 +160,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .zip(&decisions)
         .map(|(c, d)| *d && allowed.get(&c.start).copied().unwrap_or(false))
         .collect();
+    // Antes de `desde` solo calentamiento: sin entradas, así el backtest llega a `desde` con el
+    // capital de la cuenta paper y sin posición (#440).
+    let entries = entries_from(&m15, &entries, from);
     let (_, force_close) =
         trading_window::flags(session, &m15, &deps.window).ok_or("fechas fuera del calendario")?;
     let news = same_model(

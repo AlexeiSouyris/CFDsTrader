@@ -16,7 +16,7 @@ use cfds_core::{
 use cfds_liquidity::Side;
 use cfds_market_data::{SessionCalendar, ValidationConfig};
 use cfds_risk::{InstrumentLimits, RiskConfig};
-use cfds_runner::compare::{Causes, Comparison, Inputs, compare};
+use cfds_runner::compare::{Causes, Comparison, Inputs, compare, entries_from};
 use cfds_runner::{Feed, Runner, RunnerConfig, strategy_from_toml};
 use chrono::{DateTime, NaiveTime, TimeDelta, Utc};
 use rust_decimal::{Decimal, dec};
@@ -493,6 +493,67 @@ fn a_synthetic_paper_journal_from_the_runner_is_explained() {
 }
 
 /// Cada comparación cumple `contracts/paper_comparison.v1`.
+#[test]
+fn entries_before_from_are_only_warmup() {
+    let (m15, _) = walk();
+    let from = m15[10].end();
+    // Sin marca cuenta como permitida (como en el backtest); la marca `false` se respeta.
+    let mut given = vec![true; 20];
+    given[15] = false;
+    let e = entries_from(&m15, &given, from);
+    assert_eq!(e.len(), m15.len());
+    for (i, ok) in e.iter().enumerate() {
+        assert_eq!(*ok, i >= 10 && i != 15, "vela {i}");
+    }
+    // Sin look-ahead: el resultado de una vela no cambia al llegar velas nuevas.
+    let shorter = entries_from(&m15[..100], &given, from);
+    assert_eq!(shorter[..], e[..100]);
+}
+
+/// #440: paper decide desde `from` con el capital de la cuenta en `from`. Si el backtest opera
+/// en el calentamiento, llega a `from` con otro capital y las mismas decisiones salen con otro
+/// tamaño; sin entradas antes de `from`, la misma corrida da diferencia cero.
+#[test]
+fn the_backtest_does_not_trade_during_the_paper_warmup() {
+    let (m15, h1) = walk();
+    let full = run_checked(&m15, &h1, &[], &[], &[], &setup(dec!(2))).unwrap();
+    assert!(full.trades.len() > 4, "{} operaciones", full.trades.len());
+    let from = full.trades[full.trades.len() / 2].signal_at;
+    assert!(full.trades.iter().any(|t| t.signal_at < from));
+
+    let entries = entries_from(&m15, &[], from);
+    let report = run_checked(&m15, &h1, &entries, &[], &[], &setup(dec!(2))).unwrap();
+    assert!(!report.trades.is_empty());
+    assert!(report.trades.iter().all(|t| t.signal_at >= from));
+
+    // Paper: las mismas decisiones desde `from`, con el capital inicial.
+    let (journal, paper) = synthetic(&report, None, Decimal::ZERO);
+    let now = m15.last().unwrap().end();
+    let with = |backtest: &Report| {
+        compare(&Inputs {
+            instrument: &id(),
+            from,
+            to: now,
+            journal: &journal,
+            paper: &paper,
+            backtest,
+            m15: &m15,
+            created_at: now,
+        })
+    };
+    let c = with(&report);
+    assert_explained(&c);
+    assert_eq!(c.matched.len(), report.trades.len());
+    assert!(c.missing.is_empty() && c.extra.is_empty());
+    assert_eq!(c.difference, Decimal::ZERO);
+    assert_eq!(c.causes, Causes::default());
+
+    // Lo que pasaba antes: el backtest que operó en el calentamiento fabrica «tamaño».
+    let before = with(&full);
+    assert_explained(&before);
+    assert_ne!(before.causes.size, Decimal::ZERO);
+}
+
 fn assert_contract(c: &Comparison) {
     let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../../contracts/paper_comparison.v1.schema.json");
