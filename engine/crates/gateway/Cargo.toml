@@ -36,3 +36,7 @@ sqlx = { version = "0.9.1", default-features = false, features = ["runtime-tokio
 
 [lints]
 workspace = true
+
+[[example]]
+name = "runner_replay"
+test = true

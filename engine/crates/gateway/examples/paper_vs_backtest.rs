@@ -13,6 +13,9 @@
 //!   diaria guardada. Las velas empiezan `[runner] lookback_days` antes de `desde`, para el
 //!   calentamiento. Arranca con el capital que tenía la cuenta paper en `desde`.
 //! - Empareja por vela de decisión y reparte la diferencia por causa (`paper_comparison.v1`).
+//! - Además (#406) compara **todas las decisiones**, no solo las operaciones: cada orden del
+//!   registro (llenada o rechazada por el riesgo) contra la señal del backtest en la misma vela y
+//!   lado, y lista las que no coinciden.
 //!   Con `--guardar`, la guarda en `paper_comparisons` (solo agregar).
 //!
 //! Solo lee la base (salvo `--guardar`). Nunca llama a IG. Solo paper.
@@ -24,10 +27,13 @@ use cfds_backtest::{
     BacktestConfig, DailyRates, FundingRates, market_terms_from_catalog, run_with_news,
     setup_from_catalog,
 };
-use cfds_broker::{Broker, BrokerConfig, FundingSetup, MarketSetup, restore_and_reconcile};
-use cfds_core::{Candle, InstrumentId, Timeframe};
+use cfds_broker::{
+    Broker, BrokerConfig, FundingSetup, MarketSetup, rejection_code, restore_and_reconcile,
+};
+use cfds_core::{Candle, InstrumentId, OrderSide, OrderStatus, Timeframe};
 use cfds_gateway::paper_runner::{RunnerDeps, entry_flags, same_model};
 use cfds_journal::pg::PgJournal;
+use cfds_liquidity::Side;
 use cfds_market_data::{
     Catalog, NewsFilter, ValidationConfig, check_series, decision_flags, spread_flags,
     trading_window,
@@ -216,6 +222,60 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ("sobra en paper", k.extra_in_paper),
     ] {
         println!("  {name}: {v}");
+    }
+    // Las decisiones, no solo las operaciones (#406): cada propuesta del runner (llenada o
+    // rechazada por el riesgo) contra cada señal del backtest en la misma vela y lado.
+    let paper_decisions: BTreeMap<(DateTime<Utc>, &str), String> = journal
+        .iter()
+        .filter(|(o, _)| o.created_at >= from && o.created_at <= to)
+        .map(|(o, r)| {
+            let what = match (r.status, r.rejection) {
+                (_, Some(x)) => format!("rechazada:{x:?}"),
+                (OrderStatus::Filled, None) => "llenada".to_owned(),
+                (st, None) => format!("{st:?}"),
+            };
+            let side = match o.side {
+                OrderSide::Long => "long",
+                OrderSide::Short => "short",
+            };
+            ((o.created_at, side), what)
+        })
+        .collect();
+    let side = |s: Side| match s {
+        Side::Long => "long",
+        Side::Short => "short",
+    };
+    let backtest_decisions: BTreeMap<(DateTime<Utc>, &str), String> = report
+        .trades
+        .iter()
+        .map(|t| ((t.signal_at, side(t.side)), "llenada".to_owned()))
+        .chain(report.rejected.iter().map(|r| {
+            (
+                (m15[r.index].end(), side(r.side)),
+                format!("rechazada:{:?}", rejection_code(&r.reason)),
+            )
+        }))
+        .filter(|((at, _), _)| *at >= from && *at <= to)
+        .collect();
+    let same = paper_decisions
+        .iter()
+        .filter(|(k, v)| backtest_decisions.get(*k) == Some(*v))
+        .count();
+    println!(
+        "decisiones: paper {}, backtest {}, iguales (vela, lado y resultado) {same}",
+        paper_decisions.len(),
+        backtest_decisions.len()
+    );
+    for (k, v) in &paper_decisions {
+        let b = backtest_decisions.get(k);
+        if b != Some(v) {
+            println!("  ≠ {} {}: paper {v}, backtest {b:?}", k.0, k.1);
+        }
+    }
+    for (k, v) in &backtest_decisions {
+        if !paper_decisions.contains_key(k) {
+            println!("  ≠ {} {}: paper —, backtest {v}", k.0, k.1);
+        }
     }
     let doc = serde_json::to_value(&c)?;
     if save {
