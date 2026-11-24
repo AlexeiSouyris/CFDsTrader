@@ -14,7 +14,9 @@ stype_in = "continuous"
 # Desde cuándo se quiere el histórico. Si un dataset empieza después, se baja desde su inicio,
 # que sale de metadata.get_dataset_range en cada corrida (nunca fijo acá): Eurex (XEUR.EOBI)
 # arranca el 2025-03-10 (medido el 23-11-2026). El fin es la medianoche UTC de hoy (exclusivo).
-start = "2021-11-01"
+# Si ya hay datos guardados desde una fecha posterior, --run baja también el tramo anterior.
+# 2011-01-01: decisión del dueño del 24-11-2026 (#369, unos 15 años de ES, NQ y YM).
+start = "2011-01-01"
 
 [budget]
 # Tope de gasto total (USD) de una corrida, por debajo de los USD 125 de crédito gratis. Si la

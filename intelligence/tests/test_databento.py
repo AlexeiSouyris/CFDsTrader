@@ -15,9 +15,13 @@ from jsonschema import Draft202012Validator
 
 from cfds_intel.databento import __main__ as cli
 from cfds_intel.databento.bars import (
+    BACKWARD,
+    FORWARD,
     BudgetError,
     DatabentoError,
+    Stored,
     check_budget,
+    chunks,
     estimate,
     fetch_bars,
     months,
@@ -115,7 +119,7 @@ def test_the_repository_config_maps_the_four_futures() -> None:
         ("GLBX.MDP3", "YM.c.0", "US30"),
         ("XEUR.EOBI", "FDAX.c.0", "DE40"),
     ]
-    assert (CFG.start, CFG.max_usd) == (date(2021, 11, 1), Decimal(100))
+    assert (CFG.start, CFG.max_usd) == (date(2011, 1, 1), Decimal(100))
     assert (CFG.schema, CFG.stype_in) == ("ohlcv-1m", "continuous")
 
 
@@ -126,8 +130,8 @@ def test_the_repository_config_maps_the_four_futures() -> None:
         ('max_usd = "100"', 'max_usd = "-1"'),
         ('symbol = "ES.c.0"', 'symbol = "ESZ6"'),
         ('instrument_id = "US30"', 'instrument_id = "US500"'),
-        ('start = "2021-11-01"', 'start = "1/11/2021"'),
-        ('start = "2021-11-01"', 'start = "2021-11-01"\nmin_start = "2023-08-01"'),
+        ('start = "2011-01-01"', 'start = "1/1/2011"'),
+        ('start = "2011-01-01"', 'start = "2011-01-01"\nmin_start = "2023-08-01"'),
         ('schema = "ohlcv-1m"', 'schema = "trades"'),
         ("min_session_hours = 18", "min_session_hours = 25"),
         ("max_gap_minutes = 5", "max_gap_minutes = 0"),
@@ -150,7 +154,7 @@ def test_estimate_uses_only_free_metadata_and_respects_dataset_starts() -> None:
     }
     es = est[0]
     assert (es.start, es.end, es.cost_usd, es.records, es.skipped) == (
-        date(2021, 11, 1),
+        date(2011, 1, 1),
         date(2026, 11, 23),
         Decimal("1.25"),
         1000,
@@ -164,7 +168,7 @@ def test_estimate_uses_only_free_metadata_and_respects_dataset_starts() -> None:
         "symbols": ["ES.c.0"],
         "schema": "ohlcv-1m",
         "stype_in": "continuous",
-        "start": "2021-11-01",
+        "start": "2011-01-01",
         "end": "2026-11-23",
     }
     assert check_budget(est, CFG.max_usd) == Decimal("5.00")
@@ -183,12 +187,65 @@ def test_the_dataset_start_comes_from_metadata_not_from_the_code() -> None:
 
 def test_estimate_continues_from_what_is_already_stored() -> None:
     loaded = {
-        ("GLBX.MDP3", "ES.c.0"): date(2026, 11, 23),
-        ("GLBX.MDP3", "NQ.c.0"): date(2025, 1, 1),
+        ("GLBX.MDP3", "ES.c.0"): Stored(date(2011, 1, 1), date(2026, 11, 23)),
+        ("GLBX.MDP3", "NQ.c.0"): Stored(date(2011, 1, 1), date(2025, 1, 1)),
     }
     est = estimate(FakeClient(), CFG, date(2026, 11, 23), loaded)
     assert est[0].skipped == "ya está todo guardado"
-    assert est[1].start == date(2025, 1, 1)
+    assert (est[1].part, est[1].start, est[1].end) == (
+        FORWARD,
+        date(2025, 1, 1),
+        date(2026, 11, 23),
+    )
+
+
+def test_estimate_also_fills_the_part_before_what_is_stored() -> None:
+    # Lo bajado con el `start` anterior (2021-11-01) hasta el 2026-11-23; FDAX desde su inicio.
+    loaded = {
+        ("GLBX.MDP3", "ES.c.0"): Stored(date(2021, 11, 1), date(2026, 11, 23)),
+        ("GLBX.MDP3", "NQ.c.0"): Stored(date(2021, 11, 1), date(2026, 11, 20)),
+        ("XEUR.EOBI", "FDAX.c.0"): Stored(date(2025, 3, 10), date(2026, 11, 23)),
+    }
+    c = FakeClient(cost=1.25)
+    est = estimate(c, CFG, date(2026, 11, 23), loaded)
+    got = [(e.symbol.symbol, e.part, e.start, e.end, e.skipped) for e in est]
+    assert got == [
+        ("ES.c.0", BACKWARD, date(2011, 1, 1), date(2021, 11, 1), None),
+        ("NQ.c.0", BACKWARD, date(2011, 1, 1), date(2021, 11, 1), None),
+        ("NQ.c.0", FORWARD, date(2026, 11, 20), date(2026, 11, 23), None),
+        # Sin nada guardado: un solo tramo entero.
+        ("YM.c.0", None, date(2011, 1, 1), date(2026, 11, 23), None),
+        # Eurex empieza el 2025-03-10: no hay nada anterior que pedir.
+        ("FDAX.c.0", None, date(2026, 11, 23), date(2026, 11, 23), "ya está todo guardado"),
+    ]
+    assert c.timeseries.calls == [], "estimar nunca baja datos"
+    # El tope de gasto se aplica al total de todos los tramos (4 x 1,25).
+    assert check_budget(est, CFG.max_usd) == Decimal("5.00")
+    with pytest.raises(BudgetError):
+        check_budget(est, Decimal("4.99"))
+    # Nunca se pide lo que ya está guardado, ni un hueco entre el primer y el último tramo.
+    for e in est:
+        s = loaded.get((e.symbol.dataset, e.symbol.symbol))
+        assert s is None or e.end <= s.first or e.start >= s.until
+
+
+def test_the_part_before_is_fetched_from_the_newest_month_back() -> None:
+    est = estimate(
+        FakeClient(),
+        replace(CFG, start=date(2021, 8, 15), symbols=CFG.symbols[:1]),
+        date(2026, 11, 23),
+        {("GLBX.MDP3", "ES.c.0"): Stored(date(2021, 11, 1), date(2026, 11, 23))},
+    )
+    assert chunks(est[0]) == [
+        (date(2021, 10, 1), date(2021, 11, 1)),
+        (date(2021, 9, 1), date(2021, 10, 1)),
+        (date(2021, 8, 15), date(2021, 9, 1)),
+    ]
+    fwd = replace(est[0], part=FORWARD, start=date(2026, 10, 20), end=date(2026, 11, 23))
+    assert chunks(fwd) == [
+        (date(2026, 10, 20), date(2026, 11, 1)),
+        (date(2026, 11, 1), date(2026, 11, 23)),
+    ]
 
 
 def test_the_budget_stops_everything() -> None:
@@ -402,3 +459,41 @@ def test_check_month_counts_duplicates_without_storing_and_only_filters_symbols(
     assert (req["symbols"], req["start"], req["end"]) == (["FDAX.c.0"], "2026-11-01", "2026-12-01")
     assert cli.main(["x", "--run", "--only", "XX.c.0"]) == 2
     assert cli.main(["x", "--check-month"]) == 2
+
+
+def test_cli_run_fills_before_and_after_what_is_stored(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import contextlib
+
+    import psycopg
+
+    from cfds_intel.databento import store
+
+    monkeypatch.setenv("DATABENTO_API_KEY", "db-" + "k" * 29)
+    monkeypatch.setenv("CFDS_DATA_MACHINE", "1")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://falsa")
+    monkeypatch.setattr(cli, "CONFIG", ROOT / "config" / "databento.toml")
+    monkeypatch.setattr(cli, "today_utc", lambda: date(2026, 11, 23))
+    c = FakeClient(cost=0.5)
+    monkeypatch.setattr(cli, "client", lambda: c)
+    monkeypatch.setattr(psycopg, "connect", lambda *a, **k: contextlib.nullcontext(object()))
+    stored_es = Stored(date(2021, 11, 1), date(2026, 11, 1))
+    monkeypatch.setattr(store, "loaded_spans", lambda conn: {("GLBX.MDP3", "ES.c.0"): stored_es})
+    saved: list[tuple[date, date]] = []
+
+    def insert(conn: object, sym: object, a: date, b: date, *_: object) -> store.ChunkReport:
+        saved.append((a, b))
+        return store.ChunkReport(0, 0)
+
+    monkeypatch.setattr(store, "insert_chunk", insert)
+    assert cli.main(["x", "--run", "--only", "ES.c.0"]) == 0
+    # Primero lo anterior, del mes más nuevo al más viejo; después lo posterior.
+    assert saved[0] == (date(2021, 10, 1), date(2021, 11, 1))
+    assert saved[129] == (date(2011, 1, 1), date(2011, 2, 1))
+    assert saved[130:] == [(date(2026, 11, 1), date(2026, 11, 23))]
+    assert all(a >= stored_es.until or b <= stored_es.first for a, b in saved)
+    out = capsys.readouterr().out
+    assert "ES.c.0 (GLBX.MDP3 → US500) [antes de lo guardado]: 2011-01-01 → 2021-11-01" in out
+    assert "[después de lo guardado]: 2026-11-01 → 2026-11-23" in out
+    assert "total estimado: USD 1.00" in out

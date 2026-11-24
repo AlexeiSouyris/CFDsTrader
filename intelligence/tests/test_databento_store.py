@@ -14,9 +14,9 @@ from decimal import Decimal
 import psycopg
 import pytest
 
-from cfds_intel.databento.bars import Bar
+from cfds_intel.databento.bars import Bar, Stored
 from cfds_intel.databento.config import SymbolConfig
-from cfds_intel.databento.store import BarsConflictError, insert_chunk, loaded_until
+from cfds_intel.databento.store import BarsConflictError, insert_chunk, loaded_spans
 
 pytestmark = pytest.mark.skipif(
     "DATABASE_URL" not in os.environ, reason="necesita PostgreSQL con migraciones (DATABASE_URL)"
@@ -70,7 +70,7 @@ def test_chunks_are_idempotent_and_record_where_to_continue(conn: psycopg.Connec
     again = insert_chunk(conn, s, DAY, DAY + timedelta(days=1), bars(s, 3), Decimal("0.01"))
     assert (first.inserted, again.inserted, again.unchanged) == (3, 0, 3)
     assert stored(conn, s) == 3
-    assert loaded_until(conn)[(s.dataset, s.symbol)] == DAY + timedelta(days=1)
+    assert loaded_spans(conn)[(s.dataset, s.symbol)] == Stored(DAY, DAY + timedelta(days=1))
     # Las velas de IG no se tocan.
     assert conn.execute("SELECT count(*) FROM candles").fetchone() == candles_before
     row = conn.execute(
@@ -87,7 +87,18 @@ def test_a_different_bar_is_a_conflict_and_saves_nothing(conn: psycopg.Connectio
     with pytest.raises(BarsConflictError):
         insert_chunk(conn, s, DAY, DAY + timedelta(days=2), changed, Decimal(0))
     assert stored(conn, s) == 2
-    assert loaded_until(conn)[(s.dataset, s.symbol)] == DAY + timedelta(days=1)
+    assert loaded_spans(conn)[(s.dataset, s.symbol)] == Stored(DAY, DAY + timedelta(days=1))
+
+
+def test_an_earlier_chunk_moves_the_first_stored_day_back(conn: psycopg.Connection) -> None:
+    s = sym()
+    insert_chunk(conn, s, DAY, DAY + timedelta(days=1), bars(s, 1), Decimal(0))
+    earlier = [replace(b, start=b.start - timedelta(days=1)) for b in bars(s, 2)]
+    r = insert_chunk(conn, s, DAY - timedelta(days=1), DAY, earlier, Decimal(0))
+    assert (r.inserted, r.unchanged) == (2, 0)
+    assert loaded_spans(conn)[(s.dataset, s.symbol)] == Stored(
+        DAY - timedelta(days=1), DAY + timedelta(days=1)
+    )
 
 
 def test_the_tables_are_append_only_and_check_the_contract(conn: psycopg.Connection) -> None:

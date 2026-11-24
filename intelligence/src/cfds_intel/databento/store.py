@@ -4,7 +4,8 @@
   Clave `(source, dataset, symbol, start_at)`. La misma barra otra vez no cambia nada, y otra
   barra con la misma clave es un conflicto: no se pisa y no se guarda nada del tramo.
 - `futures_bar_loads`: un registro por tramo bajado, con su costo estimado. Así una corrida
-  siguiente sigue desde el último tramo y **no vuelve a pagar** lo ya guardado.
+  siguiente baja solo lo que falta antes del primer tramo y después del último, y **no vuelve a
+  pagar** lo ya guardado.
 - No se tocan las velas de IG (`candles`).
 - Todo o nada: un tramo y su registro van en una sola transacción.
 """
@@ -16,7 +17,7 @@ from decimal import Decimal
 
 import psycopg
 
-from cfds_intel.databento.bars import SOURCE, Bar
+from cfds_intel.databento.bars import SOURCE, Bar, Stored
 from cfds_intel.databento.config import SymbolConfig
 
 
@@ -30,14 +31,16 @@ class ChunkReport:
     unchanged: int
 
 
-def loaded_until(conn: psycopg.Connection) -> dict[tuple[str, str], date]:
-    """Hasta qué día (exclusivo) está bajado cada símbolo."""
+def loaded_spans(conn: psycopg.Connection) -> dict[tuple[str, str], Stored]:
+    """Desde qué día y hasta qué día (exclusivo) está bajado cada símbolo."""
     rows = conn.execute(
-        "SELECT dataset, symbol, max(to_at) FROM futures_bar_loads WHERE source = %s"
-        " GROUP BY dataset, symbol",
+        "SELECT dataset, symbol, min(from_at), max(to_at) FROM futures_bar_loads"
+        " WHERE source = %s GROUP BY dataset, symbol",
         (SOURCE,),
     ).fetchall()
-    return {(d, s): t.astimezone(UTC).date() for d, s, t in rows}
+    return {
+        (d, s): Stored(f.astimezone(UTC).date(), t.astimezone(UTC).date()) for d, s, f, t in rows
+    }
 
 
 def _midnight(d: date) -> datetime:
