@@ -144,6 +144,32 @@ pub fn evaluate_period(
     warmup: TimeDelta,
     bh_size: Decimal,
 ) -> Result<PeriodResult, RunError> {
+    let keep = |_: &Slice, e: Vec<bool>| Ok(e);
+    evaluate_period_with(inputs, period, setup, warmup, bh_size, keep).map(|(p, _)| p)
+}
+
+/// Lo que recorre una evaluación de un tramo: las velas desde el calentamiento.
+#[derive(Debug, Clone, Copy)]
+pub struct Slice<'a> {
+    pub m15: &'a [Candle],
+    pub h1: &'a [Candle],
+    pub data_errors: &'a [DateTime<Utc>],
+    pub news: &'a [NewsInterpretation],
+    pub published_from: DateTime<Utc>,
+}
+
+/// Como [`evaluate_period`], con el reporte de la corrida y un filtro extra de las marcas de
+/// entrada (`entries` del tramo, alineadas con `Slice::m15`). El filtro solo puede **quitar**
+/// entradas: lo que devuelve se combina con un "y" con las marcas del horario. Lo usa el estudio
+/// de variantes (#359); con el filtro que no quita nada es exactamente [`evaluate_period`].
+pub fn evaluate_period_with(
+    inputs: &Inputs,
+    period: Period,
+    setup: &Setup,
+    warmup: TimeDelta,
+    bh_size: Decimal,
+    filter: impl Fn(&Slice, Vec<bool>) -> Result<Vec<bool>, RunError>,
+) -> Result<(PeriodResult, Option<crate::Report>), RunError> {
     let m15 = inputs.m15;
     let lo = m15.partition_point(|c| c.start < period.start - warmup);
     let first = m15.partition_point(|c| c.start < period.start);
@@ -157,7 +183,7 @@ pub fn evaluate_period(
         buy_and_hold_return: None,
     };
     if hi <= first {
-        return Ok(empty);
+        return Ok((empty, None));
     }
     let candles = &m15[lo..hi];
     let entries: Vec<bool> = (lo..hi)
@@ -173,6 +199,20 @@ pub fn evaluate_period(
         .partition_point(|c| c.start < period.start - warmup);
     let h1_hi = inputs.h1.partition_point(|c| c.end() <= period.end);
     let h1 = inputs.h1.get(h1_lo..h1_hi).unwrap_or(&[]);
+    let slice = Slice {
+        m15: candles,
+        h1,
+        data_errors: inputs.data_errors,
+        news: inputs.news,
+        published_from: inputs.published_from,
+    };
+    // Una marca que el filtro no devuelve cuenta como "no abrir": nunca agrega entradas.
+    let kept = filter(&slice, entries.clone())?;
+    let entries: Vec<bool> = entries
+        .iter()
+        .enumerate()
+        .map(|(i, e)| *e && kept.get(i).copied().unwrap_or(false))
+        .collect();
     let report = run_with_news(
         candles,
         h1,
@@ -216,15 +256,18 @@ pub fn evaluate_period(
         &setup.backtest.metrics,
     );
     let bh = buy_and_hold(&m15[first..hi], bh_size, setup);
-    Ok(PeriodResult {
-        period,
-        candles: hi - first,
-        metrics: Some(metrics),
-        final_equity: report.final_equity,
-        buy_and_hold_return: bh
-            .map(|b| b.net_pnl / setup.account_to_instrument / setup.initial_equity),
-        buy_and_hold: bh,
-    })
+    Ok((
+        PeriodResult {
+            period,
+            candles: hi - first,
+            metrics: Some(metrics),
+            final_equity: report.final_equity,
+            buy_and_hold_return: bh
+                .map(|b| b.net_pnl / setup.account_to_instrument / setup.initial_equity),
+            buy_and_hold: bh,
+        },
+        Some(report),
+    ))
 }
 
 /// Cada ventana del walk-forward con los parámetros de config: entrenamiento y prueba por

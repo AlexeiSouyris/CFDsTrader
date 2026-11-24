@@ -1,0 +1,77 @@
+# Variantes del estudio de #359 (solo estudio: NO es config y nada del motor lo lee en vivo).
+# Las lee el ejemplo `variantes` (engine/crates/backtest/examples/variantes.rs). Fijadas ANTES
+# de correr nada, a partir del diagnóstico de #324; no se agregó ni se quitó ninguna después de
+# ver resultados. Resultados y advertencias: 2026-11-variantes-de40.md.
+
+[[variant]]
+name = "V0 base (config)"
+
+# Stop entre 2,5 y 3 ATR: el único tramo positivo del diagnóstico (max_atr de config = 3).
+[[variant]]
+name = "V1 stop 2,5–3 ATR"
+overrides = [{ file = "risk.toml", key = "stop_distance.min_atr", value = "2.5" }]
+
+# Stop entre 3 y 3,5 ATR: señales que hoy rechaza StopTooFar (3,5 es el valor alto de la
+# sensibilidad de #303).
+[[variant]]
+name = "V2 stop 3–3,5 ATR"
+overrides = [
+  { file = "risk.toml", key = "stop_distance.min_atr", value = "3" },
+  { file = "risk.toml", key = "stop_distance.max_atr", value = "3.5" },
+]
+
+# Sin abrir con la vela de entrada a las 07, 08 o 10 UTC.
+[[variant]]
+name = "V3 sin 07, 08 y 10 UTC"
+skip_entry_hours_utc = [7, 8, 10]
+
+# Sin el disparador exacto «patrón de velas + rechazo en nivel».
+[[variant]]
+name = "V4 sin patrón+rechazo"
+skip_trigger_sets = [["candle_pattern", "level_rejection"]]
+
+[[variant]]
+name = "V5 = V1 + V3"
+overrides = [{ file = "risk.toml", key = "stop_distance.min_atr", value = "2.5" }]
+skip_entry_hours_utc = [7, 8, 10]
+
+[[variant]]
+name = "V6 = V1 + V4"
+overrides = [{ file = "risk.toml", key = "stop_distance.min_atr", value = "2.5" }]
+skip_trigger_sets = [["candle_pattern", "level_rejection"]]
+
+[[variant]]
+name = "V7 = V3 + V4"
+skip_entry_hours_utc = [7, 8, 10]
+skip_trigger_sets = [["candle_pattern", "level_rejection"]]
+
+[[variant]]
+name = "V8 = V1 + V3 + V4"
+overrides = [{ file = "risk.toml", key = "stop_distance.min_atr", value = "2.5" }]
+skip_entry_hours_utc = [7, 8, 10]
+skip_trigger_sets = [["candle_pattern", "level_rejection"]]
+
+[[variant]]
+name = "V9 = V2 + V3"
+overrides = [
+  { file = "risk.toml", key = "stop_distance.min_atr", value = "3" },
+  { file = "risk.toml", key = "stop_distance.max_atr", value = "3.5" },
+]
+skip_entry_hours_utc = [7, 8, 10]
+
+[[variant]]
+name = "V10 = V2 + V4"
+overrides = [
+  { file = "risk.toml", key = "stop_distance.min_atr", value = "3" },
+  { file = "risk.toml", key = "stop_distance.max_atr", value = "3.5" },
+]
+skip_trigger_sets = [["candle_pattern", "level_rejection"]]
+
+[[variant]]
+name = "V11 = V2 + V3 + V4"
+overrides = [
+  { file = "risk.toml", key = "stop_distance.min_atr", value = "3" },
+  { file = "risk.toml", key = "stop_distance.max_atr", value = "3.5" },
+]
+skip_entry_hours_utc = [7, 8, 10]
+skip_trigger_sets = [["candle_pattern", "level_rejection"]]
