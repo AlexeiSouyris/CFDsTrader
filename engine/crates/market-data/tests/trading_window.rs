@@ -1,13 +1,13 @@
 //! Horario de entradas y cierre de la semana con el calendario real de `config/` (#64).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 
 use cfds_core::{Candle, Timeframe};
 use cfds_market_data::trading_window::flags;
 use cfds_market_data::{
-    ExchangeCalendar, Session, TradingWindowConfig, entry_allowed, is_last_session_of_week,
-    is_week_close_candle,
+    EntryHours, ExchangeCalendar, Session, TradingWindowConfig, entry_allowed,
+    is_last_session_of_week, is_week_close_candle,
 };
 use chrono::{DateTime, NaiveDate, TimeDelta, Utc};
 use rust_decimal::dec;
@@ -59,6 +59,14 @@ fn the_repository_config_matches_the_spec() {
         TradingWindowConfig {
             skip_after_open: TimeDelta::minutes(15),
             no_new_before_week_close: TimeDelta::minutes(30),
+            hours: BTreeMap::from([(
+                "CMEGLOBEX_METALS".to_string(),
+                EntryHours::Pending {
+                    reason: "las horas de entrada del oro las elige el dueño (ADR 0013 §2, #418); \
+                             hasta entonces el oro no abre operaciones"
+                        .into()
+                }
+            )]),
         }
     );
     assert!(TradingWindowConfig::from_toml("[entries]\nskip_after_open_minutes = 15").is_err());
@@ -203,4 +211,81 @@ fn flags_for_a_friday_session() {
     assert_eq!(entries.iter().filter(|&&e| e).count(), 25);
     assert!(!entries[25]);
     assert!(closes.iter().all(|&c| !c));
+}
+
+// ---------- Oro: sesión de casi 23 h con horas de entrada propias (ADR 0013) ----------
+
+#[test]
+fn gold_opens_nothing_while_its_entry_hours_are_pending() {
+    let cal = calendar();
+    let g = cal.session("CMEGLOBEX_METALS").unwrap();
+    // Mercado abierto (miércoles 09:00 CT), pero las horas de entrada están pendientes.
+    assert_eq!(g.is_open_at(utc("2026-11-25T15:00:00Z")), Some(true));
+    assert_eq!(allowed(g, "2026-11-25T15:00:00Z"), Some(false));
+    // Sin ninguna entrada en [entries.hours], tampoco: una sesión nocturna las necesita.
+    let mut none = cfg();
+    none.hours.clear();
+    assert_eq!(
+        entry_allowed(g, utc("2026-11-25T15:00:00Z"), &none),
+        Some(false)
+    );
+}
+
+#[test]
+fn entry_hours_limit_entries_inside_the_session() {
+    let cal = calendar();
+    let g = cal.session("CMEGLOBEX_METALS").unwrap();
+    let toml = "[entries]\nskip_after_open_minutes = 15\nno_new_before_week_close_minutes = 30\n\
+                [entries.hours.CMEGLOBEX_METALS]\ntimezone = \"America/New_York\"\n\
+                from = \"10:00\"\nto = \"12:00\"\n";
+    let w = TradingWindowConfig::from_toml(toml).unwrap();
+    let at = |s: &str| entry_allowed(g, utc(s), &w);
+    // Invierno: 10:00–12:00 de Nueva York = 15:00–17:00 UTC.
+    assert_eq!(at("2026-11-25T14:59:00Z"), Some(false));
+    assert_eq!(at("2026-11-25T15:00:00Z"), Some(true));
+    assert_eq!(at("2026-11-25T16:59:00Z"), Some(true));
+    assert_eq!(at("2026-11-25T17:00:00Z"), Some(false));
+    // Una sesión normal sin horas propias no cambia.
+    let nyse = cal.session("XNYS").unwrap();
+    assert_eq!(
+        entry_allowed(nyse, utc("2026-11-25T18:00:00Z"), &w),
+        Some(true)
+    );
+    // Formatos inválidos.
+    for bad in [
+        "[entries.hours.X]\ntimezone = \"America/New_York\"\nfrom = \"12:00\"\nto = \"10:00\"\n",
+        "[entries.hours.X]\npending = \"\"\n",
+        "[entries.hours.X]\npending = \"x\"\nfrom = \"10:00\"\n",
+        "[entries.hours.X]\ntimezone = \"Marte/Base\"\nfrom = \"10:00\"\nto = \"12:00\"\n",
+    ] {
+        let t = format!(
+            "[entries]\nskip_after_open_minutes = 15\nno_new_before_week_close_minutes = 30\n{bad}"
+        );
+        assert!(TradingWindowConfig::from_toml(&t).is_err(), "{bad}");
+    }
+}
+
+#[test]
+fn the_gold_week_closes_with_the_last_candle_before_friday_17_new_york() {
+    let cal = calendar();
+    let g = cal.session("CMEGLOBEX_METALS").unwrap();
+    // Viernes 04-12-2026, cierre 16:00 CT = 22:00 UTC: la última vela de 15m empieza 21:45.
+    assert_eq!(
+        is_week_close_candle(g, &m15("2026-12-04T21:45:00Z")),
+        Some(true)
+    );
+    assert_eq!(
+        is_week_close_candle(g, &m15("2026-12-04T21:30:00Z")),
+        Some(false)
+    );
+    // La última del jueves no cierra la semana.
+    assert_eq!(
+        is_week_close_candle(g, &m15("2026-12-03T21:45:00Z")),
+        Some(false)
+    );
+    // La primera vela del domingo pertenece al lunes.
+    assert_eq!(
+        is_week_close_candle(g, &m15("2026-12-06T23:00:00Z")),
+        Some(false)
+    );
 }
