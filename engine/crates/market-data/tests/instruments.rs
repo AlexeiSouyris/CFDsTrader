@@ -17,7 +17,7 @@ fn catalog() -> Catalog {
 fn the_repository_catalog_loads_with_its_sources() {
     let c = catalog();
     let ids: Vec<&str> = c.instruments.keys().map(|i| i.as_str()).collect();
-    assert_eq!(ids, ["DE40", "US100", "US30", "US500"]);
+    assert_eq!(ids, ["DE40", "US100", "US2000", "US30", "US500"]);
 
     let us100 = &c.instruments[&"US100".parse().unwrap()];
     assert_eq!(us100.instrument.asset_class, AssetClass::Index);
@@ -38,7 +38,10 @@ fn the_repository_catalog_loads_with_its_sources() {
 #[test]
 fn own_leverage_cap_is_below_the_regulatory_one() {
     for spec in catalog().instruments.values() {
-        let margin = spec.terms.margin_retail_pct.value().unwrap();
+        // Sin margen confirmado no hay tope regulatorio que comparar (US2000, #371).
+        let Some(margin) = spec.terms.margin_retail_pct.value() else {
+            continue;
+        };
         assert!(
             spec.max_leverage <= dec!(100) / margin,
             "{}",
@@ -51,11 +54,20 @@ fn own_leverage_cap_is_below_the_regulatory_one() {
 fn backtests_are_blocked_while_costs_are_pending() {
     let missing = catalog().ready_for_backtest().unwrap_err();
     let fields: Vec<_> = missing.iter().map(|p| (p.item.as_str(), p.field)).collect();
-    // Solo falta confirmar el tipo de referencia de la financiación de los índices de EE. UU.
+    // Falta el tipo de referencia de la financiación de los índices de EE. UU., y los términos
+    // de IG del Russell 2000, que solo está para el estudio (#371).
     assert_eq!(
         fields,
         [
             ("US100", "funding_benchmark"),
+            ("US2000", "funding_benchmark"),
+            ("US2000", "margin_retail_pct"),
+            ("US2000", "spread_min_points"),
+            ("US2000", "spread_typical_points"),
+            ("US2000", "value_per_point"),
+            ("US2000", "min_deal_size"),
+            ("US2000", "tick"),
+            ("US2000", "funding_admin_fee_pct"),
             ("US30", "funding_benchmark"),
             ("US500", "funding_benchmark"),
         ]

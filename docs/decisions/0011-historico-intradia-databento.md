@@ -55,6 +55,19 @@ El dueño decidió el 24-11-2026 bajar más historia de ES, NQ y YM: «dale, hag
 
 El DAX no cambia: Eurex en Databento empieza el 2025-03-10.
 
+### Oro y Russell 2000, solo para el estudio (24-11-2026, #371)
+
+El dueño decidió el 24-11-2026: «dale, sumá oro y Russell al estudio» (#371). Se suman a `config/databento.toml` solo para el estudio en backtest: no se operan en paper ni en vivo. Estimado con `--estimate` (solo metadata, gratis) el 24-11-2026:
+
+| Símbolo | Instrumento | Tramo | Barras | Costo |
+|---|---|---|---|---|
+| `RTY.c.0` | US2000 | 2011-01-01 → hoy | 3.022.297 | USD 11,03 |
+| `GC.v.0` | XAUUSD | 2011-01-01 → hoy | 5.513.746 | USD 20,13 |
+
+- **RTY:** en CME desde julio de 2017. Antes cotizaba en ICE, así que Databento no tiene datos anteriores en `GLBX.MDP3`.
+- **Oro con `v.0` y no con `c.0`:** en el oro, el vencimiento más cercano casi nunca es el que se negocia (los activos son feb, abr, jun, ago, oct y dic). Con `GC.c.0` salían 241.103 barras en 16 años (USD 0,88), casi sin operaciones. Es una excepción a la regla de `c.0` del punto 3, solo para el oro.
+- **Total con lo que falta de #369:** USD 70,59, dentro del tope `max_usd` de USD 100.
+
 ## Decisión (propuesta)
 
 1. **Fuente:** Databento, solo **histórico**, con el SDK oficial de Python (`databento`, versión 0.90 al 23-11-2026). Se usan:

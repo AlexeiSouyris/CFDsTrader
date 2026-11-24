@@ -349,7 +349,8 @@ mod tests {
         .unwrap();
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../config");
         let calendar = ExchangeCalendar::load(&dir, catalog.exchange_map()).unwrap();
-        let ids: Vec<_> = catalog.instruments.keys().cloned().collect();
+        // Solo lo que `ig_live` pide: los instrumentos con epic (US2000 es solo de estudio, #371).
+        let ids: Vec<_> = crate::epics_from_catalog(&catalog).into_keys().collect();
         let cfg = crate::IgConfig::from_toml(include_str!("../../../../config/ig.toml")).unwrap();
         // Semana del 16 al 20-11-2026, sin feriados. Por día: 3 índices de EE. UU. con 26 velas
         // de 15m y 6 de 1h, y DE40 con 34 y 8 → 138; por semana, 690.
