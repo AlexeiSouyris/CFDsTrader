@@ -19,6 +19,9 @@
 //! - **Tamaño:** body de hasta `[paper] max_body_bytes`.
 //! - **Hora de la orden:** `created_at` tiene que estar a menos de `[paper] max_order_age_secs`
 //!   de la hora del gateway (nunca en el futuro): nadie elige a qué precio viejo entra.
+//!   Como es de ahora, su vela del fill todavía no llegó: si el riesgo la aceptaría, la respuesta
+//!   es `pending` y el broker la decide cuando llega esa vela (en la próxima operación, con
+//!   `settle_and_record`), igual que la reconstrucción (#471).
 //! - **Arranque y parada (fase 9, #297):** `POST /api/v1/paper/orders` responde 503 mientras la
 //!   reconciliación al arrancar no pasó limpia o el gateway se está apagando (ver [`crate::ops`]).
 
@@ -30,8 +33,8 @@ use cfds_backtest::{AccountFx, DailyRates, FundingRates, FxRates, market_terms_f
 use cfds_broker::{
     Broker, BrokerConfig, Flush, FundingSetup, MarketSetup, PaperBroker, ReconcileSchedule,
     flush_journal, kill_switch_marks, kill_switch_stored_active, reconcile_periodically,
-    restore_from_checkpoint, restore_with_kill_switch, save_kill_switch, stored_checkpoints,
-    submit_and_record,
+    restore_from_checkpoint, restore_with_kill_switch, save_kill_switch, settle_and_record,
+    stored_checkpoints, submit_and_record,
 };
 use cfds_core::{
     InstrumentId, Order, OrderReport, PaperAccount, Position, TicketVerdict, Timeframe,
@@ -601,8 +604,22 @@ impl PgPaper {
                         "clean": f.is_clean(),
                         "saved_now": f.saved_now,
                         "orphans": f.orphans,
+                        "pending_dropped": f.pending_dropped,
                     }),
                 );
+                if !f.pending_dropped.is_empty() {
+                    self.ops
+                        .alerts
+                        .raise(
+                            AlertKind::Disconnect,
+                            &format!(
+                                "apagado con {} órdenes pendientes de su vela: no se ejecutaron",
+                                f.pending_dropped.len()
+                            ),
+                            now,
+                        )
+                        .await;
+                }
                 if !f.is_clean() {
                     self.ops
                         .alerts
@@ -635,13 +652,12 @@ impl PgPaper {
         self.save_kill_switch(broker, now).await;
     }
 
-    /// Antes de mandar una orden: si es la primera del registro, las velas del broker empiezan
-    /// `[paper] candles_days` antes de ella, como las cargará la reconstrucción (#438).
-    pub(crate) fn anchor_candles(&self, broker: &mut PaperBroker, order: &Order) {
-        if broker.journal().is_empty() {
-            // Sin órdenes procesadas no puede fallar.
-            let _ = broker.start_candles_at(order.created_at - self.candles_window);
-        }
+    /// Antes de mandar una orden: las velas del broker empiezan `[paper] candles_days` antes de
+    /// la primera orden que entre al registro, como las cargará la reconstrucción (#438). El
+    /// recorte lo hace el broker cuando esa orden entra (con órdenes pendientes, #471, la
+    /// primera en llegar puede no ser la primera del registro).
+    pub(crate) fn anchor_candles(&self, broker: &mut PaperBroker) {
+        broker.anchor_candles_before_first_order(self.candles_window);
     }
 
     /// `refresh` con sus errores logueados y alertados.
@@ -721,6 +737,11 @@ impl PgPaper {
                     .map_err(|e| format!("{id}: {e}"))?;
             }
         }
+        // Las órdenes pendientes cuya vela del fill ya llegó (#471): se deciden y se guardan,
+        // con las velas, tasas y tipos de ahora y antes de reconciliar.
+        settle_and_record(broker, &self.store)
+            .await
+            .map_err(|e| format!("guardar órdenes pendientes decididas: {e}"))?;
         let markets = broker.markets().clone();
         let rec = reconcile_periodically(&self.store, broker, markets, sched, now)
             .await
@@ -754,7 +775,7 @@ impl PaperService for PgPaper {
         }
         let now = order.created_at;
         self.refresh_checked(broker, sched, now).await?;
-        self.anchor_candles(broker, &order);
+        self.anchor_candles(broker);
         let r = submit_and_record(broker, &self.store, &order)
             .await
             .map_err(|e| e.to_string());

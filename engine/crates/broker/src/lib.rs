@@ -29,7 +29,7 @@ pub use paper::{
 pub use persist::{
     Flush, JournalStore, ReconcileSchedule, flush_journal, kill_switch_marks,
     kill_switch_stored_active, reconcile_periodically, restore_best, restore_from_store,
-    save_checkpoint, save_kill_switch, stored_checkpoints, submit_and_record,
+    save_checkpoint, save_kill_switch, settle_and_record, stored_checkpoints, submit_and_record,
 };
 pub use reconcile::{
     Drift, KillSwitchChange, KillSwitchMark, Mismatch, Reconciliation, reconcile,

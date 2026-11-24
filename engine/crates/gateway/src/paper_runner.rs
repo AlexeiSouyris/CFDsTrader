@@ -282,7 +282,7 @@ impl PgPaper {
             );
             publish(&self.ops.log, &self.ops.alerts, &step.notices, now).await;
             if let (Some(order), Some(signal)) = (&step.order, &step.signal) {
-                self.anchor_candles(broker, order);
+                self.anchor_candles(broker);
                 // El apalancamiento que decide el riesgo, antes de enviar (la vista previa no
                 // cambia nada).
                 let verdict = broker.preview(order, order.created_at);

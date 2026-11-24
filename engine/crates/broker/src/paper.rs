@@ -8,6 +8,9 @@
 //!   → cfds_risk::check (stop, distancia en ATR, riesgo, apalancamiento, margen, pérdida diaria,
 //!     drawdown, kill switch, posiciones, mínimo del broker): **el único que da el tamaño**
 //!   → fill a la apertura con medio spread + slippage, y comisión (cfds-backtest)
+//!   → si la vela del fill todavía no llegó (una orden manual de ahora, #471): **pendiente**.
+//!     No entra al registro: espera esa vela y recién ahí se decide igual que en la
+//!     reconstrucción (`settle_pending`), que ya tiene la vela
 //! cada posición se valúa con cfds_backtest::simulate (stop, TP1, trailing, tiempo, gaps y el
 //! cierre de fin de semana de la spec §8, con las mismas marcas que el backtest: #334)
 //! y paga la financiación nocturna (swap) de cada corte en que siguió abierta, con la tasa de
@@ -42,7 +45,7 @@ use cfds_indicators::{AtrSeed, wilder_atr, wilder_atr_after};
 use cfds_market_data::{ExchangeCalendar, Session, trading_window};
 use cfds_risk::{Account, InstrumentLimits, Rejection, Request, RiskConfig, Sizing, check};
 use cfds_strategy::Side;
-use chrono::{DateTime, NaiveTime, Utc};
+use chrono::{DateTime, NaiveTime, TimeDelta, Utc};
 use chrono_tz::Tz;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -266,6 +269,12 @@ pub enum BrokerEvent {
     OrderDuplicate {
         order_id: ClientId,
     },
+    /// El riesgo la aceptaría, pero la vela del fill (la primera que empieza en `created_at` o
+    /// después) todavía no llegó: queda pendiente hasta esa vela (#471).
+    OrderPending {
+        order_id: ClientId,
+        created_at: DateTime<Utc>,
+    },
     /// La decisión del riesgo (o el motivo del broker) sobre una orden enviada.
     RiskDecision {
         order_id: ClientId,
@@ -293,6 +302,13 @@ pub struct PaperBroker {
     /// Las órdenes procesadas, en el orden en que llegaron, con su informe: lo que se guarda
     /// para reconstruir el broker al arrancar (ver `crate::reconcile`).
     journal: Vec<(Order, OrderReport)>,
+    /// Órdenes que el riesgo aceptaría pero cuya vela del fill todavía no llegó (#471), en
+    /// orden de llegada. No están en el registro: se deciden en `settle_pending`.
+    pending: Vec<Order>,
+    /// Si está, las velas se recortan a esto antes de la **primera** orden que entra al
+    /// registro (#438), en el momento en que entra: con órdenes pendientes (#471) la primera en
+    /// llegar puede no ser la primera del registro.
+    first_order_window: Option<TimeDelta>,
     events: Vec<BrokerEvent>,
     pub(crate) trades: Vec<OpenTrade>,
     pub(crate) kill_switch: Option<(String, DateTime<Utc>)>,
@@ -371,6 +387,8 @@ impl PaperBroker {
             markets,
             reports: BTreeMap::new(),
             journal: Vec::new(),
+            pending: Vec::new(),
+            first_order_window: None,
             events: Vec::new(),
             trades: Vec::new(),
             kill_switch: None,
@@ -427,6 +445,13 @@ impl PaperBroker {
             m.candles.retain(|c| c.start >= from);
         }
         Ok(())
+    }
+
+    /// Las velas van a empezar `window` antes de la primera orden que entre al registro
+    /// ([`Self::start_candles_at`] en ese momento), como las carga la reconstrucción (#438).
+    /// Con órdenes ya en el registro no cambia nada.
+    pub fn anchor_candles_before_first_order(&mut self, window: TimeDelta) {
+        self.first_order_window = Some(window);
     }
 
     /// Reemplaza la serie de tasas de referencia de la financiación de un instrumento por una
@@ -703,6 +728,130 @@ impl PaperBroker {
     /// Las órdenes procesadas, en orden de llegada, con su informe.
     pub fn journal(&self) -> &[(Order, OrderReport)] {
         &self.journal
+    }
+
+    /// Las órdenes pendientes de su vela del fill (#471), en orden de llegada.
+    pub fn pending(&self) -> &[Order] {
+        &self.pending
+    }
+
+    /// Decide las órdenes pendientes cuya vela del fill ya llegó, en orden de llegada, y
+    /// devuelve lo que entró al registro (para guardarlo). Cada una se decide con
+    /// [`Self::decide`] sobre el estado de ese momento, igual que la reconstrucción la decide
+    /// en ese mismo punto del registro (#471).
+    pub fn settle_pending(&mut self) -> Vec<(Order, OrderReport)> {
+        let mut out = Vec::new();
+        let mut i = 0;
+        while i < self.pending.len() {
+            if self.awaits_fill(&self.pending[i]) {
+                i += 1;
+                continue;
+            }
+            let order = self.pending.remove(i);
+            let report = self.decide(&order);
+            out.push((order, report));
+        }
+        out
+    }
+
+    /// `true` si el instrumento existe y todavía no hay vela que empiece en `created_at` o
+    /// después (la del fill).
+    fn awaits_fill(&self, order: &Order) -> bool {
+        self.markets
+            .get(&order.instrument_id)
+            .is_some_and(|m| m.candles.last().is_none_or(|c| c.start < order.created_at))
+    }
+
+    fn pending_report(order: &Order) -> OrderReport {
+        OrderReport {
+            order_id: order.order_id.clone(),
+            status: OrderStatus::Pending,
+            rejection: None,
+            position_id: None,
+            size: None,
+            fill_price: None,
+            commission: None,
+            at: order.created_at,
+        }
+    }
+
+    /// Decide la orden (riesgo y fill) y la anota en el registro. La vela del fill, si el riesgo
+    /// la acepta, tiene que estar (si no, `no_price`).
+    fn decide(&mut self, order: &Order) -> OrderReport {
+        if let (true, Some(w)) = (self.journal.is_empty(), self.first_order_window) {
+            // Registro vacío: no puede fallar.
+            let _ = self.start_candles_at(order.created_at - w);
+        }
+        let a = self.assess(order);
+        self.events.push(BrokerEvent::RiskDecision {
+            order_id: order.order_id.clone(),
+            accepted: a.result.is_ok(),
+            rejection: a.result.as_ref().err().copied(),
+            size: a.result.as_ref().ok().map(|s| s.size),
+            as_of: a.as_of,
+        });
+        let report = match (a.result, a.fill_index) {
+            (Ok(s), Some(i)) => self.open_trade(order, &s, i),
+            (result, _) => OrderReport {
+                order_id: order.order_id.clone(),
+                status: OrderStatus::Rejected,
+                rejection: Some(result.err().unwrap_or(OrderRejection::NoPrice)),
+                position_id: None,
+                size: None,
+                fill_price: None,
+                commission: None,
+                at: order.created_at,
+            },
+        };
+        self.reports.insert(order.order_id.clone(), report.clone());
+        self.journal.push((order.clone(), report.clone()));
+        self.events.push(BrokerEvent::OrderReport {
+            report: report.clone(),
+        });
+        report
+    }
+
+    /// Abre la operación en la apertura de la vela `i` (la del fill).
+    fn open_trade(&mut self, order: &Order, s: &Sizing, i: usize) -> OrderReport {
+        let m = &self.markets[&order.instrument_id];
+        let bar = &m.candles[i];
+        let side = strategy_side(order.side);
+        let px = fill_price(side, Execution::Entry, bar.open, &m.costs, &self.cfg.costs);
+        let fee = commission(&m.costs, s.size, px);
+        let position_id: ClientId = format!("pos:{}", order.order_id)
+            .chars()
+            .take(200)
+            .collect::<String>()
+            .parse()
+            .expect("prefijo y order_id válidos");
+        let opened_at = bar.start;
+        let entry_mid = bar.open;
+        self.trades.push(OpenTrade {
+            seq: self.journal.len(),
+            position_id: position_id.clone(),
+            order_id: order.order_id.clone(),
+            instrument: order.instrument_id.clone(),
+            side: order.side,
+            size: s.size,
+            entry_mid,
+            entry_fill: px,
+            entry_index: i,
+            entry_commission: fee,
+            stop: order.stop,
+            tp1: order.tp1,
+            margin: s.margin,
+            opened_at,
+        });
+        OrderReport {
+            order_id: order.order_id.clone(),
+            status: OrderStatus::Filled,
+            rejection: None,
+            position_id: Some(position_id),
+            size: Some(s.size),
+            fill_price: Some(px),
+            commission: Some(fee),
+            at: opened_at,
+        }
     }
 
     /// Informe ya guardado de una orden, si existe.
@@ -984,77 +1133,31 @@ impl crate::Broker for PaperBroker {
             });
             return r;
         }
+        if self.pending.iter().any(|o| o.order_id == order.order_id) {
+            self.events.push(BrokerEvent::OrderDuplicate {
+                order_id: order.order_id.clone(),
+            });
+            return Self::pending_report(order);
+        }
         self.events.push(BrokerEvent::OrderReceived {
             order_id: order.order_id.clone(),
             instrument_id: order.instrument_id.clone(),
             side: order.side,
             created_at: order.created_at,
         });
-        let a = self.assess(order);
-        self.events.push(BrokerEvent::RiskDecision {
-            order_id: order.order_id.clone(),
-            accepted: a.result.is_ok(),
-            rejection: a.result.as_ref().err().copied(),
-            size: a.result.as_ref().ok().map(|s| s.size),
-            as_of: a.as_of,
-        });
-        let report = match (a.result, a.fill_index) {
-            (Ok(s), Some(i)) => {
-                let m = &self.markets[&order.instrument_id];
-                let bar = &m.candles[i];
-                let side = strategy_side(order.side);
-                let px = fill_price(side, Execution::Entry, bar.open, &m.costs, &self.cfg.costs);
-                let fee = commission(&m.costs, s.size, px);
-                let position_id: ClientId = format!("pos:{}", order.order_id)
-                    .chars()
-                    .take(200)
-                    .collect::<String>()
-                    .parse()
-                    .expect("prefijo y order_id válidos");
-                self.trades.push(OpenTrade {
-                    seq: self.journal.len(),
-                    position_id: position_id.clone(),
-                    order_id: order.order_id.clone(),
-                    instrument: order.instrument_id.clone(),
-                    side: order.side,
-                    size: s.size,
-                    entry_mid: bar.open,
-                    entry_fill: px,
-                    entry_index: i,
-                    entry_commission: fee,
-                    stop: order.stop,
-                    tp1: order.tp1,
-                    margin: s.margin,
-                    opened_at: bar.start,
-                });
-                OrderReport {
-                    order_id: order.order_id.clone(),
-                    status: OrderStatus::Filled,
-                    rejection: None,
-                    position_id: Some(position_id),
-                    size: Some(s.size),
-                    fill_price: Some(px),
-                    commission: Some(fee),
-                    at: bar.start,
-                }
-            }
-            (result, _) => OrderReport {
+        // Sin la vela del fill todavía (#471): si el riesgo la acepta (sobre una copia, sin
+        // efectos), queda pendiente fuera del registro y se decide cuando llegue esa vela, igual
+        // que la reconstrucción. Si la rechaza, el rechazo no depende de la vela del fill: se
+        // decide y se registra ya, con el mismo resultado que en la reconstrucción.
+        if self.awaits_fill(order) && self.clone().assess(order).result.is_ok() {
+            self.pending.push(order.clone());
+            self.events.push(BrokerEvent::OrderPending {
                 order_id: order.order_id.clone(),
-                status: OrderStatus::Rejected,
-                rejection: Some(result.err().unwrap_or(OrderRejection::NoPrice)),
-                position_id: None,
-                size: None,
-                fill_price: None,
-                commission: None,
-                at: order.created_at,
-            },
-        };
-        self.reports.insert(order.order_id.clone(), report.clone());
-        self.journal.push((order.clone(), report.clone()));
-        self.events.push(BrokerEvent::OrderReport {
-            report: report.clone(),
-        });
-        report
+                created_at: order.created_at,
+            });
+            return Self::pending_report(order);
+        }
+        self.decide(order)
     }
 
     fn positions(&mut self, now: DateTime<Utc>) -> Vec<Position> {

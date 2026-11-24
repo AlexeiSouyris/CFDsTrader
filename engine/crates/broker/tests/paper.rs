@@ -199,11 +199,11 @@ fn stop_on_the_wrong_side_no_price_and_unknown_instrument_are_rejected() {
         rejected(&mut b, &order("c", "US100", OrderSide::Long, dec!(98), 0)),
         OrderRejection::NoPrice
     );
-    // después de la última vela: no hay apertura siguiente para ejecutar
-    assert_eq!(
-        rejected(&mut b, &order("d", "US100", OrderSide::Long, dec!(98), 40)),
-        OrderRejection::NoPrice
-    );
+    // después de la última vela: todavía no hay apertura siguiente para ejecutar, queda
+    // pendiente hasta esa vela (#471), fuera del registro
+    let d = b.submit(&order("d", "US100", OrderSide::Long, dec!(98), 40));
+    assert_eq!(d.status, OrderStatus::Pending, "{d:?}");
+    assert!(b.journal().iter().all(|(o, _)| o.order_id.as_str() != "d"));
     assert_eq!(
         rejected(&mut b, &order("e", "DE40", OrderSide::Long, dec!(98), 20)),
         OrderRejection::UnknownInstrument

@@ -266,7 +266,7 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 | Contrato | Contenido |
 |---|---|
 | `order.v1` | Una orden de mercado: `order_id` propio e idempotente, `mode` (solo `paper`), instrumento, dirección, **stop obligatorio**, `tp1`, `proposal_id` y `created_at`. **Sin tamaño:** lo calcula solo el riesgo (spec §8). |
-| `order_report.v1` | Qué pasó con la orden: `rejected` (con el motivo) o `filled` (posición, tamaño, precio con spread y slippage, comisión), y cuándo. |
+| `order_report.v1` | Qué pasó con la orden: `rejected` (con el motivo) o `filled` (posición, tamaño, precio con spread y slippage, comisión), y cuándo. `pending` (#471) solo en la respuesta del envío: el riesgo la aceptaría pero la vela del fill todavía no llegó (una orden manual de ahora); se decide con esa vela y recién ahí entra al registro. |
 | `ticket_verdict.v1` | La respuesta del riesgo a una orden **sin enviarla**: acepta o rechaza, con tamaño, riesgo, % de riesgo, apalancamiento y margen. La UI la muestra. |
 | `position.v1` | Una posición abierta valuada al cierre de `as_of`: entrada, stop, `tp1`, último precio, P/L no realizado (en moneda y en R) y margen. |
 | `paper_account.v1` | La cuenta simulada al cierre de `as_of`: capital, P/L, margen, apalancamiento, pérdida diaria usada, posiciones y kill switch. |

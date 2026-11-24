@@ -193,6 +193,27 @@ describe('terminal con el broker simulado del gateway (#292)', () => {
     expect(within(form).getByText('No alcanza el margen libre.')).toBeInTheDocument()
   })
 
+  it('una orden pendiente de su vela (#471) no se muestra como ejecutada', async () => {
+    gateway({
+      report: {
+        status: 'pending',
+        rejection: null,
+        position_id: null,
+        size: null,
+        fill_price: null,
+        commission: null,
+        at: '2026-11-23T10:07:00Z',
+      },
+    })
+    render(<TerminalView member={CURRENT_MEMBER} />)
+    await screen.findByText('simulación · broker simulado')
+    const form = ticket()
+    fireEvent.click(within(form).getByRole('button', { name: /Validar con el motor/ }))
+    fireEvent.click(await within(form).findByRole('button', { name: 'Comprar en simulación' }))
+    expect(await within(form).findByText('Pendiente de la próxima vela.')).toBeInTheDocument()
+    expect(within(form).queryByText('Ejecutada en simulación (paper).')).toBeNull()
+  })
+
   it('si el gateway no deja escribir (sin token), lo avisa sin inventar respuesta', async () => {
     gateway({ previewStatus: 403 })
     render(<TerminalView member={CURRENT_MEMBER} />)

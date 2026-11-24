@@ -59,7 +59,8 @@ export type TicketVerdict = {
 /** `order_report.v1`: qué pasó con una orden enviada. */
 export type OrderReport = {
   order_id: string
-  status: 'rejected' | 'filled'
+  /** `pending` (#471): la vela del fill todavía no llegó; el motor la decide con esa vela */
+  status: 'rejected' | 'filled' | 'pending'
   rejection: Rejection | null
   position_id: string | null
   size: Decimal | null
