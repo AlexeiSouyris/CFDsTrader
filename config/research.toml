@@ -106,6 +106,19 @@ dsr_min = "0.95"
 cost_stress = "1.5"
 second_half_from = "2020-01-01"
 
+# ── Programa Nasdaq (#526): H1 y H2 en US100 ─────────────────────────────────────────────────
+# Pre-registro: docs/analysis/2026-11-programa-nasdaq-preregistro.md. El 2,5 % de reserva del
+# programa 2 dividido por 2 hipótesis (H1 y H2): el programa 2 queda en 0 %.
+
+[rule_nasdaq]
+alpha = "0.0125"
+# 354 pruebas registradas hasta la ronda 3 más H1 y H2 (registro de ensayos al congelar).
+dsr_trials = 356
+dsr_min = "0.95"
+cost_stress = "1.5"
+# Mitades: 2013–2020 y desde 2021 (propuesta del programa Nasdaq §3.2).
+second_half_from = "2021-01-01"
+
 # ── Chequeos de la revisión externa (#512) ─────────────────────────────────────────────────────
 # Descriptivos, sin voto y sin presupuesto: docs/analysis/2026-11-chequeos-revision-externa.md.
 # Fijados antes de mirar los resultados. Solo los lee el ejemplo `chequeos_revision`.

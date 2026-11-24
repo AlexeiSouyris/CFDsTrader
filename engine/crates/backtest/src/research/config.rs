@@ -122,6 +122,8 @@ pub struct ResearchConfig {
     /// Regla de la ronda 3 (V y M1), programa 2 (#493).
     pub rule_round3: RuleConfig,
     pub review_checks: ReviewChecksConfig,
+    /// Regla del programa Nasdaq (H1 y H2 en US100, #526).
+    pub rule_nasdaq: RuleConfig,
 }
 
 impl ResearchConfig {
@@ -206,6 +208,7 @@ impl ResearchConfig {
             overnight_drift: Overnight,
             rule_round3: Rule,
             review_checks: Review,
+            rule_nasdaq: Rule,
         }
         let raw: Raw = toml::from_str(text).map_err(|e| e.to_string())?;
         let dec = |s: &str, name: &str| -> Result<Decimal, String> {
@@ -359,6 +362,7 @@ impl ResearchConfig {
             overnight_drift,
             rule_round3: rule(&raw.rule_round3, "rule_round3")?,
             review_checks,
+            rule_nasdaq: rule(&raw.rule_nasdaq, "rule_nasdaq")?,
         })
     }
 }

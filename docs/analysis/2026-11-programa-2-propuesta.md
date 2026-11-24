@@ -139,6 +139,8 @@ Riesgo de M1: la evidencia es en divisas, con datos de hace más de 20 años, y 
 - **Sharpe deflactado con todas las pruebas registradas:** el programa nuevo **no** resetea el contador. Hasta la ronda 2 son 352; la ronda 3 suma las suyas (con 2 familias, N = 354). Lo que se probó antes sigue contando como búsqueda.
 - **El fuera de muestra (desde el 01-11-2025) sigue intacto**: no se carga, no se mira, y se usaría una sola vez, para un solo candidato congelado, solo si el dueño lo aprueba.
 
+**Estado del presupuesto al 24-11-2026 (#526):** ronda 3 gastó 2,5 % (V y M1, no pasan). La reserva de 2,5 % se asignó a la familia E aplicada solo al US100, por aprobación del dueño en #526 ("apruebo H1 y H2, usá el 2,5 % del programa 2"): **H1** (antes del FOMC) 1,25 % y **H2** (días de CPI y empleo) 1,25 %, pre-registradas en `2026-11-programa-nasdaq-preregistro.md`. **Al programa 2 le queda 0 %.** Cantidad de pruebas para el Sharpe deflactado: **N = 356** (`config/research.toml`, `[rule_nasdaq]`).
+
 ### 3.2 Regla de decisión
 
 Se reutiliza la de #466 §4 tal cual, con dos cambios justificados:

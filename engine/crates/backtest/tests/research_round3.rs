@@ -156,6 +156,10 @@ fn the_round3_config_loads_and_rejects_bad_values() {
     assert_eq!(c.rule_round3.dsr_trials, 354);
     // Las reglas de las rondas 1 y 2 no cambian.
     assert_eq!((c.rule.dsr_trials, c.rule_round2.dsr_trials), (350, 352));
+    // Programa Nasdaq (#526): las 354 de la ronda 3 más H1 y H2, mitades desde 2021.
+    assert_eq!(c.rule_nasdaq.alpha, dec!(0.0125));
+    assert_eq!(c.rule_nasdaq.dsr_trials, 356);
+    assert_eq!(c.rule_nasdaq.second_half_from, day("2021-01-01"));
     for (from, to) in [
         ("horizon_minutes = 120", "horizon_minutes = 100"),
         ("cap = \"2\"", "cap = \"0\""),
