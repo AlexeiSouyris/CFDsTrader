@@ -218,6 +218,9 @@ def render_family(results: list[VariantResult], cfg: MlConfig, source: str) -> s
             doc=r.doc,
             calibration_bins=cfg.evaluation.calibration_bins,
         )
+        body = body.replace(
+            "python -m cfds_intel.models.experiment", "python -m cfds_intel.models.variants"
+        )
         lines += ["#" + ln if ln.startswith("#") else ln for ln in body.splitlines()]
         lines.append("")
     return "\n".join(lines) + "\n"
