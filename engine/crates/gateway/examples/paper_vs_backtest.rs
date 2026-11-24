@@ -115,7 +115,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let market = MarketSetup {
         limits: terms.limits,
         costs: terms.costs,
-        account_to_instrument: terms.account_to_instrument,
+        // El broker simulado todavía convierte con un tipo fijo (ADR 0013 §4).
+        account_to_instrument: match terms.account_to_instrument {
+            cfds_backtest::AccountFx::Same => rust_decimal::Decimal::ONE,
+            _ => return Err(
+                "contrato en otra moneda que la cuenta: el broker simulado todavía no lo convierte"
+                    .into(),
+            ),
+        },
         candles: raw_m15.clone(),
         funding: FundingSetup {
             cutoff: terms.funding_cutoff,

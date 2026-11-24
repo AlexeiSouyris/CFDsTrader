@@ -14,6 +14,11 @@
 //! Con un solo instrumento es exactamente el recorrido de `runner::run` (hay un test).
 //! El valor de las abiertas no descuenta todavía sus costos de salida ni la financiación:
 //! esos se cobran al cerrar.
+//!
+//! Moneda (ADR 0013 §4): los montos de cada operación están en la moneda del instrumento y se
+//! pasan a la de la cuenta con el tipo vigente en cada momento (`Setup::account_to_instrument`):
+//! el valor de una abierta y su margen, al tipo de `τ`; el riesgo, al de la decisión; el P/L
+//! realizado, al del cierre de su última salida. Sin tipo publicado, error: nunca se inventa.
 
 use cfds_core::NewsInterpretation;
 use cfds_core::{Candle, InstrumentId};
@@ -113,6 +118,14 @@ struct Open {
     closes_at: DateTime<Utc>,
 }
 
+/// Tipo de cambio del instrumento de `setup` en `t`, o error si todavía no había ninguno.
+fn fx(setup: &Setup, t: DateTime<Utc>) -> Result<Decimal, PortfolioError> {
+    setup
+        .account_to_instrument
+        .at(t)
+        .ok_or(PortfolioError::Run(RunError::MissingFxRate(t)))
+}
+
 fn sign(side: Side) -> Decimal {
     match side {
         Side::Long => Decimal::ONE,
@@ -198,24 +211,22 @@ pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioErr
     let mut open: Vec<Open> = Vec::new();
 
     for (now, mi, t) in events {
-        // 1. Realizar lo que ya cerró.
-        open.retain(|o| {
-            if is_closed(o, now) {
-                cash += o.record.net_pnl / markets[o.market].setup.account_to_instrument;
-                false
+        // 1. Realizar lo que ya cerró, al tipo del cierre de su última salida.
+        let mut still_open = Vec::with_capacity(open.len());
+        for o in open {
+            if is_closed(&o, now) {
+                cash += o.record.net_pnl / fx(&markets[o.market].setup, o.closes_at)?;
             } else {
-                true
+                still_open.push(o);
             }
-        });
+        }
+        open = still_open;
         // 2 y 3. Capital a `now`.
-        let equity = cash
-            + open
-                .iter()
-                .map(|o| {
-                    open_value(o, markets[o.market].m15, now)
-                        / markets[o.market].setup.account_to_instrument
-                })
-                .sum::<Decimal>();
+        let mut equity = cash;
+        for o in &open {
+            let setup = &markets[o.market].setup;
+            equity += open_value(o, markets[o.market].m15, now) / fx(setup, now)?;
+        }
         peak = peak.max(equity);
         let today = now.with_timezone(&first.day_tz).date_naive();
         if day != Some(today) {
@@ -271,10 +282,10 @@ pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioErr
         let Some(atr_t) = atrs[mi][t] else {
             continue;
         };
-        let used_margin: Decimal = open
-            .iter()
-            .map(|o| o.record.margin / markets[o.market].setup.account_to_instrument)
-            .sum();
+        let mut used_margin = Decimal::ZERO;
+        for o in &open {
+            used_margin += o.record.margin / fx(&markets[o.market].setup, now)?;
+        }
         let free_margin = equity - used_margin;
         let account = Account {
             equity,
@@ -292,7 +303,7 @@ pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioErr
             entry: signal.reference,
             stop: signal.stop,
             atr: atr_t,
-            account_to_instrument: setup.account_to_instrument,
+            account_to_instrument: fx(setup, at)?,
         };
         let sizing = match check(&request, &account, &setup.limits, &setup.risk) {
             Ok(s) => s,
@@ -346,7 +357,7 @@ pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioErr
     }
     // Lo que quedó abierto ya tiene sus salidas (hasta el final de los datos): se realiza.
     for o in &open {
-        cash += o.record.net_pnl / markets[o.market].setup.account_to_instrument;
+        cash += o.record.net_pnl / fx(&markets[o.market].setup, o.closes_at)?;
     }
     report.final_equity = cash;
     if let Some(last) = report.daily_equity.last_mut() {

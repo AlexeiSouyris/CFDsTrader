@@ -178,9 +178,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     entry_filter(sl, &e, &setup, v)
                 })
                 .map_err(|e| format!("{e:?}"))?;
-            let st = report.map_or_else(TradeStats::default, |rep| {
-                TradeStats::of(&rep.trades, setup.account_to_instrument)
-            });
+            let st = match report {
+                Some(rep) => TradeStats::of(&rep.trades, &setup).map_err(|e| format!("{e:?}"))?,
+                None => TradeStats::default(),
+            };
             total.add(&st);
             let dd = r.metrics.as_ref().map(|m| m.max_drawdown);
             if let Some(d) = dd {

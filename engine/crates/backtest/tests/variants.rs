@@ -48,7 +48,7 @@ fn setup() -> Setup {
         },
         backtest: BacktestConfig::from_toml(cfg!("backtest.toml")).unwrap(),
         initial_equity: dec!(1000),
-        account_to_instrument: dec!(1),
+        account_to_instrument: cfds_backtest::AccountFx::Same,
         funding_rates: FundingRates::Constant(dec!(1.1)),
         funding_cutoff: chrono::NaiveTime::from_hms_opt(23, 0, 0).unwrap(),
         funding_tz: chrono_tz::Europe::Madrid,
@@ -344,7 +344,7 @@ fn trade_stats_split_gross_costs_and_net() {
     let (_, r) =
         evaluate_period_with(&inputs(&m15, &h1), p, &s, WARMUP, dec!(1), |_, e| Ok(e)).unwrap();
     let trades = r.unwrap().trades;
-    let st = TradeStats::of(&trades, dec!(1));
+    let st = TradeStats::of(&trades, &s).unwrap();
     assert_eq!(st.trades, trades.len());
     assert_eq!(
         st.wins + st.losses,

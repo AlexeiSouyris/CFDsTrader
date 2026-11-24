@@ -24,8 +24,9 @@ use chrono_tz::Tz;
 use rust_decimal::Decimal;
 
 use crate::{
-    BacktestConfig, Execution, ExitReason, FundingRates, InstrumentCosts, Market, PortfolioError,
-    Trade, commission, fill_price, funding_cutoffs, funding_over, run_portfolio, simulate,
+    AccountFx, BacktestConfig, Execution, ExitReason, FundingRates, InstrumentCosts, Market,
+    PortfolioError, Trade, commission, fill_price, funding_cutoffs, funding_over, run_portfolio,
+    simulate,
 };
 
 /// Todo lo fijo de un recorrido.
@@ -39,8 +40,9 @@ pub struct Setup {
     pub backtest: BacktestConfig,
     /// Capital inicial, en la moneda de la cuenta.
     pub initial_equity: Decimal,
-    /// Moneda del instrumento por unidad de la moneda de la cuenta (constante en el recorrido).
-    pub account_to_instrument: Decimal,
+    /// Moneda del instrumento por unidad de la moneda de la cuenta, en cada momento
+    /// (ADR 0013 §4): el P/L y el margen se convierten con el tipo vigente.
+    pub account_to_instrument: AccountFx,
     /// Tipo de referencia anual de la financiación, en %, en cada momento (#79).
     pub funding_rates: FundingRates,
     pub funding_cutoff: NaiveTime,
@@ -110,6 +112,23 @@ impl TradeRecord {
     pub fn total_costs(&self) -> Decimal {
         self.mid_pnl - self.net_pnl
     }
+
+    /// Fin de la vela de la última salida (cuando la operación queda realizada); sin salidas,
+    /// la entrada.
+    pub fn closed_at(&self) -> DateTime<Utc> {
+        self.exits.last().map_or(self.entry_time, |e| e.time)
+    }
+}
+
+impl Setup {
+    /// `amount` (en la moneda del instrumento) en la moneda de la cuenta, con el tipo vigente
+    /// en `at` (ADR 0013 §4). Sin tipo publicado en `at`, error: nunca se inventa uno.
+    pub fn to_account(&self, amount: Decimal, at: DateTime<Utc>) -> Result<Decimal, RunError> {
+        self.account_to_instrument
+            .at(at)
+            .map(|fx| amount / fx)
+            .ok_or(RunError::MissingFxRate(at))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -164,6 +183,9 @@ pub enum RunError {
     /// En este corte de financiación todavía no había ningún tipo de referencia publicado
     /// (#79): no se inventa uno.
     MissingFundingRate(DateTime<Utc>),
+    /// En este momento todavía no había tipo de cambio publicado entre la moneda del instrumento
+    /// y la de la cuenta (ADR 0013 §4): no se inventa uno.
+    MissingFxRate(DateTime<Utc>),
 }
 
 fn sign(side: Side) -> Decimal {

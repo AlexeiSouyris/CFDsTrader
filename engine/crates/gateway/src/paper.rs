@@ -26,7 +26,7 @@ use std::collections::BTreeMap;
 use std::future::Future;
 use std::sync::Arc;
 
-use cfds_backtest::{DailyRates, FundingRates, market_terms_from_catalog};
+use cfds_backtest::{AccountFx, DailyRates, FundingRates, market_terms_from_catalog};
 use cfds_broker::{
     Broker, BrokerConfig, Flush, FundingSetup, MarketSetup, PaperBroker, ReconcileSchedule,
     flush_journal, reconcile_periodically, restore_and_reconcile, submit_and_record,
@@ -343,6 +343,15 @@ impl PgPaper {
                     continue;
                 }
             };
+            // El broker simulado todavía convierte con un tipo fijo: un contrato en otra moneda
+            // que la cuenta (el oro, en USD) no entra hasta que use el tipo vigente (ADR 0013).
+            if terms.account_to_instrument != AccountFx::Same {
+                skipped.push(format!(
+                    "{id}: contrato en otra moneda que la cuenta; el broker simulado todavía no \
+                     convierte con el tipo de cambio vigente (ADR 0013 §4)"
+                ));
+                continue;
+            }
             // Financiación con la serie diaria guardada (#79) si existe; si no, la constante
             // documentada del catálogo (`[funding_benchmarks]`).
             let mut rates = terms.funding_rates.clone();
@@ -367,7 +376,7 @@ impl PgPaper {
                 MarketSetup {
                     limits: terms.limits,
                     costs: terms.costs,
-                    account_to_instrument: terms.account_to_instrument,
+                    account_to_instrument: rust_decimal::Decimal::ONE,
                     candles,
                     funding: FundingSetup {
                         cutoff: terms.funding_cutoff,

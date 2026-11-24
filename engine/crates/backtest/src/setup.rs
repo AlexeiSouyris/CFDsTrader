@@ -10,7 +10,7 @@ use chrono::NaiveTime;
 use chrono_tz::Tz;
 use rust_decimal::Decimal;
 
-use crate::{BacktestConfig, FundingRates, InstrumentCosts, Setup};
+use crate::{AccountFx, BacktestConfig, FundingRates, InstrumentCosts, Setup};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SetupError {
@@ -18,10 +18,6 @@ pub enum SetupError {
     Unknown(InstrumentId),
     /// Faltan datos del broker: no se simula con valores inventados.
     Pending(Vec<PendingField>),
-    /// El contrato está en otra moneda que la cuenta. La serie con fuente ya existe
-    /// ([`crate::FxRates`], EUR/USD del BCE, ADR 0013 §4), pero el recorrido todavía convierte
-    /// con un tipo constante: hasta que use el tipo vigente en cada momento, no se simula.
-    CurrencyConversion { account: String, instrument: String },
     /// El capital inicial tiene que ser mayor que 0.
     InvalidEquity(Decimal),
 }
@@ -37,13 +33,6 @@ impl std::fmt::Display for SetupError {
                 }
                 Ok(())
             }
-            SetupError::CurrencyConversion {
-                account,
-                instrument,
-            } => write!(
-                f,
-                "el contrato está en {instrument} y la cuenta en {account}: falta convertir con el tipo vigente en cada momento (FxRates, ADR 0013 §4)"
-            ),
             SetupError::InvalidEquity(e) => write!(f, "capital inicial inválido: {e}"),
         }
     }
@@ -69,8 +58,11 @@ fn pending<T>(item: &str, field: &'static str, v: &Sourced<T>) -> Option<Pending
 pub struct MarketTerms {
     pub limits: InstrumentLimits,
     pub costs: InstrumentCosts,
-    /// Moneda del instrumento por unidad de la moneda de la cuenta.
-    pub account_to_instrument: Decimal,
+    /// Moneda del instrumento por unidad de la moneda de la cuenta, en cada momento. Con otra
+    /// moneda que la cuenta queda [`AccountFx::Missing`]: quien tiene la base la reemplaza por
+    /// [`AccountFx::Daily`] (serie `fx_rates`, ADR 0013 §4); sin eso, el recorrido frena con
+    /// `RunError::MissingFxRate`.
+    pub account_to_instrument: AccountFx,
     /// Constante (`[funding_benchmarks]`); para la serie diaria guardada (#79), reemplazarla por
     /// [`FundingRates::Daily`].
     pub funding_rates: FundingRates,
@@ -113,16 +105,17 @@ pub fn market_terms_from_catalog(
     ) {
         // Cada pendiente deja un `Err` o un `None` acá: no hace falta otro chequeo.
         (Ok(costs), Some(limits), Some(benchmark_pct), Some(account), Some(&cutoff)) => {
-            if *account != spec.instrument.currency {
-                return Err(SetupError::CurrencyConversion {
-                    account: account.to_string(),
-                    instrument: spec.instrument.currency.to_string(),
-                });
-            }
+            let account_to_instrument = if *account == spec.instrument.currency {
+                AccountFx::Same
+            } else {
+                AccountFx::Missing {
+                    pair: format!("{account}{}", spec.instrument.currency),
+                }
+            };
             Ok(MarketTerms {
                 limits,
                 costs,
-                account_to_instrument: Decimal::ONE,
+                account_to_instrument,
                 funding_rates: FundingRates::Constant(benchmark_pct),
                 funding_cutoff: cutoff,
                 funding_tz: catalog.funding_cutoff_timezone,

@@ -68,7 +68,11 @@ fn de40_setup_comes_only_from_the_configuration() {
     );
     assert_eq!(s.limits.margin_pct, dec!(5));
     assert_eq!(s.limits.min_deal_size, Some(dec!(0.5)));
-    assert_eq!(s.account_to_instrument, dec!(1), "contrato y cuenta en EUR");
+    assert_eq!(
+        s.account_to_instrument,
+        cfds_backtest::AccountFx::Same,
+        "contrato y cuenta en EUR"
+    );
     assert_eq!(s.funding_cutoff.to_string(), "23:00:00");
     assert_eq!(s.funding_tz, chrono_tz::Europe::Madrid);
     assert_eq!(s.day_tz, chrono_tz::Europe::Madrid);
@@ -109,10 +113,20 @@ fn pending_broker_terms_block_the_run_and_say_what_is_missing() {
 #[test]
 fn a_contract_in_another_currency_needs_an_exchange_rate() {
     let usd = in_section("DE40", r#"currency = "EUR""#, r#"currency = "USD""#);
-    assert!(matches!(
-        build(&usd, "DE40", dec!(10000)),
-        Err(SetupError::CurrencyConversion { .. })
-    ));
+    // ADR 0013 §4: el recorrido convierte con la serie del par CUENTA+INSTRUMENTO. Sin
+    // cargarla, falta el tipo en todo momento (nunca uno inventado).
+    let setup = build(&usd, "DE40", dec!(10000)).unwrap();
+    assert_eq!(
+        setup.account_to_instrument,
+        cfds_backtest::AccountFx::Missing {
+            pair: "EURUSD".into()
+        }
+    );
+    let at = "2026-11-24T12:00:00Z".parse().unwrap();
+    assert_eq!(
+        setup.to_account(dec!(100), at),
+        Err(cfds_backtest::RunError::MissingFxRate(at))
+    );
 }
 
 #[test]
