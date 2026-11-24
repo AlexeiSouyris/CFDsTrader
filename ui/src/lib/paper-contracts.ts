@@ -26,6 +26,7 @@ export type Rejection =
   | 'no_price'
   | 'unknown_instrument'
   | 'stop_wrong_side'
+  | 'no_recent_candles'
 
 /** `order.v1`: una orden de mercado. El tamaño no va: lo decide el módulo de riesgo. */
 export type Order = {
@@ -117,4 +118,6 @@ export const REJECTION_LABEL: Record<Rejection, string> = {
   no_price: 'No hay precio reciente para este instrumento.',
   unknown_instrument: 'Instrumento desconocido.',
   stop_wrong_side: 'El stop está del lado equivocado del precio.',
+  no_recent_candles:
+    'Sin velas en vivo suficientes para calcular el ATR (puede faltar cupo de IG). No se opera hasta que lleguen.',
 }

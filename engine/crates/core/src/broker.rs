@@ -105,11 +105,14 @@ pub enum OrderRejection {
     UnknownInstrument,
     /// El stop está del lado equivocado de la entrada (arriba en un largo, abajo en un corto).
     StopWrongSide,
+    /// Hay vela de referencia, pero no alcanzan las velas cerradas recientes para el ATR del
+    /// riesgo (calentamiento), por ejemplo porque el modo en vivo está en pausa sin cupo (#361).
+    NoRecentCandles,
 }
 
 impl OrderRejection {
     /// Todos, en el orden del contrato.
-    pub const ALL: [OrderRejection; 14] = [
+    pub const ALL: [OrderRejection; 15] = [
         Self::InvalidInput,
         Self::KillSwitchActive,
         Self::DrawdownLimit,
@@ -124,6 +127,7 @@ impl OrderRejection {
         Self::NoPrice,
         Self::UnknownInstrument,
         Self::StopWrongSide,
+        Self::NoRecentCandles,
     ];
 }
 
