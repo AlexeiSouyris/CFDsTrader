@@ -145,7 +145,7 @@ describe('herramienta de medición de los gráficos (#281, #355)', () => {
     expect(Number(a.getAttribute('data-to'))).toBeCloseTo(Number(view[down].close), 6)
     const pts = () =>
       ['from', 'to'].map((k) =>
-        container.querySelector(`[data-measure-point="${k}"]`)!.getAttribute('cy'),
+        container.querySelector(`[data-measure-point="${k}"]`)!.getAttribute('data-y'),
       )
     const first = pts()
     drag(svg, xOf(up), 400, xOf(down), 20)
@@ -179,7 +179,8 @@ describe('herramienta de medición de los gráficos (#281, #355)', () => {
   it('el punto sigue al cierre de la vela bajo el cursor, esté arriba o abajo de las velas (#355)', () => {
     const { svg, xOf, view, container } = chart()
     const dot = () => container.querySelector('[data-hover-dot]')
-    const cy = () => Number(dot()!.querySelector('circle')!.getAttribute('cy'))
+    // adónde va el punto (el dibujo se desliza hasta ahí, #377)
+    const cy = () => Number(dot()!.getAttribute('data-y'))
     expect(dot()).toBeNull()
 
     const up = bodyOf(view, 'up')
@@ -239,20 +240,22 @@ describe('herramienta de medición de los gráficos (#281, #355)', () => {
     const svg = screen.getByRole('img', { name: /US100, \d+ velas de 1 hora/ })
     const { xOf, view } = geometry(svg, US100_1H.candles, 62)
     const dot = () => container.querySelector('[data-hover-dot]')
-    const cy = () => Number(dot()!.querySelector('circle')!.getAttribute('cy'))
+    // adónde va el punto (el dibujo se desliza hasta ahí, #377)
+    const cy = () => Number(dot()!.getAttribute('data-y'))
 
     const down = bodyOf(view, 'down')
     fireEvent.pointerMove(svg, { clientX: xOf(down), clientY: 10 })
     expect(dot()).toHaveAttribute('data-hover-dot', view[down].start)
     expect(cy()).toBeCloseTo(bodyEdges(container, view[down].start).bottom, 6)
-    // la cruz de lectura ya trae su línea vertical: el punto no agrega otra
-    expect(dot()!.querySelector('line')).toBeNull()
+    // la cruz de lectura reemplaza la línea vertical tenue: una sola guía
+    expect(dot()!.querySelectorAll('[data-crosshair]')).toHaveLength(1)
+    expect(dot()!.querySelectorAll(':scope > line')).toHaveLength(0)
 
     // en el gráfico de línea el punto va sobre la línea, que pasa por el cierre
     fireEvent.click(screen.getByRole('button', { name: 'Línea' }))
     const up = bodyOf(view, 'up')
     fireEvent.pointerMove(svg, { clientX: xOf(up), clientY: 220 })
-    const d = container.querySelector('path[stroke="var(--chart-line)"]')!.getAttribute('d')!
+    const d = container.querySelector('[data-close-line]')!.getAttribute('d')!
     const pt = d.split(/[ML]/).filter(Boolean)[up].split(',').map(Number)
     expect(cy()).toBeCloseTo(pt[1], 1)
     fireEvent.pointerLeave(svg)
