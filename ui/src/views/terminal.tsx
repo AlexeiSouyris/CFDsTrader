@@ -54,8 +54,8 @@ function Panel({
   children: ReactNode
 }) {
   return (
-    <section className="glass relative min-w-0 rounded-[20px] p-5 has-[[role=dialog]]:z-30">
-      <header className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+    <section className="glass relative min-w-0 rounded-[20px] p-4 has-[[role=dialog]]:z-30 sm:p-5">
+      <header className="mb-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h2 className="text-[15px] font-extrabold tracking-tight">{title}</h2>
         {aside && <span className="text-[11.5px] text-muted-foreground">{aside}</span>}
       </header>
@@ -271,8 +271,13 @@ export function TerminalView({ member }: { member: Member }) {
       aside={live ? 'P/L del motor, en simulación' : 'datos de ejemplo'}
     >
       {live && remotePositions.status === 'error' ? (
-        <p role="alert" className="text-[13px]">
-          No se pudieron leer las posiciones ({remotePositions.message}).
+        <p role="alert" className="rounded-xl border border-down/40 p-3 text-[13px]">
+          <strong className="block font-bold text-down">No se pudieron leer las posiciones.</strong>
+          <span className="text-muted-foreground">{remotePositions.message}</span>
+        </p>
+      ) : live && remotePositions.status === 'loading' ? (
+        <p role="status" className="py-6 text-center text-[13px] text-muted-foreground">
+          Pidiendo las posiciones al broker simulado…
         </p>
       ) : (
         <PositionsTable positions={openPositions} />
@@ -339,13 +344,16 @@ export function TerminalView({ member }: { member: Member }) {
       )}
 
       <section aria-label="Propuestas" className="grid gap-3">
-        <h2 className="px-1 text-[15px] font-extrabold tracking-tight">
-          Propuestas del motor{' '}
-          <span className="text-[12px] font-semibold text-muted-foreground">
-            · vencen a los 10 minutos
-          </span>
-        </h2>
-        <div className="grid gap-3 2xl:grid-cols-2">
+        <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-1">
+          <h2 className="text-[15px] font-extrabold tracking-tight">
+            Propuestas del motor{' '}
+            <span className="text-[12px] font-semibold text-muted-foreground">
+              · vencen a los 10 minutos
+            </span>
+          </h2>
+          <span className="text-[11.5px] text-muted-foreground">datos de ejemplo</span>
+        </header>
+        <div className="grid gap-3 xl:grid-cols-2">
           {PROPOSALS.map((p) => (
             <ProposalCard
               key={p.proposal.id}

@@ -33,6 +33,35 @@ describe('terminal de trading (fase 10, #275)', () => {
     })
   })
 
+  it('el capital va en su propia lista, sin compartir grilla con el P/L (#356)', () => {
+    render(<TerminalView member={CURRENT_MEMBER} />)
+    const account = screen.getByRole('region', { name: 'Cuenta de simulación' })
+    const lists = account.querySelectorAll('dl')
+    expect(lists).toHaveLength(2)
+    expect(lists[0]).toHaveTextContent('Capital')
+    expect(lists[0]).not.toHaveTextContent('P/L abierto')
+    expect(lists[1]).toHaveTextContent('P/L abierto')
+  })
+
+  it('en el celular cada celda de una posición lleva su nombre (#356)', () => {
+    render(<TerminalView member={CURRENT_MEMBER} />)
+    const table = screen.getByRole('table', { name: 'Posiciones abiertas' })
+    const [row] = within(table).getAllByRole('row').slice(1)
+    const labels = within(row)
+      .getAllByRole('cell')
+      .map((c) => c.getAttribute('data-label'))
+      .filter(Boolean)
+    expect(labels).toEqual([
+      'Tamaño',
+      'Entrada',
+      'Último',
+      'Stop · TP1',
+      'P/L',
+      'Margen',
+      'Abierta',
+    ])
+  })
+
   it('marca las señales del motor en el gráfico', () => {
     const { container } = render(<TerminalView member={CURRENT_MEMBER} />)
     expect(container.querySelectorAll('[data-signal]')).toHaveLength(CHART_SIGNALS.length)

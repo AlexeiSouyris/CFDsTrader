@@ -54,10 +54,12 @@ export function ProposalCard({
   return (
     <article
       aria-label={`Propuesta ${p.instrument_id} ${long ? 'largo' : 'corto'}`}
-      className="glass relative min-w-0 rounded-[20px] p-4 has-[[role=dialog]]:z-30"
+      className="glass relative @container min-w-0 rounded-[20px] p-4 has-[[role=dialog]]:z-30 sm:p-5"
     >
       <header className="flex flex-wrap items-center gap-2">
-        <h2 className="text-[18px] font-extrabold tracking-tight">{p.instrument_id}</h2>
+        <h3 className="text-[18px] leading-none font-extrabold tracking-tight">
+          {p.instrument_id}
+        </h3>
         <span
           className={cn(
             'rounded-md px-2 py-0.5 text-[11px] font-bold',
@@ -66,12 +68,12 @@ export function ProposalCard({
         >
           <Term id="largo-corto">{long ? 'Largo' : 'Corto'}</Term>
         </span>
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-[11px] text-muted-foreground tabular-nums">
           señal {dateTimeUtc(p.signal_at)} · {p.source === 'paper' ? 'simulación' : p.source}
         </span>
         <span
           className={cn(
-            'ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold tabular-nums',
+            'ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold whitespace-nowrap tabular-nums',
             expired ? 'bg-down/10 text-down' : 'glass-strong',
           )}
           aria-live="off"
@@ -83,7 +85,7 @@ export function ProposalCard({
         </span>
       </header>
 
-      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-5">
+      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl border border-border p-3 @md:grid-cols-3 @2xl:grid-cols-5">
         {[
           ['Entrada', decimal(p.reference), undefined],
           ['Stop', decimal(p.stop), 'stop-loss'],
@@ -95,16 +97,18 @@ export function ProposalCard({
             <dt className="text-[10px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
               {term ? <Term id={term}>{label}</Term> : label}
             </dt>
-            <dd className="mt-0.5 truncate text-[14px] font-semibold tabular-nums">{value}</dd>
+            <dd className="mt-1 text-[14px] font-semibold whitespace-nowrap tabular-nums">
+              {value}
+            </dd>
           </div>
         ))}
       </dl>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-[1.2fr_1fr]">
+      <div className="mt-4 grid gap-4 @xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <section aria-label="Desglose del puntaje">
-          <h3 className="mb-2 flex items-baseline justify-between text-[12px] font-bold">
-            Puntaje <span className="text-[20px] font-extrabold">{p.score}</span>
-          </h3>
+          <h4 className="mb-2 flex items-baseline justify-between text-[12px] font-bold">
+            Puntaje <span className="text-[20px] font-extrabold tabular-nums">{p.score}</span>
+          </h4>
           <ul className="grid gap-1.5">
             {p.breakdown.map((b) => {
               const c = COMPONENT[b.component]
@@ -134,15 +138,15 @@ export function ProposalCard({
         </section>
 
         <section aria-label="Probabilidad" className="rounded-2xl border border-border p-3">
-          <h3 className="text-[12px] font-bold">
+          <h4 className="text-[12px] font-bold">
             <Term id="probabilidad">Probabilidad</Term> de tocar TP1 antes que el stop
-          </h3>
+          </h4>
           {prob.status === 'ok' ? (
             <>
-              <p className="mt-1 text-[28px] leading-none font-extrabold">
+              <p className="mt-2 text-[28px] leading-none font-extrabold tabular-nums">
                 {prob.pct} <span className="text-[14px]">%</span>
               </p>
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1.5 text-[11px] text-muted-foreground tabular-nums">
                 rango {prob.lowPct}–{prob.highPct} % · {prob.cases} casos del backtest
               </p>
             </>
@@ -160,7 +164,7 @@ export function ProposalCard({
         </section>
       </div>
 
-      <footer className="mt-4 flex flex-wrap items-center gap-2">
+      <footer className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
         {decision ? (
           <p role="status" className="text-[12px] font-bold">
             {decision === 'approved' ? 'Aprobada' : 'Rechazada'} (maqueta: no se envió nada).
@@ -173,7 +177,7 @@ export function ProposalCard({
               type="button"
               disabled={expired}
               onClick={() => setDecision('approved')}
-              className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-[13px] font-bold text-primary-foreground hover:brightness-110 disabled:opacity-40"
+              className="flex min-h-10 items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-[13px] font-bold text-primary-foreground hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Check className="size-4" aria-hidden="true" /> Aprobar
             </button>
@@ -181,7 +185,7 @@ export function ProposalCard({
               type="button"
               disabled={expired}
               onClick={() => setDecision('rejected')}
-              className="glass-strong flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold disabled:opacity-40"
+              className="glass-strong flex min-h-10 items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold disabled:cursor-not-allowed disabled:opacity-40"
             >
               <X className="size-4" aria-hidden="true" /> Rechazar
             </button>
