@@ -112,12 +112,15 @@ class FakeClient:
         return self._timeseries
 
 
-def test_the_repository_config_maps_the_four_futures() -> None:
+def test_the_repository_config_maps_the_futures() -> None:
     assert [(s.dataset, s.symbol, s.instrument_id) for s in CFG.symbols] == [
         ("GLBX.MDP3", "ES.c.0", "US500"),
         ("GLBX.MDP3", "NQ.c.0", "US100"),
         ("GLBX.MDP3", "YM.c.0", "US30"),
         ("XEUR.EOBI", "FDAX.c.0", "DE40"),
+        # Solo para el estudio (#371).
+        ("GLBX.MDP3", "RTY.c.0", "US2000"),
+        ("GLBX.MDP3", "GC.v.0", "XAUUSD"),
     ]
     assert (CFG.start, CFG.max_usd) == (date(2011, 1, 1), Decimal(100))
     assert (CFG.schema, CFG.stype_in) == ("ohlcv-1m", "continuous")
@@ -171,7 +174,7 @@ def test_estimate_uses_only_free_metadata_and_respects_dataset_starts() -> None:
         "start": "2011-01-01",
         "end": "2026-11-23",
     }
-    assert check_budget(est, CFG.max_usd) == Decimal("5.00")
+    assert check_budget(est, CFG.max_usd) == Decimal("7.50")
 
 
 def test_the_dataset_start_comes_from_metadata_not_from_the_code() -> None:
@@ -217,12 +220,14 @@ def test_estimate_also_fills_the_part_before_what_is_stored() -> None:
         ("YM.c.0", None, date(2011, 1, 1), date(2026, 11, 23), None),
         # Eurex empieza el 2025-03-10: no hay nada anterior que pedir.
         ("FDAX.c.0", None, date(2026, 11, 23), date(2026, 11, 23), "ya está todo guardado"),
+        ("RTY.c.0", None, date(2011, 1, 1), date(2026, 11, 23), None),
+        ("GC.v.0", None, date(2011, 1, 1), date(2026, 11, 23), None),
     ]
     assert c.timeseries.calls == [], "estimar nunca baja datos"
-    # El tope de gasto se aplica al total de todos los tramos (4 x 1,25).
-    assert check_budget(est, CFG.max_usd) == Decimal("5.00")
+    # El tope de gasto se aplica al total de todos los tramos (6 x 1,25).
+    assert check_budget(est, CFG.max_usd) == Decimal("7.50")
     with pytest.raises(BudgetError):
-        check_budget(est, Decimal("4.99"))
+        check_budget(est, Decimal("7.49"))
     # Nunca se pide lo que ya está guardado, ni un hueco entre el primer y el último tramo.
     for e in est:
         s = loaded.get((e.symbol.dataset, e.symbol.symbol))
@@ -252,7 +257,7 @@ def test_the_budget_stops_everything() -> None:
     c = FakeClient(cost=30.0)
     est = estimate(c, CFG, date(2026, 11, 23), {})
     with pytest.raises(BudgetError):
-        check_budget(est, CFG.max_usd)  # 4 x 30 = 120 > 100
+        check_budget(est, CFG.max_usd)  # 6 x 30 = 180 > 100
 
 
 def test_cli_estimate_stops_over_budget_and_never_prints_the_key(
@@ -268,7 +273,7 @@ def test_cli_estimate_stops_over_budget_and_never_prints_the_key(
     assert key not in out.out + out.err
     monkeypatch.setattr(cli, "client", lambda: FakeClient(cost=2.0))
     assert cli.main(["x", "--estimate"]) == 0
-    assert "total estimado: USD 8.00" in capsys.readouterr().out
+    assert "total estimado: USD 12.00" in capsys.readouterr().out
 
 
 def test_cli_without_key_or_off_the_data_machine_does_nothing(
@@ -375,6 +380,8 @@ def test_the_config_keeps_only_the_central_order_book_publisher() -> None:
         ("NQ.c.0", "GLBX.MDP3.GLBX", 1),
         ("YM.c.0", "GLBX.MDP3.GLBX", 1),
         ("FDAX.c.0", "XEUR.EOBI.XEUR", 101),
+        ("RTY.c.0", "GLBX.MDP3.GLBX", 1),
+        ("GC.v.0", "GLBX.MDP3.GLBX", 1),
     ]
     for old, new in [
         ('publisher = "XEUR.EOBI.XEUR"', 'publisher = "XEUR.EOBI.XLIBRO"'),  # no existe

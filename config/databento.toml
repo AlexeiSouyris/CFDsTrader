@@ -68,3 +68,27 @@ instrument_id = "DE40"
 # pero de madrugada hay minutos sin operaciones en el libro central y esos minutos no tienen barra:
 # el 2026-11-20 dio 1112 barras (18,5 h) en 20,8 h de sesión. Medido con --sample el 23-11-2026.
 min_session_hours = 18
+
+# Russell 2000 (#371): solo para el estudio en backtest. RTY se negocia en CME Globex desde julio
+# de 2017; antes estaba en ICE (TF), así que GLBX.MDP3 no lo tiene. Eso lo dice --estimate.
+[[symbols]]
+dataset = "GLBX.MDP3"
+symbol = "RTY.c.0"
+publisher = "GLBX.MDP3.GLBX"
+instrument_id = "US2000"
+min_session_hours = 22
+
+# Oro (#371): solo para el estudio. Futuro de COMEX en CME Globex, que opera unas 23 h.
+# Va con `v.0` (el vencimiento de más volumen) y no con `c.0`: en el oro, el vencimiento más
+# cercano en el calendario casi nunca es el que se negocia (los activos son feb, abr, jun, ago,
+# oct y dic). Medido con --estimate el 24-11-2026, de 2011 a hoy: GC.c.0 da 241.103 barras
+# (USD 0,88), casi sin operaciones, y GC.v.0 da 5.513.746 (USD 20,13).
+# `XAUUSD` todavía no está en config/instruments.toml (falta decidir clase de activo, sesión y
+# financiación): las barras de 1 minuto se guardan igual (`futures_bars_1m` no depende del
+# catálogo), pero no se arman velas hasta que esté.
+[[symbols]]
+dataset = "GLBX.MDP3"
+symbol = "GC.v.0"
+publisher = "GLBX.MDP3.GLBX"
+instrument_id = "XAUUSD"
+min_session_hours = 22
