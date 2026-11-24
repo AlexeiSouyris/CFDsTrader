@@ -3,8 +3,8 @@
 use cfds_core::{Candle, Timeframe};
 use cfds_indicators::Trend;
 use cfds_liquidity::{
-    BreakKind, LiquidityConfig, Side, fvg_touches_at, order_block_touches_at, order_blocks,
-    recent_choch, structure_breaks, sweeps_at,
+    BreakKind, LiquidityConfig, Side, fvg_touches_at, fvgs_up_to, order_block_touches_at,
+    order_blocks, recent_choch, structure_breaks, sweeps_at,
 };
 use cfds_patterns::{PivotKind, confirmed_pivots};
 use chrono::{DateTime, Utc};
@@ -445,4 +445,49 @@ fn a_lower_impulse_threshold_never_finds_fewer_order_blocks() {
         .collect();
     assert!(counts.windows(2).all(|w| w[0] <= w[1]), "{counts:?}");
     assert!(counts[0] < counts[4], "el umbral tiene efecto: {counts:?}");
+}
+
+/// Serie seudoaleatoria con huecos frecuentes (para que haya FVG).
+fn jumpy(n: usize, seed: u64) -> Vec<Candle> {
+    let mut state = seed;
+    let mut next = move |m: i64| -> i64 {
+        state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        ((state >> 33) % m as u64) as i64
+    };
+    let mut close = dec!(1000);
+    (0..n)
+        .map(|i| {
+            let open = close + Decimal::new(next(21) - 10, 1);
+            close = open + Decimal::new(next(61) - 30, 1);
+            let high = open.max(close) + Decimal::new(next(10), 1);
+            let low = open.min(close) - Decimal::new(next(10), 1);
+            bar(i, open, high, low, close)
+        })
+        .collect()
+}
+
+#[test]
+fn fvg_touches_only_look_at_the_window_and_match_the_full_history() {
+    // #390: `fvg_touches_at` ya no arma todos los FVG desde el principio; el resultado tiene que
+    // ser el mismo que filtrar los de `fvgs_up_to`.
+    let c = jumpy(600, 7);
+    let cfg = cfg();
+    let mut touched = 0;
+    for t in 0..c.len() {
+        let from = (t + 1).saturating_sub(cfg.fvg_lookback_bars);
+        let x = &c[t];
+        let expected: Vec<_> = fvgs_up_to(&c, t)
+            .into_iter()
+            .filter(|f| f.created_at < t && f.created_at >= from)
+            .filter(|f| match f.side {
+                Side::Long => x.low <= f.top && x.close >= f.bottom,
+                Side::Short => x.high >= f.bottom && x.close <= f.top,
+            })
+            .collect();
+        touched += expected.len();
+        assert_eq!(fvg_touches_at(&c, t, &cfg), expected, "t = {t}");
+    }
+    assert!(touched > 0, "la serie tiene que tocar algún FVG");
 }
