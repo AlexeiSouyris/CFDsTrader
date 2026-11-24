@@ -13,6 +13,7 @@ import { DEFAULT_GLASS } from '@/components/ui/glass-settings'
 import { GlassShell } from '@/components/ui/glass-shell'
 import { HalftoneWallpaper } from '@/components/ui/halftone-wallpaper'
 import { NotFound } from '@/components/ui/not-found'
+import { PortalTransition } from '@/components/ui/portal-transition'
 import { SignIn } from '@/components/ui/sign-in'
 import { CURRENT_MEMBER, NOTICES } from '@/mocks'
 import { ChartsView, CompetitionView, JournalView, NewsView } from '@/views'
@@ -48,8 +49,16 @@ const navTo = (id: string) => (prev: { view: string; dir: number }) => ({
 const FIRST_STAGE: Stage =
   import.meta.env.DEV && import.meta.env.VITE_SKIP_SIGNIN === '1' ? 'app' : 'loading'
 
+/**
+ * La transición de entrada (#414) sale solo al aceptarse el ingreso: no al recargar ni al cambiar
+ * de vista, y tampoco cuando se saltea el ingreso. Para probarla igual sin pasar por el ingreso,
+ * en desarrollo: `VITE_PORTAL_PREVIEW=1`.
+ */
+const PORTAL_ON_START = import.meta.env.DEV && import.meta.env.VITE_PORTAL_PREVIEW === '1'
+
 export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Stage }) {
   const [stage, setStage] = useState<Stage>(initialStage)
+  const [portal, setPortal] = useState(PORTAL_ON_START && initialStage === 'app')
   const [{ view, dir }, setNav] = useState(() => ({ view: viewFromHash(), dir: 0 }))
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [glass, setGlass] = useState(DEFAULT_GLASS)
@@ -94,7 +103,14 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
       <HalftoneWallpaper light={theme === 'light'} />
       <div className="relative z-10">
         {stage === 'loading' && <LoadingScreen />}
-        {stage === 'signin' && <SignIn onSignIn={() => setStage('app')} />}
+        {stage === 'signin' && (
+          <SignIn
+            onSignIn={() => {
+              setStage('app')
+              setPortal(true)
+            }}
+          />
+        )}
         {stage === 'app' && (
           <GlassShell
             views={VIEWS}
@@ -133,6 +149,7 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
           </GlassShell>
         )}
       </div>
+      {portal && <PortalTransition onDone={() => setPortal(false)} />}
     </div>
   )
 }
