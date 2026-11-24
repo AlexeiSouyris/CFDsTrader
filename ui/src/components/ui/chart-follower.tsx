@@ -2,10 +2,12 @@
  * La capa que se mueve de los gráficos (#355, #377): el punto que sigue al cierre, la guía
  * vertical y la medición. Lee el estado del cursor de `chart-measure` y es lo único que se vuelve
  * a dibujar al mover el mouse o el dedo. Solo dibujo: las cuentas son las de la medición.
+ * La etiqueta de la medición con velas es una pestaña pegada al rectángulo (#394).
  */
 import { useId, type ReactNode } from 'react'
 
 import {
+  measureTab,
   measureText,
   rangeTrend,
   segment,
@@ -174,18 +176,42 @@ export function ChartFollower({ store, plot }: { store: PointerStore; plot: Meas
       )
     } else {
       const bars = Math.abs(ib - ia)
-      const lines = [
-        `${t.price} (${t.pct})`,
-        `${bars} ${bars === 1 ? 'vela' : 'velas'} · ${span(Date.parse(starts[ib]) - Date.parse(starts[ia]))}`,
-      ]
       const x0 = Math.min(ia, e.idx) * slot
       const x1 = (Math.max(ia, e.idx) + 1) * slot
-      // etiqueta junto al cursor (el punto final), del lado donde entra
-      const cx = xOf(e.idx)
-      const w = Math.max(...lines.map((l) => l.length)) * 6.4 + 16
-      const h = 36
-      const lx = cx + 10 + w > plotW ? Math.max(0, cx - 10 - w) : cx + 10
-      const ly = yb - h - 8 < top ? Math.min(bottom - h, yb + 8) : yb - h - 8
+      const yTop = Math.min(ya, yb)
+      const yBot = Math.max(ya, yb)
+      // pestaña pegada al rectángulo (#394): sigue al rectángulo, no al cursor
+      const tab = measureTab({
+        x0,
+        x1,
+        yTop,
+        yBot,
+        top,
+        bottom,
+        plotW,
+        parts: [
+          t.price,
+          t.pct,
+          `${bars} ${bars === 1 ? 'vela' : 'velas'}`,
+          span(Date.parse(starts[ib]) - Date.parse(starts[ia])),
+        ],
+      })
+      const { x: tx, y: ty, w: tw, h: th } = tab
+      const r = 5
+      // borde abierto del lado que toca el rectángulo: la pestaña y el rectángulo quedan unidos
+      const above = tab.side === 'above'
+      const shape = above
+        ? `M${tx},${ty + th}V${ty + r}Q${tx},${ty} ${tx + r},${ty}H${tx + tw - r}Q${tx + tw},${ty} ${tx + tw},${ty + r}V${ty + th}`
+        : `M${tx},${ty}V${ty + th - r}Q${tx},${ty + th} ${tx + r},${ty + th}H${tx + tw - r}Q${tx + tw},${ty + th} ${tx + tw},${ty + th - r}V${ty}`
+      // si la pestaña es más ancha que el rectángulo, se cierra el borde en lo que sobresale
+      const ey = above ? ty + th : ty
+      const edge = [
+        [tx, Math.min(x0, tx + tw)],
+        [Math.max(x1, tx), tx + tw],
+      ]
+        .filter(([u, v]) => v - u > 0.5)
+        .map(([u, v]) => `M${u},${ey}H${v}`)
+        .join('')
       overlay = (
         <g
           data-measure={t.trend}
@@ -198,9 +224,9 @@ export function ChartFollower({ store, plot }: { store: PointerStore; plot: Meas
           <rect
             data-measure-box
             x={x0}
-            y={Math.min(ya, yb)}
+            y={yTop}
             width={Math.max(1, x1 - x0)}
-            height={Math.max(1, Math.abs(yb - ya))}
+            height={Math.max(1, yBot - yTop)}
             fill={color}
             fillOpacity={0.16}
             stroke={color}
@@ -208,28 +234,38 @@ export function ChartFollower({ store, plot }: { store: PointerStore; plot: Meas
           />
           <line x1={x0} x2={x1} y1={ya} y2={ya} stroke={color} strokeDasharray="3 3" />
           {points}
-          <g transform={`translate(${lx},${ly})`}>
-            <rect
-              width={w}
-              height={h}
-              rx={5}
-              fill="var(--background)"
-              fillOpacity={0.92}
-              stroke={color}
-            />
-            {lines.map((l, k) => (
-              <text
-                key={k}
-                data-measure-line={k}
-                x={8}
-                y={15 + k * 14}
-                fontSize={11}
-                fontWeight={k === 0 ? 700 : 500}
-                fill={k === 0 ? color : 'var(--foreground)'}
-              >
-                {l}
-              </text>
-            ))}
+          <g data-measure-tab={tab.side} data-x={tx} data-y={ty} data-w={tw} data-h={th}>
+            <path d={`${shape}Z`} fill="var(--background)" fillOpacity={0.82} />
+            <path d={`${shape}Z`} fill={color} fillOpacity={0.16} />
+            <path d={`${shape}${edge}`} fill="none" stroke={color} strokeOpacity={0.7} />
+            {tab.lines.map((l, n) => {
+              const [a, b, ...rest] = l.split(' · ')
+              const colored = n === 0
+              return (
+                <text
+                  key={n}
+                  data-measure-line={n}
+                  x={tx + tw / 2}
+                  y={ty + 13 + n * 13}
+                  textAnchor="middle"
+                  fontSize={11}
+                  fill="var(--foreground)"
+                >
+                  {colored ? (
+                    <>
+                      <tspan fontWeight={700} fill={color}>
+                        {`${a} · ${b}`}
+                      </tspan>
+                      {rest.length > 0 && (
+                        <tspan fillOpacity={0.8}>{` · ${rest.join(' · ')}`}</tspan>
+                      )}
+                    </>
+                  ) : (
+                    <tspan fillOpacity={0.8}>{l}</tspan>
+                  )}
+                </text>
+              )
+            })}
           </g>
         </g>
       )

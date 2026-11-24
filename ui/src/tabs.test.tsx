@@ -232,8 +232,8 @@ describe('terminal con 1, 2 o 4 gráficos (#286)', () => {
       'fill',
       'var(--chart-down)',
     )
-    expect(measureOf(svgs[0])!.textContent).toMatch(/\(\+\d+,\d{2} %\)/)
-    expect(measureOf(svgs[1])!.textContent).toMatch(/\(−\d+,\d{2} %\)/)
+    expect(measureOf(svgs[0])!.textContent).toMatch(/ · \+\d+,\d{2} % · /)
+    expect(measureOf(svgs[1])!.textContent).toMatch(/ · −\d+,\d{2} % · /)
 
     // un clic en el gráfico 2 borra solo la suya
     fireEvent.pointerDown(svgs[1], { clientX: 300, clientY: 150, button: 0, pointerId: 9 })
