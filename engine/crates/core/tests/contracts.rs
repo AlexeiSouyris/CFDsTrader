@@ -686,7 +686,16 @@ fn sample_liquidity_level(
 fn liquidity_level_roundtrips_through_the_contract() {
     use cfds_core::{LiquidityLevelKind as K, LiquidityLevelState as S, LiquiditySession as N};
     let schema = "liquidity_level.v1.schema.json";
-    for kind in [K::Eqh, K::Eql, K::Pdh, K::Pdl, K::Pwh, K::Pwl] {
+    for kind in [
+        K::Eqh,
+        K::Eql,
+        K::Pdh,
+        K::Pdl,
+        K::Pwh,
+        K::Pwl,
+        K::RoundHigh,
+        K::RoundLow,
+    ] {
         for state in [S::Intact, S::Swept, S::Broken] {
             assert_roundtrip(schema, &sample_liquidity_level(kind, None, state));
         }

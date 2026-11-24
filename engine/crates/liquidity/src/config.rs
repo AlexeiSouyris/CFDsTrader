@@ -36,6 +36,12 @@ struct Raw {
     // Desequilibrio de §5.4.1 (#231): lo lee y valida `imbalance::ImbalanceConfig`.
     #[serde(rename = "imbalance")]
     _imbalance: toml::Table,
+    // Números redondos y volumen de la barrida (#497): los leen y validan
+    // `levels::RoundNumbersConfig` y `sweep::SweepVolumeConfig`.
+    #[serde(rename = "round_numbers")]
+    _round_numbers: toml::Table,
+    #[serde(rename = "sweep_volume")]
+    _sweep_volume: toml::Table,
 }
 
 #[derive(Deserialize)]
@@ -71,6 +77,8 @@ impl LiquidityConfig {
         }
         crate::stats::StatsConfig::from_toml(text)?;
         crate::imbalance::ImbalanceConfig::from_toml(text)?;
+        crate::levels::RoundNumbersConfig::from_toml(text)?;
+        crate::sweep::SweepVolumeConfig::from_toml(text)?;
         Ok(Self {
             fvg_lookback_bars: raw.fvg.lookback_bars,
             min_impulse_body_atr: body,

@@ -28,11 +28,26 @@
 //!   se supone si la bolsa abrió).
 //! - EQH/EQL repetidos: si ya hay un nivel del mismo tipo y precio activo cuando nace otro,
 //!   el nuevo no se agrega (es la misma liquidez).
+//!
+//! Números redondos (#497, [`round_number_levels`]; informe
+//! `docs/analysis/2026-11-patrones-de-manipulacion.md` §4.5):
+//!
+//! ```text
+//! pasos S del instrumento en [round_numbers] (por ejemplo US500: 50 y 100)
+//! en cada vela cerrada t con ATR válido y para cada S:
+//!   round_high = el múltiplo k × S más chico con k × S > C[t]
+//!   round_low  = el múltiplo k × S más grande con k × S < C[t]
+//!   (si C[t] es justo un múltiplo, ese número no es ni alto ni bajo: quedan R + S y R − S)
+//! nace en el cierre de t, salvo que ya haya uno activo del mismo tipo y precio.
+//! ```
+//! El estado (intacto, barrido, roto o vencido) es el mismo de los otros niveles. Cuando un
+//! round_high se rompe, el cierre queda por encima y ese mismo número nace como round_low.
 
+use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 
 use cfds_core::{
-    Candle, LiquidityLevel, LiquidityLevelKind as Kind, LiquidityLevelState as State,
+    Candle, InstrumentId, LiquidityLevel, LiquidityLevelKind as Kind, LiquidityLevelState as State,
     LiquiditySession,
 };
 use cfds_market_data::Session;
@@ -203,6 +218,145 @@ pub fn liquidity_levels(
         });
     }
     out
+}
+
+/// Sección `[round_numbers]` de `config/liquidity.toml` (#497): pasos de los números redondos
+/// por instrumento, validados al cargar.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoundNumbersConfig {
+    steps: BTreeMap<InstrumentId, Vec<Decimal>>,
+}
+
+#[derive(Deserialize)]
+struct RawRoundFile {
+    round_numbers: RawRoundNumbers,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawRoundNumbers {
+    steps: BTreeMap<String, Vec<String>>,
+}
+
+impl RoundNumbersConfig {
+    /// Lee y valida `[round_numbers]`; ignora las demás secciones de `liquidity.toml`.
+    pub fn from_toml(text: &str) -> Result<Self, String> {
+        let raw = toml::from_str::<RawRoundFile>(text)
+            .map_err(|e| e.to_string())?
+            .round_numbers;
+        let mut steps = BTreeMap::new();
+        for (id, list) in raw.steps {
+            let instrument: InstrumentId = id
+                .parse()
+                .map_err(|_| format!("round_numbers.steps: {id:?} no es un instrumento válido"))?;
+            if list.is_empty() {
+                return Err(format!(
+                    "round_numbers.steps.{id}: hace falta al menos un paso"
+                ));
+            }
+            let mut parsed = Vec::with_capacity(list.len());
+            for text in &list {
+                let step = Decimal::from_str(text)
+                    .map_err(|e| format!("round_numbers.steps.{id}: {text:?}: {e}"))?;
+                if step <= Decimal::ZERO {
+                    return Err(format!(
+                        "round_numbers.steps.{id}: {text:?} tiene que ser > 0"
+                    ));
+                }
+                parsed.push(step);
+            }
+            parsed.sort();
+            if parsed.windows(2).any(|w| w[0] == w[1]) {
+                return Err(format!("round_numbers.steps.{id}: hay pasos repetidos"));
+            }
+            steps.insert(instrument, parsed);
+        }
+        Ok(Self { steps })
+    }
+
+    /// Pasos del instrumento, de menor a mayor; vacío si no tiene números redondos.
+    pub fn steps_for(&self, instrument: &InstrumentId) -> &[Decimal] {
+        self.steps.get(instrument).map_or(&[], Vec::as_slice)
+    }
+}
+
+/// Niveles de número redondo (#497) de una serie de velas **cerradas** de 15m de un
+/// instrumento, ordenada. Solo informativos, como el resto del mapa.
+///
+/// - `atr`: el mismo ATR de [`liquidity_levels`] (solo marca el calentamiento).
+/// - `steps`: [`RoundNumbersConfig::steps_for`] del instrumento.
+/// - `max_age_bars`: `[levels] max_age_bars`.
+///
+/// Ordenado por `exists_from`. Función pura y sin repintado: el nivel que nace en `t` depende
+/// solo de las velas `0..=t`; su estado, de las posteriores, y cuando cambia queda fijo.
+pub fn round_number_levels(
+    candles: &[Candle],
+    atr: &[Option<Decimal>],
+    steps: &[Decimal],
+    max_age_bars: usize,
+) -> Vec<LiquidityLevel> {
+    let mut out: Vec<LiquidityLevel> = Vec::new();
+    // Último nivel emitido de cada tipo y precio: es el único que puede seguir activo.
+    let mut latest: HashMap<(Kind, Decimal), usize> = HashMap::new();
+    for (t, c) in candles.iter().enumerate() {
+        if atr.get(t).copied().flatten().is_none() {
+            continue; // calentamiento
+        }
+        let now = c.end();
+        let mut born: Vec<(Kind, Decimal)> = steps
+            .iter()
+            .filter(|s| **s > Decimal::ZERO)
+            .flat_map(|&s| {
+                let (below, above) = round_neighbors(c.close, s);
+                [(Kind::RoundHigh, above), (Kind::RoundLow, below)]
+            })
+            .collect();
+        born.sort();
+        born.dedup();
+        for (kind, price) in born {
+            if latest
+                .get(&(kind, price))
+                .is_some_and(|&i| is_active_at(&out[i], now))
+            {
+                continue; // la misma liquidez sigue activa
+            }
+            let (state, state_changed_at, expired_at) =
+                evaluate(kind.is_high(), price, &candles[t + 1..], max_age_bars);
+            latest.insert((kind, price), out.len());
+            out.push(LiquidityLevel {
+                instrument_id: c.instrument_id.clone(),
+                kind,
+                session: None,
+                price,
+                exists_from: now,
+                state,
+                state_changed_at,
+                expired_at,
+            });
+        }
+    }
+    out
+}
+
+/// Múltiplos de `step` más cercanos estrictamente por debajo y por encima de `close`.
+fn round_neighbors(close: Decimal, step: Decimal) -> (Decimal, Decimal) {
+    let mut k = (close / step).floor();
+    // La división puede redondear en el último dígito: se corrige para que k × S ≤ C < (k + 1) × S.
+    while k * step > close {
+        k -= Decimal::ONE;
+    }
+    while (k + Decimal::ONE) * step <= close {
+        k += Decimal::ONE;
+    }
+    let below = if k * step == close {
+        k - Decimal::ONE
+    } else {
+        k
+    };
+    (
+        (below * step).normalize(),
+        ((k + Decimal::ONE) * step).normalize(),
+    )
 }
 
 /// `true` si en el instante `now` (el cierre de una vela) el nivel ya existe, no se barrió ni se

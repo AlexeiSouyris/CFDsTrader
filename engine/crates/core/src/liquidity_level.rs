@@ -27,12 +27,19 @@ pub enum LiquidityLevelKind {
     Pwl,
     SessionHigh,
     SessionLow,
+    /// Número redondo por encima del cierre (múltiplo de un paso por instrumento, #497).
+    RoundHigh,
+    /// Número redondo por debajo del cierre (#497).
+    RoundLow,
 }
 
 impl LiquidityLevelKind {
     /// `true` si es un nivel alto (los stops están por encima).
     pub fn is_high(self) -> bool {
-        matches!(self, Self::Eqh | Self::Pdh | Self::Pwh | Self::SessionHigh)
+        matches!(
+            self,
+            Self::Eqh | Self::Pdh | Self::Pwh | Self::SessionHigh | Self::RoundHigh
+        )
     }
 
     pub fn is_session(self) -> bool {
