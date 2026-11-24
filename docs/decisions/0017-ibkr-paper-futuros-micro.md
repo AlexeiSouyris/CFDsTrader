@@ -1,8 +1,8 @@
 # 0017 – IBKR como segundo broker, solo en modo práctica (paper), para futuros micro (MNQ, MES)
 
-- **Estado:** propuesta
+- **Estado:** aceptada
 - **Fecha:** 2026-11-24
-- **Aprobada por:** pendiente. La aprueba el dueño (Alexei) con una cita textual registrada en #530 (modo de un solo constructor, `CLAUDE.md`). Un agente no la da por aprobada. **Este ADR no habilita dinero real**: eso sigue necesitando un ADR aprobado por dos personas (`CLAUDE.md` §5 y fase 11).
+- **Aprobada por:** el dueño (Alexei), el 24-11-2026, en el chat con su agente, textual: "apruebo el ADR 0017" (modo de un solo constructor, `CLAUDE.md`). Registrado en #530. Siguen pendientes del dueño: volver a pedir el permiso de futuros y decidir el depósito que abre la cuenta paper. **Este ADR no habilita dinero real**: eso sigue necesitando un ADR aprobado por dos personas (`CLAUDE.md` §5 y fase 11).
 - **Issue:** #530
 - **Relacionados:** [ADR 0002](0002-broker-ig.md) (IG, cuenta demo), [ADR 0015](0015-tasas-usd-nyfed-y-base-de-futuros.md) (base de los futuros), `docs/analysis/2026-11-programa-2-propuesta.md` §1.4, `docs/guides/consultas-proveedores.md` §3, #493 (comisiones de IBKR leídas), resultados R018 y R027 de `docs/analysis/registro-de-resultados.csv`
 
