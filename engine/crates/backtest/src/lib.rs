@@ -8,6 +8,7 @@ pub mod exits;
 pub mod export;
 pub mod metrics;
 pub mod portfolio;
+pub mod proposals;
 pub mod rates;
 pub mod rollover;
 pub mod runner;
@@ -30,6 +31,9 @@ pub use metrics::{Metrics, evaluate};
 pub use portfolio::{
     KillSwitchEvent, KillSwitchEventKind, Market, PortfolioError, PortfolioRejected,
     PortfolioReport, PortfolioTrade, run_portfolio,
+};
+pub use proposals::{
+    Label, Overlap, Proposal, ProposalReport, ProposalRules, Tally, proposals, tally_by,
 };
 pub use rates::{DailyRates, FundingRates};
 pub use rollover::mark_rollovers;

@@ -18,7 +18,7 @@ import exchange_calendars as xc
 import pandas as pd
 
 EXCHANGES = ("XNYS", "XETR")
-START, END = "2021-01-01", "2027-12-31"
+START, END = "2011-01-01", "2027-12-31"
 
 
 def generate(code: str) -> str:
