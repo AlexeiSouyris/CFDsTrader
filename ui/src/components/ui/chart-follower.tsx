@@ -3,6 +3,8 @@
  * vertical y la medición. Lee el estado del cursor de `chart-measure` y es lo único que se vuelve
  * a dibujar al mover el mouse o el dedo. Solo dibujo: las cuentas son las de la medición.
  * La etiqueta de la medición con velas es una pestaña pegada al rectángulo (#394).
+ * En los gráficos navegables (#401) también sigue al encuadre vivo (`useFrame`) y la medición
+ * se recorta al panel de precio.
  */
 import { useId, type ReactNode } from 'react'
 
@@ -13,6 +15,7 @@ import {
   segment,
   span,
   TREND_COLOR,
+  useFrame,
   usePointer,
   type MeasurePlot,
   type PointerStore,
@@ -22,11 +25,14 @@ import {
 export function ChartFollower({ store, plot }: { store: PointerStore; plot: MeasurePlot }) {
   const s = usePointer(store, (st) => st)
   const gradId = useId()
-  const { plotW, top, bottom, slot, starts, closes, yOf, digits } = plot
+  const clipId = useId()
+  const frame = useFrame(plot)
+  const { plotW, top, bottom, starts, closes, digits } = plot
+  const { slot, yOf } = frame
   const line = plot.mode === 'Línea'
   const n = starts.length
-  const xOf = (f: number) => f * slot + slot / 2
-  const trend = rangeTrend(closes, digits)
+  const xOf = (f: number) => (f - frame.start) * slot + slot / 2
+  const trend = plot.trend ?? rangeTrend(closes, digits)
 
   // el punto que sigue al gráfico: en la vela bajo el cursor, a la altura de su cierre
   const hi = s.hover !== null && s.hover >= 0 && s.hover < n ? s.hover : null
@@ -176,8 +182,8 @@ export function ChartFollower({ store, plot }: { store: PointerStore; plot: Meas
       )
     } else {
       const bars = Math.abs(ib - ia)
-      const x0 = Math.min(ia, e.idx) * slot
-      const x1 = (Math.max(ia, e.idx) + 1) * slot
+      const x0 = xOf(Math.min(ia, e.idx)) - slot / 2
+      const x1 = xOf(Math.max(ia, e.idx)) + slot / 2
       const yTop = Math.min(ya, yb)
       const yBot = Math.max(ya, yb)
       // pestaña pegada al rectángulo (#394): sigue al rectángulo, no al cursor
@@ -274,7 +280,14 @@ export function ChartFollower({ store, plot }: { store: PointerStore; plot: Meas
 
   return (
     <>
-      {overlay}
+      {overlay && (
+        <>
+          <clipPath id={clipId}>
+            <rect x={0} y={top} width={plotW} height={Math.max(0, bottom - top)} />
+          </clipPath>
+          <g clipPath={`url(#${clipId})`}>{overlay}</g>
+        </>
+      )}
       {dot}
     </>
   )

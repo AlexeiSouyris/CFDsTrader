@@ -11,8 +11,12 @@
  * medición visual del usuario sobre la escala del eje Y, no lógica de trading. Velas o línea
  * con área (#377); la cruz de lectura se desliza y la cabecera lee la vela bajo el cursor sin
  * volver a dibujar el gráfico.
+ *
+ * Navegable (#401, `chart-nav.tsx`): arrastrar desplaza en el tiempo, la rueda hace zoom anclado
+ * en el cursor y el eje de precio se ajusta solo o se estira a mano. Medir es Shift + arrastrar
+ * o el botón de regla.
  */
-import { useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
 
 import {
   CHART_MODES,
@@ -23,8 +27,11 @@ import {
   type PointerStore,
 } from '@/components/ui/chart-measure'
 import { ChartFollower } from '@/components/ui/chart-follower'
+import { ChartNavBar, ViewportLive } from '@/components/ui/chart-nav-bar'
+import { matchRange, useChartNav, useViewport } from '@/components/ui/chart-nav'
 import { ChartReadout } from '@/components/ui/chart-readout'
 import { LineArea } from '@/components/ui/line-area'
+import { niceTicks, renderWindow, timeTicks, visibleRange } from '@/lib/chart-viewport'
 import { dateUtc, decimal } from '@/lib/format'
 import { useElementWidth } from '@/lib/use-element-width'
 import { Segmented } from '@/components/ui/segmented'
@@ -41,6 +48,8 @@ const RANGES = [
 const AXIS_W = 62
 const GAP = 16
 const SHARE = { price: 0.52, volume: 0.12, rsi: 0.16, macd: 0.2 }
+/** trazos que no se engrosan ni se afinan cuando la capa se estira durante el zoom (#401) */
+const THIN = 'non-scaling-stroke'
 
 export function TradingChart({
   instrument,
@@ -53,21 +62,15 @@ export function TradingChart({
   height?: number
   className?: string
 }) {
-  const [range, setRange] = useState<(typeof RANGES)[number]['label']>('1 semana')
   const [mode, setMode] = useState<ChartMode>('Velas')
+  const [ruler, setRuler] = useState(false)
+  const clipPrice = useId()
+  const clipSub = useId()
   const svgRef = useRef<SVGSVGElement>(null)
   const [boxRef, width] = useElementWidth<HTMLDivElement>(720, 300)
-
-  const n = RANGES.find((r) => r.label === range)!.bars
-  const view = useMemo(() => bars.slice(Math.max(0, bars.length - n)), [bars, n])
-  const count = view.length
   const num = (s: string | null) => (s === null ? null : Number(s))
 
   const plotW = width - AXIS_W
-  const slot = plotW / Math.max(count, 1)
-  const body = Math.max(1.5, Math.min(slot * 0.62, 12))
-  const x = (i: number) => i * slot + slot / 2
-
   const usable = height - GAP * 3 - 22
   const top = { price: 4, volume: 0, rsi: 0, macd: 0 }
   const h = {
@@ -80,41 +83,60 @@ export function TradingChart({
   top.rsi = top.volume + h.volume + GAP
   top.macd = top.rsi + h.rsi + GAP
 
-  const lows = view.map((b) => Number(b.low))
-  const highs = view.map((b) => Number(b.high))
-  const lo = Math.min(...lows)
-  const hi = Math.max(...highs)
-  const pad = (hi - lo) * 0.08 || 1
-  const yP = useMemo(
-    () => (v: number) => top.price + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * h.price,
-    [top.price, h.price, lo, hi, pad],
-  )
-  const maxVol = Math.max(...view.map((b) => Number(b.volume)), 1)
+  const starts = useMemo(() => bars.map((b) => b.start), [bars])
+  const closeTexts = useMemo(() => bars.map((b) => b.close), [bars])
+  const closes = useMemo(() => bars.map((b) => Number(b.close)), [bars])
+  const lows = useMemo(() => bars.map((b) => Number(b.low)), [bars])
+  const highs = useMemo(() => bars.map((b) => Number(b.high)), [bars])
+  const n = bars.length
+
+  // Encuadre (#401): las velas se dibujan con `base` y se mueven con una transformación.
+  const vp = useViewport({
+    starts,
+    lows,
+    highs,
+    initial: 120,
+    plotW,
+    top: top.price,
+    h: h.price,
+  })
+  const { base, baseMap, priceLayer, xLayer } = vp
+  const [a, b] = renderWindow(base, n)
+  const [va, vb] = visibleRange(base, n)
+  const count = vb - va
+  const slot = baseMap.slot
+  const body = Math.max(1.5, Math.min(slot * 0.62, 12))
+  const x = baseMap.x
+  const yP = baseMap.y
+  const visible = useMemo(() => bars.slice(va, vb), [bars, va, vb])
+  const range = matchRange(base, n, RANGES)
+
+  // los paneles de abajo se escalan con lo visible al dibujar (no cambian cuadro a cuadro)
+  const maxVol = Math.max(...visible.map((v) => Number(v.volume)), 1)
   const yR = (v: number) => top.rsi + (1 - v / 100) * h.rsi
   const macdAbs = Math.max(
     1e-9,
-    ...view.flatMap((b) => [b.macd, b.signal, b.histogram].map((s) => Math.abs(num(s) ?? 0))),
+    ...visible.flatMap((v) => [v.macd, v.signal, v.histogram].map((t) => Math.abs(num(t) ?? 0))),
   )
   const yM = (v: number) => top.macd + h.macd / 2 - (v / (macdAbs * 1.1)) * (h.macd / 2)
 
   const path = (key: 'close' | 'rsi14' | 'macd' | 'signal', y: (v: number) => number) => {
     let d = ''
-    view.forEach((b, i) => {
-      const v = num(b[key])
-      if (v === null) return
+    for (let i = a; i < b; i++) {
+      const v = num(bars[i][key])
+      if (v === null) continue
       d += `${d ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`
-    })
+    }
     return d
   }
 
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => lo - pad + f * (hi - lo + 2 * pad))
-  const first = view[0]
-
-  const last = view[count - 1]
-  const starts = useMemo(() => view.map((b) => b.start), [view])
-  const closeTexts = useMemo(() => view.map((b) => b.close), [view])
-  const closes = useMemo(() => view.map((b) => Number(b.close)), [view])
+  const first = bars[va]
+  const last = bars[n - 1]
   const digits = (last?.close.split('.')[1] ?? '').length
+  const trend = rangeTrend(
+    visible.map((v) => Number(v.close)),
+    digits,
+  )
   const measure = useChartMeasure(svgRef, {
     width,
     height,
@@ -127,12 +149,14 @@ export function TradingChart({
     yOf: yP,
     digits,
     mode,
+    frame: vp.frame,
+    trend,
     // la lectura sigue al cursor en todos los paneles (volumen, RSI, MACD)
     anyY: true,
     // cruz de lectura: vertical en todos los paneles, horizontal y precio en el eje
     guide: ({ x: gx, y: gy, i }) => {
-      const b = view[i]
-      const up = Number(b.close) >= Number(b.open)
+      const bar = bars[i]
+      const up = Number(bar.close) >= Number(bar.open)
       return (
         <g data-crosshair>
           <line
@@ -169,64 +193,62 @@ export function TradingChart({
             fontWeight={700}
             fill="var(--primary-foreground)"
           >
-            {decimal(b.close)}
+            {decimal(bar.close)}
           </text>
         </g>
       )
     },
   })
+  const nav = useChartNav(svgRef, {
+    vp,
+    width,
+    height,
+    plotW,
+    top: top.price,
+    bottom: top.price + h.price,
+    measure,
+    ruler,
+  })
 
-  const onKey = (e: KeyboardEvent<SVGSVGElement>) => {
-    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
-    if (step) {
-      e.preventDefault()
-      measure.step(step)
-    } else if (e.key === 'Escape') measure.clear()
-  }
-
-  // Las velas (o la línea) se arman una vez por rango, ancho y modo: mover el cursor no las toca.
-  const candles = useMemo(
-    () =>
-      mode === 'Línea'
-        ? null
-        : view.map((b, i) => {
-            const color =
-              Number(b.close) >= Number(b.open) ? 'var(--chart-up)' : 'var(--chart-down)'
-            const yo = yP(Number(b.open))
-            const yc = yP(Number(b.close))
-            const cx = i * slot + slot / 2
-            return (
-              <g key={b.start} data-candle={b.start}>
-                <line
-                  x1={cx}
-                  x2={cx}
-                  y1={yP(Number(b.high))}
-                  y2={yP(Number(b.low))}
-                  stroke={color}
-                />
-                <rect
-                  x={cx - body / 2}
-                  y={Math.min(yo, yc)}
-                  width={body}
-                  height={Math.max(1, Math.abs(yc - yo))}
-                  fill={color}
-                />
-              </g>
-            )
-          }),
-    [mode, view, yP, slot, body],
-  )
-  const linePoints = useMemo(
-    () =>
-      closes.map((c, i): [number, number] | null =>
-        Number.isFinite(c) ? [i * slot + slot / 2, yP(c)] : null,
-      ),
-    [closes, slot, yP],
-  )
-
-  const timeLabels = Array.from({ length: 5 }, (_, k) =>
-    Math.min(count - 1, Math.round((k * (count - 1)) / 4)),
-  )
+  // Las velas (o la línea) se arman una vez por tramo dibujado, ancho y modo: ni el cursor ni el
+  // arrastre las tocan (el arrastre las mueve con la transformación de la capa).
+  const candles = useMemo(() => {
+    if (mode === 'Línea') return null
+    const out = []
+    for (let i = a; i < b; i++) {
+      const bar = bars[i]
+      const color = Number(bar.close) >= Number(bar.open) ? 'var(--chart-up)' : 'var(--chart-down)'
+      const yo = yP(Number(bar.open))
+      const yc = yP(Number(bar.close))
+      const cx = x(i)
+      out.push(
+        <g key={bar.start} data-candle={bar.start}>
+          <line
+            x1={cx}
+            x2={cx}
+            y1={yP(Number(bar.high))}
+            y2={yP(Number(bar.low))}
+            stroke={color}
+            vectorEffect={THIN}
+          />
+          <rect
+            x={cx - body / 2}
+            y={Math.min(yo, yc)}
+            width={body}
+            height={Math.max(1, Math.abs(yc - yo))}
+            fill={color}
+          />
+        </g>,
+      )
+    }
+    return out
+  }, [mode, bars, a, b, x, yP, body])
+  const linePoints = useMemo(() => {
+    const out: ([number, number] | null)[] = []
+    for (let i = a; i < b; i++) out.push(Number.isFinite(closes[i]) ? [x(i), yP(closes[i])] : null)
+    return out
+  }, [closes, a, b, x, yP])
+  const gridX = useMemo(() => timeTicks(base, n, 5, [a, b]).map((i) => x(i)), [base, n, a, b, x])
 
   return (
     <div className={cn('w-full', className)}>
@@ -239,9 +261,11 @@ export function TradingChart({
             store={measure.store}
             starts={starts}
             closes={closeTexts}
-            rangeLabel={range}
+            rangeLabel={range || `${count} velas`}
+            from={va}
+            to={vb - 1}
           />
-          <BarStats store={measure.store} view={view} />
+          <BarStats store={measure.store} bars={bars} last={vb - 1} />
         </div>
         <div className="flex flex-wrap gap-2">
           <Segmented
@@ -255,7 +279,7 @@ export function TradingChart({
             options={RANGES.map((r) => r.label)}
             value={range}
             onChange={(v) => {
-              setRange(v as typeof range)
+              vp.setRange(RANGES.find((r) => r.label === v)!.bars)
               measure.clear()
             }}
           />
@@ -270,56 +294,85 @@ export function TradingChart({
           viewBox={`0 0 ${width} ${height}`}
           role="img"
           tabIndex={0}
-          aria-label={`${instrument}, ${count} velas de 1 hora desde ${first ? dateUtc(first.start) : ''}. Flechas izquierda y derecha para leer cada vela.`}
-          className="block w-full touch-none select-none focus-visible:outline-2 focus-visible:outline-ring"
-          {...measure.handlers}
-          onKeyDown={onKey}
-        >
-          {/* precio */}
-          {ticks.map((t) => (
-            <g key={t}>
-              <line x1={0} x2={plotW} y1={yP(t)} y2={yP(t)} stroke="var(--chart-grid)" />
-              <text
-                x={width - 4}
-                y={yP(t) + 3}
-                textAnchor="end"
-                fontSize={10}
-                fill="var(--muted-foreground)"
-              >
-                {decimal(t.toFixed(1))}
-              </text>
-            </g>
-          ))}
-          {mode === 'Línea' ? (
-            <LineArea
-              points={linePoints}
-              top={top.price}
-              bottom={top.price + h.price}
-              gridX={timeLabels.map((i) => x(i))}
-              trend={rangeTrend(closes, digits)}
-            />
-          ) : (
-            candles
+          aria-label={`${instrument}, ${count} velas de 1 hora desde ${first ? dateUtc(first.start) : ''}. Arrastrá para moverte en el tiempo y usá la rueda para acercar o alejar; con el foco, flechas para desplazar, + y − para el zoom y Shift + flechas para leer cada vela.`}
+          className={cn(
+            'block w-full touch-none select-none focus-visible:outline-2 focus-visible:outline-ring',
+            ruler ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing',
           )}
+          {...nav.handlers}
+          onKeyDown={nav.onKeyDown}
+        >
+          <defs>
+            <clipPath id={clipPrice}>
+              <rect x={0} y={top.price} width={plotW} height={h.price} />
+            </clipPath>
+            <clipPath id={clipSub}>
+              <rect x={0} y={top.volume} width={plotW} height={top.macd + h.macd - top.volume} />
+            </clipPath>
+          </defs>
 
-          {/* volumen */}
-          {view.map((b, i) => {
-            const vh = (Number(b.volume) / maxVol) * h.volume
-            return (
-              <rect
-                key={b.start}
-                x={x(i) - body / 2}
-                y={top.volume + h.volume - vh}
-                width={body}
-                height={vh}
-                fill={Number(b.close) >= Number(b.open) ? 'var(--chart-up)' : 'var(--chart-down)'}
-                opacity={0.45}
-              />
-            )
-          })}
-          <PaneLabel y={top.volume} text="Volumen" />
+          {/* ejes: siguen al encuadre en cada cuadro (son pocos textos) */}
+          <ViewportLive vp={vp}>
+            {(m) => {
+              const { ticks, digits: td } = niceTicks(m.lo, m.hi)
+              return (
+                <>
+                  {ticks.map((t) => (
+                    <g key={t}>
+                      <line x1={0} x2={plotW} y1={m.y(t)} y2={m.y(t)} stroke="var(--chart-grid)" />
+                      <text
+                        data-axis-tick
+                        x={width - 4}
+                        y={m.y(t) + 3}
+                        textAnchor="end"
+                        fontSize={10}
+                        fill="var(--muted-foreground)"
+                      >
+                        {decimal(t.toFixed(td))}
+                      </text>
+                    </g>
+                  ))}
+                  {timeTicks(m, n).map((i) => {
+                    const tx = m.x(i)
+                    // cerca de los bordes no entra el rótulo entero: se omite (no se pisa con el vecino)
+                    if (tx < 22 || tx > plotW - 22) return null
+                    return (
+                      <text
+                        key={i}
+                        data-time-tick={bars[i].start}
+                        x={tx}
+                        y={height - 4}
+                        textAnchor="middle"
+                        fontSize={10}
+                        fill="var(--muted-foreground)"
+                      >
+                        {dateUtc(bars[i].start)}
+                      </text>
+                    )
+                  })}
+                </>
+              )
+            }}
+          </ViewportLive>
 
-          {/* RSI */}
+          {/* precio */}
+          <g clipPath={`url(#${clipPrice})`}>
+            <g ref={priceLayer} data-price-layer>
+              {mode === 'Línea' ? (
+                <LineArea
+                  points={linePoints}
+                  top={top.price}
+                  bottom={top.price + h.price}
+                  gridX={gridX}
+                  trend={trend}
+                />
+              ) : (
+                candles
+              )}
+            </g>
+          </g>
+
+          {/* RSI: banda y niveles fijos */}
           <rect
             x={0}
             y={yR(70)}
@@ -350,63 +403,99 @@ export function TradingChart({
               </text>
             </g>
           ))}
-          <path d={path('rsi14', yR)} fill="none" stroke="var(--chart-accent)" strokeWidth={1.5} />
-          <PaneLabel y={top.rsi} text="RSI 14" />
-
-          {/* MACD */}
           <line x1={0} x2={plotW} y1={yM(0)} y2={yM(0)} stroke="var(--chart-grid)" />
-          {view.map((b, i) => {
-            const v = num(b.histogram)
-            if (v === null) return null
-            return (
-              <rect
-                key={b.start}
-                x={x(i) - body / 2}
-                y={Math.min(yM(v), yM(0))}
-                width={body}
-                height={Math.max(0.75, Math.abs(yM(v) - yM(0)))}
-                fill={v >= 0 ? 'var(--chart-up)' : 'var(--chart-down)'}
-                opacity={0.5}
-              />
-            )
-          })}
-          <path d={path('macd', yM)} fill="none" stroke="var(--chart-accent)" strokeWidth={1.4} />
-          <path
-            d={path('signal', yM)}
-            fill="none"
-            stroke="var(--chart-signal)"
-            strokeWidth={1.4}
-            strokeDasharray="4 3"
-          />
-          <PaneLabel y={top.macd} text="MACD 12 · 26 · 9" />
 
-          {/* fechas */}
-          {timeLabels.map((i) =>
-            view[i] ? (
-              <text
-                key={i}
-                x={Math.max(24, Math.min(plotW - 24, x(i)))}
-                y={height - 4}
-                textAnchor="middle"
-                fontSize={10}
-                fill="var(--muted-foreground)"
-              >
-                {dateUtc(view[i].start)}
-              </text>
-            ) : null,
-          )}
+          {/* volumen, RSI y MACD: se mueven en el tiempo con el precio */}
+          <g clipPath={`url(#${clipSub})`}>
+            <g ref={xLayer}>
+              {bars.slice(a, b).map((bar, k) => {
+                const vh = (Number(bar.volume) / maxVol) * h.volume
+                return (
+                  <rect
+                    key={bar.start}
+                    x={x(a + k) - body / 2}
+                    y={top.volume + h.volume - Math.min(vh, h.volume)}
+                    width={body}
+                    height={Math.min(vh, h.volume)}
+                    fill={
+                      Number(bar.close) >= Number(bar.open)
+                        ? 'var(--chart-up)'
+                        : 'var(--chart-down)'
+                    }
+                    opacity={0.45}
+                  />
+                )
+              })}
+              <path
+                d={path('rsi14', yR)}
+                fill="none"
+                stroke="var(--chart-accent)"
+                strokeWidth={1.5}
+                vectorEffect={THIN}
+              />
+              {bars.slice(a, b).map((bar, k) => {
+                const v = num(bar.histogram)
+                if (v === null) return null
+                return (
+                  <rect
+                    key={bar.start}
+                    x={x(a + k) - body / 2}
+                    y={Math.min(yM(v), yM(0))}
+                    width={body}
+                    height={Math.max(0.75, Math.abs(yM(v) - yM(0)))}
+                    fill={v >= 0 ? 'var(--chart-up)' : 'var(--chart-down)'}
+                    opacity={0.5}
+                  />
+                )
+              })}
+              <path
+                d={path('macd', yM)}
+                fill="none"
+                stroke="var(--chart-accent)"
+                strokeWidth={1.4}
+                vectorEffect={THIN}
+              />
+              <path
+                d={path('signal', yM)}
+                fill="none"
+                stroke="var(--chart-signal)"
+                strokeWidth={1.4}
+                strokeDasharray="4 3"
+                vectorEffect={THIN}
+              />
+            </g>
+          </g>
+          <PaneLabel y={top.volume} text="Volumen" />
+          <PaneLabel y={top.rsi} text="RSI 14" />
+          <PaneLabel y={top.macd} text="MACD 12 · 26 · 9" />
 
           <ChartFollower store={measure.store} plot={measure.plot} />
         </svg>
+        <ChartNavBar
+          vp={vp}
+          ruler={ruler}
+          onRuler={setRuler}
+          right={AXIS_W}
+          bottom={top.price + h.price}
+        />
       </div>
     </div>
   )
 }
 
 /** Apertura, máximo, mínimo e indicadores de la vela bajo el cursor (o de la última). */
-function BarStats({ store, view }: { store: PointerStore; view: PriceBar[] }) {
+function BarStats({
+  store,
+  bars,
+  last,
+}: {
+  store: PointerStore
+  bars: PriceBar[]
+  /** última vela visible: la que se lee sin cursor */
+  last: number
+}) {
   const hover = usePointer(store, (s) => s.hover)
-  const active = view[hover ?? view.length - 1]
+  const active = bars[hover ?? last]
   if (!active) return null
   return (
     <dl className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">

@@ -12,7 +12,7 @@ import { LiquidityChart } from '@/components/ui/liquidity-chart'
 import { FvgTable, ImbalanceGauge, LevelsTable, StatsPanel } from '@/components/ui/liquidity-panels'
 import { Segmented } from '@/components/ui/segmented'
 import { Term } from '@/components/ui/term'
-import { useInstruments, useLiquidityView } from '@/lib/liquidity-api'
+import { fetchOlderBars, useInstruments, useLiquidityView } from '@/lib/liquidity-api'
 import { chartBars } from '@/lib/liquidity-bars'
 import type { LiquidityViewData, ViewSource, ViewTimeframe } from '@/lib/liquidity-contracts'
 import { dateTimeUtc } from '@/lib/format'
@@ -206,6 +206,9 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
             levels={data.levels}
             fvgs={data.fvgs}
             imbalance={data.imbalance}
+            loadOlder={(before) =>
+              fetchOlderBars(data.instrument_id, tf, before, data.source?.id ?? 'ig')
+            }
           />
         </Card>
         <Card title="Índice de desequilibrio">

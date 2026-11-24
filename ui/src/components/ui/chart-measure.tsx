@@ -23,6 +23,11 @@
  * Uso: al soltar, la medición queda visible hasta un clic o `Esc`. Un segundo arrastre la
  * reemplaza. Funciona con mouse y con el dedo (pointer events); por eso el SVG lleva
  * `touch-action: none` y la página se desplaza tocando fuera del gráfico.
+ *
+ * Gráficos navegables (#401): el arrastre simple desplaza el gráfico (`chart-nav.tsx`) y la
+ * medición se hace con **Shift + arrastrar** o con el botón de regla. Los índices son los de
+ * todas las velas cargadas; `frame` dice qué parte se ve y con qué escala, y cambia sin volver a
+ * dibujar el gráfico.
  */
 import {
   useEffect,
@@ -40,6 +45,21 @@ import { decimal } from '@/lib/format'
 export const CHART_MODES = ['Velas', 'Línea'] as const
 export type ChartMode = (typeof CHART_MODES)[number]
 
+/** Encuadre vivo (#401): primera vela visible (fraccionaria), ancho de vela y escala de precio. */
+export type Frame = { start: number; slot: number; yOf: (price: number) => number }
+
+/** Almacén del encuadre vivo: se lee sin volver a dibujar el gráfico. */
+export type FrameSource = { subscribe: (f: () => void) => () => void; get: () => Frame }
+
+const NO_FRAME: FrameSource = { subscribe: () => () => {}, get: () => null as unknown as Frame }
+
+/** El encuadre vivo, o el fijo del dibujo si el gráfico no se desplaza. */
+export function useFrame(plot: MeasurePlot): Frame {
+  const src = plot.frame ?? NO_FRAME
+  const f = useSyncExternalStore(src.subscribe, src.get, src.get)
+  return f ?? { start: 0, slot: plot.slot, yOf: plot.yOf }
+}
+
 /** Cómo está dibujado el panel de precio, en coordenadas del SVG. */
 export type MeasurePlot = {
   /** ancho y alto del SVG (su `viewBox`), para pasar del cursor a coordenadas del dibujo */
@@ -50,12 +70,16 @@ export type MeasurePlot = {
   /** borde superior e inferior del panel de precio */
   top: number
   bottom: number
-  /** ancho de cada vela */
+  /** ancho de cada vela (sin `frame`) */
   slot: number
-  /** inicio (ISO, UTC) de cada vela visible, en orden */
+  /** inicio (ISO, UTC) de cada vela, en orden */
   starts: string[]
-  /** cierre de cada vela visible (mismo orden que `starts`): ahí se pegan el punto y la medición */
+  /** cierre de cada vela (mismo orden que `starts`): ahí se pegan el punto y la medición */
   closes: number[]
+  /** encuadre vivo (#401); sin él, se ven todas las velas con `slot` y `yOf` fijos */
+  frame?: FrameSource
+  /** signo del tramo visible (color del modo línea); sin él, el de todas las velas */
+  trend?: Trend
   /** altura de un precio: la escala del eje Y del gráfico */
   yOf: (price: number) => number
   /** decimales con que se muestran los precios del instrumento */
@@ -363,8 +387,14 @@ export function useChartMeasure(svgRef: RefObject<SVGSVGElement | null>, plot: M
     const y = ((e.clientY - r.top) / r.height) * height
     const outY = plot.anyY ? y < 0 || y > height : y < top || y > bottom
     if (!clamp && (x < 0 || x > plotW || outY)) return null
+    const f = plot.frame?.get()
+    const s = f?.slot ?? slot
+    const first = f?.start ?? 0
     const cx = Math.max(0, Math.min(plotW - 0.01, x))
-    return Math.max(0, Math.min(n - 1, cx / slot - 0.5))
+    // solo velas a la vista: la del borde izquierdo cuenta si se ve su centro
+    const lo = Math.max(0, Math.ceil(first - 0.5))
+    const hi = Math.min(n - 1, Math.floor(first + plotW / s - 0.5))
+    return Math.max(lo, Math.min(hi, first + cx / s - 0.5))
   }
   /** Adónde va el punto: sobre la línea (continuo) o al cierre de la vela. */
   const spotOf = (pos: number): Spot => {
@@ -441,11 +471,14 @@ export function useChartMeasure(svgRef: RefObject<SVGSVGElement | null>, plot: M
     store.set(hoverAt(i))
   }
   const clear = () => store.set(hoverAt(null))
+  /** Borra la medición (un clic sin arrastre sobre el gráfico). */
+  const dismiss = () => store.set({ measure: null, endGoal: null })
 
   return {
     store,
     step,
     clear,
+    dismiss,
     handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onPointerLeave },
     /** lo que necesita `ChartFollower` para dibujar la capa que se mueve */
     plot,

@@ -164,7 +164,13 @@ describe('gráficos más fluidos y modo línea (#377)', () => {
     pickMode('Línea')
     const i = Math.floor(view.length * 0.2)
     const j = Math.floor(view.length * 0.7)
-    fireEvent.pointerDown(svg, { clientX: xOf(i), clientY: 200, button: 0, pointerId: 1 })
+    fireEvent.pointerDown(svg, {
+      clientX: xOf(i),
+      clientY: 200,
+      button: 0,
+      pointerId: 1,
+      shiftKey: true,
+    })
     fireEvent.pointerMove(svg, { clientX: xOf(j), clientY: 220, pointerId: 1 })
     fireEvent.pointerUp(svg, { clientX: xOf(j), clientY: 220, pointerId: 1 })
 
@@ -210,6 +216,8 @@ describe('gráficos más fluidos y modo línea (#377)', () => {
       .split(/[ML]/)
       .filter(Boolean)
       .map((p) => p.split(',').map(Number))
+      // la línea se dibuja también fuera de la vista (#401): se saltean los puntos de la izquierda
+      .filter(([px]) => px > 0)
     // sobre el tramo recto entre los dos cierres
     const y = yLine[i][1] + (yLine[i + 1][1] - yLine[i][1]) * 0.4
     expect(Number(dot().getAttribute('data-y'))).toBeCloseTo(y, 0)
@@ -263,7 +271,13 @@ describe('gráficos más fluidos y modo línea (#377)', () => {
     fireEvent.pointerMove(svg, { clientX: xOf(40), clientY: 200 })
     expect(cx()).toBeCloseTo(xOf(40), 6)
 
-    fireEvent.pointerDown(svg, { clientX: xOf(5), clientY: 200, button: 0, pointerId: 1 })
+    fireEvent.pointerDown(svg, {
+      clientX: xOf(5),
+      clientY: 200,
+      button: 0,
+      pointerId: 1,
+      shiftKey: true,
+    })
     fireEvent.pointerMove(svg, { clientX: xOf(30), clientY: 200, pointerId: 1 })
     const to = container.querySelector('[data-measure-point="to"]')!
     expect(Number(to.getAttribute('cx'))).toBeCloseTo(xOf(30), 6)

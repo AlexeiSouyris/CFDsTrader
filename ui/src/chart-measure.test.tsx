@@ -23,7 +23,7 @@ const box = (height: number) =>
 
 /** Mantener apretado en (x0, y0), arrastrar hasta (x1, y1) y soltar. */
 function drag(el: Element, x0: number, y0: number, x1: number, y1: number) {
-  fireEvent.pointerDown(el, { clientX: x0, clientY: y0, button: 0, pointerId: 1 })
+  fireEvent.pointerDown(el, { clientX: x0, clientY: y0, button: 0, pointerId: 1, shiftKey: true })
   fireEvent.pointerMove(el, { clientX: (x0 + x1) / 2, clientY: (y0 + y1) / 2, pointerId: 1 })
   fireEvent.pointerMove(el, { clientX: x1, clientY: y1, pointerId: 1 })
   fireEvent.pointerUp(el, { clientX: x1, clientY: y1, pointerId: 1 })
@@ -104,7 +104,13 @@ describe('herramienta de medición de los gráficos (#281, #355)', () => {
     const { svg, measure, xOf, view } = chart()
     const [i, j] = pair(view, 'up')
     expect(measure()).toBeNull()
-    fireEvent.pointerDown(svg, { clientX: xOf(i), clientY: 300, button: 0, pointerId: 1 })
+    fireEvent.pointerDown(svg, {
+      clientX: xOf(i),
+      clientY: 300,
+      button: 0,
+      pointerId: 1,
+      shiftKey: true,
+    })
     fireEvent.pointerMove(svg, { clientX: xOf(j), clientY: 100, pointerId: 1 })
     // mientras se arrastra ya se ve
     expect(measure()).toHaveAttribute('data-measure', 'up')
@@ -176,7 +182,13 @@ describe('herramienta de medición de los gráficos (#281, #355)', () => {
     expect(document.querySelectorAll('[data-measure]')).toHaveLength(1)
 
     // un clic (apretar y soltar sin moverse) la borra
-    fireEvent.pointerDown(svg, { clientX: 200, clientY: 200, button: 0, pointerId: 1 })
+    fireEvent.pointerDown(svg, {
+      clientX: 200,
+      clientY: 200,
+      button: 0,
+      pointerId: 1,
+      shiftKey: true,
+    })
     fireEvent.pointerUp(svg, { clientX: 200, clientY: 200, pointerId: 1 })
     expect(measure()).toBeNull()
   })
@@ -263,7 +275,13 @@ describe('herramienta de medición de los gráficos (#281, #355)', () => {
     const up = bodyOf(view, 'up')
     fireEvent.pointerMove(svg, { clientX: xOf(up), clientY: 220 })
     const d = container.querySelector('[data-close-line]')!.getAttribute('d')!
-    const pt = d.split(/[ML]/).filter(Boolean)[up].split(',').map(Number)
+    // la línea se dibuja también fuera de la vista (#401): se saltean los puntos de la izquierda
+    const pts = d
+      .split(/[ML]/)
+      .filter(Boolean)
+      .map((p) => p.split(',').map(Number))
+      .filter(([px]) => px > 0)
+    const pt = pts[up]
     expect(cy()).toBeCloseTo(pt[1], 1)
     fireEvent.pointerLeave(svg)
     expect(dot()).toBeNull()

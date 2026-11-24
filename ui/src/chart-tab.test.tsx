@@ -76,7 +76,13 @@ describe('pestaña de la medición pegada al rectángulo (#394)', () => {
   it('va pegada al borde del rectángulo, centrada en x, dentro del panel y del color del signo', () => {
     const { svg, view, xOf, tab, rect, t } = chart()
     const [i, j] = pair(view, 'up')
-    fireEvent.pointerDown(svg, { clientX: xOf(i), clientY: 200, button: 0, pointerId: 1 })
+    fireEvent.pointerDown(svg, {
+      clientX: xOf(i),
+      clientY: 200,
+      button: 0,
+      pointerId: 1,
+      shiftKey: true,
+    })
     fireEvent.pointerMove(svg, { clientX: xOf(j), clientY: 200, pointerId: 1 })
     fireEvent.pointerUp(svg, { clientX: xOf(j), clientY: 200, pointerId: 1 })
     const r = rect()
@@ -101,7 +107,13 @@ describe('pestaña de la medición pegada al rectángulo (#394)', () => {
   it('sigue al rectángulo, no al cursor, mientras se arrastra', () => {
     const { svg, view, xOf, t } = chart()
     const [i, j] = pair(view, 'down')
-    fireEvent.pointerDown(svg, { clientX: xOf(i), clientY: 200, button: 0, pointerId: 1 })
+    fireEvent.pointerDown(svg, {
+      clientX: xOf(i),
+      clientY: 200,
+      button: 0,
+      pointerId: 1,
+      shiftKey: true,
+    })
     fireEvent.pointerMove(svg, { clientX: xOf(j), clientY: 60, pointerId: 1 })
     const first = t()
     // misma vela, el cursor arriba o abajo: la pestaña no se mueve
@@ -115,7 +127,13 @@ describe('pestaña de la medición pegada al rectángulo (#394)', () => {
   it('con un rectángulo angosto la pestaña es más ancha, pero centrada sobre él', () => {
     const { svg, view, xOf, rect, t } = chart()
     const i = Math.floor(view.length / 2)
-    fireEvent.pointerDown(svg, { clientX: xOf(i), clientY: 200, button: 0, pointerId: 1 })
+    fireEvent.pointerDown(svg, {
+      clientX: xOf(i),
+      clientY: 200,
+      button: 0,
+      pointerId: 1,
+      shiftKey: true,
+    })
     fireEvent.pointerMove(svg, { clientX: xOf(i + 1), clientY: 200, pointerId: 1 })
     fireEvent.pointerUp(svg, { clientX: xOf(i + 1), clientY: 200, pointerId: 1 })
     const r = rect()

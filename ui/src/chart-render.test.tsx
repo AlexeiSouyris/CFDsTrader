@@ -43,7 +43,13 @@ describe('rendimiento del gráfico al mover el cursor (#377)', () => {
     const candle = container.querySelector('[data-candle]')
 
     for (let x = 5; x < 640; x += 7) fireEvent.pointerMove(svg, { clientX: x, clientY: 200 })
-    fireEvent.pointerDown(svg, { clientX: 100, clientY: 200, button: 0, pointerId: 1 })
+    fireEvent.pointerDown(svg, {
+      clientX: 100,
+      clientY: 200,
+      button: 0,
+      pointerId: 1,
+      shiftKey: true,
+    })
     for (let x = 100; x < 500; x += 9)
       fireEvent.pointerMove(svg, { clientX: x, clientY: 150, pointerId: 1 })
     fireEvent.pointerUp(svg, { clientX: 500, clientY: 150, pointerId: 1 })
