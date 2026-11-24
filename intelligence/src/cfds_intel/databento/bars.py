@@ -22,7 +22,7 @@ from decimal import Decimal
 from itertools import pairwise
 from typing import Any, Protocol
 
-from cfds_intel.databento.config import DatabentoConfig, SymbolConfig
+from cfds_intel.databento.config import DatabentoConfig, SymbolConfig, effective_start
 
 SOURCE = "databento"
 _SCALE = Decimal(1_000_000_000)
@@ -240,11 +240,11 @@ def chunk_cost(
 
 
 def _missing(
-    cfg: DatabentoConfig, available: date, end: date, stored: Stored | None
+    wanted: date, available: date, end: date, stored: Stored | None
 ) -> list[tuple[str | None, date, date]]:
     """Tramos que faltan de un símbolo: `[desde, hasta)` con su parte. Lo que hay entre el primer
     y el último tramo guardado no se vuelve a pedir: los tramos se guardan sin huecos."""
-    first = max(cfg.start, available)
+    first = max(wanted, available)
     if stored is None:
         return [(None, first, end)]
     return [
@@ -270,21 +270,27 @@ def estimate(
             ranges[sym.dataset] = dataset_range(client, sym.dataset, cfg.schema)
         # Si el dataset empieza después de `start` (Eurex), se baja desde su inicio.
         available, published = ranges[sym.dataset]
+        # El inicio propio del símbolo gana sobre el global (#410).
+        wanted = effective_start(cfg, sym)
         until = min(end, published)
         parts = [
             (part, a, b)
-            for part, a, b in _missing(cfg, available, until, stored.get((sym.dataset, sym.symbol)))
+            for part, a, b in _missing(
+                wanted, available, until, stored.get((sym.dataset, sym.symbol))
+            )
             if a < b
         ]
         if not parts:
-            out.append(Estimate(sym, until, until, Decimal(0), 0, "ya está todo guardado"))
+            key = (sym.dataset, sym.symbol)
+            why = "ya está todo guardado" if key in stored else "no hay datos en el período pedido"
+            out.append(Estimate(sym, until, until, Decimal(0), 0, why))
             continue
         for part, a, b in parts:
             cost = chunk_cost(client, cfg, sym, a, b)
             records = int(client.metadata.get_record_count(**_request(cfg, sym, a, b)))
             if cost < 0 or records < 0:
                 raise DatabentoError(f"{sym.symbol}: estimación negativa")
-            from_dataset = a == available and available > cfg.start
+            from_dataset = a == available and available > wanted
             out.append(Estimate(sym, a, b, cost, records, None, part, from_dataset))
     return out
 

@@ -105,10 +105,11 @@ def check_month(c: Client, cfg: DatabentoConfig, month: str) -> int:
     """Baja un mes (con el mismo tope de gasto), cuenta los duplicados y no guarda nada."""
     first = date.fromisoformat(f"{month}-01")
     end = months(first, first + timedelta(days=32))[0][1]
-    guarded_estimate(c, replace(cfg, start=first), end, {})
-    for sym in cfg.symbols:
-        f = fetch_bars(c, cfg, sym, first, end)
-        print(f"{sym.symbol} {month}: {len(f.bars)} barras; {describe_dropped(f, sym)}")
+    est = guarded_estimate(c, replace(cfg, start=first), end, {})
+    # Solo lo estimado: un símbolo que todavía no existía ese mes (su `start` propio) se saltea.
+    for e in (e for e in est if not e.skipped):
+        f = fetch_bars(c, cfg, e.symbol, e.start, e.end)
+        print(f"{e.symbol.symbol} {month}: {len(f.bars)} barras; {describe_dropped(f, e.symbol)}")
     return 0
 
 
