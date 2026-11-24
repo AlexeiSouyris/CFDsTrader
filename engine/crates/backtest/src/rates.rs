@@ -140,3 +140,28 @@ impl FxRates {
         self.at_with_day(t).map(|(_, v)| v)
     }
 }
+
+/// Unidades de la moneda del instrumento por 1 de la moneda de la cuenta, en cada momento
+/// (ADR 0013 §4). Convierte P/L, margen, financiación y riesgo de la moneda del instrumento a
+/// la de la cuenta: `monto_cuenta = monto_instrumento / tipo`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AccountFx {
+    /// Instrumento y cuenta en la misma moneda: 1.
+    Same,
+    /// Serie diaria del par `CUENTA+INSTRUMENTO` (por ejemplo `EURUSD`): el tipo vigente en cada
+    /// momento, sin look-ahead.
+    Daily(FxRates),
+    /// Monedas distintas y todavía sin serie: no hay tipo en ningún momento (nunca se inventa).
+    Missing { pair: String },
+}
+
+impl AccountFx {
+    /// Tipo vigente en `t`, o `None` si no hay ninguno publicado (o falta la serie).
+    pub fn at(&self, t: DateTime<Utc>) -> Option<Decimal> {
+        match self {
+            Self::Same => Some(Decimal::ONE),
+            Self::Daily(r) => r.at(t),
+            Self::Missing { .. } => None,
+        }
+    }
+}

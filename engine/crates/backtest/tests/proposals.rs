@@ -75,7 +75,7 @@ fn frictionless_setup() -> Setup {
         },
         backtest,
         initial_equity: r.equity,
-        account_to_instrument: dec!(1),
+        account_to_instrument: cfds_backtest::AccountFx::Same,
         funding_rates: FundingRates::Constant(dec!(0)),
         funding_cutoff: NaiveTime::from_hms_opt(23, 0, 0).unwrap(),
         funding_tz: chrono_tz::Europe::Madrid,

@@ -266,11 +266,13 @@ pub struct TradeStats {
 }
 
 impl TradeStats {
-    pub fn of(trades: &[TradeRecord], account_to_instrument: Decimal) -> Self {
+    /// Montos en la moneda de la cuenta, cada operación al tipo del cierre de su última salida
+    /// (ADR 0013 §4).
+    pub fn of(trades: &[TradeRecord], setup: &crate::Setup) -> Result<Self, crate::RunError> {
         let mut s = Self::default();
         for t in trades {
-            let net = t.net_pnl / account_to_instrument;
-            let mid = t.mid_pnl / account_to_instrument;
+            let net = setup.to_account(t.net_pnl, t.closed_at())?;
+            let mid = setup.to_account(t.mid_pnl, t.closed_at())?;
             s.trades += 1;
             s.net += net;
             s.mid_pnl += mid;
@@ -283,7 +285,7 @@ impl TradeStats {
             }
         }
         s.costs = s.mid_pnl - s.net;
-        s
+        Ok(s)
     }
 
     pub fn add(&mut self, o: &Self) {

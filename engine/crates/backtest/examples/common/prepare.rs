@@ -150,6 +150,19 @@ pub async fn prepare_with(
         println!("financiación: {series} diario (al inicio, {pct} % del {day})");
     }
     setup.funding_rates = FundingRates::Daily(daily);
+    // Contrato en otra moneda que la cuenta (el oro, ADR 0013 §4): el tipo de cambio diario
+    // guardado, vigente en cada momento. Sin serie, no se corre (nunca un tipo inventado).
+    if let cfds_backtest::AccountFx::Missing { pair } = &setup.account_to_instrument {
+        let fx = cfds_backtest::FxRates::new(store.fx_rates(pair, to).await?).ok_or_else(|| {
+            format!(
+                "no hay tipos de {pair} guardados: cargarlos con `python -m cfds_intel.rates.fx`"
+            )
+        })?;
+        if let Some((day, rate)) = fx.at_with_day(from) {
+            println!("tipo de cambio: {pair} diario del BCE (al inicio, {rate} del {day})");
+        }
+        setup.account_to_instrument = cfds_backtest::AccountFx::Daily(fx);
+    }
     let raw_m15 = store
         .candles_from(feed, id, id, Timeframe::M15, from, to)
         .await?;

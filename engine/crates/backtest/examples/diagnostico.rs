@@ -208,7 +208,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let row = |t: &TradeRecord| {
         let risk = t.size * (t.entry_price - t.stop).abs();
         Row {
-            net: t.net_pnl / s.account_to_instrument,
+            // El recorrido ya convirtió todo: si terminó, hay tipo al cierre de cada operación.
+            net: s
+                .to_account(t.net_pnl, t.closed_at())
+                .unwrap_or(Decimal::ZERO),
             r: if risk.is_zero() {
                 Decimal::ZERO
             } else {
