@@ -300,15 +300,7 @@ pub fn run_plans(
                 continue;
             }
         };
-        let trade = execute_plan(
-            p,
-            sizing.size,
-            sizing.risk,
-            equity,
-            m15,
-            force_close,
-            setup,
-        )?;
+        let trade = execute_plan(p, sizing.size, sizing.risk, equity, m15, force_close, setup)?;
         equity += setup.to_account(trade.net_pnl, trade.exit_time)?;
         peak = peak.max(equity);
         busy_until = trade.exit_index;
@@ -329,10 +321,7 @@ pub fn trade_return(t: &StudyTrade, stress: Decimal, setup: &Setup) -> Result<De
 
 /// Retornos mensuales (UTC) de `months` a partir de los retornos de cada operación y la hora en
 /// que se cerró: cada mes compone las operaciones que se cerraron en él; sin operaciones, 0.
-pub fn monthly_returns(
-    closed: &[(DateTime<Utc>, Decimal)],
-    months: &[(i32, u32)],
-) -> Vec<Decimal> {
+pub fn monthly_returns(closed: &[(DateTime<Utc>, Decimal)], months: &[(i32, u32)]) -> Vec<Decimal> {
     months
         .iter()
         .map(|&(y, m)| {

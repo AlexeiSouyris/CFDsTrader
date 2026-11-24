@@ -167,12 +167,9 @@ fn event_plans(
     };
     // La decisión de la ventana es al cierre de la anteúltima vela del último día hábil.
     let mut from = m15.partition_point(|c| c.start < last_close - TimeDelta::minutes(30));
-    loop {
-        let Some(t) = (from..exit_index).find(|&i| {
-            entries.get(i).copied().unwrap_or(false) && m15[i + 1].start == m15[i].end()
-        }) else {
-            break;
-        };
+    while let Some(t) = (from..exit_index)
+        .find(|&i| entries.get(i).copied().unwrap_or(false) && m15[i + 1].start == m15[i].end())
+    {
         let end = (t + 1..exit_index)
             .find(|&f| force_close.get(f).copied().unwrap_or(false))
             .unwrap_or(exit_index);

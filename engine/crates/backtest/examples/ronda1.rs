@@ -7,7 +7,7 @@
 //! cargo run --release -p cfds-backtest --example ronda1 -- \
 //!     US500 US100 US30 --escenario-financiacion EUR=<archivo.csv> \
 //!     [--supuestos <archivo.toml>] [--capital 100000] [--desde 2011-01-01T00:00:00Z] \
-//!     [--salida <archivo.csv>] [--descriptivo]
+//!     [--salida <archivo.csv>] [--operaciones <archivo.csv>] [--descriptivo]
 //! ```
 //! - Las velas (futuros) se piden **solo hasta el inicio del fuera de muestra**. Para saber dónde
 //!   empieza, se lee solo la hora de la última vela guardada, no sus precios.
@@ -16,6 +16,10 @@
 //!   ella, con una cuenta nueva por índice.
 //! - La cartera es el promedio de los retornos mensuales de los índices. Con `--descriptivo` se
 //!   informa sin aplicar la regla (US2000 con costos supuestos).
+#![allow(
+    clippy::float_arithmetic,
+    reason = "solo estadísticos y porcentajes para mostrar; el dinero se calcula en Decimal"
+)]
 
 #[path = "common/news_filter.rs"]
 mod news_filter;
@@ -85,6 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or("2011-01-01T00:00:00Z")
         .parse()?;
     let out_csv = take(&mut args, "--salida");
+    let trades_csv = take(&mut args, "--operaciones");
     let research = ResearchConfig::from_toml(cfg!("research.toml"))?;
     let split_cfg = SplitConfig::from_toml(cfg!("data_split.toml"))?;
     let sources = CandleSources::from_toml(cfg!("candle_sources.toml"))?;
@@ -107,7 +112,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for id in &instruments {
         let (study, _) = study::parse(args.clone())?;
         if study.as_ref().is_none_or(|s| s.funding.is_none()) {
-            return Err("falta --escenario-financiacion (el tipo de EE. UU. está pendiente)".into());
+            return Err(
+                "falta --escenario-financiacion (el tipo de EE. UU. está pendiente)".into(),
+            );
         }
         let last = store
             .last_candle_start_from(
@@ -119,7 +126,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await?
             .ok_or("sin velas de futuros")?;
         let oos_start = plan(from, last, &split_cfg)?.out_of_sample.start;
-        println!("══ {id}: última vela guardada {last}; fuera de muestra desde {oos_start} (NO se carga)");
+        println!(
+            "══ {id}: última vela guardada {last}; fuera de muestra desde {oos_start} (NO se carga)"
+        );
         let p = prepare::prepare_with(
             id,
             CandleSource::Futures,
@@ -159,7 +168,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let end = split.out_of_sample.start.date_naive();
             while d < end {
                 m.push((d.year(), d.month()));
-                d = d.checked_add_months(chrono::Months::new(1)).ok_or("fecha")?;
+                d = d
+                    .checked_add_months(chrono::Months::new(1))
+                    .ok_or("fecha")?;
             }
             m
         };
@@ -173,9 +184,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if months.is_empty() {
             months = these_months.clone();
         } else if months != these_months {
-            return Err(format!("{id}: los meses de validación no coinciden con los del primero").into());
+            return Err(
+                format!("{id}: los meses de validación no coinciden con los del primero").into(),
+            );
         }
-        let min_deal = p.setup.limits.min_deal_size.ok_or("tamaño mínimo pendiente")?;
+        let min_deal = p
+            .setup
+            .limits
+            .min_deal_size
+            .ok_or("tamaño mínimo pendiente")?;
         for (fi, family_plans) in plans.iter().enumerate() {
             let mut trades = Vec::new();
             let mut rejected: BTreeMap<String, usize> = BTreeMap::new();
@@ -200,7 +217,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .map(|t| Ok((t.exit_time, trade_return(t, stress, &p.setup)?)))
                     .collect::<Result<Vec<_>, cfds_backtest::RunError>>()
                     .map_err(|e| format!("{e:?}"))?;
-                Ok(monthly_returns(&closed, &these_months).into_iter().map(f).collect())
+                Ok(monthly_returns(&closed, &these_months)
+                    .into_iter()
+                    .map(f)
+                    .collect())
             };
             let monthly = returns(Decimal::ONE)?;
             let monthly_stress = returns(research.rule.cost_stress)?;
@@ -237,9 +257,58 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|k| mean(&per.iter().map(|(_, r)| r.monthly[k]).collect::<Vec<_>>()))
             .collect();
         let portfolio_stress: Vec<f64> = (0..months.len())
-            .map(|k| mean(&per.iter().map(|(_, r)| r.monthly_stress[k]).collect::<Vec<_>>()))
+            .map(|k| {
+                mean(
+                    &per.iter()
+                        .map(|(_, r)| r.monthly_stress[k])
+                        .collect::<Vec<_>>(),
+                )
+            })
             .collect();
-        verdict(&research, &months, &portfolio, &portfolio_stress, per, descriptive);
+        verdict(
+            &research,
+            &months,
+            &portfolio,
+            &portfolio_stress,
+            per,
+            descriptive,
+        );
+    }
+    if let Some(path) = trades_csv {
+        let mut t = String::from(
+            "familia,instrumento,evento,lado,decision,entrada,referencia,stop,entrada_medio,\
+             salida,salida_medio,motivo,tamano,riesgo,pl_medio,costos,financiacion,pl_neto,capital\n",
+        );
+        for (fi, per) in results.iter().enumerate() {
+            for (id, r) in per {
+                for x in &r.trades {
+                    writeln!(
+                        t,
+                        "{},{id},{},{:?},{},{},{},{},{},{},{},{:?},{},{},{},{},{},{},{}",
+                        ["C", "D1"][fi],
+                        x.event,
+                        x.side,
+                        x.signal_at,
+                        x.entry_time,
+                        x.reference,
+                        x.stop,
+                        x.entry_mid,
+                        x.exit_time,
+                        x.exit_mid,
+                        x.exit,
+                        x.size.round_dp(4),
+                        x.risk.round_dp(2),
+                        x.mid_pnl.round_dp(2),
+                        x.total_costs().round_dp(2),
+                        x.funding.round_dp(2),
+                        x.net_pnl.round_dp(2),
+                        x.equity_at_entry.round_dp(2)
+                    )?;
+                }
+            }
+        }
+        std::fs::write(&path, t)?;
+        println!("operaciones en {path}");
     }
     if let Some(path) = out_csv {
         std::fs::write(&path, csv)?;
@@ -255,7 +324,10 @@ fn describe(id: &InstrumentId, r: &Result1, equity: Decimal) {
     let mid_r: Vec<f64> = t.iter().map(|x| r_of(x.mid_pnl, x.risk)).collect();
     let net_r: Vec<f64> = t.iter().map(|x| r_of(x.net_pnl, x.risk)).collect();
     let cost_r: Vec<f64> = t.iter().map(|x| r_of(x.total_costs(), x.risk)).collect();
-    let longs = t.iter().filter(|x| x.side == cfds_strategy::Side::Long).count();
+    let longs = t
+        .iter()
+        .filter(|x| x.side == cfds_strategy::Side::Long)
+        .count();
     let mut exits: BTreeMap<String, usize> = BTreeMap::new();
     for x in t {
         let k = match x.exit {
@@ -309,13 +381,21 @@ fn verdict(
     let alpha = f(rule.alpha);
     let t = stats::t_test_greater(portfolio);
     let dsr = stats::deflated_sharpe(portfolio, rule.dsr_trials);
-    let half = NaiveDate::from_ymd_opt(rule.second_half_from.year(), rule.second_half_from.month(), 1)
-        .map(|d| (d.year(), d.month()));
+    let half = NaiveDate::from_ymd_opt(
+        rule.second_half_from.year(),
+        rule.second_half_from.month(),
+        1,
+    )
+    .map(|d| (d.year(), d.month()));
     let (first, second): (Vec<f64>, Vec<f64>) = {
         let mut a = Vec::new();
         let mut b = Vec::new();
         for (k, m) in months.iter().enumerate() {
-            if Some(*m) < half { a.push(portfolio[k]) } else { b.push(portfolio[k]) }
+            if Some(*m) < half {
+                a.push(portfolio[k])
+            } else {
+                b.push(portfolio[k])
+            }
         }
         (a, b)
     };
@@ -353,7 +433,10 @@ fn verdict(
         );
         for n in [100, 1000] {
             if let Some(x) = stats::deflated_sharpe(portfolio, n) {
-                println!("     (referencia, N = {n}: SR0 {:.4}, DSR {:.4})", x.sharpe0, x.dsr);
+                println!(
+                    "     (referencia, N = {n}: SR0 {:.4}, DSR {:.4})",
+                    x.sharpe0, x.dsr
+                );
             }
         }
     }
@@ -378,7 +461,11 @@ fn verdict(
     } else {
         println!(
             "  VEREDICTO con este escenario: {}",
-            if c1 && c2 && c3 && c4 { "PASA los cuatro criterios" } else { "NO PASA" }
+            if c1 && c2 && c3 && c4 {
+                "PASA los cuatro criterios"
+            } else {
+                "NO PASA"
+            }
         );
     }
 }

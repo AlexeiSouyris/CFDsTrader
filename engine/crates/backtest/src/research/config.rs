@@ -120,11 +120,8 @@ impl ResearchConfig {
                 dsr_trials: raw.rule.dsr_trials,
                 dsr_min,
                 cost_stress,
-                second_half_from: NaiveDate::parse_from_str(
-                    &raw.rule.second_half_from,
-                    "%Y-%m-%d",
-                )
-                .map_err(|_| "rule.second_half_from no es AAAA-MM-DD".to_owned())?,
+                second_half_from: NaiveDate::parse_from_str(&raw.rule.second_half_from, "%Y-%m-%d")
+                    .map_err(|_| "rule.second_half_from no es AAAA-MM-DD".to_owned())?,
             },
         })
     }

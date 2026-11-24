@@ -3,6 +3,10 @@
 //!
 //! Usa `f64`: son estadísticos de una muestra de retornos, **no dinero**. Precios, P/L, costos y
 //! capital siguen en `Decimal` en el resto del módulo.
+#![allow(
+    clippy::float_arithmetic,
+    reason = "estadísticos de una muestra (prueba t, Φ, momentos): no son dinero (CLAUDE.md §4)"
+)]
 
 /// Constante de Euler–Mascheroni.
 const EULER_GAMMA: f64 = 0.577_215_664_901_532_9;
@@ -138,8 +142,7 @@ pub fn normal_cdf(x: f64) -> f64 {
                     + t * (-0.186_288_06
                         + t * (0.278_868_07
                             + t * (-1.135_203_98
-                                + t * (1.488_515_87
-                                    + t * (-0.822_152_23 + t * 0.170_872_77))))))));
+                                + t * (1.488_515_87 + t * (-0.822_152_23 + t * 0.170_872_77))))))));
     let erfc = t * poly.exp();
     if x >= 0.0 {
         1.0 - 0.5 * erfc
