@@ -4,6 +4,8 @@
 //! transacción y en orden de llegada. Guardar otra vez lo mismo no cambia nada (idempotente); un
 //! contenido o un informe distinto para el mismo `order_id` es repintado: error y no se guarda.
 //! Con este registro el broker se reconstruye al arrancar (`cfds_broker::restore_and_reconcile`).
+//! Si la orden era una pendiente guardada (#479, `paper_pending`), la misma transacción la marca
+//! decidida (`settled`).
 
 use cfds_core::{Order, OrderReport};
 use serde_json::Value;
@@ -78,6 +80,17 @@ impl PgStore {
         .bind(status(report)?)
         .bind(report.at)
         .bind(&report_doc)
+        .execute(&mut *tx)
+        .await?;
+        // Si era una orden pendiente guardada (#479), queda decidida en la misma transacción:
+        // nunca una pendiente sin final con su orden ya en el registro.
+        sqlx::query(
+            "INSERT INTO paper_pending_outcomes (order_id, outcome, at)
+             SELECT order_id, 'settled', $2 FROM paper_pending_orders WHERE order_id = $1
+             ON CONFLICT (order_id) DO NOTHING",
+        )
+        .bind(order.order_id.as_str())
+        .bind(report.at)
         .execute(&mut *tx)
         .await?;
         tx.commit().await?;

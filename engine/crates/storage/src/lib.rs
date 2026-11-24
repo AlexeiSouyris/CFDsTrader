@@ -27,6 +27,7 @@ mod ops_events;
 mod paper_checkpoints;
 mod paper_kill_switch;
 mod paper_orders;
+mod paper_pending;
 mod pg;
 mod stream;
 pub mod test_db;

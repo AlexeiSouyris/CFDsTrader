@@ -2,7 +2,11 @@
 //!
 //! ```text
 //! enviar:     submit → guardar orden + informe (una transacción; idempotente por order_id)
+//!             pendiente de su vela del fill (#471) → guardarla como pendiente (#479)
+//! decidir:    llegó la vela del fill → orden + informe al registro y la pendiente `settled`
+//!             (una transacción)
 //! arrancar:   leer el registro → restore_and_reconcile (kill switch si algo no coincide)
+//!             → retomar las pendientes guardadas sin final (restore_pending_from_store)
 //! cada N min: leer el registro → reconstruir aparte → comparar con el broker en marcha
 //!             (informes y posiciones) → kill switch si algo no coincide
 //! ```
@@ -21,7 +25,7 @@ use chrono::{DateTime, Utc};
 
 use crate::Broker;
 use crate::checkpoint::{BrokerCheckpoint, SealedCheckpoint, seal, verified_chain};
-use crate::paper::{BrokerConfig, MarketSetup, PaperBroker};
+use crate::paper::{BrokerConfig, MarketSetup, PaperBroker, RestorePending};
 use crate::reconcile::{
     KillSwitchChange, KillSwitchMark, Mismatch, Reconciliation, restore_from_checkpoint,
     restore_with_kill_switch,
@@ -107,12 +111,69 @@ pub async fn submit_and_record(
     store: &PgStore,
     order: &Order,
 ) -> Result<OrderReport, StorageError> {
+    let was_pending = broker
+        .pending()
+        .iter()
+        .any(|o| o.order_id == order.order_id);
     let report = broker.submit(order);
-    // Una pendiente (#471) no está en el registro: se guarda cuando se decide.
     if report.status != OrderStatus::Pending {
         store.insert_paper_order(order, &report).await?;
+    } else if !was_pending {
+        // Una pendiente (#471) no está en el registro: se guarda como pendiente (#479) para que
+        // sobreviva a un reinicio, y entra al registro cuando se decide. Si no se pudo guardar,
+        // no queda pendiente en memoria (un reinicio la perdería): error, y se puede reenviar.
+        if let Err(e) = store.insert_paper_pending(order).await {
+            broker.forget_pending(&order.order_id);
+            return Err(e);
+        }
     }
     Ok(report)
+}
+
+/// Lo que pasó con las órdenes pendientes guardadas al retomarlas ([`restore_pending_from_store`]).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct RestoredPending {
+    /// Vuelven a estar pendientes, en orden de llegada.
+    pub restored: Vec<String>,
+    /// No se pudieron retomar (su instrumento no se opera en este arranque): quedan guardadas
+    /// como `dropped` con el motivo y no entran al registro.
+    pub dropped: Vec<String>,
+    /// Ya estaban en el registro o ya pendientes: no se tocan.
+    pub skipped: Vec<String>,
+}
+
+/// Arranque (#479): retoma las órdenes pendientes guardadas sin final, en orden de llegada,
+/// sobre el broker ya reconstruido desde el registro (con su kill switch). No se evalúan otra
+/// vez: se deciden con [`settle_and_record`] cuando llega su vela del fill, sobre el estado de
+/// ese momento, igual que en la sesión que las recibió y que en la reconstrucción. Las que no se
+/// pueden retomar se guardan como descartadas (`at` = la hora del arranque).
+pub async fn restore_pending_from_store(
+    broker: &mut PaperBroker,
+    store: &PgStore,
+    at: DateTime<Utc>,
+) -> Result<RestoredPending, StorageError> {
+    let mut out = RestoredPending::default();
+    for order in store.paper_pending().await? {
+        let id = order.order_id.to_string();
+        let instrument = order.instrument_id.to_string();
+        match broker.restore_pending(order) {
+            Ok(()) => out.restored.push(id),
+            Err(RestorePending::UnknownInstrument) => {
+                store
+                    .drop_paper_pending(
+                        &id,
+                        &format!("el instrumento {instrument} no se opera en este arranque"),
+                        at,
+                    )
+                    .await?;
+                out.dropped.push(id);
+            }
+            Err(RestorePending::AlreadyDecided | RestorePending::AlreadyPending) => {
+                out.skipped.push(id);
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// Decide las órdenes pendientes cuya vela del fill ya llegó (`PaperBroker::settle_pending`,
@@ -293,6 +354,10 @@ pub trait JournalStore: Sync {
     ) -> impl std::future::Future<Output = Result<(), String>> + Send;
     /// Los `order_id` que ya están guardados.
     fn saved_ids(&self) -> impl std::future::Future<Output = Result<Vec<String>, String>> + Send;
+    /// Los `order_id` de las órdenes pendientes guardadas sin final (#479).
+    fn saved_pending_ids(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<String>, String>> + Send;
 }
 
 impl JournalStore for PgStore {
@@ -309,6 +374,13 @@ impl JournalStore for PgStore {
             .map(|j| j.into_iter().map(|(o, _)| o.order_id.to_string()).collect())
             .map_err(|e| e.to_string())
     }
+
+    async fn saved_pending_ids(&self) -> Result<Vec<String>, String> {
+        self.paper_pending()
+            .await
+            .map(|p| p.into_iter().map(|o| o.order_id.to_string()).collect())
+            .map_err(|e| e.to_string())
+    }
 }
 
 /// Resultado de [`flush_journal`].
@@ -318,9 +390,11 @@ pub struct Flush {
     pub saved_now: Vec<String>,
     /// Órdenes que siguen sin guardar después del intento (huérfanas). Vacío = parada limpia.
     pub orphans: Vec<String>,
-    /// Órdenes pendientes de su vela del fill (#471) que se pierden al apagar: no se
-    /// ejecutaron y no están en el registro.
+    /// Órdenes pendientes de su vela del fill (#471) que **no** están guardadas como
+    /// pendientes (#479): se pierden al apagar. Las guardadas se retoman al arrancar.
     pub pending_dropped: Vec<String>,
+    /// Órdenes pendientes guardadas (#479): sobreviven al apagado y se retoman al arrancar.
+    pub pending_kept: Vec<String>,
 }
 
 impl Flush {
@@ -336,14 +410,16 @@ pub async fn flush_journal<S: JournalStore>(
     store: &S,
 ) -> Result<Flush, String> {
     let saved = store.saved_ids().await?;
-    let mut flush = Flush {
-        pending_dropped: broker
-            .pending()
-            .iter()
-            .map(|o| o.order_id.to_string())
-            .collect(),
-        ..Flush::default()
-    };
+    let saved_pending = store.saved_pending_ids().await?;
+    let mut flush = Flush::default();
+    for o in broker.pending() {
+        let id = o.order_id.to_string();
+        if saved_pending.contains(&id) {
+            flush.pending_kept.push(id);
+        } else {
+            flush.pending_dropped.push(id);
+        }
+    }
     for (o, r) in broker.journal() {
         let id = o.order_id.to_string();
         if !saved.contains(&id) && store.save(o, r).await.is_ok() {

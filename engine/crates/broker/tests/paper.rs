@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use cfds_backtest::{Commission, CostConfig, ExitConfig, FundingRates, InstrumentCosts};
 use cfds_broker::{
     Broker, BrokerConfig, BrokerEvent, FundingSetup, JournalStore, LiveBroker, MarketSetup,
-    PaperBroker, flush_journal, live_trading_status,
+    PaperBroker, RestorePending, flush_journal, live_trading_status,
 };
 use cfds_core::OrderReport;
 use cfds_core::{
@@ -501,6 +501,8 @@ fn every_decision_report_and_kill_switch_leaves_an_event() {
 #[derive(Default)]
 struct MemJournal {
     saved: Mutex<Vec<(Order, OrderReport)>>,
+    /// Las pendientes guardadas sin final (#479).
+    pending: Vec<String>,
     fail: Vec<String>,
 }
 
@@ -523,6 +525,9 @@ impl JournalStore for MemJournal {
             .iter()
             .map(|(o, _)| o.order_id.to_string())
             .collect())
+    }
+    async fn saved_pending_ids(&self) -> Result<Vec<String>, String> {
+        Ok(self.pending.clone())
     }
 }
 
@@ -552,6 +557,64 @@ async fn the_shutdown_flush_saves_what_was_missing_and_reports_orphans() {
     assert!(!flush.is_clean());
     assert_eq!(flush.saved_now, ["o1"]);
     assert_eq!(flush.orphans, ["o2"]);
+}
+
+/// #479: al apagar, una pendiente guardada no se pierde (se retoma al arrancar); solo la que no
+/// quedó guardada se informa como perdida.
+#[tokio::test]
+async fn the_shutdown_flush_tells_kept_pending_orders_from_lost_ones() {
+    let mut b = broker();
+    // Las velas llegan hasta la 29: una orden de la 30 todavía no tiene su vela del fill.
+    let kept = order("kept", "US100", OrderSide::Long, dec!(98), 30);
+    let lost = order("lost", "US100", OrderSide::Long, dec!(98), 31);
+    assert_eq!(b.submit(&kept).status, OrderStatus::Pending);
+    assert_eq!(b.submit(&lost).status, OrderStatus::Pending);
+    let store = MemJournal {
+        pending: vec!["kept".into()],
+        ..Default::default()
+    };
+    let flush = flush_journal(&b, &store).await.unwrap();
+    assert!(flush.is_clean());
+    assert_eq!(flush.pending_kept, ["kept"]);
+    assert_eq!(flush.pending_dropped, ["lost"]);
+}
+
+/// #479: una pendiente que no se pudo guardar se quita (se puede reenviar con el mismo id); una
+/// guardada vuelve tal cual, en orden, sin evaluarse otra vez.
+#[test]
+fn pending_orders_can_be_forgotten_and_restored_in_order() {
+    let mut b = broker();
+    let a = order("a", "US100", OrderSide::Long, dec!(98), 30);
+    let c = order("c", "US100", OrderSide::Long, dec!(98), 31);
+    b.submit(&a);
+    b.submit(&c);
+    assert_eq!(b.forget_pending(&a.order_id), Some(a.clone()));
+    assert_eq!(b.forget_pending(&a.order_id), None);
+    assert_eq!(b.pending(), std::slice::from_ref(&c));
+    // Reenviarla con el mismo id la vuelve a dejar pendiente.
+    assert_eq!(b.submit(&a).status, OrderStatus::Pending);
+
+    let mut fresh = broker();
+    fresh.restore_pending(c.clone()).unwrap();
+    fresh.restore_pending(a.clone()).unwrap();
+    assert_eq!(fresh.pending(), [c.clone(), a.clone()]);
+    assert_eq!(
+        fresh.restore_pending(a.clone()),
+        Err(RestorePending::AlreadyPending)
+    );
+    let other = order("x", "DE40", OrderSide::Long, dec!(98), 30);
+    assert_eq!(
+        fresh.restore_pending(other),
+        Err(RestorePending::UnknownInstrument)
+    );
+    let decided = order("d", "US100", OrderSide::Long, dec!(98), 20);
+    assert_eq!(fresh.submit(&decided).status, OrderStatus::Filled);
+    assert_eq!(
+        fresh.restore_pending(decided),
+        Err(RestorePending::AlreadyDecided)
+    );
+    // Retomarlas no las registra.
+    assert_eq!(fresh.journal().len(), 1);
 }
 
 /// #319, spec §12: si la apertura de la entrada ya saltó el stop, la operación sale entera a esa

@@ -21,7 +21,8 @@
 //!   de la hora del gateway (nunca en el futuro): nadie elige a qué precio viejo entra.
 //!   Como es de ahora, su vela del fill todavía no llegó: si el riesgo la aceptaría, la respuesta
 //!   es `pending` y el broker la decide cuando llega esa vela (en la próxima operación, con
-//!   `settle_and_record`), igual que la reconstrucción (#471).
+//!   `settle_and_record`), igual que la reconstrucción (#471). La pendiente queda guardada
+//!   (#479): un reinicio antes de esa vela la retoma al arrancar y la decide igual.
 //! - **Arranque y parada (fase 9, #297):** `POST /api/v1/paper/orders` responde 503 mientras la
 //!   reconciliación al arrancar no pasó limpia o el gateway se está apagando (ver [`crate::ops`]).
 
@@ -33,8 +34,8 @@ use cfds_backtest::{AccountFx, DailyRates, FundingRates, FxRates, market_terms_f
 use cfds_broker::{
     Broker, BrokerConfig, Flush, FundingSetup, MarketSetup, PaperBroker, ReconcileSchedule,
     flush_journal, kill_switch_marks, kill_switch_stored_active, reconcile_periodically,
-    restore_from_checkpoint, restore_with_kill_switch, save_kill_switch, settle_and_record,
-    stored_checkpoints, submit_and_record,
+    restore_from_checkpoint, restore_pending_from_store, restore_with_kill_switch,
+    save_kill_switch, settle_and_record, stored_checkpoints, submit_and_record,
 };
 use cfds_core::{
     InstrumentId, Order, OrderReport, PaperAccount, Position, TicketVerdict, Timeframe,
@@ -336,13 +337,24 @@ pub struct PgPaper {
 /// Desde cuándo carga velas el broker (#438): `window` antes de la **primera** orden del
 /// registro, para que la reconstrucción tenga las velas de todas las órdenes y el ATR salga
 /// igual que en la sesión que las procesó ([`PaperBroker::start_candles_at`]). Sin órdenes,
-/// `window` antes de `now`.
+/// `window` antes de la pendiente guardada más vieja (#479: la primera en entrar al registro
+/// puede ser una de ellas, y ahí se recortan) o de `now`.
 pub fn candles_from(
     journal: &[(Order, OrderReport)],
+    pending: &[Order],
     window: TimeDelta,
     now: DateTime<Utc>,
 ) -> DateTime<Utc> {
-    journal.first().map_or(now, |(o, _)| o.created_at) - window
+    let first = journal.first().map_or_else(
+        || {
+            pending
+                .iter()
+                .map(|o| o.created_at)
+                .fold(now, DateTime::min)
+        },
+        |(o, _)| o.created_at,
+    );
+    first - window
 }
 
 /// Los mercados del broker armados desde el catálogo y lo guardado (velas de 15m desde
@@ -450,8 +462,11 @@ impl PgPaper {
         now: DateTime<Utc>,
     ) -> Result<(Self, Vec<String>), String> {
         let journal = store.paper_journal().await.map_err(|e| e.to_string())?;
+        // Las pendientes guardadas (#479) se retoman después de reconstruir; acá solo cuentan
+        // para saber desde cuándo cargar velas.
+        let pending = store.paper_pending().await.map_err(|e| e.to_string())?;
         let candles_window = TimeDelta::days(i64::from(paper.candles_days));
-        let from = candles_from(&journal, candles_window, now);
+        let from = candles_from(&journal, &pending, candles_window, now);
         // El kill switch guardado (#441) vuelve en el mismo punto del registro: sobrevive al
         // reinicio y solo lo apaga una liberación guardada (votación de la spec §1.2).
         let marks = kill_switch_marks(&store).await.map_err(|e| e.to_string())?;
@@ -535,6 +550,41 @@ impl PgPaper {
                 "from_checkpoint_after_orders": from_checkpoint,
             }),
         );
+        // Las velas se recortan antes de la primera orden que entre al registro (#438), también
+        // si la primera es una pendiente retomada que se decide antes de cualquier envío.
+        broker.anchor_candles_before_first_order(candles_window);
+        // Las pendientes guardadas (#479), sobre el broker reconstruido (con su kill switch):
+        // se deciden cuando llegue su vela del fill, como si no hubiera habido reinicio.
+        let resumed = restore_pending_from_store(&mut broker, &store, now)
+            .await
+            .map_err(|e| format!("retomar órdenes pendientes guardadas: {e}"))?;
+        ops.log.log(
+            if resumed.dropped.is_empty() {
+                Level::Info
+            } else {
+                Level::Warn
+            },
+            "gateway",
+            "pending_restored",
+            json!({
+                "restored": resumed.restored,
+                "dropped": resumed.dropped,
+                "skipped": resumed.skipped,
+            }),
+        );
+        if !resumed.dropped.is_empty() {
+            ops.alerts
+                .raise(
+                    AlertKind::DataError,
+                    &format!(
+                        "{} órdenes pendientes guardadas no se retomaron: su instrumento no se \
+                         opera en este arranque",
+                        resumed.dropped.len()
+                    ),
+                    now,
+                )
+                .await;
+        }
         let events = broker.take_events();
         log_events(&ops.log, &events);
         alert_events(&ops.alerts, &events, now).await;
@@ -605,6 +655,7 @@ impl PgPaper {
                         "saved_now": f.saved_now,
                         "orphans": f.orphans,
                         "pending_dropped": f.pending_dropped,
+                        "pending_kept": f.pending_kept,
                     }),
                 );
                 if !f.pending_dropped.is_empty() {
@@ -613,7 +664,8 @@ impl PgPaper {
                         .raise(
                             AlertKind::Disconnect,
                             &format!(
-                                "apagado con {} órdenes pendientes de su vela: no se ejecutaron",
+                                "apagado con {} órdenes pendientes de su vela sin guardar: \
+                                 se pierden",
                                 f.pending_dropped.len()
                             ),
                             now,
@@ -814,5 +866,58 @@ impl PaperService for PgPaper {
 
     fn gate(&self) -> GateState {
         self.gate.state()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cfds_core::{OrderSide, OrderStatus, PaperMode};
+    use rust_decimal::dec;
+
+    fn order(id: &str, at: &str) -> Order {
+        Order {
+            order_id: id.parse().unwrap(),
+            mode: PaperMode::Paper,
+            instrument_id: "US100".parse().unwrap(),
+            side: OrderSide::Long,
+            stop: dec!(98),
+            tp1: None,
+            proposal_id: None,
+            created_at: at.parse().unwrap(),
+        }
+    }
+
+    /// #438 y #479: velas desde la primera orden del registro; sin registro, desde la pendiente
+    /// guardada más vieja (o `now`), siempre menos la ventana.
+    #[test]
+    fn candles_start_before_the_first_order_or_the_oldest_pending_one() {
+        let w = TimeDelta::days(5);
+        let now: DateTime<Utc> = "2026-11-24T12:00:00Z".parse().unwrap();
+        let first = order("a", "2026-11-20T10:00:00Z");
+        let report = OrderReport {
+            order_id: first.order_id.clone(),
+            status: OrderStatus::Rejected,
+            rejection: None,
+            position_id: None,
+            size: None,
+            fill_price: None,
+            commission: None,
+            at: first.created_at,
+        };
+        let pending = [
+            order("p2", "2026-11-24T11:07:00Z"),
+            order("p1", "2026-11-24T10:07:00Z"),
+        ];
+        let journal = [(first.clone(), report)];
+        assert_eq!(
+            candles_from(&journal, &pending, w, now),
+            first.created_at - w
+        );
+        assert_eq!(
+            candles_from(&[], &pending, w, now),
+            pending[1].created_at - w
+        );
+        assert_eq!(candles_from(&[], &[], w, now), now - w);
     }
 }
