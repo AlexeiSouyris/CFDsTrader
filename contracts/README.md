@@ -74,6 +74,10 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Tabla de **solo agregar** (`infra/migrations/0015_ml_experiments.sql`): las columnas de arriba más `document`, el `JSONB` con el documento entero. El mismo experimento no se repite.
 - Lo escribe Python (`python -m cfds_intel.models.experiment <run_id>`).
 
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `ml_experiment_entry.v1` | (respuesta del gateway) | `GET /api/v1/ml/experiments[?instrument=<id>]` (#426): cada `ml_experiment.v1` tal como está guardado, con el instrumento de su corrida (`instrument_id` de `ml_label_runs` o cada uno de `instruments` de `backtest_runs`) y su `label_source`. Sin `instrument`, el último experimento de cada instrumento; con `instrument`, los de ese instrumento, del más nuevo al más viejo (hasta 50). Solo lectura; lo muestra Performance como «Modelo (informativo)». |
+
 ### Sentimiento (#25, #27)
 
 | Contrato | Tabla | Contenido |

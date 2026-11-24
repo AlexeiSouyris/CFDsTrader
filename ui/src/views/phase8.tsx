@@ -1,11 +1,13 @@
 /**
  * Fases 8 y 8b en Performance (#331): "Paper vs backtest" y "Aprendizaje", de solo lectura, tal
  * como los manda el gateway. Sin gateway no hay datos de ejemplo: se dice. No se vota desde la UI.
+ * También "Modelo (informativo)", los experimentos de ML de la fase 4b (#426), con la misma forma.
  */
 import type { ReactNode } from 'react'
 
 import { Term } from '@/components/ui/term'
 import { LearningReportView } from '@/components/ui/learning-report'
+import { MlExperiments } from '@/components/ui/ml-experiments'
 import { PaperVsBacktest } from '@/components/ui/paper-vs-backtest'
 import {
   useLearningReport,
@@ -13,6 +15,7 @@ import {
   useVoteStatuses,
   voteLabel,
 } from '@/lib/learning-api'
+import { useMlExperiments } from '@/lib/ml-api'
 import { cn } from '@/lib/utils'
 
 function Section({
@@ -103,6 +106,28 @@ export function LearningSection() {
         note('Todavía no hay un informe de aprendizaje guardado.', 'empty')
       ) : (
         <LearningReportView report={r.data} voteStatus={statusOf} />
+      )}
+    </Section>
+  )
+}
+
+export function MlExperimentsSection() {
+  const r = useMlExperiments()
+  return (
+    <Section id="perf-modelo" title="Modelo (informativo)" aside="fase 4b · experimentos de ML">
+      <p className="mb-3 max-w-3xl text-[12px] text-pretty text-muted-foreground">
+        El modelo de ML v1 (M1) se compara contra lo que se muestra hoy (B1) con datos que no vio.
+        Es <strong className="text-foreground">solo informativo</strong>: no decide operaciones y no
+        promete resultados. El último experimento de cada instrumento, tal como lo guardó el motor.
+      </p>
+      {r.status === 'loading' ? (
+        note('Pidiendo los experimentos al motor…', 'loading')
+      ) : r.status === 'error' ? (
+        note('Sin conexión con el gateway: no hay experimentos para mostrar.', 'error')
+      ) : r.data.length === 0 ? (
+        note('Todavía no hay experimentos de ML guardados.', 'empty')
+      ) : (
+        <MlExperiments entries={r.data} />
       )}
     </Section>
   )

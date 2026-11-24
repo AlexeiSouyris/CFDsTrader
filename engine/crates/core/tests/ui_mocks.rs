@@ -103,3 +103,23 @@ fn ui_backtest_run_detail_mock_follows_the_contract() {
         .expect("el detalle no es de una corrida de ejemplo");
     assert_eq!(run, &mock["detail"]["run"]);
 }
+
+#[test]
+fn ui_ml_experiments_mock_follows_the_contract() {
+    // los experimentos de ejemplo de los tests de «Modelo (informativo)» (#426), con la forma de
+    // ml_experiment_entry.v1 (que incluye ml_experiment.v1)
+    let mock = read_json(&repo().join("ui/src/mocks/ml-experiments.json"));
+    let schema = read_json(&repo().join("contracts/ml_experiment_entry.v1.schema.json"));
+    let v = jsonschema::options()
+        .with_retriever(Local)
+        .build(&schema)
+        .expect("el contrato no es un JSON Schema válido");
+    let entries = mock["entries"]
+        .as_array()
+        .expect("el ejemplo no trae `entries`");
+    assert!(!entries.is_empty());
+    for (i, e) in entries.iter().enumerate() {
+        let errors: Vec<String> = v.iter_errors(e).map(|e| e.to_string()).collect();
+        assert!(errors.is_empty(), "entries[{i}] no valida: {errors:?}");
+    }
+}

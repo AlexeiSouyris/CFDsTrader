@@ -1,0 +1,162 @@
+{
+  "_comment": "DATOS DE EJEMPLO para los tests de la UI (#426), con la forma de contracts/ml_experiment_entry.v1. No son resultados reales. engine/crates/core/tests/ui_mocks.rs los valida contra el contrato.",
+  "entries": [
+    {
+      "instrument_id": "DE40",
+      "label_source": "backtest_runs",
+      "experiment": {
+        "experiment_id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "created_at": "2026-11-23T10:00:00Z",
+        "code_version": "3e8f703",
+        "backtest_run_id": "bt-de40-2025",
+        "config_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "features": ["side_long", "score"],
+        "hyperparameters": {
+          "l2_grid": [0.1, 1.0],
+          "inner_tune_fraction": 0.2,
+          "max_iterations": 200,
+          "seed": 7,
+          "min_examples": 300,
+          "min_per_class": 50,
+          "bootstrap_resamples": 1000,
+          "confidence": 0.95
+        },
+        "windows": [
+          {
+            "train_start": "2011-02-01T00:00:00Z",
+            "validation_start": "2013-02-01T00:00:00Z",
+            "validation_end": "2013-05-01T00:00:00Z",
+            "n_train": 900,
+            "n_validation": 120,
+            "purged": 0,
+            "embargoed": 0,
+            "skipped": null,
+            "l2": 1.0,
+            "metrics": {
+              "B0": {
+                "log_loss": 0.6931,
+                "brier": 0.25,
+                "auc": null
+              },
+              "B1": {
+                "log_loss": 0.6812,
+                "brier": 0.2437,
+                "auc": 0.552
+              },
+              "M1": {
+                "log_loss": 0.6849,
+                "brier": 0.2451,
+                "auc": 0.561
+              }
+            }
+          },
+          {
+            "train_start": "2011-02-01T00:00:00Z",
+            "validation_start": "2013-02-01T00:00:00Z",
+            "validation_end": "2013-05-01T00:00:00Z",
+            "n_train": 0,
+            "n_validation": 0,
+            "purged": 0,
+            "embargoed": 0,
+            "skipped": "53 propuestas, el mínimo es 300",
+            "l2": null,
+            "metrics": {}
+          }
+        ],
+        "pooled": {
+          "B0": {
+            "log_loss": 0.6931,
+            "brier": 0.25,
+            "auc": null
+          },
+          "B1": {
+            "log_loss": 0.6812,
+            "brier": 0.2437,
+            "auc": 0.552
+          },
+          "M1": {
+            "log_loss": 0.6849,
+            "brier": 0.2451,
+            "auc": 0.561
+          }
+        },
+        "result": {
+          "status": "b1_stays",
+          "difference": 0.0037,
+          "low": -0.0021,
+          "high": 0.0109,
+          "blocks": 52
+        }
+      }
+    },
+    {
+      "instrument_id": "US500.FUT",
+      "label_source": "ml_label_runs",
+      "experiment": {
+        "experiment_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "created_at": "2026-11-24T03:34:19.970396Z",
+        "code_version": "3e8f703",
+        "backtest_run_id": "ml-us500-fut-2011",
+        "label_source": "ml_label_runs",
+        "config_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "features": ["side_long", "score", "instrument_US500"],
+        "hyperparameters": {
+          "l2_grid": [0.1, 1.0],
+          "inner_tune_fraction": 0.2,
+          "max_iterations": 200,
+          "seed": 7,
+          "min_examples": 300,
+          "min_per_class": 50,
+          "bootstrap_resamples": 1000,
+          "confidence": 0.95
+        },
+        "windows": [
+          {
+            "train_start": "2011-02-01T00:00:00Z",
+            "validation_start": "2013-02-01T00:00:00Z",
+            "validation_end": "2013-05-01T00:00:00Z",
+            "n_train": 0,
+            "n_validation": 0,
+            "purged": 0,
+            "embargoed": 0,
+            "skipped": "0 propuestas, el mínimo es 300",
+            "l2": null,
+            "metrics": {}
+          },
+          {
+            "train_start": "2011-02-01T00:00:00Z",
+            "validation_start": "2013-02-01T00:00:00Z",
+            "validation_end": "2013-05-01T00:00:00Z",
+            "n_train": 0,
+            "n_validation": 0,
+            "purged": 0,
+            "embargoed": 0,
+            "skipped": "0 propuestas, el mínimo es 300",
+            "l2": null,
+            "metrics": {}
+          },
+          {
+            "train_start": "2011-02-01T00:00:00Z",
+            "validation_start": "2013-02-01T00:00:00Z",
+            "validation_end": "2013-05-01T00:00:00Z",
+            "n_train": 0,
+            "n_validation": 0,
+            "purged": 0,
+            "embargoed": 0,
+            "skipped": "sin propuestas de validación",
+            "l2": null,
+            "metrics": {}
+          }
+        ],
+        "pooled": {},
+        "result": {
+          "status": "suspended",
+          "difference": null,
+          "low": null,
+          "high": null,
+          "blocks": null
+        }
+      }
+    }
+  ]
+}
