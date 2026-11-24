@@ -7,7 +7,7 @@
  * Es simulación con datos del pasado: no anticipa resultados.
  */
 import { X } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import type { ExitReason, RunDetail as Detail } from '@/lib/backtest-contracts'
 import { dateTimeUtc, decimal, signed } from '@/lib/format'
@@ -26,6 +26,24 @@ const EXIT_LABEL: Record<ExitReason, string> = {
   forced: 'Cierre forzado',
   end_of_data: 'Fin de los datos',
 }
+
+/**
+ * Cuántos decimales mostrar de un precio: los de la entrada (hasta 5). Las salidas con
+ * slippage llegan con muchos decimales; se cortan solo en pantalla y el valor completo queda en
+ * el `title`. Es formato, no un cálculo.
+ */
+function priceDigits(reference: string): number {
+  const frac = reference.split('.')[1]?.length ?? 0
+  return Math.min(frac, 5)
+}
+
+/** Un precio con los decimales de su referencia y el valor exacto al pasar el mouse. */
+export function Price({ value, reference }: { value: string; reference?: string }) {
+  return <span title={value}>{decimal(value, priceDigits(reference ?? value))}</span>
+}
+
+/** Cuántas operaciones se ven antes de "Mostrar más" (una corrida puede tener cientos). */
+export const TRADES_PAGE = 25
 
 function Block({
   title,
@@ -102,7 +120,7 @@ function Curves({ detail }: { detail: Detail }) {
         viewBox={`0 0 ${width} ${height}`}
         role="img"
         aria-label={`Curva de capital de ${n} días, de ${decimal(points[0].equity)} a ${decimal(last.equity)}, y drawdown máximo de ${pctOrDash(worst, 2)}.`}
-        className="block w-full select-none"
+        className="block w-full select-none tabular-nums"
       >
         <text x={0} y={eqH + 16} fontSize={10} fill="var(--muted-foreground)">
           Drawdown
@@ -125,24 +143,28 @@ function Curves({ detail }: { detail: Detail }) {
         >
           {decimal(detail.run.initial_equity)}
         </text>
-        <text
-          x={width - 4}
-          y={yE(hi) + 3}
-          textAnchor="end"
-          fontSize={10}
-          fill="var(--muted-foreground)"
-        >
-          {decimal(hi.toFixed(0))}
-        </text>
-        <text
-          x={width - 4}
-          y={yE(lo) + 3}
-          textAnchor="end"
-          fontSize={10}
-          fill="var(--muted-foreground)"
-        >
-          {decimal(lo.toFixed(0))}
-        </text>
+        {Math.abs(yE(hi) - yE(initial)) > 12 && (
+          <text
+            x={width - 4}
+            y={yE(hi) + 3}
+            textAnchor="end"
+            fontSize={10}
+            fill="var(--muted-foreground)"
+          >
+            {decimal(hi.toFixed(0))}
+          </text>
+        )}
+        {Math.abs(yE(lo) - yE(initial)) > 12 && (
+          <text
+            x={width - 4}
+            y={yE(lo) + 3}
+            textAnchor="end"
+            fontSize={10}
+            fill="var(--muted-foreground)"
+          >
+            {decimal(lo.toFixed(0))}
+          </text>
+        )}
         <path
           data-curve="equity"
           d={eqPath}
@@ -249,83 +271,126 @@ function Metrics({ detail }: { detail: Detail }) {
 }
 
 function Trades({ detail }: { detail: Detail }) {
-  if (detail.trades.length === 0)
+  const [shown, setShown] = useState(TRADES_PAGE)
+  const total = detail.trades.length
+  if (total === 0)
     return (
       <p className="text-[12.5px] text-muted-foreground">
         La corrida no tiene operaciones guardadas.
       </p>
     )
-  const th = 'py-2 px-2 font-bold'
+  const th = 'px-2 py-2 font-bold'
+  // En el celular y la tableta angosta cada fila es una tarjeta: el título de la columna va en `data-label`.
+  const td =
+    'px-2 py-2.5 max-md:p-0 max-md:before:block max-md:before:text-[10px] max-md:before:font-bold max-md:before:tracking-[0.1em] max-md:before:text-muted-foreground max-md:before:uppercase max-md:before:content-[attr(data-label)]'
+  const rest = total - shown
   return (
-    <div className="overflow-x-auto">
-      <table aria-label="Operaciones de la corrida" className="w-full min-w-[760px] text-[12.5px]">
-        <thead>
-          <tr className="border-b border-border text-left text-[10px] tracking-[0.1em] text-muted-foreground uppercase">
-            <th className={th}>Instrumento</th>
-            <th className={th}>Entrada</th>
-            <th className={th}>Salida</th>
-            <th className={cn(th, 'text-right')}>P/L neto</th>
-            <th className={th}>Motivo</th>
-          </tr>
-        </thead>
-        <tbody>
-          {detail.trades.map(({ proposal: p, outcome: o }) => {
-            const exit = o?.exits[o.exits.length - 1]
-            return (
-              <tr key={p.id} className="border-b border-border last:border-b-0">
-                <td className="px-2 py-2.5">
-                  <span className="font-extrabold">{p.instrument_id}</span>{' '}
-                  <span
+    <>
+      <div className="overflow-x-auto max-md:overflow-visible">
+        <table
+          aria-label="Operaciones de la corrida"
+          className="w-full text-[12.5px] md:min-w-[600px] max-md:block"
+        >
+          <thead className="max-md:sr-only">
+            <tr className="border-b border-border text-left text-[10px] tracking-[0.1em] text-muted-foreground uppercase">
+              <th className={th}>Instrumento</th>
+              <th className={th}>Entrada</th>
+              <th className={th}>Salida</th>
+              <th className={cn(th, 'text-right')}>P/L neto</th>
+              <th className={th}>Motivo</th>
+            </tr>
+          </thead>
+          <tbody className="max-md:grid max-md:gap-2 sm:max-md:grid-cols-2">
+            {detail.trades.slice(0, shown).map(({ proposal: p, outcome: o }) => {
+              const exit = o?.exits[o.exits.length - 1]
+              return (
+                <tr
+                  key={p.id}
+                  className="border-b border-border last:border-b-0 max-md:grid max-md:grid-cols-2 max-md:gap-x-3 max-md:gap-y-2 max-md:rounded-xl max-md:border max-md:p-3 max-md:last:border-b"
+                >
+                  <td className="px-2 py-2.5 whitespace-nowrap max-md:order-first max-md:self-center max-md:p-0">
+                    <span className="font-extrabold">{p.instrument_id}</span>{' '}
+                    <span
+                      className={cn(
+                        'ml-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-bold',
+                        p.side === 'long' ? 'bg-up/10 text-up' : 'bg-down/10 text-down',
+                      )}
+                    >
+                      {p.side === 'long' ? 'Largo' : 'Corto'}
+                    </span>
+                  </td>
+                  <td data-label="Entrada" className={cn(td, 'tabular-nums')}>
+                    {o ? (
+                      <>
+                        <Price value={o.entry_price} />
+                        <span className="block text-[11px] text-muted-foreground">
+                          {dayYear(o.entry_at)}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">sin resultado</span>
+                    )}
+                  </td>
+                  <td data-label="Salida" className={cn(td, 'tabular-nums')}>
+                    {exit && o ? (
+                      <>
+                        <Price value={exit.price} reference={o.entry_price} />
+                        <span className="block text-[11px] text-muted-foreground">
+                          {dayYear(exit.at)}
+                        </span>
+                      </>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td
+                    data-label="P/L neto"
                     className={cn(
-                      'ml-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-bold',
-                      p.side === 'long' ? 'bg-up/10 text-up' : 'bg-down/10 text-down',
+                      td,
+                      'text-right font-extrabold tabular-nums max-md:-order-1',
+                      o && tone(o.net_pnl),
                     )}
                   >
-                    {p.side === 'long' ? 'Largo' : 'Corto'}
-                  </span>
-                </td>
-                <td className="px-2 py-2.5 tabular-nums">
-                  {o ? (
-                    <>
-                      {decimal(o.entry_price)}
-                      <span className="block text-[11px] text-muted-foreground">
-                        {dayYear(o.entry_at)}
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-muted-foreground">sin resultado</span>
-                  )}
-                </td>
-                <td className="px-2 py-2.5 tabular-nums">
-                  {exit ? (
-                    <>
-                      {decimal(exit.price)}
-                      <span className="block text-[11px] text-muted-foreground">
-                        {dayYear(exit.at)}
-                      </span>
-                    </>
-                  ) : (
-                    '—'
-                  )}
-                </td>
-                <td
-                  className={cn(
-                    'px-2 py-2.5 text-right font-extrabold tabular-nums',
-                    o && tone(o.net_pnl),
-                  )}
-                >
-                  {o ? signed(o.net_pnl, 2) : '—'}
-                </td>
-                <td className="px-2 py-2.5">{o ? EXIT_LABEL[o.exit_reason] : '—'}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-      <p className="mt-2 text-[11px] text-muted-foreground">
-        P/L neto en la moneda de cada instrumento, con spread, slippage, comisión y financiación.
-      </p>
-    </div>
+                    {o ? signed(o.net_pnl, 2) : '—'}
+                  </td>
+                  <td data-label="Motivo" className={td}>
+                    {o ? EXIT_LABEL[o.exit_reason] : '—'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] text-muted-foreground">
+          P/L neto en la moneda de cada instrumento, con spread, slippage, comisión y financiación.
+        </p>
+        {rest > 0 && (
+          <div className="flex flex-wrap gap-2">
+            <span className="self-center text-[11px] text-muted-foreground tabular-nums">
+              {shown} de {total}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShown((n) => n + TRADES_PAGE)}
+              className="rounded-full border border-border px-3 py-1.5 text-[12px] font-bold hover:bg-foreground/5"
+            >
+              Mostrar {Math.min(rest, TRADES_PAGE)} más
+            </button>
+            {rest > TRADES_PAGE && (
+              <button
+                type="button"
+                onClick={() => setShown(total)}
+                className="rounded-full px-3 py-1.5 text-[12px] font-bold text-muted-foreground hover:text-foreground"
+              >
+                Mostrar todas
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </>
   )
 }
 
@@ -342,17 +407,31 @@ export function RunDetailView({
   const r = detail.run
   const events = r.metrics.kill_switch_events ?? []
   const bh = detail.curve?.buy_and_hold ?? []
+  // Al abrir, el foco va al título del detalle y la página lo trae a la vista: sin esto, con
+  // teclado o lector de pantalla el detalle aparece más abajo sin aviso.
+  const title = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    const el = title.current
+    if (!el) return
+    el.focus({ preventScroll: true })
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    el.scrollIntoView?.({ block: 'start', behavior: reduce ? 'auto' : 'smooth' })
+  }, [])
   return (
-    <section aria-label={`Detalle de la corrida ${r.run_id}`} className="grid gap-3">
+    <section aria-label={`Detalle de la corrida ${r.run_id}`} className="grid scroll-mt-4 gap-3">
       <header className="flex flex-wrap items-start justify-between gap-3 px-1">
         <div className="min-w-0">
           <p className="text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase">
             Simulación · backtest{example && ' · datos de ejemplo'}
           </p>
-          <h2 className="mt-1 text-[clamp(18px,2vw,24px)] font-bold tracking-[-0.03em] break-all">
+          <h2
+            ref={title}
+            tabIndex={-1}
+            className="mt-1 scroll-mt-24 text-[clamp(18px,2vw,24px)] font-bold tracking-[-0.03em] [overflow-wrap:anywhere] outline-none"
+          >
             {r.run_id}
           </h2>
-          <p className="mt-1 text-[12px] text-muted-foreground">
+          <p className="mt-1 text-[12px] text-muted-foreground tabular-nums">
             {r.instruments.join(', ')} · {r.timeframe} · {dayYear(r.from)} – {dayYear(r.to)} ·
             capital inicial {decimal(r.initial_equity)}
           </p>
@@ -360,7 +439,7 @@ export function RunDetailView({
         <button
           type="button"
           onClick={onClose}
-          className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-[12px] font-bold hover:bg-foreground/5"
+          className="flex shrink-0 items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-[12px] font-bold hover:bg-foreground/5"
         >
           <X className="size-3.5" aria-hidden="true" /> Cerrar el detalle
         </button>
@@ -386,10 +465,11 @@ export function RunDetailView({
                   key={b.instrument_id}
                   className="flex items-baseline justify-between gap-3 text-[12.5px]"
                 >
-                  <span>
+                  <span className="min-w-0">
                     <strong>{b.instrument_id}</strong>{' '}
-                    <span className="text-muted-foreground">
-                      {decimal(b.entry_price)} → {decimal(b.exit_price)}
+                    <span className="text-muted-foreground tabular-nums">
+                      <Price value={b.entry_price} /> →{' '}
+                      <Price value={b.exit_price} reference={b.entry_price} />
                     </span>
                   </span>
                   <span className={cn('font-extrabold tabular-nums', tone(b.total_return))}>
@@ -408,7 +488,14 @@ export function RunDetailView({
         </Block>
       </div>
 
-      <Block title="Kill switch" aside={events.length ? `${events.length} eventos` : undefined}>
+      <Block
+        title="Kill switch"
+        aside={
+          events.length
+            ? `${events.length} ${events.length === 1 ? 'evento' : 'eventos'}`
+            : undefined
+        }
+      >
         {events.length === 0 ? (
           <p className="text-[12.5px] text-muted-foreground">
             {r.metrics.kill_switch_at
@@ -418,12 +505,14 @@ export function RunDetailView({
         ) : (
           <ol aria-label="Eventos del kill switch" className="grid gap-1.5 text-[12.5px]">
             {events.map((e) => (
-              <li key={`${e.event}-${e.at}`} className="flex flex-wrap gap-x-3">
+              <li key={`${e.event}-${e.at}`} className="flex flex-wrap gap-x-3 tabular-nums">
                 <strong className={e.event === 'activated' ? 'text-down' : undefined}>
                   {e.event === 'activated' ? 'Activado' : 'Reactivado (solo backtest)'}
                 </strong>
                 <span>{dayYear(e.at)}</span>
-                <span className="text-muted-foreground">capital {decimal(e.equity)}</span>
+                <span className="text-muted-foreground tabular-nums">
+                  capital {decimal(e.equity, 2)}
+                </span>
               </li>
             ))}
           </ol>
