@@ -1,0 +1,17 @@
+# Herramientas de análisis (#491). Solo se muestran (chart_export): NO entran al puntaje ni a la
+# estrategia en uso (config/strategy.toml) ni al riesgo. Decimales como texto (nunca float).
+# Definiciones y fórmulas: docs/GLOSARIO.md y el doc de cada módulo.
+
+[ema_daily]
+# EMA sobre los cierres de las velas DIARIAS cerradas, mostrada en cada vela de 15m con el valor
+# del último día ya terminado. 365 velas diarias ≈ 1,45 años de sesiones (≈ 252 por año); la
+# convención del mercado para la media "larga" es 200.
+period = 365
+
+[fibonacci]
+# Sobre el último tramo entre pivotes confirmados (config/patterns.toml [pivots]).
+# Retrocesos en (0, 1) y extensiones > 1, crecientes. Casi todos salen del número de oro φ.
+retracements = ["0.236", "0.382", "0.5", "0.618", "0.786"]
+extensions = ["1.272", "1.618", "2.618"]
+# Zona del golden pocket, como retrocesos (desde, hasta).
+golden_pocket = ["0.618", "0.65"]

@@ -1,6 +1,7 @@
 //! Backtest (Fase 3): salidas de una operación (spec §8 y §12), costos (§11) y el recorrido
 //! completo de un instrumento con su registro de operaciones y comprar y mantener.
 
+pub mod analysis;
 pub mod basis;
 pub mod config;
 pub mod costs;
@@ -19,6 +20,7 @@ pub mod sensitivity;
 pub mod setup;
 pub mod variants;
 
+pub use analysis::{AnalysisConfig, ExportAnalysis, analysis_export, last_closed_day};
 pub use basis::{FuturesBasis, basis_carry, roll_jumps, splice_rates};
 pub use config::{BacktestConfig, CostConfig, ExitConfig, MetricsConfig};
 pub use costs::{

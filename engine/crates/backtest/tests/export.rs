@@ -2,7 +2,10 @@
 
 use std::path::PathBuf;
 
-use cfds_backtest::{BacktestConfig, chart_export, run, run_checked, setup_from_catalog};
+use cfds_backtest::{
+    AnalysisConfig, BacktestConfig, ExportAnalysis, analysis_export, chart_export, run,
+    run_checked, setup_from_catalog,
+};
 use cfds_core::{Candle, Timeframe};
 use cfds_indicators::TrendConfig;
 use cfds_liquidity::LiquidityConfig;
@@ -193,4 +196,109 @@ fn the_export_shows_no_scores_while_a_data_error_blocks_the_instrument() {
             .iter()
             .all(|t| t.signal_index < 600 || t.signal_index >= 800)
     );
+}
+
+// --- Herramientas de análisis (#491) ---
+
+const ANALYSIS: &str = cfg!("analysis.toml");
+
+/// Diarias UTC armadas con las velas de 15m (96 por día), solo días completos.
+fn daily_of(m15: &[Candle]) -> Vec<cfds_core::DailyCandle> {
+    m15.chunks_exact(96)
+        .map(|g| cfds_core::DailyCandle {
+            instrument_id: g[0].instrument_id.clone(),
+            day: g[0].start.date_naive(),
+            start: g[0].start,
+            end: g[95].end(),
+            open: g[0].open,
+            high: g.iter().map(|c| c.high).max().unwrap(),
+            low: g.iter().map(|c| c.low).min().unwrap(),
+            close: g[95].close,
+            volume: None,
+        })
+        .collect()
+}
+
+fn analysis(m15: &[Candle], daily: &[cfds_core::DailyCandle], period: usize) -> ExportAnalysis {
+    let mut cfg = AnalysisConfig::from_toml(ANALYSIS).unwrap();
+    cfg.ema_daily_period = period;
+    analysis_export(m15, daily, setup().strategy.patterns.pivots.strength, &cfg)
+}
+
+#[test]
+fn the_analysis_block_follows_the_contract_and_roundtrips() {
+    let m15 = random_walk(2000, 5);
+    let mut e = export(&m15);
+    e.analysis = Some(analysis(&m15, &daily_of(&m15), 5));
+    let a = e.analysis.as_ref().unwrap();
+    assert_eq!(a.ema_daily.len(), m15.len());
+    assert!(!a.fibonacci.is_empty() && !a.golden_pocket.is_empty());
+    let json = serde_json::to_value(&e).unwrap();
+    let errors: Vec<String> = validator()
+        .iter_errors(&json)
+        .map(|x| x.to_string())
+        .collect();
+    assert!(errors.is_empty(), "{errors:?}");
+    assert_eq!(
+        serde_json::from_value::<cfds_backtest::ChartExport>(json.clone()).unwrap(),
+        e
+    );
+    let mut bad = json;
+    bad["analysis"]["fibonacci"][0]["direction"] = serde_json::json!("Up");
+    assert!(!validator().is_valid(&bad), "dirección fuera del contrato");
+}
+
+#[test]
+fn a_15m_candle_only_sees_the_daily_ema_of_finished_days() {
+    let m15 = random_walk(96 * 8, 2);
+    let daily = daily_of(&m15);
+    let a = analysis(&m15, &daily, 3);
+    let ema = cfds_indicators::ema_values(&daily.iter().map(|d| d.close).collect::<Vec<_>>(), 3);
+    // Días 0..=2 hacen falta para la EMA(3): el primer valor aparece al cerrar el día 2 (vela 287).
+    assert!(a.ema_daily[..287].iter().all(Option::is_none));
+    assert_eq!(a.ema_daily[287], ema[2]);
+    // Durante el día 3 se sigue viendo el valor del día 2, nunca el del día en curso.
+    assert!(a.ema_daily[288..383].iter().all(|v| *v == ema[2]));
+    assert_eq!(a.ema_daily[383], ema[3]);
+}
+
+#[test]
+fn without_daily_candles_or_with_few_candles_nothing_breaks() {
+    let m15 = random_walk(5, 1);
+    let a = analysis(&m15, &[], 365);
+    assert!(a.ema_daily.iter().all(Option::is_none));
+    assert!(a.fibonacci.is_empty() && a.golden_pocket.is_empty());
+    let a = analysis(&[], &[], 365);
+    assert!(a.ema_daily.is_empty());
+}
+
+#[test]
+fn no_analysis_value_changes_when_more_candles_arrive() {
+    let full = random_walk(2000, 9);
+    let daily = daily_of(&full);
+    let all = analysis(&full, &daily, 5);
+    for n in [400, 1000, 1600] {
+        // Las diarias que existen con n velas: solo los días ya terminados.
+        let part_daily: Vec<_> = daily
+            .iter()
+            .filter(|d| d.end <= full[n - 1].end())
+            .cloned()
+            .collect();
+        let part = analysis(&full[..n], &part_daily, 5);
+        assert_eq!(part.ema_daily[..], all.ema_daily[..n], "EMA diaria con {n}");
+        let legs: Vec<_> = all
+            .fibonacci
+            .iter()
+            .filter(|l| l.confirmed_index < n)
+            .cloned()
+            .collect();
+        assert_eq!(part.fibonacci, legs, "tramos con {n}");
+        let events: Vec<_> = all
+            .golden_pocket
+            .iter()
+            .filter(|x| x.index < n)
+            .cloned()
+            .collect();
+        assert_eq!(part.golden_pocket, events, "golden pocket con {n}");
+    }
 }
