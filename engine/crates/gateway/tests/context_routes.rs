@@ -188,7 +188,9 @@ async fn the_store_reads_sentiment_and_analogs_as_their_contracts() {
         })
         .await
         .unwrap();
-    for (day, value) in [("18", "-0.1"), ("19", "-0.2"), ("20", "-0.35")] {
+    // El 19 lleva 32 decimales, como los que guardó Python antes de #372: se leen con 28.
+    let long = "-0.00004546281142025822876886693333";
+    for (day, value) in [("18", "-0.1"), ("19", long), ("20", "-0.35")] {
         sqlx::query(
             "INSERT INTO sentiment_index (instrument_id, as_of, published_at, value,
                warmup_complete, min_components, components)
@@ -199,8 +201,10 @@ async fn the_store_reads_sentiment_and_analogs_as_their_contracts() {
         .bind(format!("2026-11-{day}T21:00:00Z"))
         .bind(value)
         .bind(
-            serde_json::to_value(&sentiment(id.as_str(), value, "2026-11-20T23:00:00Z").components)
-                .unwrap(),
+            serde_json::to_value(
+                &sentiment(id.as_str(), "-0.2", "2026-11-20T23:00:00Z").components,
+            )
+            .unwrap(),
         )
         .execute(store.pool())
         .await
@@ -222,7 +226,7 @@ async fn the_store_reads_sentiment_and_analogs_as_their_contracts() {
     let values: Vec<String> = history.iter().map(|s| s.value.to_string()).collect();
     assert_eq!(
         values,
-        ["-0.2", "-0.35"],
+        ["-0.0000454628114202582287688669", "-0.35"],
         "las últimas 2, de la más vieja a la más nueva"
     );
     let latest = store.latest_sentiment(now()).await.unwrap();

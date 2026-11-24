@@ -84,6 +84,19 @@ def load_points(
     }
 
 
+# `rust_decimal`, con el que el motor lee la tabla, admite hasta 28 decimales (#372).
+DB_SCALE = 28
+_DB_QUANTUM = Decimal(1).scaleb(-DB_SCALE)
+
+
+def db_value(v: Decimal) -> Decimal:
+    """El valor con a lo sumo 28 decimales, como se guarda y se compara."""
+    exp = v.as_tuple().exponent
+    if isinstance(exp, int) and exp < -DB_SCALE:
+        return v.quantize(_DB_QUANTUM)
+    return v
+
+
 def insert_index(conn: psycopg.Connection, records: Sequence[SentimentIndex]) -> IndexStoreReport:
     inserted = unchanged = 0
     with conn.transaction(), conn.cursor() as cur:
@@ -100,7 +113,7 @@ def insert_index(conn: psycopg.Connection, records: Sequence[SentimentIndex]) ->
                     r.instrument_id,
                     r.as_of,
                     r.published_at,
-                    r.value,
+                    db_value(r.value),
                     r.warmup_complete,
                     r.min_components,
                     json.dumps(doc["components"]),
@@ -119,7 +132,7 @@ def insert_index(conn: psycopg.Connection, records: Sequence[SentimentIndex]) ->
             stored = cur.fetchone()
             same = stored is not None and (
                 stored[0] == r.as_of
-                and stored[1] == r.value
+                and db_value(stored[1]) == db_value(r.value)
                 and stored[2] == r.warmup_complete
                 and stored[3] == r.min_components
                 and stored[4] == doc["components"]

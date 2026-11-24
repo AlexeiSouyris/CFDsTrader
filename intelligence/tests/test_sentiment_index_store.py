@@ -21,7 +21,12 @@ from cfds_intel.sentiment.index import (
     index_series,
     load_config,
 )
-from cfds_intel.sentiment.index_store import SentimentRepaintError, insert_index, load_points
+from cfds_intel.sentiment.index_store import (
+    SentimentRepaintError,
+    db_value,
+    insert_index,
+    load_points,
+)
 
 pytestmark = pytest.mark.skipif(
     "DATABASE_URL" not in os.environ, reason="necesita PostgreSQL con migraciones (DATABASE_URL)"
@@ -128,3 +133,12 @@ def test_without_three_years_nothing_is_emitted(conn: psycopg.Connection) -> Non
     emitted, skipped = index_series(iid, data, CFG)
     assert emitted == []
     assert "0 componentes válidos de 3" in skipped[-1].reason()
+
+
+def test_db_value_keeps_at_most_28_decimals() -> None:
+    # rust_decimal, con el que el motor lee la tabla, admite hasta 28 decimales (#372).
+    long = Decimal("-0.00004546281142025822876886693333")
+    assert db_value(long) == Decimal("-0.0000454628114202582287688669")
+    assert db_value(long).as_tuple().exponent == -28
+    assert db_value(Decimal("-0.35")) == Decimal("-0.35")
+    assert db_value(Decimal("1")).as_tuple().exponent == 0
