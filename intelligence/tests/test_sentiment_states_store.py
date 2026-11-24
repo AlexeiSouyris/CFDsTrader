@@ -6,7 +6,7 @@ migraciones aplicadas (en CI corren en el job de integración).
 
 import json
 import os
-import random
+import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -81,8 +81,11 @@ def conn() -> psycopg.Connection:
 
 @needs_db
 def test_saving_is_idempotent_and_never_repaints(conn: psycopg.Connection) -> None:
-    # Tabla de solo agregar: un instrumento propio por corrida.
-    iid = f"ITEMO{random.randrange(10**9)}"  # noqa: S311 (no es criptografía)
+    # Tabla de solo agregar: un instrumento propio por test, con la fecha fija T (#488).
+    # Cumple `^[A-Z0-9][A-Z0-9._-]{0,31}$` (32 caracteres).
+    iid = "ITEMO" + uuid.uuid4().hex[:27].upper()
+    before = conn.execute("SELECT count(*) FROM emotional_states WHERE instrument_id = %s", (iid,))
+    assert before.fetchone() == (0,)
     rows = states_rows([index(iid, "-0.7", T), index(iid, "0.1", T + timedelta(hours=1))], [], CFG)
     first = insert_states(conn, rows)
     assert (first.inserted, first.unchanged) == (2, 0)
