@@ -13,18 +13,20 @@ Primero va el motor y la inteligencia. La UI viene después (fase 10).
 | 3 | Motor de backtest | `engine/backtest` | aprobada (#74, 20-11-2026) |
 | 3b | Análisis técnico: indicadores, patrones, liquidez, multi-timeframe | `engine/indicators`, `engine/patterns`, `engine/liquidity` | aprobada (#36, 21-11-2026) |
 | 4 | Estrategia | `engine/strategy` | aprobada (#86, 21-11-2026) |
-| 4b | Inteligencia: noticias, análogos históricos, ML | `intelligence/` | **en curso** (#99) |
-| 5 | Evaluación y anti-sobreajuste | `engine/backtest` + `intelligence/` | pendiente. Adelantos: métricas (#58), financiación con el €STR diario (#79) |
+| 4b | Inteligencia: noticias, análogos históricos, ML | `intelligence/` | aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419); criterio pendiente: "mejora medida fuera de muestra frente a no usar la capa" (#99) |
+| 5 | Evaluación y anti-sobreajuste | `engine/backtest` + `intelligence/` | aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419); criterio pendiente: "se sostiene fuera de muestra y con costos realistas". Adelantos: métricas (#58), financiación con el €STR diario (#79) |
 | 6 | Gestión de riesgo (independiente) | `engine/risk` | aprobada (#350, 24-11-2026, fuera de orden) |
 | 6b | Fondo del grupo: aportes, unidades, NAV, P&L por miembro | `engine/fund` | aprobada (#351, 24-11-2026, fuera de orden) |
-| 7 | Capa de broker (simulado / real intercambiables) | `engine/market-data`, `engine/execution` | pendiente. Adelanto: proveedor de IG de solo lectura (ADR 0002) |
-| 8 | Paper trading en tiempo real | todo el motor | pendiente. Adelanto: velas en vivo por REST (`ig_live`, #68) |
-| 8b | Aprendizaje continuo: diario, calibración, aporte por señal, reentrenamiento | `engine/journal`, `intelligence/learning` | pendiente. Adelanto: diario de propuestas (#60) |
+| 7 | Capa de broker (simulado / real intercambiables) | `engine/market-data`, `engine/execution` | aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419); criterio pendiente: "funciona igual contra el simulador y contra la cuenta demo del broker" (#278). Adelanto: proveedor de IG de solo lectura (ADR 0002) |
+| 8 | Paper trading en tiempo real | todo el motor | aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419); criterio pendiente: "la diferencia está explicada", sobre un período real de paper. Adelanto: velas en vivo por REST (`ig_live`, #68) |
+| 8b | Aprendizaje continuo: diario, calibración, aporte por señal, reentrenamiento | `engine/journal`, `intelligence/learning` | aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419); criterio pendiente: "el informe se genera con los datos del paper trading, la calibración se puede verificar a mano con una muestra, y ningún parámetro cambia sin un voto registrado" (#327). Adelanto: diario de propuestas (#60) |
 | 9 | Observabilidad y operación segura | `engine/`, `infra/` | aprobada (#352, 24-11-2026, fuera de orden). Telegram, a decisión del dueño |
-| 10 | UI en TypeScript | `ui/` | pendiente. Adelanto: prototipo con datos de ejemplo (#30) |
-| 11 | Dinero real (requiere ADR firmado por ambos) | — | bloqueada |
+| 10 | UI en TypeScript | `ui/` | aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419); criterio pendiente: sin criterio escrito, falta el alcance de cuentas con 2FA, push, votaciones y acceso desde el celular (#275). Adelanto: prototipo con datos de ejemplo (#30) |
+| 11 | Dinero real (requiere ADR firmado por ambos) | — | bloqueada: la aprobación del dueño de #419 no alcanza, pide un ADR de dos personas |
 
-"Adelanto" = trabajo hecho antes de que su fase empiece formalmente. La fase sigue pendiente: se aprueba con su Issue y sus criterios, como todas.
+"Adelanto" = trabajo hecho antes de que su fase empiece formalmente.
+
+"Aprobada para avanzar" = el dueño autorizó trabajar en la fase (24-11-2026, #419: «te apruebo los 11 ya ahora para que hagas lo que necesites con todo mi permiso»), pero su criterio de aprobación **no** está cumplido. La fase se da por cumplida recién cuando se cumpla su criterio. Detalle en `docs/estado-de-fases.md`.
 
 ---
 
