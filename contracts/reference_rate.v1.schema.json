@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/reference_rate.v1.schema.json",
   "title": "Reference rate v1",
-  "description": "Un valor diario de un tipo de referencia de la financiación nocturna (#79), tal como lo publicó la fuente. Solo se agrega, nunca se modifica: una corrección de la fuente es otro registro con otra published_at. Lo escribe Python (intelligence/, cfds_intel.rates); lo lee el motor para el costo de financiación.",
+  "description": "Un valor diario de un tipo de referencia de la financiación nocturna (#79), tal como lo publicó la fuente. Solo se agrega, nunca se modifica: una corrección de la fuente es otro registro con otra published_at. Lo escribe Python (intelligence/, cfds_intel.rates); lo lee el motor para el costo de financiación y, con velas de futuros, para la base del futuro (#467).",
   "type": "object",
   "additionalProperties": false,
   "required": ["series", "ref_date", "published_at", "rate_pct"],
   "properties": {
     "series": {
-      "description": "Serie, con el mismo nombre que [funding_benchmarks] de config/instruments.toml. Hoy: 'ESTR' (€STR del BCE).",
+      "description": "Serie, con el mismo nombre que [funding_benchmarks] de config/instruments.toml o que [futures.basis] de config/candle_sources.toml. Hoy: 'ESTR' (€STR del BCE), y 'EFFR' y 'SOFR' (NY Fed, tasa de la base de los futuros de CME, #467).",
       "type": "string",
       "pattern": "^[A-Z][A-Z0-9_]{0,31}$"
     },

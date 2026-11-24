@@ -22,6 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
+from typing import Protocol
 from zoneinfo import ZoneInfo
 
 from cfds_intel.net import https_get
@@ -33,6 +34,17 @@ _KEY = re.compile(r"^[A-Z0-9_]+(\.[A-Z0-9_]+)*$")
 
 class RatesError(ValueError):
     """Respuesta o configuración que no cumple las reglas: no se guarda nada."""
+
+
+class Publication(Protocol):
+    """Lo que hace falta para fechar la publicación de una serie (BCE o NY Fed, #467)."""
+
+    @property
+    def name(self) -> str: ...
+    @property
+    def publication_time(self) -> time: ...
+    @property
+    def publication_tz(self) -> ZoneInfo: ...
 
 
 @dataclass(frozen=True)
@@ -142,7 +154,7 @@ def parse_csv(text: str, s: SeriesConfig) -> list[tuple[date, Decimal]]:
 
 
 def to_rates(
-    values: list[tuple[date, Decimal]], s: SeriesConfig, retrieved_at: datetime
+    values: list[tuple[date, Decimal]], s: Publication, retrieved_at: datetime
 ) -> list[Rate]:
     """(fecha, tasa) en orden → registros con su hora de publicación, sin adelantarla nunca."""
     if retrieved_at.tzinfo is None:

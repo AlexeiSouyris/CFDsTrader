@@ -24,9 +24,9 @@ use chrono_tz::Tz;
 use rust_decimal::Decimal;
 
 use crate::{
-    AccountFx, BacktestConfig, Execution, ExitReason, FundingRates, InstrumentCosts, Market,
-    PortfolioError, Trade, commission, fill_price, funding_cutoffs, funding_over, run_portfolio,
-    simulate,
+    AccountFx, BacktestConfig, Execution, ExitReason, FundingRates, FuturesBasis, InstrumentCosts,
+    Market, PortfolioError, Trade, basis_carry, commission, fill_price, funding_cutoffs,
+    funding_over, roll_jumps, run_portfolio, simulate,
 };
 
 /// Todo lo fijo de un recorrido.
@@ -47,6 +47,9 @@ pub struct Setup {
     pub funding_rates: FundingRates,
     pub funding_cutoff: NaiveTime,
     pub funding_tz: Tz,
+    /// Con velas de futuros: lo que la base ya descontó, que se resta de la financiación en cada
+    /// noche (#467). `None` con velas del CFD.
+    pub futures_basis: Option<FuturesBasis>,
     /// Zona del "día" de la pérdida diaria (spec §10: desde las 00:00 de Madrid).
     pub day_tz: Tz,
 }
@@ -302,6 +305,10 @@ pub fn execute(
             &setup.costs,
         )
         .map_err(RunError::MissingFundingRate)?;
+        if let Some(basis) = &setup.futures_basis {
+            funding_total -= basis_carry(side, entry_mid, part, &cutoffs, basis, &setup.costs)
+                .map_err(RunError::MissingFundingRate)?;
+        }
         mid_pnl += part * (e.mid - entry_mid) * s;
         gross_pnl += part * (e.price - entry_price) * s;
     }
@@ -453,7 +460,7 @@ pub fn buy_and_hold(candles: &[Candle], size: Decimal, setup: &Setup) -> Option<
     let nights = u32::try_from(cutoffs.len()).unwrap_or(u32::MAX);
     let commission_total =
         commission(&setup.costs, size, entry_price) + commission(&setup.costs, size, exit_price);
-    let funding_total = funding_over(
+    let mut funding_total = funding_over(
         Side::Long,
         first.open,
         size,
@@ -462,7 +469,14 @@ pub fn buy_and_hold(candles: &[Candle], size: Decimal, setup: &Setup) -> Option<
         &setup.costs,
     )
     .ok()?;
-    let gross_pnl = size * (exit_price - entry_price);
+    let mut gross_pnl = size * (exit_price - entry_price);
+    // Con futuros (#467): los saltos de los vencimientos no son del mercado, y la deriva ya
+    // descontó la base, igual que en las operaciones.
+    if let Some(basis) = &setup.futures_basis {
+        gross_pnl -= size * roll_jumps(candles, &basis.rolls);
+        funding_total -=
+            basis_carry(Side::Long, first.open, size, &cutoffs, basis, &setup.costs).ok()?;
+    }
     Some(BuyAndHold {
         entry_price,
         exit_price,

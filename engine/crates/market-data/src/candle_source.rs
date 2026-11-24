@@ -56,6 +56,47 @@ pub struct CandleSources {
     pub expiry_months: Vec<u32>,
     /// Qué día el continuo ya es el contrato nuevo, por instrumento (CFD).
     pub roll: BTreeMap<InstrumentId, RollDay>,
+    /// Tasa que el precio del futuro ya descuenta en su base (#467).
+    pub basis: FuturesBasisConfig,
+}
+
+/// Qué parte de la base del futuro se descuenta de la financiación del CFD (#467).
+///
+/// Dentro de un contrato, el futuro converge al contado: su deriva ya resta `r − q` (tasa menos
+/// dividendos). El CFD de IG al contado paga la financiación completa y recibe el ajuste por
+/// dividendos. Con las velas del futuro, sumar la financiación completa cuenta la tasa dos veces.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BasisMode {
+    /// Se descuenta `r`: IG ajusta los dividendos en los CFD de índices al contado, así que los
+    /// dividendos que trae la base son los mismos que recibe el CFD.
+    Rate,
+    /// Se descuenta `r − q`: para un broker que no ajusta dividendos. Necesita una serie de
+    /// dividendos con fuente por instrumento.
+    RateMinusDividends,
+}
+
+/// Un tramo de una serie diaria de `reference_rates`: vale desde `from` (el primero, desde
+/// siempre) hasta el `from` del tramo siguiente.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RateSegment {
+    pub series: String,
+    pub from: Option<NaiveDate>,
+}
+
+/// Series de la base de un futuro: la tasa y, con [`BasisMode::RateMinusDividends`], los
+/// dividendos.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BasisSpec {
+    pub rate: Vec<RateSegment>,
+    pub dividends: Option<Vec<RateSegment>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FuturesBasisConfig {
+    pub mode: BasisMode,
+    /// Por instrumento (CFD). Un instrumento sin entrada no se puede simular con futuros.
+    pub instruments: BTreeMap<InstrumentId, BasisSpec>,
 }
 
 /// Qué día el contrato continuo `c.0` pasa al contrato nuevo (#269).
@@ -94,6 +135,104 @@ struct RawFutures {
     daily_timezone: String,
     expiry_months: Vec<u32>,
     roll: BTreeMap<InstrumentId, RollDay>,
+    basis: RawBasis,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawBasis {
+    mode: BasisMode,
+    rates: BTreeMap<InstrumentId, Vec<RawSegment>>,
+    #[serde(default)]
+    dividends: BTreeMap<InstrumentId, Vec<RawSegment>>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawSegment {
+    series: String,
+    from: Option<String>,
+}
+
+/// Tramos en orden: el primero sin `from`, los demás con fechas crecientes; nombres como en
+/// `contracts/reference_rate.v1` (`^[A-Z][A-Z0-9_]{0,31}$`).
+fn segments(what: &str, raw: Vec<RawSegment>) -> Result<Vec<RateSegment>, String> {
+    if raw.is_empty() {
+        return Err(format!("{what}: hace falta al menos una serie"));
+    }
+    let mut out: Vec<RateSegment> = Vec::with_capacity(raw.len());
+    for (i, r) in raw.into_iter().enumerate() {
+        let b = r.series.as_bytes();
+        if b.is_empty()
+            || b.len() > 32
+            || !b[0].is_ascii_uppercase()
+            || !b
+                .iter()
+                .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || *c == b'_')
+        {
+            return Err(format!("{what}: serie inválida {:?}", r.series));
+        }
+        let from = match (i, r.from) {
+            (0, None) => None,
+            (0, Some(_)) => return Err(format!("{what}: el primer tramo no lleva `from`")),
+            (_, None) => {
+                return Err(format!(
+                    "{what}: cada tramo después del primero lleva `from`"
+                ));
+            }
+            (_, Some(d)) => Some(
+                NaiveDate::parse_from_str(&d, "%Y-%m-%d")
+                    .map_err(|_| format!("{what}: fecha inválida {d:?}"))?,
+            ),
+        };
+        if let (Some(prev), Some(f)) = (out.last().and_then(|s| s.from), from)
+            && f <= prev
+        {
+            return Err(format!(
+                "{what}: los tramos tienen que ir en orden de fecha"
+            ));
+        }
+        out.push(RateSegment {
+            series: r.series,
+            from,
+        });
+    }
+    Ok(out)
+}
+
+fn basis_config(raw: RawBasis) -> Result<FuturesBasisConfig, String> {
+    let RawBasis {
+        mode,
+        rates,
+        mut dividends,
+    } = raw;
+    if mode == BasisMode::Rate && !dividends.is_empty() {
+        return Err(
+            "futures.basis.dividends solo se usa con mode = \"rate_minus_dividends\"".into(),
+        );
+    }
+    if let Some(id) = dividends.keys().find(|id| !rates.contains_key(*id)) {
+        return Err(format!(
+            "futures.basis.dividends.{id} sin futures.basis.rates.{id}"
+        ));
+    }
+    let mut instruments = BTreeMap::new();
+    for (id, segs) in rates {
+        let rate = segments(&format!("futures.basis.rates.{id}"), segs)?;
+        let dividends = match (mode, dividends.remove(&id)) {
+            (BasisMode::Rate, _) => None,
+            (BasisMode::RateMinusDividends, Some(d)) => {
+                Some(segments(&format!("futures.basis.dividends.{id}"), d)?)
+            }
+            (BasisMode::RateMinusDividends, None) => {
+                return Err(format!(
+                    "futures.basis.dividends.{id}: falta (mode = \"rate_minus_dividends\")"
+                ));
+            }
+        };
+        instruments.insert(id, BasisSpec { rate, dividends });
+    }
+    Ok(FuturesBasisConfig { mode, instruments })
 }
 
 impl CandleSources {
@@ -138,6 +277,7 @@ impl CandleSources {
                 r.futures.daily_timezone
             )
         })?;
+        let basis = basis_config(r.futures.basis)?;
         Ok(Self {
             ig_label: r.ig.label,
             daily_tz,
@@ -146,6 +286,7 @@ impl CandleSources {
             id_suffix: r.futures.id_suffix,
             expiry_months: r.futures.expiry_months,
             roll: r.futures.roll,
+            basis,
         })
     }
 
@@ -336,6 +477,53 @@ mod tests {
     }
 
     #[test]
+    fn the_repository_config_has_the_basis_rate_of_each_index_future() {
+        let c = CandleSources::from_toml(REAL).unwrap();
+        assert_eq!(c.basis.mode, BasisMode::Rate);
+        let us500 = &c.basis.instruments[&"US500".parse::<InstrumentId>().unwrap()];
+        assert_eq!(
+            us500.rate,
+            vec![
+                RateSegment {
+                    series: "EFFR".into(),
+                    from: None
+                },
+                RateSegment {
+                    series: "SOFR".into(),
+                    from: NaiveDate::from_ymd_opt(2018, 4, 2)
+                },
+            ]
+        );
+        assert_eq!(us500.dividends, None);
+        let de40 = &c.basis.instruments[&"DE40".parse::<InstrumentId>().unwrap()];
+        assert_eq!(de40.rate[0].series, "ESTR");
+        // Cada índice con regla de vencimiento tiene su tasa; el oro queda para su Issue (#418).
+        for id in c.roll.keys().filter(|id| id.to_string() != "XAUUSD") {
+            assert!(c.basis.instruments.contains_key(id), "{id}");
+        }
+    }
+
+    #[test]
+    fn rate_minus_dividends_reads_the_dividend_series() {
+        let text = REAL
+            .replace(r#"mode = "rate""#, r#"mode = "rate_minus_dividends""#)
+            .replace(
+                "[futures.basis.rates]",
+                "[futures.basis.dividends]\nDE40 = [{ series = \"DIV_DE\" }]\n[futures.basis.rates]",
+            );
+        // Faltan los dividendos de los demás instrumentos.
+        assert!(CandleSources::from_toml(&text).is_err());
+        let only_de40 = text
+            .lines()
+            .filter(|l| !l.starts_with("US"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let c = CandleSources::from_toml(&only_de40).unwrap();
+        let de40 = &c.basis.instruments[&"DE40".parse::<InstrumentId>().unwrap()];
+        assert_eq!(de40.dividends.as_ref().unwrap()[0].series, "DIV_DE");
+    }
+
+    #[test]
     fn rejects_invalid_values() {
         for (from, to) in [
             (r#"id_suffix = ".FUT""#, r#"id_suffix = "fut""#),
@@ -350,6 +538,35 @@ mod tests {
                 r#"daily_timezone = "Madrid""#,
             ),
             ("[futures]", "[futuros]"),
+            (r#"mode = "rate""#, r#"mode = "tasa""#),
+            (
+                r#"DE40 = [{ series = "ESTR" }]"#,
+                r#"DE40 = [{ series = "estr" }]"#,
+            ),
+            (
+                r#"DE40 = [{ series = "ESTR" }]"#,
+                r#"DE40 = [{ series = "ESTR", from = "2019-10-01" }]"#,
+            ),
+            (r#"DE40 = [{ series = "ESTR" }]"#, "DE40 = []"),
+            (
+                r#"US30 = [{ series = "EFFR" }, { series = "SOFR", from = "2018-04-02" }]"#,
+                r#"US30 = [{ series = "EFFR" }, { series = "SOFR" }]"#,
+            ),
+            (
+                r#"US30 = [{ series = "EFFR" }, { series = "SOFR", from = "2018-04-02" }]"#,
+                r#"US30 = [{ series = "EFFR" }, { series = "SOFR", from = "2018-13-02" }]"#,
+            ),
+            (
+                r#"US30 = [{ series = "EFFR" }, { series = "SOFR", from = "2018-04-02" }]"#,
+                r#"US30 = [{ series = "EFFR" }, { series = "SOFR", from = "2018-04-02" }, { series = "X", from = "2018-04-01" }]"#,
+            ),
+            // Con "rate" no se aceptan dividendos (se ignorarían en silencio).
+            (
+                r#"DE40 = [{ series = "ESTR" }]"#,
+                "DE40 = [{ series = \"ESTR\" }]\n[futures.basis.dividends]\nDE40 = [{ series = \"DIV\" }]",
+            ),
+            // Con "rate_minus_dividends", cada instrumento necesita su serie de dividendos.
+            (r#"mode = "rate""#, r#"mode = "rate_minus_dividends""#),
         ] {
             let text = REAL.replace(from, to);
             assert_ne!(text, REAL, "{from}");

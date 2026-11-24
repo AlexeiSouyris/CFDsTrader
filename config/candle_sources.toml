@@ -53,3 +53,37 @@ US2000 = "after_expiry_day"
 # 00:00 UTC o en la primera barra después de una pausa del mercado (domingo 22:00/23:00 UTC),
 # nunca a mitad de una ventana de 15 minutos, y sin volver nunca a un contrato anterior.
 XAUUSD = "contract_change"
+
+# Base de los futuros en la financiación (#467, ADR 0015). Dentro de un contrato, el precio del
+# futuro converge al contado: su deriva ya descuenta la tasa menos los dividendos (`r − q`). El
+# backtest con velas de futuros le suma la financiación del CFD (referencia ± tasa
+# administrativa), así que en cada noche se resta lo que la base ya descontó, con el signo del lado
+# (el largo paga de menos, el corto recibe de menos). Con velas de IG no se toca nada. Estudio:
+# docs/analysis/2026-11-doble-conteo-financiacion.md.
+#
+# - "rate": se resta `r`. IG ajusta los dividendos en los CFD de índices al contado: abona a los
+#   largos y carga a los cortos los puntos que el dividendo le quita al índice ("we'll ensure that
+#   there is no material impact on you by either crediting or debiting your ledger", ayuda de IG,
+#   https://www.ig.com/en/help-and-support/cfds/market-details/how-do-dividend-adjustments-affect-my-cfd-position,
+#   leída el 24-11-2026). Así, los dividendos que trae la base son los mismos que recibe el CFD.
+#   PENDIENTE: ig.com/es/nuestros-costes no describe el ajuste; falta confirmarlo para IG España.
+# - "rate_minus_dividends": se resta `r − q`, para un broker que no ajusta dividendos. Necesita
+#   [futures.basis.dividends] con una serie de dividendos con fuente (hoy no hay ninguna).
+[futures.basis]
+mode = "rate"
+
+# Tasa de la base de cada futuro: series diarias de `reference_rates`, con su hora de publicación
+# (`python -m cfds_intel.rates`). Cada tramo vale desde su `from` hasta el `from` del siguiente.
+# Un instrumento sin entrada no se puede simular con velas de futuros.
+[futures.basis.rates]
+# Futuros de CME en USD: EFFR hasta el 29-03-2018 y SOFR desde su primera publicación, el
+# 02-04-2018 (Federal Reserve Bank of New York). La misma empalmadura que el estudio de #421.
+US500 = [{ series = "EFFR" }, { series = "SOFR", from = "2018-04-02" }]
+US100 = [{ series = "EFFR" }, { series = "SOFR", from = "2018-04-02" }]
+US30 = [{ series = "EFFR" }, { series = "SOFR", from = "2018-04-02" }]
+US2000 = [{ series = "EFFR" }, { series = "SOFR", from = "2018-04-02" }]
+# FDAX (Eurex) en EUR: €STR. El DAX es un índice de rendimiento (reinvierte los dividendos), así
+# que su base es esencialmente la tasa. Las velas del FDAX empiezan en 2025-03.
+DE40 = [{ series = "ESTR" }]
+# XAUUSD: sin entrada. La financiación del oro al contado ya sale de la base del futuro (ADR 0013,
+# `commodity_basis`) y todavía no se simula (#418): se decide en su Issue.

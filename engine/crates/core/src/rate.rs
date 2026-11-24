@@ -13,7 +13,8 @@ use crate::candle::utc_z;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReferenceRate {
-    /// Mismo nombre que `[funding_benchmarks]` del catálogo (hoy `ESTR`).
+    /// Mismo nombre que `[funding_benchmarks]` del catálogo (hoy `ESTR`) o que la base de los
+    /// futuros (`EFFR`, `SOFR`, #467).
     #[serde(with = "series_name")]
     pub series: String,
     /// Día hábil al que corresponde el valor.
