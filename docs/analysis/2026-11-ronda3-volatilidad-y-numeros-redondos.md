@@ -1,6 +1,6 @@
 # Ronda 3 de investigación: exposición manejada por volatilidad (V) y cascada al cruzar un número redondo (M1)
 
-Issue #493 · 24-11-2026 · programa 2: `docs/analysis/2026-11-programa-2-propuesta.md` · pre-registro: `docs/analysis/2026-11-ronda3-preregistro.md` (commit `ec77dd7` del 24-11-2026 a las 17:15 +01:00, **antes** del código, commit `dd5a4c0` a las 17:23, y de la primera corrida, a las 17:25).
+Issue #493 · 24-11-2026 · programa 2: `docs/analysis/2026-11-programa-2-propuesta.md` · pre-registro: `docs/analysis/2026-11-ronda3-preregistro.md` (commit del 24-11-2026 a las 17:15 +01:00, hora de autor, **antes** del código, commit de las 17:23, y de la primera corrida, a las 17:25. Se publicaron como `ec77dd7` y `dd5a4c0`; después del rebase sobre `main` son `e6421e6` y `33638f8`, con el mismo contenido y la misma hora de autor).
 
 > **Es un estudio, no un resultado oficial.** El tipo de referencia de la financiación de US500, US100 y US30 sigue pendiente con IG: se usan los dos escenarios de #421, solo en memoria. **El fuera de muestra (desde el 01-11-2025) no se cargó ni se miró.** Las velas son de futuros, no del CFD. Los resultados pasados no prometen ningún resultado futuro, y nada de esto es una recomendación de operar.
 
@@ -112,7 +112,7 @@ Validación 08-2019 → 10-2025 (75 meses, la "primera mitad" son 5 meses). V pi
 
 ## Registro de corridas (pre-registro §7)
 
-Todas con el binario compilado del commit `dd5a4c0`, contra la base en solo lectura, sin cargar velas desde el 01-11-2025:
+Todas con el binario compilado del commit `dd5a4c0` (hoy `33638f8`), contra la base en solo lectura, sin cargar velas desde el 01-11-2025:
 
 | # | Hora (24-11-2026, Madrid) | Comando (`target/release/examples/ronda3 …`, desde `engine/`) | Nota |
 |---|---|---|---|
