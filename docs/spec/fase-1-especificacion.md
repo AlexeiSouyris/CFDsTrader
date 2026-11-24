@@ -436,7 +436,7 @@ NAV = valor total del fondo / unidades emitidas
 aportes: lunes, antes de la apertura europea, al NAV del cierre del viernes; mínimo 10 €
 retiros: se piden antes del lunes y se pagan al NAV del cierre del viernes
 P&L por miembro = unidades × NAV − (aportes − retiros)
-capital simulado inicial: 1.000 €
+capital simulado inicial: 10.000 € (era 1.000 €; cambio del dueño, 24-11-2026, #484)
 ```
 Invariante: la suma del valor de todos los miembros es igual al valor total del fondo, al céntimo.
 
