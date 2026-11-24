@@ -4,7 +4,9 @@ Actualizado el 24-11-2026. Es un resumen para el dueño: por cada fase de `docs/
 
 `CLAUDE.md` §5c pide que **ninguna fase empiece sin que la anterior esté aprobada y registrada en su Issue**. Mientras el dueño construya solo, alcanza con su aprobación explícita (modo de un solo constructor). La fase 11 siempre pide dos personas.
 
-**Estados:** "aprobada" · "listo para aprobar" · "bloqueado por …" (una decisión o un dato) · "falta trabajo".
+**Estados:** "aprobada" · "aprobada para avanzar" (el dueño autorizó seguir, pero su criterio de aprobación **no** está cumplido) · "listo para aprobar" · "bloqueado por …" (una decisión o un dato) · "falta trabajo".
+
+**24-11-2026 ([#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419)):** el dueño escribió «te apruebo los 11 ya ahora para que hagas lo que necesites con todo mi permiso» y «Yo me refería a que te apruebo las 11 fases». Queda registrado así: las fases 4b, 5, 7, 8, 8b y 10 están **aprobadas para avanzar**, cada una con su criterio todavía pendiente (no se marca como cumplido). La fase 11 (dinero real) **no** queda aprobada: `CLAUDE.md` exige un ADR aprobado por dos personas, sin excepción en el modo de un solo constructor.
 
 Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `DATABASE_URL`. **Ninguno gasta cupo de IG.**
 
@@ -17,18 +19,18 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
 | 3 Motor de backtest | aprobada | [sí, #74](https://github.com/AlexeiSouyris/CFDsTrader/issues/74#issuecomment-7052697748) |
 | 3b Análisis técnico | aprobada | [sí, #36](https://github.com/AlexeiSouyris/CFDsTrader/issues/36#issuecomment-7054465898) |
 | 4 Estrategia | aprobada | [sí, #86](https://github.com/AlexeiSouyris/CFDsTrader/issues/86#issuecomment-7056065342) |
-| 4b Inteligencia | bloqueado por datos | no (#99 abierto) |
-| 5 Evaluación | bloqueado por datos y decisiones | no |
+| 4b Inteligencia | aprobada para avanzar; criterio pendiente (bloqueado por datos) | para avanzar, [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419) (#99 abierto) |
+| 5 Evaluación | aprobada para avanzar; criterio pendiente (bloqueado por datos y decisiones) | para avanzar, [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419) |
 | 6 Riesgo | aprobada | [sí, #350](https://github.com/AlexeiSouyris/CFDsTrader/issues/350) |
 | 6b Fondo | aprobada | [sí, #351](https://github.com/AlexeiSouyris/CFDsTrader/issues/351) |
-| 7 Broker | bloqueado por decisión (cuenta demo) | no (#278 abierto) |
-| 8 Paper trading | bloqueado por decisión y tiempo | no |
-| 8b Aprendizaje continuo | falta trabajo y datos | no (#327 abierto) |
+| 7 Broker | aprobada para avanzar; criterio pendiente (decisión de la cuenta demo) | para avanzar, [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419) (#278 abierto) |
+| 8 Paper trading | aprobada para avanzar; criterio pendiente (período de paper) | para avanzar, [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419) |
+| 8b Aprendizaje continuo | aprobada para avanzar; criterio pendiente (falta trabajo y datos) | para avanzar, [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419) (#327 abierto) |
 | 9 Observabilidad | aprobada | [sí, #352](https://github.com/AlexeiSouyris/CFDsTrader/issues/352) |
-| 10 UI y app | falta trabajo | no (#275 abierto) |
-| 11 Dinero real | bloqueada (ADR de dos personas) | — |
+| 10 UI y app | aprobada para avanzar; criterio pendiente (falta trabajo) | para avanzar, [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419) (#275 abierto) |
+| 11 Dinero real | bloqueada (ADR de dos personas) | no (no alcanza con el dueño) |
 
-> **Orden.** El ROADMAP dice que no se empieza una fase sin aprobar la anterior. Las fases 5 a 10 tienen trabajo mergeado como **adelanto**, aunque la 4b sigue sin aprobar. Ese trabajo no las aprueba: cada una se aprueba con su criterio, en orden o con una decisión explícita del dueño de aprobarlas fuera de orden.
+> **Orden.** El ROADMAP dice que no se empieza una fase sin aprobar la anterior. Desde el 24-11-2026 ([#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419)) el dueño aprobó **avanzar** en las fases 4b, 5, 7, 8, 8b y 10, aunque sus criterios no estén cumplidos. Esa aprobación permite trabajar en ellas; no las da por cumplidas. Cada una se cierra cuando se cumpla su criterio (o cuando el dueño cambie el criterio en un PR aparte).
 
 ---
 
@@ -86,8 +88,9 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
   - Hay interpretaciones de noticias solo desde el corte del modelo (2025-12-03).
   - La spec ML v1 (#158) está aprobada.
 - **Verificar, cuando haya datos:** `cd intelligence && DATABASE_URL=... uv run python -m cfds_intel.phase4b run <INSTRUMENTO> <desde> <hasta> 10000 1 <run_id>`
-- **Aprobación:** no registrada (#99 abierto).
-- **Estado:** **bloqueado por datos.** Hacen falta velas de 15m de IG del período (gastan cupo), o decidir correr el reporte con las velas de los futuros (habría que adaptarlo).
+- **Aprobación:** aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419). El Issue #99 sigue abierto.
+- **Criterio pendiente:** "mejora medida fuera de muestra frente a no usar la capa" (la parte "sin fuga" tiene tests, pero el criterio entero no se dio por cumplido).
+- **Estado:** **aprobada para avanzar; criterio pendiente.** Sigue **bloqueado por datos.** Hacen falta velas de 15m de IG del período (gastan cupo), o decidir correr el reporte con las velas de los futuros (habría que adaptarlo).
 
 ## Fase 5: Evaluación y anti-sobreajuste
 
@@ -98,8 +101,9 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
   - **US500, US100 y US30** tienen 5 años de futuros, pero su `funding_benchmark` está pendiente: sin la tasa de financiación, el backtest no corre.
   - El diagnóstico en sample (#324) muestra que hoy la estrategia **pierde en DE40 antes de costos**: aun con datos, el criterio probablemente no se cumpla sin cambios en la estrategia.
 - **Verificar:** `cd engine && cargo run --release -p cfds-backtest --example walk_forward -- DE40 <desde> <hasta> 10000 1 <report_id> --fuente futuros`; en la UI, Performance → detalle de una corrida → "Walk-forward / fuera de muestra".
-- **Aprobación:** no registrada (#298 cerrado como trabajo, no como aprobación).
-- **Estado:** **bloqueado por decisiones** (tasa de US500, separación de DE40 y cambios de estrategia; ver la lista al final).
+- **Aprobación:** aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419). (#298 se cerró como trabajo, no como aprobación.)
+- **Criterio pendiente:** "se sostiene fuera de muestra y con costos realistas".
+- **Estado:** **aprobada para avanzar; criterio pendiente.** Sigue **bloqueado por decisiones** (tasa de US500, separación de DE40 y cambios de estrategia; ver la lista al final).
 
 ## Fase 6: Gestión de riesgo
 
@@ -137,8 +141,9 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
   - `LiveBroker` es imposible de construir (el dinero real está bloqueado, CLAUDE.md §5);
   - el proveedor de IG solo lee precios (ADR 0002): no hay órdenes a la demo.
 - **Verificar:** `cd engine && cargo test -p cfds-broker`
-- **Aprobación:** no registrada (#278 abierto).
-- **Estado:** **bloqueado por decisión:** ¿se habilitan órdenes contra la cuenta **demo** de IG (sin dinero real, con un ADR), o se cambia el criterio para aprobar solo con el simulador?
+- **Aprobación:** aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419). El Issue #278 sigue abierto.
+- **Criterio pendiente:** "funciona igual contra el simulador y contra la cuenta demo del broker" (falta la cuenta demo).
+- **Estado:** **aprobada para avanzar; criterio pendiente.** Sigue **bloqueado por decisión:** ¿se habilitan órdenes contra la cuenta **demo** de IG (sin dinero real, con un ADR), o se cambia el criterio para aprobar solo con el simulador?
 
 ## Fase 8: Paper trading
 
@@ -149,8 +154,9 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
   - el runner está apagado (`config/runner.toml`, `enabled = false`);
   - hacen falta las velas en vivo de IG (`ig_live`, gasta cupo).
 - **Verificar:** `cd engine && DATABASE_URL=... cargo run -p cfds-gateway --example paper_vs_backtest -- DE40 <desde> <hasta>`; en la UI, Performance → "Paper vs backtest".
-- **Aprobación:** no registrada.
-- **Estado:** **bloqueado por decisión** (habilitar el runner) **y por tiempo** (el período de paper).
+- **Aprobación:** aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419).
+- **Criterio pendiente:** "la diferencia está explicada", sobre un período real de paper (la spec pide 3 meses).
+- **Estado:** **aprobada para avanzar; criterio pendiente.** Sigue **bloqueado por decisión** (habilitar el runner) **y por tiempo** (el período de paper).
 
 ## Fase 8b: Aprendizaje continuo
 
@@ -158,8 +164,9 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
 - **Mergeado:** probabilidad §13 con Wilson (#176); el informe con su muestra para verificar a mano (#329); la vista en la UI (#335). Abierto: propuestas de cambio y votos (#330).
 - **Falta:** mergear #330 (votos), que el runner escriba el diario (#338 y #339) y **datos de paper** para generar el informe.
 - **Verificar:** `cd engine && cargo test -p cfds-journal learning`; en la UI, Performance → "Aprendizaje".
-- **Aprobación:** no registrada (#327 abierto).
-- **Estado:** **falta trabajo** (#330, #338 y #339) **y datos de paper**.
+- **Aprobación:** aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419). El Issue #327 sigue abierto.
+- **Criterio pendiente:** "el informe se genera con los datos del paper trading, la calibración se puede verificar a mano con una muestra, y ningún parámetro cambia sin un voto registrado".
+- **Estado:** **aprobada para avanzar; criterio pendiente.** Sigue faltando **trabajo** (#330, #338 y #339) **y datos de paper**.
 
 ## Fase 9: Observabilidad y operación segura
 
@@ -176,12 +183,14 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
 - **Mergeado, entre otros:** prototipo (#31, #165 y #172); liquidez (#233 y #244); pestañas (#289); terminal paper (#276 y #293); PWA instalable (#309); fondo (#313); estado (#317); vistas de las fases 8 y 8b (#335).
 - **Falta:** cuentas con 2FA, notificaciones push, votaciones y acceso desde el celular fuera de esta computadora (el gateway escucha en `127.0.0.1`).
 - **Verificar:** `cd ui && npm test`; abrir la UI con `infra/scripts/ui_liquidez.sh`.
-- **Aprobación:** no registrada (#275 abierto).
-- **Estado:** **falta trabajo**.
+- **Aprobación:** aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419). El Issue #275 sigue abierto.
+- **Criterio pendiente:** el ROADMAP no escribe uno; queda pendiente el alcance que falta: cuentas con 2FA, notificaciones push, votaciones y acceso desde el celular fuera de esta computadora.
+- **Estado:** **aprobada para avanzar; criterio pendiente.** Sigue faltando **trabajo**.
 
 ## Fase 11: Dinero real
 
 - **Criterio:** "solo con ADR aprobado por ambos, después de un paper trading aprobado, y empezando con capital mínimo".
+- **Aprobación:** no registrada. La aprobación general del dueño del 24-11-2026 ([#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419)) **no** alcanza: `CLAUDE.md` §5 y el modo de un solo constructor exigen un ADR aprobado por dos personas.
 - **Estado:** **bloqueada.** Pide dos personas y la fase 8 aprobada. `LiveBroker` es imposible de construir a propósito.
 
 ---
