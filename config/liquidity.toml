@@ -27,11 +27,26 @@ tolerance_atr = "0.10"
 # Un nivel deja de estar activo cuando se barre o se rompe, o después de estas velas de 15m.
 max_age_bars = 500
 
+[round_numbers]
+# Números redondos (#497, informe docs/analysis/2026-11-patrones-de-manipulacion.md §4.5).
+# Pasos por instrumento, en puntos de precio (decimales como texto). Para cada paso S, el nivel
+# es el múltiplo de S más cercano estrictamente por encima (round_high) o por debajo
+# (round_low) del cierre. Valores del informe, fijados antes de mirar los datos; US500 suma el
+# paso de 100 (los "cientos" redondos) además del de 50 del informe. Un instrumento que no está
+# acá no tiene niveles redondos.
+steps = { US500 = ["50", "100"], US100 = ["100"], US30 = ["500"], DE40 = ["100"], XAUUSD = ["10"] }
+
 [sessions_utc]
 # Ventanas en UTC (HH:MM; inicio incluido, fin excluido) del máximo y el mínimo de cada sesión.
 asia = { start = "00:00", end = "07:00" }
 london = { start = "07:00", end = "13:30" }
 ny = { start = "13:30", end = "20:00" }
+
+[sweep_volume]
+# Volumen relativo de una barrida (#497, informe §4.6): V[t] / mediana del volumen de las
+# `median_bars` velas cerradas anteriores (sin la propia). 20 velas, igual que la ventana de
+# [imbalance]. Si alguna no trae volumen (IG), queda vacío.
+median_bars = 20
 
 # --- Estadísticas de FVG y gaps de apertura (spec §5.4.1, #231). Solo informativas. ---
 

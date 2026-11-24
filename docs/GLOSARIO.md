@@ -270,6 +270,16 @@ La que está **dentro del rango**: [fair value gaps](#fvg) y swings menores. El 
 El precio pasa brevemente un máximo o mínimo (activando los stops) y **vuelve rápido al rango**. Suele anticipar un giro.
 *Ejemplo:* el precio pincha 26.905, por arriba del máximo de 26.900, y la vela cierra en 26.860: barrió la liquidez de arriba.
 
+<a id="volumen-de-la-barrida"></a>
+### Volumen de la barrida (volumen relativo)
+Cuánto se operó en la vela del [sweep](#sweep) comparado con lo normal: su [volumen](#volumen) dividido por la mediana del volumen de las 20 velas anteriores. Si una barrida activó muchos stops, se espera más volumen. Es solo contexto, no una señal. Si la vela no trae volumen (las de IG pueden no tenerlo), queda vacío: no se inventa.
+*Ejemplo:* la mediana de las 20 velas anteriores es 1.000 contratos y la vela del sweep tiene 3.500: volumen relativo 3,5.
+
+<a id="numero-redondo"></a>
+### Número redondo
+Un precio "redondo" como 5.000 o 5.050 en el US500. Mucha gente pone ahí sus objetivos y sus stops un poco más allá, así que el precio suele frenar en el número o acelerar al cruzarlo. En el mapa de liquidez se marca el número redondo más cercano por encima y por debajo del cierre, con un paso por instrumento (US500 cada 50 y 100 puntos). Pasa por los mismos estados que los otros niveles: intacto, barrido, roto o vencido. Es informativo: no suma al puntaje.
+*Ejemplo:* el US500 cierra en 5.020: los números redondos son 5.050 y 5.100 arriba y 5.000 abajo.
+
 <a id="order-block"></a>
 ### Order block
 La última vela contraria antes de un movimiento fuerte. Se interpreta como la zona donde entraron órdenes grandes y suele funcionar como soporte o resistencia al volver.

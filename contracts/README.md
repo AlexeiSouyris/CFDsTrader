@@ -210,7 +210,7 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 
 | Contrato | Dónde | Contenido |
 |---|---|---|
-| `liquidity_level.v1` | tablas `liquidity_levels` y `liquidity_level_events` | Un nivel del mapa de liquidez: `instrument_id`, `kind` (`eqh`, `eql`, `pdh`, `pdl`, `pwh`, `pwl`, `session_high`, `session_low`), `session` (`asia`, `london` o `ny` en los de sesión; `null` en los demás), `price` (string decimal), `exists_from` (UTC), `state` (`intact`, `swept` o `broken`) y `state_changed_at` (cierre de la vela que lo barrió o rompió; `null` si está intacto) y, opcional, `expired_at` (cierre de la vela número `max_age_bars` si llegó intacto hasta ahí: desde ese momento ya no está activo). |
+| `liquidity_level.v1` | tablas `liquidity_levels` y `liquidity_level_events` | Un nivel del mapa de liquidez: `instrument_id`, `kind` (`eqh`, `eql`, `pdh`, `pdl`, `pwh`, `pwl`, `session_high`, `session_low` y, desde #497, `round_high` y `round_low`: el número redondo más cercano por encima o por debajo del cierre; no se guardan todavía), `session` (`asia`, `london` o `ny` en los de sesión; `null` en los demás), `price` (string decimal), `exists_from` (UTC), `state` (`intact`, `swept` o `broken`) y `state_changed_at` (cierre de la vela que lo barrió o rompió; `null` si está intacto) y, opcional, `expired_at` (cierre de la vela número `max_age_bars` si llegó intacto hasta ahí: desde ese momento ya no está activo). |
 
 - **Solo informativo** en v1: no suma al puntaje de §6.
 - Lo calcula **Rust** (`cfds_liquidity::liquidity_levels`) con velas cerradas de 15m, los pivotes de `config/patterns.toml`, el calendario de `config/sessions.toml` y los parámetros de `config/liquidity.toml`. Nadie lo recalcula; la UI solo lo muestra.

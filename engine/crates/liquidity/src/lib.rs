@@ -16,12 +16,17 @@ pub mod sweep;
 pub use config::LiquidityConfig;
 pub use fvg::{Fvg, fvg_touches_at, fvgs_up_to};
 pub use imbalance::{ImbalanceConfig, OhlcBar, displacement, imbalance_series};
-pub use levels::{LevelsConfig, SessionWindow, is_active_at, liquidity_levels};
+pub use levels::{
+    LevelsConfig, RoundNumbersConfig, SessionWindow, is_active_at, liquidity_levels,
+    round_number_levels,
+};
 pub use order_blocks::{OrderBlock, order_block_touches_at, order_blocks};
 pub use rejection::{Rejection, RejectionInputs, RejectionVia, rejection_state_at};
 pub use stats::{StatsBar, StatsConfig, fvg_events, fvg_stats, gap_stats, opening_gaps};
 pub use structure::{BreakKind, StructureBreak, recent_choch, structure_breaks};
-pub use sweep::{Sweep, sweeps_at};
+pub use sweep::{
+    Sweep, SweepVolumeConfig, SweepWithVolume, relative_volume, sweeps_at, sweeps_with_volume_at,
+};
 
 /// Lado de la operación que sugiere una señal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
