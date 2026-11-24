@@ -13,6 +13,7 @@ Reglas para usarlos:
 | 2 | IG España | Tasa de referencia y tasa administrativa de la financiación de CFD de índices de EE. UU. en una cuenta en EUR | `atencionalcliente@ig.com`, chat de la web o WhatsApp, según https://www.ig.com/es/contactenos |
 | 3 | Interactive Brokers | CFD de índices para residentes en España por API, costo de datos CME y Eurex, cuenta paper | No verificado: el sitio de IBKR rechazó la lectura automática. Usá el formulario de consulta para quien no es cliente que figura en la página de atención al cliente de su web. |
 | 4 | Databento | Precio actual del plan Standard (uso personal, CME y Eurex en vivo) | `support@databento.com`, chat o Slack, según https://databento.com/support |
+| 5 | IG España | CFD de futuros para el programa 3 (#513): mercados, spreads, contratos, mínimos, vencimientos y conversión de divisa | `atencionalcliente@ig.com`, chat de la web o WhatsApp, según https://www.ig.com/es/contactenos (como la consulta 2) |
 
 ---
 
@@ -200,5 +201,55 @@ Reglas para usarlos:
 > 3. Which historical data (1-minute and daily OHLCV schemas, and from which year) does the plan include at no extra cost for those two venues?
 > 4. Are there any restrictions on storing downloaded data locally and using it for personal backtests?
 > 5. Are there any requirements or limitations for a user resident in Spain?
+>
+> Thank you.
+
+---
+
+## 5. IG España: CFD de futuros para el programa 3 (#513)
+
+**Antecedentes (leído el 24-11-2026, detalle en `docs/analysis/2026-11-programa-3-borrador.md` §C):**
+- https://www.ig.com/es/nuestros-costes ofrece CFD de futuros «sobre índices y materias primas» y publica el spread mínimo del futuro solo de FTSE 100 (4), Wall Street (6), Alemania 40 (6), Australia 200 (3), oro (0,9), plata (5,5), crudo EE. UU. (6) y Brent (6). En la pregunta frecuente sobre futuros muestra además EUR/USD 10, GBP/USD 9, «Oro al contado 0,6» y «Plata al contado 3». Sobre la conversión dice «El coste estándar de conversión es de 0,8 puntos».
+- https://www.ig.com/es/futuros publica el T-Bond decimalizado (spread 4, margen 20 %) y el oro con spread 0,6.
+- https://www.ig.com/uk/futures-trading/futures-vs-forwards (IG Reino Unido) dice que los CFD de forex no tienen versión de futuros, y https://www.ig.com/uk/charges da la conversión como «0.8% fee».
+- Las fichas de mercado de IG España (por ejemplo https://www.ig.com/es/bonos/mercado-bonos/bund) dan tamaño mínimo, tamaño de contrato, margen y el próximo vencimiento, pero no dicen si son del CFD de futuros o del de contado, ni si son del contrato estándar o del mini.
+
+**Canal:** https://www.ig.com/es/contactenos indica `atencionalcliente@ig.com`, el chat de la web y WhatsApp.
+
+### Español
+
+> **Asunto:** CFD de futuros: mercados disponibles, spreads, vencimientos y conversión de divisa (cuenta en EUR)
+>
+> Hola:
+>
+> Tengo una cuenta de CFD en EUR con IG España y quiero conocer las condiciones de los CFD de futuros (con vencimiento, sin financiación nocturna) para estos mercados: US 500, EE. UU. Tech 100, Russell 2000, Japón 225, EU Stocks 50, T-Note a 10 años, T-Bond, Bund, EUR/USD, USD/JPY, GBP/USD, AUD/USD, oro, plata, crudo EE. UU. y cobre de alto grado.
+>
+> 1. ¿Cuáles de esos mercados ofrecen como **CFD de futuros** a clientes minoristas de IG España? En particular, ¿ofrecen CFD de futuros (forwards) de EUR/USD, USD/JPY, GBP/USD y AUD/USD? En su web del Reino Unido entiendo que no, pero en https://www.ig.com/es/nuestros-costes aparecen EUR/USD (10) y GBP/USD (9) en la tabla de futuros.
+> 2. Para cada CFD de futuros disponible: el **spread** (y si varía por horario), el **tamaño de contrato**, el **tamaño mínimo** y el **margen minorista**, tanto del contrato estándar como del mini, si existe.
+> 3. Para el oro, en una página figura un spread de futuros de 0,9 y en otra de 0,6. ¿Cuál es el vigente?
+> 4. Los datos de las fichas de mercado (tamaño mínimo, tamaño de contrato, margen), ¿corresponden al CFD de futuros o al de contado?
+> 5. **Vencimientos y renovaciones:** ¿tienen un calendario de vencimientos de cada CFD de futuros, idealmente histórico (desde 2011), o la regla que usan (por ejemplo, cuántos días hábiles antes del vencimiento de la bolsa)? ¿En qué zona horaria están las horas publicadas en las fichas?
+> 6. ¿La renovación (*rollover*) es automática o hay que pedirla? ¿Se cobran el spread de cierre y el de apertura completos al renovar?
+> 7. **Conversión de divisa:** la web dice «0,8 puntos». ¿Es un 0,8 % sobre el importe convertido? ¿Se aplica a las ganancias y también a las pérdidas, y a los costes (spread, comisiones) en otra divisa?
+> 8. La ficha del Russell 2000 no aparece en la web de IG España. ¿Lo ofrecen como CFD de futuros?
+>
+> Gracias.
+
+### English
+
+> **Subject:** Futures CFDs: available markets, spreads, expiries and currency conversion (EUR account)
+>
+> Hello,
+>
+> I hold a EUR CFD account with IG Spain and would like the terms of your futures CFDs (dated, with no overnight funding) for these markets: US 500, US Tech 100, Russell 2000, Japan 225, EU Stocks 50, 10-year T-Note, T-Bond, Bund, EUR/USD, USD/JPY, GBP/USD, AUD/USD, gold, silver, US crude and high grade copper.
+>
+> 1. Which of these markets do you offer as **futures CFDs** to IG Spain retail clients? In particular, do you offer futures (forward) CFDs on EUR/USD, USD/JPY, GBP/USD and AUD/USD? Your UK website suggests not, but https://www.ig.com/es/nuestros-costes lists EUR/USD (10) and GBP/USD (9) in the futures table.
+> 2. For each futures CFD available: the **spread** (and whether it changes by time of day), the **contract size**, the **minimum deal size** and the **retail margin**, for both the standard and the mini contract where one exists.
+> 3. For gold, one page shows a futures spread of 0.9 and another 0.6. Which one is current?
+> 4. Do the figures on the market pages (minimum size, contract size, margin) refer to the futures CFD or the spot CFD?
+> 5. **Expiries and rollovers:** do you have an expiry calendar for each futures CFD, ideally historical (since 2011), or the rule you use (for example, how many business days before the exchange expiry)? Which time zone do the times on the market pages use?
+> 6. Is rollover automatic or must it be requested? Are the full closing and opening spreads charged on rollover?
+> 7. **Currency conversion:** the website says "0,8 puntos". Is that 0.8% of the converted amount? Does it apply to profits and to losses, and to costs (spread, commissions) in another currency?
+> 8. The Russell 2000 market page does not appear on IG Spain's website. Do you offer it as a futures CFD?
 >
 > Thank you.
