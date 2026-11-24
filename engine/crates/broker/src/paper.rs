@@ -389,6 +389,40 @@ impl PaperBroker {
         Ok(())
     }
 
+    /// Reemplaza la serie de tasas de referencia de la financiación de un instrumento por una
+    /// leída de nuevo (#439), con las publicaciones que llegaron desde el arranque. Cada corte
+    /// usa la tasa publicada hasta ese corte (`DailyRates`, sin mirar el futuro), así que las
+    /// publicaciones nuevas no cambian los cortes ya pasados: solo dejan de usar una tasa vieja
+    /// en los cortes nuevos. Un instrumento desconocido es un error.
+    pub fn update_funding_rates(
+        &mut self,
+        instrument: &InstrumentId,
+        rates: FundingRates,
+    ) -> Result<(), &'static str> {
+        let m = self
+            .markets
+            .get_mut(instrument)
+            .ok_or("instrumento desconocido")?;
+        m.funding.rates = rates;
+        Ok(())
+    }
+
+    /// Reemplaza la serie del tipo de cambio cuenta → instrumento por una leída de nuevo (#439,
+    /// ADR 0013), con las publicaciones que llegaron desde el arranque. Cada momento usa el tipo
+    /// publicado hasta ese momento (`FxRates`, sin mirar el futuro): lo ya valuado no cambia.
+    pub fn update_account_fx(
+        &mut self,
+        instrument: &InstrumentId,
+        fx: AccountFx,
+    ) -> Result<(), &'static str> {
+        let m = self
+            .markets
+            .get_mut(instrument)
+            .ok_or("instrumento desconocido")?;
+        m.account_to_instrument = fx;
+        Ok(())
+    }
+
     /// Los mercados con sus velas (para reconstruir aparte, por ejemplo al reconciliar).
     pub fn markets(&self) -> &BTreeMap<InstrumentId, MarketSetup> {
         &self.markets
