@@ -387,6 +387,18 @@ impl PaperBroker {
         self.kill_switch.is_some()
     }
 
+    /// El kill switch activo: motivo y desde cuándo.
+    pub fn kill_switch(&self) -> Option<(&str, DateTime<Utc>)> {
+        self.kill_switch.as_ref().map(|(r, at)| (r.as_str(), *at))
+    }
+
+    /// Solo para reconstruir el broker desde el registro (`crate::reconcile`): una
+    /// liberación **ya guardada** (después de la votación de la spec §1.2, #441). El broker en
+    /// marcha nunca se libera solo.
+    pub(crate) fn replay_kill_switch_release(&mut self) {
+        self.kill_switch = None;
+    }
+
     /// Si una valuación encontró un corte sin tasa de referencia o un momento sin tipo de
     /// cambio, activa el kill switch.
     fn flag_missing_rate(&mut self) {

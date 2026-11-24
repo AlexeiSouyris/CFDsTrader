@@ -22,10 +22,14 @@ pub use paper::{
     rejection_code,
 };
 pub use persist::{
-    Flush, JournalStore, ReconcileSchedule, flush_journal, reconcile_periodically,
-    restore_from_store, submit_and_record,
+    Flush, JournalStore, ReconcileSchedule, flush_journal, kill_switch_marks,
+    kill_switch_stored_active, reconcile_periodically, restore_from_store, save_kill_switch,
+    submit_and_record,
 };
-pub use reconcile::{Drift, Mismatch, Reconciliation, reconcile, restore_and_reconcile};
+pub use reconcile::{
+    Drift, KillSwitchChange, KillSwitchMark, Mismatch, Reconciliation, reconcile,
+    restore_and_reconcile, restore_with_kill_switch,
+};
 
 /// Lo que cualquier broker hace. Las órdenes son idempotentes por `order_id`.
 pub trait Broker {
