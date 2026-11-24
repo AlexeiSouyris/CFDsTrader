@@ -25,7 +25,7 @@ pub mod validation;
 
 pub use aggregate::{AggregateError, H1Comparison, H1Stats, aggregate_h1, compare_h1};
 pub use calendar::{CalendarError, ExchangeCalendar, Session};
-pub use candle_source::{CandleSource, CandleSources, RollDay};
+pub use candle_source::{CandleSource, CandleSources, RollDay, contract_changes};
 pub use config::{ConfigError, ValidationConfig};
 pub use daily::{DailyIssue, DailyIssueKind, daily_bounds, local_day_bounds, validate_daily};
 pub use futures::{

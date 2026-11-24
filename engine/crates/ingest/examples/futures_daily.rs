@@ -7,7 +7,8 @@
 //! - Misma ventana que las diarias de IG: de medianoche a medianoche en `daily_timezone`
 //!   (`config/candle_sources.toml`), solo los días con sesión según el calendario del CFD
 //!   (`config/sessions.toml` y los feriados), y solo días cerrados dentro de lo bajado.
-//! - El día del vencimiento (calendario de #270) usa solo el contrato nuevo.
+//! - El día del vencimiento usa solo el contrato nuevo: el del calendario de #270 o, con la regla
+//!   `contract_change` (`GC.v.0`, #449), donde cambia el contrato de las velas de 15m.
 //! - Se guardan en `daily_candles` bajo el instrumento derivado (por ejemplo `US500.FUT`): nunca
 //!   pisan las diarias de IG. Después, `daily_indicators -- --fuente futuros` les calcula los
 //!   indicadores.
@@ -55,10 +56,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             let until = to.min(now);
             let m15 = store
-                .futures_candles(&sources.futures_source, id, Timeframe::M15, from, until)
+                .futures_candles_with_contract(
+                    &sources.futures_source,
+                    id,
+                    Timeframe::M15,
+                    from,
+                    until,
+                )
                 .await?;
             let session = calendar.session_for(id).ok_or("instrumento sin bolsa")?;
-            let rolls = sources.roll_instants(id, session, &m15)?;
+            let rolls = sources.roll_instants_with_contracts(id, session, &m15)?;
+            let m15: Vec<_> = m15.into_iter().map(|c| c.candle).collect();
             let out: InstrumentId = sources.instrument_for(CandleSource::Futures, id)?;
             let daily = futures_daily(&m15, &out, session, sources.daily_tz, &rolls, until);
             if daily.is_empty() {

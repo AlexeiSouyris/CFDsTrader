@@ -100,6 +100,24 @@ impl PgStore {
         from: DateTime<Utc>,
         to: DateTime<Utc>,
     ) -> Result<Vec<Candle>, StorageError> {
+        Ok(self
+            .futures_candles_with_contract(source, instrument, timeframe, from, to)
+            .await?
+            .into_iter()
+            .map(|fc| fc.candle)
+            .collect())
+    }
+
+    /// Lo mismo que [`PgStore::futures_candles`], con el contrato de cada vela (#449): las
+    /// diarias de un continuo por volumen (`GC.v.0`) cortan donde cambia el contrato.
+    pub async fn futures_candles_with_contract(
+        &self,
+        source: &str,
+        instrument: &InstrumentId,
+        timeframe: Timeframe,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<FuturesCandle>, StorageError> {
         let rows: Vec<CandleRow> = sqlx::query_as(
             "SELECT contract_id, start_at, open, high, low, close, volume FROM futures_candles
              WHERE source = $1 AND instrument_id = $2 AND timeframe = $3
@@ -113,19 +131,25 @@ impl PgStore {
         .bind(to)
         .fetch_all(self.pool())
         .await?;
-        Ok(rows
-            .into_iter()
-            .map(|(_, start, open, high, low, close, volume)| Candle {
-                instrument_id: instrument.clone(),
-                timeframe,
-                start,
-                open,
-                high,
-                low,
-                close,
-                volume: Some(volume),
+        rows.into_iter()
+            .map(|(contract, start, open, high, low, close, volume)| {
+                Ok(FuturesCandle {
+                    candle: Candle {
+                        instrument_id: instrument.clone(),
+                        timeframe,
+                        start,
+                        open,
+                        high,
+                        low,
+                        close,
+                        volume: Some(volume),
+                    },
+                    contract_id: u64::try_from(contract).map_err(|_| {
+                        StorageError::CorruptRow(format!("futures_candles: contract_id {contract}"))
+                    })?,
+                })
             })
-            .collect())
+            .collect()
     }
 
     /// Desde y hasta cuándo (`[desde, hasta)`) están bajadas las barras de 1 minuto del futuro

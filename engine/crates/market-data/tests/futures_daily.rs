@@ -1,10 +1,11 @@
 //! Diarias de los futuros (#282) con velas sintéticas: misma ventana que las de IG, solo días
-//! con sesión del CFD, sin mezclar contratos en el vencimiento y sin repintado.
+//! con sesión del CFD, sin mezclar contratos en el vencimiento y sin repintado. También el
+//! continuo por volumen del oro (`GC.v.0`, #449), que corta donde cambia el contrato.
 
 use std::collections::HashMap;
 use std::path::Path;
 
-use cfds_core::{Candle, InstrumentId, Timeframe};
+use cfds_core::{Candle, FuturesCandle, InstrumentId, Timeframe};
 use cfds_market_data::{CandleSources, ExchangeCalendar, Session, futures_daily};
 use chrono::{DateTime, NaiveDate, TimeDelta, Utc};
 use chrono_tz::Tz;
@@ -151,6 +152,77 @@ fn adding_candles_never_repaints_a_closed_day() {
             until,
         );
         // Solo días cerrados, y los que hay son iguales a los de la serie completa.
+        assert!(part.iter().all(|d| d.end <= until), "{n}");
+        assert_eq!(part[..], full[..part.len()], "{n}");
+    }
+}
+
+fn sources() -> CandleSources {
+    CandleSources::from_toml(include_str!("../../../../config/candle_sources.toml")).unwrap()
+}
+
+/// `series` con un contrato.
+fn with_contract(candles: Vec<Candle>, contract: u64) -> Vec<FuturesCandle> {
+    candles
+        .into_iter()
+        .map(|candle| FuturesCandle {
+            candle,
+            contract_id: contract,
+        })
+        .collect()
+}
+
+/// Oro: el jueves 30 y el viernes 31 de julio de 2026, con el cambio real de GC.v.0 a las 00:00
+/// UTC del 31 (contrato 42011464 → 41271, el precio sube unos 60 puntos).
+fn gold_roll() -> Vec<FuturesCandle> {
+    let mut m15 = with_contract(series("2026-07-29T22:00:00Z", 104, dec!(4040)), 42011464);
+    m15.extend(with_contract(
+        series("2026-07-31T00:00:00Z", 84, dec!(4160)),
+        41271,
+    ));
+    m15
+}
+
+fn gold_daily(m15: &[FuturesCandle], until: DateTime<Utc>) -> Vec<cfds_core::DailyCandle> {
+    let s = sources();
+    let session = session("CMEGLOBEX_METALS");
+    let rolls = s
+        .roll_instants_with_contracts(&id("XAUUSD"), &session, m15)
+        .unwrap();
+    let candles: Vec<Candle> = m15.iter().map(|c| c.candle.clone()).collect();
+    futures_daily(
+        &candles,
+        &id("XAUUSD.FUT"),
+        &session,
+        s.daily_tz,
+        &rolls,
+        until,
+    )
+}
+
+#[test]
+fn the_gold_daily_cuts_where_the_contract_changes() {
+    let m15 = gold_roll();
+    let d = gold_daily(&m15, at("2026-08-01T00:00:00Z"));
+    let days: Vec<String> = d.iter().map(|x| x.day.to_string()).collect();
+    assert_eq!(days, ["2026-07-30", "2026-07-31"]);
+    // El jueves: solo el contrato viejo (de 22:00 UTC del 29 a 22:00 UTC del 30).
+    assert_eq!(d[0].close, dec!(4135));
+    // El viernes: la ventana de Madrid empieza el 30 a las 22:00 UTC, pero las velas de 22:00 a
+    // 00:00 son del contrato viejo y no entran.
+    assert_eq!(d[1].open, dec!(4159), "la primera vela del contrato nuevo");
+    assert_eq!(d[1].low, dec!(4157));
+    assert_eq!(d[1].start, at("2026-07-30T22:00:00Z"));
+    assert_eq!(d[1].close, dec!(4160) + Decimal::from(83));
+}
+
+#[test]
+fn the_gold_daily_never_repaints_as_candles_arrive() {
+    let m15 = gold_roll();
+    let full = gold_daily(&m15, at("2026-08-01T00:00:00Z"));
+    for n in [1, 50, 96, 97, 104, 105, 112, 150, m15.len()] {
+        let until = m15[n - 1].candle.end();
+        let part = gold_daily(&m15[..n], until);
         assert!(part.iter().all(|d| d.end <= until), "{n}");
         assert_eq!(part[..], full[..part.len()], "{n}");
     }
