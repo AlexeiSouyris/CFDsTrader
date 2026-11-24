@@ -7,6 +7,9 @@
 //!             (informes y posiciones) → kill switch si algo no coincide
 //! ```
 //! N sale de `[reconcile] every_minutes` de `config/broker.toml`.
+//!
+//! Las dos reconstrucciones aplican los cambios guardados del kill switch (#441,
+//! [`kill_switch_marks`]) en su punto del registro.
 
 use std::collections::BTreeMap;
 
@@ -16,7 +19,9 @@ use chrono::{DateTime, Utc};
 
 use crate::Broker;
 use crate::paper::{BrokerConfig, MarketSetup, PaperBroker};
-use crate::reconcile::{Mismatch, Reconciliation, restore_and_reconcile};
+use crate::reconcile::{
+    KillSwitchChange, KillSwitchMark, Mismatch, Reconciliation, restore_with_kill_switch,
+};
 
 /// Envía la orden y guarda la orden con su informe. Si el guardado falla, el informe no se
 /// pierde: se devuelve el error y la orden se puede reenviar (el `order_id` es idempotente).
@@ -30,8 +35,60 @@ pub async fn submit_and_record(
     Ok(report)
 }
 
-/// Arranque: reconstruye el broker desde el registro guardado y lo reconcilia con las
-/// posiciones del broker (en paper, las que se guardaron o informó el simulador anterior).
+/// Los cambios guardados del kill switch (#441), en orden.
+pub async fn kill_switch_marks(store: &PgStore) -> Result<Vec<KillSwitchMark>, StorageError> {
+    Ok(store
+        .kill_switch_changes()
+        .await?
+        .into_iter()
+        .map(|r| KillSwitchMark {
+            after_orders: usize::try_from(r.after_orders).unwrap_or(usize::MAX),
+            change: if r.activated {
+                KillSwitchChange::Activated {
+                    reason: r.reason,
+                    at: r.at,
+                }
+            } else {
+                KillSwitchChange::Released
+            },
+        })
+        .collect())
+}
+
+/// `true` si el último cambio guardado es una activación: el kill switch sigue activo.
+pub fn kill_switch_stored_active(marks: &[KillSwitchMark]) -> bool {
+    matches!(
+        marks.last(),
+        Some(KillSwitchMark {
+            change: KillSwitchChange::Activated { .. },
+            ..
+        })
+    )
+}
+
+/// Guarda la activación del kill switch del broker si está activo y todavía no estaba guardado
+/// (`saved` = el último cambio guardado es una activación). Devuelve si quedó guardado.
+pub async fn save_kill_switch(
+    broker: &mut PaperBroker,
+    store: &PgStore,
+    saved: bool,
+) -> Result<bool, StorageError> {
+    let Some((reason, at)) = broker.kill_switch().map(|(r, at)| (r.to_owned(), at)) else {
+        return Ok(saved);
+    };
+    if saved {
+        return Ok(true);
+    }
+    let after = u64::try_from(broker.journal().len()).unwrap_or(u64::MAX);
+    store
+        .insert_kill_switch_activation(after, &reason, at)
+        .await?;
+    Ok(true)
+}
+
+/// Arranque: reconstruye el broker desde el registro guardado (con los cambios guardados del
+/// kill switch) y lo reconcilia con las posiciones del broker (en paper, las que se guardaron o
+/// informó el simulador anterior).
 pub async fn restore_from_store(
     store: &PgStore,
     cfg: BrokerConfig,
@@ -40,10 +97,12 @@ pub async fn restore_from_store(
     now: DateTime<Utc>,
 ) -> Result<(PaperBroker, Reconciliation), StorageError> {
     let journal = store.paper_journal().await?;
-    Ok(restore_and_reconcile(
+    let marks = kill_switch_marks(store).await?;
+    Ok(restore_with_kill_switch(
         cfg,
         markets,
         &journal,
+        &marks,
         broker_positions,
         now,
     ))
@@ -78,8 +137,10 @@ pub async fn reconcile_periodically(
         return Ok(None);
     }
     let stored = store.paper_journal().await?;
+    let marks = kill_switch_marks(store).await?;
     let running_positions = running.positions(now);
-    let (_, mut rec) = restore_and_reconcile(cfg, markets, &stored, &running_positions, now);
+    let (_, mut rec) =
+        restore_with_kill_switch(cfg, markets, &stored, &marks, &running_positions, now);
     // Lo que el broker en marcha procesó y no está guardado, o al revés, también es diferencia.
     for (o, _) in running.journal() {
         if !stored.iter().any(|(s, _)| s.order_id == o.order_id) {

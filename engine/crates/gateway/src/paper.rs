@@ -29,7 +29,8 @@ use std::sync::Arc;
 use cfds_backtest::{AccountFx, DailyRates, FundingRates, FxRates, market_terms_from_catalog};
 use cfds_broker::{
     Broker, BrokerConfig, Flush, FundingSetup, MarketSetup, PaperBroker, ReconcileSchedule,
-    flush_journal, reconcile_periodically, restore_and_reconcile, submit_and_record,
+    flush_journal, kill_switch_marks, kill_switch_stored_active, reconcile_periodically,
+    restore_with_kill_switch, save_kill_switch, submit_and_record,
 };
 use cfds_core::{
     InstrumentId, Order, OrderReport, PaperAccount, Position, TicketVerdict, Timeframe,
@@ -315,6 +316,8 @@ pub struct PgPaper {
     pub(crate) ops: Arc<Ops>,
     /// La última reconciliación (al arrancar o periódica), para `GET /api/v1/ops/status` (#314).
     last_reconcile: std::sync::Mutex<Option<ReconcileStatus>>,
+    /// Si el kill switch activo ya está guardado (#441). Se mira con el candado del broker.
+    kill_switch_saved: std::sync::atomic::AtomicBool,
 }
 
 impl PgPaper {
@@ -391,12 +394,17 @@ impl PgPaper {
             );
         }
         let journal = store.paper_journal().await.map_err(|e| e.to_string())?;
+        // El kill switch guardado (#441) vuelve en el mismo punto del registro: sobrevive al
+        // reinicio y solo lo apaga una liberación guardada (votación de la spec §1.2).
+        let marks = kill_switch_marks(&store).await.map_err(|e| e.to_string())?;
         // En paper, el "broker" es el mismo simulador: se reconstruye y se exige que cada
         // informe salga igual al guardado (drift = repintado → kill switch).
-        let (probe, _) = restore_and_reconcile(cfg.clone(), markets.clone(), &journal, &[], now);
+        let (probe, _) =
+            restore_with_kill_switch(cfg.clone(), markets.clone(), &journal, &marks, &[], now);
         let mut probe = probe;
         let positions = probe.positions(now);
-        let (mut broker, rec) = restore_and_reconcile(cfg, markets, &journal, &positions, now);
+        let (mut broker, rec) =
+            restore_with_kill_switch(cfg, markets, &journal, &marks, &positions, now);
         let gate = Gate::default();
         gate.set(gate_after_reconcile(&rec));
         ops.log.log(
@@ -419,21 +427,46 @@ impl PgPaper {
         log_events(&ops.log, &events);
         alert_events(&ops.alerts, &events, now).await;
         let journal_db = PgJournal::new(store.pool().clone());
-        Ok((
-            Self {
-                state: Mutex::new((broker, ReconcileSchedule::default())),
-                store,
-                journal: journal_db,
-                gate,
-                ops,
-                last_reconcile: std::sync::Mutex::new(Some(ReconcileStatus::new(
-                    ReconcileKind::Startup,
+        let saved = kill_switch_stored_active(&marks);
+        let paper = Self {
+            state: Mutex::new((broker, ReconcileSchedule::default())),
+            store,
+            journal: journal_db,
+            gate,
+            ops,
+            last_reconcile: std::sync::Mutex::new(Some(ReconcileStatus::new(
+                ReconcileKind::Startup,
+                now,
+                &rec,
+            ))),
+            kill_switch_saved: std::sync::atomic::AtomicBool::new(saved),
+        };
+        // El kill switch de la reconciliación al arrancar también se guarda.
+        {
+            let mut guard = paper.state.lock().await;
+            paper.save_kill_switch(&mut guard.0, now).await;
+        }
+        Ok((paper, skipped))
+    }
+
+    /// Guarda el kill switch activo si todavía no estaba guardado (#441). Si el guardado falla,
+    /// se alerta y se reintenta en la operación siguiente: el broker en marcha sigue con el
+    /// kill switch activo igual.
+    pub(crate) async fn save_kill_switch(&self, broker: &mut PaperBroker, now: DateTime<Utc>) {
+        use std::sync::atomic::Ordering;
+        let saved = self.kill_switch_saved.load(Ordering::SeqCst);
+        match save_kill_switch(broker, &self.store, saved).await {
+            Ok(s) => self.kill_switch_saved.store(s, Ordering::SeqCst),
+            Err(e) => {
+                self.fail(
+                    AlertKind::Disconnect,
+                    "kill_switch_write_failed",
+                    &e.to_string(),
                     now,
-                    &rec,
-                ))),
-            },
-            skipped,
-        ))
+                )
+                .await;
+            }
+        }
     }
 
     /// Parada segura: deja de aceptar órdenes, espera a la que esté en curso (el candado),
@@ -481,11 +514,13 @@ impl PgPaper {
         report_failure(&self.ops.log, &self.ops.alerts, kind, event, error, now).await;
     }
 
-    /// Después de cada operación: los eventos del broker al log y a las alertas.
+    /// Después de cada operación: los eventos del broker al log y a las alertas, y el kill
+    /// switch guardado si se activó (#441).
     pub(crate) async fn drain(&self, broker: &mut PaperBroker, now: DateTime<Utc>) {
         let events = broker.take_events();
         log_events(&self.ops.log, &events);
         alert_events(&self.ops.alerts, &events, now).await;
+        self.save_kill_switch(broker, now).await;
     }
 
     /// `refresh` con sus errores logueados y alertados.
