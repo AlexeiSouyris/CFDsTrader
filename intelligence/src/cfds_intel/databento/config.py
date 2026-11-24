@@ -1,4 +1,11 @@
-"""`config/databento.toml`, validado al cargar (ADR 0011, #247)."""
+"""`config/databento.toml` (1 minuto) y `config/databento_daily.toml` (diarias, #522), validados
+al cargar (ADR 0011, #247). Los dos archivos tienen la misma forma; lo que cambia según el
+esquema:
+
+- `ohlcv-1m`: lleva `[sample]` y cada símbolo su `min_session_hours` (validación de `--sample`).
+- `ohlcv-1d`: no lleva ninguno de los dos (no hay `--sample` de diarias). La vela diaria de
+  Databento cubre un día UTC (medianoche a medianoche UTC), no la sesión de la bolsa.
+"""
 
 import re
 import tomllib
@@ -11,6 +18,11 @@ _DATASET = re.compile(r"^[A-Z0-9]+\.[A-Z0-9]+$")
 _CONTINUOUS = re.compile(r"^[A-Z0-9]{1,10}\.[cnv]\.\d{1,2}$")
 _SECTIONS = {"download", "budget", "sample", "symbols"}
 
+# Esquemas OHLCV oficiales que se bajan (docs: schemas-and-data-formats/ohlcv).
+MINUTE = "ohlcv-1m"
+DAILY = "ohlcv-1d"
+SCHEMAS = (MINUTE, DAILY)
+
 
 class ConfigError(ValueError):
     """`config/databento.toml` no cumple las reglas."""
@@ -21,7 +33,8 @@ class SymbolConfig:
     dataset: str
     symbol: str
     instrument_id: str
-    min_session_hours: int
+    # Solo en `ohlcv-1m` (validación de `--sample`); `None` en las diarias.
+    min_session_hours: int | None
     # Publisher del libro central (el único que se guarda) y su id numérico.
     publisher: str
     publisher_id: int
@@ -37,7 +50,8 @@ class DatabentoConfig:
     stype_in: str
     start: date
     max_usd: Decimal
-    max_gap_minutes: int
+    # Solo en `ohlcv-1m` (`[sample]`); `None` en las diarias.
+    max_gap_minutes: int | None
     symbols: tuple[SymbolConfig, ...]
 
 
@@ -82,8 +96,12 @@ def load_config(text: str) -> DatabentoConfig:
     if unknown:
         raise ConfigError(f"secciones desconocidas: {sorted(unknown)}")
     d, b, s = raw.get("download", {}), raw.get("budget", {}), raw.get("sample", {})
-    if d.get("schema") != "ohlcv-1m":
-        raise ConfigError("download.schema tiene que ser ohlcv-1m")
+    schema = d.get("schema")
+    if schema not in SCHEMAS:
+        raise ConfigError(f"download.schema tiene que ser uno de {list(SCHEMAS)}")
+    minute = schema == MINUTE
+    if not minute and "sample" in raw:
+        raise ConfigError(f"[sample] es solo para {MINUTE}")
     if d.get("stype_in") != "continuous":
         raise ConfigError("download.stype_in tiene que ser continuous")
     start = _date(d.get("start"), "download.start")
@@ -105,10 +123,14 @@ def load_config(text: str) -> DatabentoConfig:
             raise ConfigError(f"symbols.symbol no es un contrato continuo: {sym!r}")
         if not (isinstance(inst, str) and _INSTRUMENT.match(inst)):
             raise ConfigError(f"symbols.instrument_id inválido: {inst!r}")
-        hours = _positive_int(x.get("min_session_hours"), f"{sym}: min_session_hours")
-        if hours > 24:
-            raise ConfigError(f"{sym}: min_session_hours no puede pasar de 24")
-        allowed = {"dataset", "symbol", "instrument_id", "min_session_hours", "publisher", "start"}
+        hours: int | None = None
+        if minute:
+            hours = _positive_int(x.get("min_session_hours"), f"{sym}: min_session_hours")
+            if hours > 24:
+                raise ConfigError(f"{sym}: min_session_hours no puede pasar de 24")
+        allowed = {"dataset", "symbol", "instrument_id", "publisher", "start"}
+        if minute:
+            allowed.add("min_session_hours")
         if set(x) - allowed:
             raise ConfigError(f"{sym}: claves desconocidas")
         own_start = None
@@ -128,10 +150,12 @@ def load_config(text: str) -> DatabentoConfig:
     if len({x.instrument_id for x in symbols}) != len(symbols):
         raise ConfigError("dos futuros para el mismo instrumento")
     return DatabentoConfig(
-        schema=d["schema"],
+        schema=str(schema),
         stype_in=d["stype_in"],
         start=start,
         max_usd=max_usd,
-        max_gap_minutes=_positive_int(s.get("max_gap_minutes"), "sample.max_gap_minutes"),
+        max_gap_minutes=(
+            _positive_int(s.get("max_gap_minutes"), "sample.max_gap_minutes") if minute else None
+        ),
         symbols=tuple(symbols),
     )
