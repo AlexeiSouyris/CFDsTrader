@@ -28,6 +28,16 @@ reference = "https://www.ig.com/es/nuestros-costes (Costes de financiación noct
 consulted = "2026-11-24"
 note = "Tasa administrativa de los CFD de índices: 'Nuestra tasa administrativa es de un 3 %. Tanto para los contratos mini como para los estándar.' El 2,5 % que usaba el catálogo es el de la pestaña de productos con barrera, no el de los CFD (#379)."
 
+[sources.ig-es-costes-materias-primas]
+reference = "https://www.ig.com/es/nuestros-costes (tabla de materias primas de CFD y 'Fórmula del ajuste del coste de financiación nocturna para materias primas')"
+consulted = "2026-11-24"
+note = "Oro al contado: valor de un contrato 100 $, spread mínimo 0,9. Financiación: noches × tamaño × (base ± costes de IG); 'Fórmula para el coste de IG = Precio medio sin vencimiento x 3 % / 365' (ADR 0013)."
+
+[sources.ig-es-margenes-materias-primas]
+reference = "https://www.ig.com/es/margenes (tabla 'Materias primas (CFD)')"
+consulted = "2026-11-24"
+note = "Clientes minoristas: oro 5 % (1:20). Coincide con el máximo regulatorio de la CNMV para el oro (ADR 0013)."
+
 [sources.ig-demo-api]
 reference = "API REST de IG, cuenta demo: GET /markets/{epic} v3 (https://labs.ig.com/reference/markets-epic.html)"
 consulted = "2026-11-20"
@@ -169,6 +179,38 @@ tick = { pending = "Confirmar con GET /markets/{epic} (decimalPlacesFactor) cuan
 funding_admin_fee_pct = { pending = "IG España no lista este índice (2026-11-24). Si lo ofrece como CFD de índice, la tasa publicada para los CFD de índices es 3 % (fuente ig-es-costes-indices, #379). Confirmar que lo ofrece antes de fijarlo (#371)." }
 funding_day_count = { value = "360", source = "ig-es-costes" }
 funding_benchmark = { pending = "Contrato en EUR: probablemente ESTR, como el DE40, pero ni la API ni ig.com/es lo confirman para este índice. Confirmar con IG." }
+
+# ---------------------------------------------------------------- materias primas
+# ADR 0013 (aceptado el 24-11-2026), #418. Solo paper y estudio; nada con dinero real.
+# Financiación de IG para materias primas (fuente ig-es-costes-materias-primas):
+#   noches × tamaño × (base ± costo de IG), base = (P3 − P2) / (T2 − T1),
+#   costo de IG = precio medio sin vencimiento × 3 % / 365
+# No hay comisión: el costo es el spread. El contrato es en USD y la cuenta en EUR: se convierte
+# con el EUR/USD del BCE (config/fx_rates.toml).
+#
+# El oro NO opera, ni en paper, mientras quede un pendiente: el backtest validado se frena (spec
+# §11), el broker simulado saltea un instrumento con costos pendientes, sin epic `ig_live` no lo
+# pide, y la ventana de entradas de su sesión está pendiente (config/trading_window.toml).
+
+# Oro al contado. Sesión de CME Globex como aproximación de la de IG (config/sessions.toml).
+[instruments.XAUUSD]
+name = "Oro al contado"
+asset_class = "commodity"
+currency = "USD"   # ninguna materia prima de la tabla de CFD de IG está en EUR (ADR 0013)
+exchange = "CMEGLOBEX_METALS"
+exchange_timezone = "America/Chicago"   # la de CME, la misma de config/sessions.toml
+max_leverage = "10"   # tope propio del oro, la mitad del regulatorio 20:1 (spec §8, ADR 0013 §5)
+funding_model = "commodity_basis"
+epic = { pending = "La web de IG no lo publica. Confirmar con GET /markets/{epic} cuando haya cupo (#360)." }
+margin_retail_pct = { value = "5", source = "ig-es-margenes-materias-primas" }
+spread_min_points = { value = "0.9", source = "ig-es-costes-materias-primas" }
+spread_typical_points = { pending = "Solo está el mínimo publicado. Medir en la demo como en #67 cuando haya cupo." }
+value_per_point = { pending = "La tabla dice 'valor de un contrato 100 $', pero no el valor por punto. Confirmar con GET /markets/{epic} (valueOfOnePip)." }
+min_deal_size = { pending = "Sin fuente pública (el 0,05 de #378 no tiene fuente). Confirmar con GET /markets/{epic} (dealingRules.minDealSize)." }
+tick = { pending = "Confirmar con GET /markets/{epic} (decimalPlacesFactor) cuando haya cupo." }
+funding_admin_fee_pct = { value = "3", source = "ig-es-costes-materias-primas" }
+funding_day_count = { value = "365", source = "ig-es-costes-materias-primas" }
+funding_benchmark = { pending = "Las materias primas no usan tipo de referencia sino la base de la curva de futuros. Falta qué futuros usa IG como P2 y P3 y qué lado paga la base (ADR 0013)." }
 
 # ---------------------------------------------------------------- acciones (CFD)
 # Las acciones no tienen spread de IG: pagan comisión al abrir y al cerrar (fuente ig-es-costes).

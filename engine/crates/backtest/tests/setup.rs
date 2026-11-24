@@ -174,3 +174,25 @@ fn buy_and_hold_on_real_de40_matches_the_hand_calculation() {
     assert_eq!(bh.commission, dec!(0));
     assert_eq!(bh.net_pnl, dec!(-1104.0155537666666666666666667));
 }
+
+#[test]
+fn gold_is_blocked_by_its_pending_terms() {
+    // ADR 0013 (#418): el oro está en el catálogo, pero con datos de IG pendientes no se simula.
+    let catalog =
+        cfds_market_data::Catalog::from_toml(include_str!("../../../../config/instruments.toml"))
+            .unwrap();
+    let err =
+        cfds_backtest::market_terms_from_catalog(&catalog, &"XAUUSD".parse().unwrap()).unwrap_err();
+    let cfds_backtest::SetupError::Pending(p) = err else {
+        panic!("esperaba pendientes, no {err:?}");
+    };
+    let fields: Vec<_> = p.iter().map(|f| f.field).collect();
+    for f in [
+        "funding_basis",
+        "spread_typical_points",
+        "tick",
+        "min_deal_size",
+    ] {
+        assert!(fields.contains(&f), "{f}: {fields:?}");
+    }
+}

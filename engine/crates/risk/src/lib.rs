@@ -13,7 +13,7 @@ pub use config::RiskConfig;
 /// Lo que el módulo necesita saber de un instrumento.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InstrumentLimits {
-    /// Tope propio de apalancamiento (índices 10:1, acciones 3:1).
+    /// Tope propio de apalancamiento (índices 10:1, acciones 3:1, oro 10:1; ADR 0013).
     pub max_leverage: Decimal,
     /// Margen requerido por el broker, en % del nocional.
     pub margin_pct: Decimal,
