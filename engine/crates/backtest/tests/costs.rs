@@ -272,7 +272,7 @@ mod from_catalog {
                 spread: dec!(1.8),
                 tick: dec!(0.1),
                 commission: Commission::None,
-                funding_admin_fee_pct: dec!(2.5),
+                funding_admin_fee_pct: dec!(3),
                 funding_day_count: dec!(360),
             }
         );
@@ -303,7 +303,7 @@ mod from_catalog {
             ),
             (
                 "funding_admin_fee_pct",
-                r#"funding_admin_fee_pct = { value = "2.5", source = "ig-es-costes" }"#,
+                r#"funding_admin_fee_pct = { value = "3", source = "ig-es-costes-indices" }"#,
             ),
         ] {
             let at = de40 + REAL[de40..].find(from).unwrap();
