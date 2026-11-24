@@ -23,6 +23,7 @@ mod liquidity_levels;
 mod liquidity_stats;
 mod market_context;
 mod news_stream;
+mod official_releases;
 mod ops_events;
 mod paper_checkpoints;
 mod paper_kill_switch;
@@ -38,6 +39,7 @@ pub use liquidity_stats::{StatsReport, StatsRunReport};
 pub use news_stream::{
     Delivery, NEWS_INTERPRETATIONS_STREAM, NewsBatch, NewsInterpretationConsumer, Rejected, StartAt,
 };
+pub use official_releases::OfficialReleaseRow;
 pub use ops_events::OpsEventRecord;
 pub use paper_checkpoints::CheckpointRow;
 pub use paper_kill_switch::KillSwitchRow;

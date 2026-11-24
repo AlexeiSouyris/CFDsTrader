@@ -2,9 +2,11 @@
 
 use std::str::FromStr;
 
-use chrono::{NaiveDate, NaiveTime};
+use chrono::{NaiveDate, NaiveTime, Timelike};
 use rust_decimal::Decimal;
 use serde::Deserialize;
+
+use super::pre_fomc::PreFomcConfig;
 
 /// Familia C (ruptura del rango de apertura).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -106,6 +108,17 @@ pub struct ReviewChecksConfig {
     pub blend_hold_weight: Decimal,
 }
 
+/// H2 del programa Nasdaq (#526, pre-registro §4.2): días de CPI y empleo. Congelada; se corre
+/// cuando esté cargado el BLS.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MacroDayConfig {
+    pub timezone: chrono_tz::Tz,
+    /// Hora local de la vela de la entrada el día del dato.
+    pub entry_time: NaiveTime,
+    /// Spread de la entrada (fuera de la sesión de contado), en puntos.
+    pub out_of_session_spread: Decimal,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResearchConfig {
     pub orb: OrbConfig,
@@ -124,6 +137,9 @@ pub struct ResearchConfig {
     pub review_checks: ReviewChecksConfig,
     /// Regla del programa Nasdaq (H1 y H2 en US100, #526).
     pub rule_nasdaq: RuleConfig,
+    /// H1 del programa Nasdaq: horas de la ventana antes del FOMC.
+    pub pre_fomc: PreFomcConfig,
+    pub macro_day: MacroDayConfig,
 }
 
 impl ResearchConfig {
@@ -209,6 +225,22 @@ impl ResearchConfig {
             rule_round3: Rule,
             review_checks: Review,
             rule_nasdaq: Rule,
+            pre_fomc: PreFomc,
+            macro_day: MacroDay,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct PreFomc {
+            timezone: String,
+            entry_time: String,
+            exit_minutes_before: u32,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct MacroDay {
+            timezone: String,
+            entry_time: String,
+            out_of_session_spread_points: String,
         }
         let raw: Raw = toml::from_str(text).map_err(|e| e.to_string())?;
         let dec = |s: &str, name: &str| -> Result<Decimal, String> {
@@ -315,6 +347,36 @@ impl ResearchConfig {
         if rc.drop_lookback_days < 2 {
             return Err("review_checks.drop_lookback_days tiene que ser al menos 2".into());
         }
+        let tz = |s: &str, name: &str| -> Result<chrono_tz::Tz, String> {
+            s.parse()
+                .map_err(|_| format!("{name}: zona horaria desconocida: {s}"))
+        };
+        let pf = &raw.pre_fomc;
+        if pf.exit_minutes_before == 0 || !pf.exit_minutes_before.is_multiple_of(15) {
+            return Err("pre_fomc.exit_minutes_before: múltiplo de 15 mayor que 0".into());
+        }
+        let pre_fomc = PreFomcConfig {
+            timezone: tz(&pf.timezone, "pre_fomc.timezone")?,
+            entry_time: time(&pf.entry_time, "pre_fomc.entry_time")?,
+            exit_minutes_before: pf.exit_minutes_before,
+        };
+        let md = &raw.macro_day;
+        let macro_day = MacroDayConfig {
+            timezone: tz(&md.timezone, "macro_day.timezone")?,
+            entry_time: time(&md.entry_time, "macro_day.entry_time")?,
+            out_of_session_spread: dec(
+                &md.out_of_session_spread_points,
+                "macro_day.out_of_session_spread_points",
+            )?,
+        };
+        for (t, name) in [
+            (pre_fomc.entry_time, "pre_fomc.entry_time"),
+            (macro_day.entry_time, "macro_day.entry_time"),
+        ] {
+            if !t.minute().is_multiple_of(15) || t.second() != 0 {
+                return Err(format!("{name} tiene que caer en una vela de 15 minutos"));
+            }
+        }
         let review_checks = ReviewChecksConfig {
             drift_split_from: NaiveDate::parse_from_str(&rc.drift_split_from, "%Y-%m-%d")
                 .map_err(|_| "review_checks.drift_split_from no es AAAA-MM-DD".to_owned())?,
@@ -363,6 +425,8 @@ impl ResearchConfig {
             rule_round3: rule(&raw.rule_round3, "rule_round3")?,
             review_checks,
             rule_nasdaq: rule(&raw.rule_nasdaq, "rule_nasdaq")?,
+            pre_fomc,
+            macro_day,
         })
     }
 }

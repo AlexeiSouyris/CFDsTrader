@@ -119,6 +119,23 @@ cost_stress = "1.5"
 # Mitades: 2013–2020 y desde 2021 (propuesta del programa Nasdaq §3.2).
 second_half_from = "2021-01-01"
 
+[pre_fomc]
+# H1 (pre-registro §3.2): entrada en la apertura de la vela de las 14:00 ET del día hábil anterior
+# al comunicado programado; salida en la apertura de la vela que empieza 30 minutos antes de la
+# hora del comunicado. Horas locales de Nueva York, con su horario de verano.
+timezone = "America/New_York"
+entry_time = "14:00"
+exit_minutes_before = 30
+
+[macro_day]
+# H2 (pre-registro §4.2), congelada; se corre cuando esté cargado el BLS: entrada en la apertura
+# de la vela de las 08:00 ET del día del dato (fuera de la sesión de contado: spread de IG de
+# 2,5 puntos, docs/research/ig-spreads-2026-11.md); salida en la apertura de la última vela de la
+# sesión de contado.
+timezone = "America/New_York"
+entry_time = "08:00"
+out_of_session_spread_points = "2.5"
+
 # ── Chequeos de la revisión externa (#512) ─────────────────────────────────────────────────────
 # Descriptivos, sin voto y sin presupuesto: docs/analysis/2026-11-chequeos-revision-externa.md.
 # Fijados antes de mirar los resultados. Solo los lee el ejemplo `chequeos_revision`.
