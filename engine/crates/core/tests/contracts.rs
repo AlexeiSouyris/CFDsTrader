@@ -86,6 +86,15 @@ fn candle_prices_are_decimal_strings_and_keep_their_scale() {
 #[test]
 fn instrument_roundtrips_through_the_contract() {
     assert_roundtrip("instrument.v1.schema.json", &sample_instrument());
+    // ADR 0013: materias primas, por ejemplo el oro (contrato en USD).
+    let gold = Instrument {
+        id: "XAUUSD".parse().unwrap(),
+        name: "Oro al contado".into(),
+        asset_class: AssetClass::Commodity,
+        currency: Currency::USD,
+        exchange_timezone: "America/New_York".into(),
+    };
+    assert_roundtrip("instrument.v1.schema.json", &gold);
 }
 
 fn candle_doc() -> Value {
