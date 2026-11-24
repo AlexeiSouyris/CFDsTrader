@@ -105,9 +105,13 @@ class Rate:
 
 
 def parse_csv(text: str, s: SeriesConfig) -> list[tuple[date, Decimal]]:
-    """Filas de la API → (fecha, tasa) en orden. Cualquier fila rara rechaza todo."""
+    """Filas de la API → (fecha, tasa) en orden. Cualquier fila rara rechaza todo.
+
+    Una fila con `OBS_VALUE` vacío es un día sin publicación (feriado del BCE, #447): se saltea.
+    """
     expected_key = f"{s.flow}.{s.key}"
     out: list[tuple[date, Decimal]] = []
+    prev: date | None = None
     reader = csv.DictReader(io.StringIO(text))
     missing = {"KEY", "TIME_PERIOD", "OBS_VALUE"} - set(reader.fieldnames or [])
     if missing:
@@ -120,14 +124,19 @@ def parse_csv(text: str, s: SeriesConfig) -> list[tuple[date, Decimal]]:
         except ValueError as e:
             raise RatesError(f"{s.name}: fecha inválida {row['TIME_PERIOD']!r}") from e
         raw = row["OBS_VALUE"]
+        if prev is not None and day <= prev:
+            raise RatesError(f"{s.name}: fechas desordenadas o repetidas en {day}")
+        prev = day
+        if raw == "":
+            # Sin publicación ese día (#447): el BCE manda la fila vacía en sus feriados TARGET
+            # (por ejemplo, Viernes Santo del EUR/USD). No se guarda ni se inventa un valor.
+            continue
         try:
             value = Decimal(raw)
         except InvalidOperation as e:
             raise RatesError(f"{s.name} {day}: {raw!r} no es un número") from e
         if not value.is_finite():
             raise RatesError(f"{s.name} {day}: {raw!r} no es un número")
-        if out and day <= out[-1][0]:
-            raise RatesError(f"{s.name}: fechas desordenadas o repetidas en {day}")
         out.append((day, value))
     return out
 
