@@ -42,7 +42,10 @@ pub use runner::{
     BuyAndHold, CloseReason, ExitRecord, RejectedSignal, Report, RunError, Setup, TradeRecord,
     buy_and_hold, choose, execute, pick, run, run_checked, run_with_news,
 };
-pub use scenario::{SCENARIO_SOURCE, add_weekdays, apply_funding_scenario, rates_from_csv};
+pub use scenario::{
+    AssumedTerms, SCENARIO_SOURCE, StudyAssumptions, add_weekdays, apply_assumptions,
+    apply_funding_scenario, rates_from_csv,
+};
 pub use sensitivity::{
     ConfigTexts, ParamFile, SensitivityParam, SensitivityPoint, Stability, override_toml,
     sensitivity, setup_with, stability, value_text,

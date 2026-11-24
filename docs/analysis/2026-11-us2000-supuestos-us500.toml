@@ -1,0 +1,21 @@
+# Costos SUPUESTOS del US2000 para el estudio de #421 (opción A del dueño en #371). NO son datos
+# de IG: IG España no lista el Russell 2000 (2026-11-24) y el catálogo los tiene `pending`. Solo
+# completan en memoria los campos `pending` de config/instruments.toml; nunca pisan un dato con
+# fuente. Uso: `walk_forward ... --supuestos docs/analysis/2026-11-us2000-supuestos-us500.toml`.
+#
+# Escenario "como el US500": los mismos puntos que el US500 de IG en config/instruments.toml.
+# Como el Russell cotiza a menos de la mitad de puntos que el S&P 500, en términos relativos es
+# un costo MÁS ALTO que el del US500 (conservador).
+source = "supuesto-estudio-421: valores en puntos del US500 de IG (no es dato de IG)"
+
+[instruments.US2000]
+# ESMA no trata al Russell 2000 como índice principal: margen mínimo regulatorio 10 % (catálogo).
+margin_retail_pct = "10"
+spread_min_points = "0.8"       # US500: ig-es-indices
+spread_typical_points = "0.9"   # US500: ig-demo-spread
+value_per_point = "1"           # contrato de 1 € por punto, como los demás índices de EE. UU.
+min_deal_size = "1"             # US500
+tick = "0.1"                    # tick del futuro RTY en CME (más grueso que el 0,01 del US500: slippage de 1 tick más caro)
+funding_admin_fee_pct = "3"     # tasa administrativa publicada para los CFD de índices (#379)
+# RTY es de CME, como ES/NQ/YM: el día del vencimiento todavía es del contrato viejo.
+roll = "after_expiry_day"

@@ -4,7 +4,8 @@
 //! DATABASE_URL=... cargo run -p cfds-backtest --example walk_forward -- \
 //!     <INSTRUMENTO> <desde UTC> <hasta UTC> <capital inicial> <tamaño comprar y mantener> \
 //!     [<report_id>] [--fuente ig|futuros] [--sin-noticias] [--sin-sensibilidad] \
-//!     [--escenario-financiacion ESTR | --escenario-financiacion SOFR=<archivo.csv>]
+//!     [--escenario-financiacion ESTR | --escenario-financiacion <ETIQUETA>=<archivo.csv>] \
+//!     [--supuestos <archivo.toml>]
 //! ```
 //! Prepara los datos igual que `backtest_run` (mismo módulo `common/prepare.rs`) y:
 //! - separa el período con `config/data_split.toml` (ventanas walk-forward y fuera de muestra);
@@ -19,7 +20,10 @@
 //! diaria guardada en `reference_rates`; `SOFR=<archivo.csv>` lee `fecha,tasa` de la fuente
 //! oficial (NY Fed), y cada valor cuenta desde las 13:00 UTC de dos días hábiles después (la NY
 //! Fed lo publica hacia las 08:00 ET del día hábil siguiente: nunca antes de estar publicado). En
-//! ese modo no se guarda ningún reporte y **no se evalúa el fuera de muestra**.
+//! ese modo no se guarda ningún reporte y **no se evalúa el fuera de muestra**. Cualquier
+//! `<ETIQUETA>=<archivo.csv>` funciona igual (#421, por ejemplo series empalmadas EONIA→€STR).
+//! `--supuestos` (#421) completa en memoria costos `pending` del catálogo con supuestos rotulados
+//! (ver `common/study.rs`); mismo modo de estudio.
 //!
 //! Con `report_id`, guarda el reporte en `walk_forward_reports` (`walk_forward_report.v1`), con
 //! futuros bajo el instrumento derivado. No cambia ningún parámetro de la estrategia.
@@ -28,6 +32,8 @@
 mod news_filter;
 #[path = "common/prepare.rs"]
 mod prepare;
+#[path = "common/study.rs"]
+mod study;
 
 use cfds_backtest::{
     ConfigTexts, EvaluationConfig, PeriodResult, aggregate, evaluate_holdout, sensitivity,
@@ -92,44 +98,12 @@ fn line(name: &str, p: &PeriodResult) -> String {
     }
 }
 
-/// `ESTR` (serie guardada) o `SOFR=<archivo.csv>` (fuente oficial, ver la cabecera).
-fn funding_scenario(arg: &str) -> Result<prepare::FundingScenario, Box<dyn std::error::Error>> {
-    match arg.split_once('=') {
-        None if arg == "ESTR" => Ok(prepare::FundingScenario {
-            series: arg.to_owned(),
-            rates: None,
-        }),
-        Some(("SOFR", path)) => {
-            let text = std::fs::read_to_string(path)?;
-            let at = chrono::NaiveTime::from_hms_opt(13, 0, 0).ok_or("hora inválida")?;
-            let rates = cfds_backtest::rates_from_csv("SOFR", &text, 2, at)?;
-            let daily = cfds_backtest::DailyRates::new(rates).ok_or("serie SOFR vacía")?;
-            Ok(prepare::FundingScenario {
-                series: "SOFR".into(),
-                rates: Some(daily),
-            })
-        }
-        _ => Err(format!("escenario desconocido: {arg} (ESTR | SOFR=<archivo.csv>)").into()),
-    }
-}
-
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let all: Vec<String> = std::env::args().skip(1).collect();
     let without_news = all.iter().any(|a| a == "--sin-noticias");
     let without_sensitivity = all.iter().any(|a| a == "--sin-sensibilidad");
-    let (scenario, all) = match all.iter().position(|a| a == "--escenario-financiacion") {
-        None => (None, all),
-        Some(i) => {
-            let arg = all
-                .get(i + 1)
-                .ok_or("--escenario-financiacion ESTR | SOFR=<archivo.csv>")?;
-            (
-                Some(funding_scenario(arg)?),
-                [&all[..i], all.get(i + 2..).unwrap_or(&[])].concat(),
-            )
-        }
-    };
+    let (study, all) = study::parse(all)?;
     let (source, all) = match all.iter().position(|a| a == "--fuente") {
         None => (CandleSource::Ig, all),
         Some(i) => {
@@ -159,22 +133,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let id: cfds_core::InstrumentId = instrument.parse()?;
     let (from, to) = (from.parse()?, to.parse()?);
     let (equity, size): (Decimal, Decimal) = (equity.parse()?, size.parse()?);
-    let studying = scenario.is_some();
+    let studying = study.is_some();
     if studying && report_id.is_some() {
         return Err(
-            "con --escenario-financiacion no se guarda ningún reporte (no es oficial)".into(),
+            "con --escenario-financiacion o --supuestos no se guarda ningún reporte (no es oficial)".into(),
         );
     }
-    let p = prepare::prepare_with(
-        &id,
-        source,
-        (from, to),
-        equity,
-        None,
-        without_news,
-        scenario,
-    )
-    .await?;
+    let p =
+        prepare::prepare_with(&id, source, (from, to), equity, None, without_news, study).await?;
     println!("velas: {} ({})", p.sources.label(source), p.out);
 
     let (first, last) = match (p.m15.first(), p.m15.last()) {
@@ -276,7 +242,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if studying {
         println!(
-            "fuera de muestra: NO se evalúa en un estudio de escenarios (#405); queda intacto \
+            "fuera de muestra: NO se evalúa en un estudio (#405, #421); queda intacto \
              para la Fase 5"
         );
         return Ok(());
