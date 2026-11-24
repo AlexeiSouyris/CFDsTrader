@@ -4,7 +4,7 @@ Necesitan `DATABASE_URL` con las migraciones aplicadas. En CI corren en el job d
 """
 
 import os
-import random
+import uuid
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -41,8 +41,13 @@ def conn() -> psycopg.Connection:
 
 
 def instrument(conn: psycopg.Connection) -> str:
-    """Las tablas son de solo agregar: un instrumento propio por corrida."""
-    iid = f"ITSI{random.randrange(10**9)}"  # noqa: S311 (no es criptografía)
+    """Las tablas son de solo agregar: un instrumento propio por test (#488).
+
+    Las fechas son fijas; el que cambia es el instrumento. Cumple `^[A-Z0-9][A-Z0-9._-]{0,31}$`
+    (32 caracteres). El INSERT sin `ON CONFLICT` falla si el instrumento ya existiera, y como
+    las demás tablas lo referencian por clave foránea, el test arranca sin filas previas.
+    """
+    iid = "ITSI" + uuid.uuid4().hex[:28].upper()
     conn.execute(
         """
         INSERT INTO instruments (id, name, asset_class, currency, exchange_timezone)
@@ -50,6 +55,8 @@ def instrument(conn: psycopg.Connection) -> str:
         """,
         (iid,),
     )
+    n = conn.execute("SELECT count(*) FROM sentiment_index WHERE instrument_id = %s", (iid,))
+    assert n.fetchone() == (0,)
     return iid
 
 
