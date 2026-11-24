@@ -11,7 +11,10 @@
 //! Es idempotente: lo ya guardado e idéntico cuenta como "ya estaban". Si un valor recalculado
 //! diera distinto, frena con error (sería repintado) y no guarda nada de ese instrumento. Con
 //! `--fuente futuros` (#409), en cambio, no pisa el guardado ni frena: guarda el resto y avisa qué
-//! días quedaron con el valor viejo (la historia de los futuros se extendió hacia atrás).
+//! días quedaron con el valor viejo (la historia de los futuros se extendió hacia atrás). Un día
+//! guardado **sin valor** (NULL, por falta de historia) que ahora tiene valor sí se completa, una
+//! sola vez y auditado en `daily_null_fills` (#417, migración 0040); se reporta como
+//! "completados". Un valor ya guardado no se pisa nunca.
 
 use std::path::PathBuf;
 
@@ -79,11 +82,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
         );
         println!(
-            "{id}: {} días con sesión ({} con los dos indicadores) → {} nuevos, {} ya estaban",
+            "{id}: {} días con sesión ({} con los dos indicadores) → {} nuevos, {} ya estaban, {} completados (NULL → valor)",
             rows.len(),
             ready,
             r.inserted,
-            r.unchanged
+            r.unchanged,
+            r.filled
         );
         let dd = daily_drawdowns(&days, session, &cfg)
             .map_err(|d| format!("{id}: el calendario de sesiones no cubre el {d}"))?;
@@ -99,8 +103,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
         );
         println!(
-            "{id}: caída desde el máximo de {} velas: {ready} días con valor → {} nuevos, {} ya estaban",
-            cfg.drawdown_window, r.inserted, r.unchanged
+            "{id}: caída desde el máximo de {} velas: {ready} días con valor → {} nuevos, {} ya estaban, {} completados (NULL → valor)",
+            cfg.drawdown_window, r.inserted, r.unchanged, r.filled
         );
         let terciles = daily_vol_terciles(&days, session, &cfg)
             .map_err(|d| format!("{id}: el calendario de sesiones no cubre el {d}"))?;
@@ -119,8 +123,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
         );
         println!(
-            "{id}: tercio de la volatilidad ({} años de historia): {ready} días con valor → {} nuevos, {} ya estaban",
-            cfg.vol_tercile_years, r.inserted, r.unchanged
+            "{id}: tercio de la volatilidad ({} años de historia): {ready} días con valor → {} nuevos, {} ya estaban, {} completados (NULL → valor)",
+            cfg.vol_tercile_years, r.inserted, r.unchanged, r.filled
         );
     }
     Ok(())
