@@ -14,7 +14,7 @@ pub mod wilson;
 
 pub use atr::{AtrSeed, Hlc, true_range, wilder_atr, wilder_atr_after};
 pub use drawdown::drawdown_from_high;
-pub use moving_average::{ema, sma};
+pub use moving_average::{ema, ema_values, sma, sma_values};
 pub use tercile::vol_terciles;
 pub use trend::{Trend, TrendConfig, trend};
 pub use volatility::{DailyConfig, realized_volatility};

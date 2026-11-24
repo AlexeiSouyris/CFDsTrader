@@ -99,9 +99,66 @@
           }
         }
       }
+    },
+    "analysis": {
+      "description": "Herramientas de análisis (#491, cambio compatible): solo se muestran, NO entran al puntaje ni a la estrategia. Parámetros en config/analysis.toml. Opcional: ausente si el productor no tiene velas diarias.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ema_daily_period", "ema_daily", "fibonacci", "golden_pocket"],
+      "properties": {
+        "ema_daily_period": { "description": "Período de la EMA diaria (config/analysis.toml [ema_daily]).", "type": "integer", "minimum": 1 },
+        "ema_daily": {
+          "description": "Un valor por vela de candles (mismo orden): EMA de los cierres diarios del último día ya terminado al cierre de esa vela; null en el calentamiento o sin días.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/optional_decimal" }
+        },
+        "fibonacci": {
+          "description": "Tramos entre pivotes confirmados consecutivos de tipo opuesto, en orden de confirmación. Un tramo existe desde confirmed_index (la confirmación de su pivote final).",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["direction", "start_index", "start_price", "end_index", "end_price", "confirmed_index", "retracements", "extensions", "golden_pocket_low", "golden_pocket_high"],
+            "properties": {
+              "direction": { "enum": ["up", "down"] },
+              "start_index": { "type": "integer", "minimum": 0 },
+              "start_price": { "$ref": "#/$defs/decimal" },
+              "end_index": { "type": "integer", "minimum": 0 },
+              "end_price": { "$ref": "#/$defs/decimal" },
+              "confirmed_index": { "type": "integer", "minimum": 0 },
+              "retracements": { "description": "precio = fin − razón · (fin − inicio).", "type": "array", "items": { "$ref": "#/$defs/fib_level" } },
+              "extensions": { "description": "precio = inicio + razón · (fin − inicio).", "type": "array", "items": { "$ref": "#/$defs/fib_level" } },
+              "golden_pocket_low": { "$ref": "#/$defs/signed_decimal" },
+              "golden_pocket_high": { "$ref": "#/$defs/signed_decimal" }
+            }
+          }
+        },
+        "golden_pocket": {
+          "description": "Velas que tocan el golden pocket del último tramo confirmado antes de ellas, y si cierran adentro. Un tramo deja de valer cuando un cierre pasa su inicio.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["index", "leg", "touches", "closes_inside"],
+            "properties": {
+              "index": { "type": "integer", "minimum": 0 },
+              "leg": { "description": "Índice en fibonacci.", "type": "integer", "minimum": 0 },
+              "touches": { "type": "boolean" },
+              "closes_inside": { "type": "boolean" }
+            }
+          }
+        }
+      }
     }
   },
   "$defs": {
+    "fib_level": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ratio", "price"],
+      "properties": { "ratio": { "$ref": "#/$defs/decimal" }, "price": { "$ref": "#/$defs/signed_decimal" } }
+    },
+    "signed_decimal": { "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" },
     "decimal": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
     "optional_decimal": { "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
     "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" }

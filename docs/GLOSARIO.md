@@ -5,7 +5,7 @@ Los ejemplos usan el US Tech 100 (NASDAQ) cerca de 26.750 puntos, como en el gr�
 
 > Más adelante la UI (fase 10) va a mostrar estas mismas definiciones al pasar el mouse o tocar cada término. Este archivo es la **única fuente** de las definiciones: si cambia una, cambia acá.
 
-**Índice:** [Operar](#operar) · [Costos](#costos) · [Gestión de la operación](#gestion) · [Velas e indicadores](#velas) · [Patrones](#patrones) · [Liquidez (ICT/SMC)](#liquidez-ict) · [Medir resultados](#medir) · [Probar sin engañarse](#probar) · [Psicología del mercado](#psicologia) · [Fondo del grupo](#fondo)
+**Índice:** [Operar](#operar) · [Costos](#costos) · [Gestión de la operación](#gestion) · [Velas e indicadores](#velas) · [Patrones](#patrones) · [Liquidez (ICT/SMC)](#liquidez-ict) · [Medir resultados](#medir) · [Probar sin engañarse](#probar) · [Psicología del mercado](#psicologia) · [Fondo del grupo](#fondo) · [Empresas (no aplica a índices)](#empresas)
 
 ---
 
@@ -152,6 +152,7 @@ Promedio de los últimos N cierres. La SMA50 promedia 50 velas. Si el precio est
 <a id="ema"></a>
 ### EMA (media móvil exponencial)
 Como la SMA, pero da más peso a las velas recientes, así que reacciona más rápido.
+El período se elige en la configuración. En el gráfico mostramos además una **EMA 365 sobre velas diarias** (`config/analysis.toml`): cada vela de 15m ve el valor del último día ya terminado, nunca el del día en curso. 365 velas diarias son unos **1,45 años** de sesiones (un año tiene unas 252); la media "larga" más usada en el mercado es la de **200** días. Es solo para mirar: no entra en la estrategia.
 
 <a id="rsi"></a>
 ### RSI
@@ -209,6 +210,21 @@ Después de una ruptura, el precio vuelve a tocar el nivel roto antes de seguir.
 <a id="neckline"></a>
 ### Neckline (línea de cuello)
 El valle entre los dos techos (o el pico entre los dos suelos). Su ruptura confirma el patrón. **Nosotros entramos al cerrar la vela que rompe el neckline.**
+
+<a id="numero-de-oro"></a>
+### Número de oro (φ)
+El número φ = (1 + √5) / 2 ≈ **1,618**. Aparece en la naturaleza y en el arte, y es la base de los niveles de [Fibonacci](#fibonacci): 0,618 ≈ 1/φ, 0,382 ≈ 1/φ², 0,236 ≈ 1/φ³, 1,618 = φ y 2,618 ≈ φ². No es un indicador aparte: es de donde salen esos números. El motor lo guarda como decimal exacto (28 decimales), nunca como número aproximado.
+
+<a id="fibonacci"></a>
+### Fibonacci (retrocesos y extensiones)
+Niveles que se dibujan sobre un **tramo**: el movimiento entre dos [pivotes](#pivote) confirmados seguidos, uno bajo y uno alto. Los **retrocesos** (23,6 %, 38,2 %, 50 %, 61,8 % y 78,6 %) marcan hasta dónde podría volver el precio antes de seguir; las **extensiones** (127,2 %, 161,8 % y 261,8 %) marcan hasta dónde podría llegar si sigue más allá del tramo. Muchos traders los miran, y por eso a veces el precio reacciona ahí, pero **no garantizan nada**: son zonas para observar, no predicciones.
+*Ejemplo:* el NASDAQ sube de 26.600 a 26.800 (tramo de 200 puntos). El retroceso del 61,8 % está en 26.800 − 0,618 × 200 = **26.676,4**; la extensión de 161,8 % está en 26.600 + 1,618 × 200 = **26.923,6**.
+El tramo existe recién cuando se confirma su pivote final (N velas después). Si una vela cierra más allá del inicio del tramo, ese tramo deja de valer.
+
+<a id="golden-pocket"></a>
+### Golden pocket (bolsillo dorado)
+La zona entre los retrocesos de **61,8 % y 65 %** de un tramo de [Fibonacci](#fibonacci). Es la zona de retroceso más vigilada; marcamos las velas que la **tocan** y las que **cierran adentro**.
+*Ejemplo:* en el tramo de 26.600 a 26.800, el golden pocket va de 26.670 a 26.676,4. Una vela que baja hasta 26.672 la toca. Es contexto para mirar, no una señal de compra.
 
 ---
 
@@ -377,3 +393,27 @@ NAV = valor total del fondo ÷ unidades emitidas.
 - El fondo gana 10% y pasa a 165 €. La unidad vale 1,10 €.
 - Semana 2: Caro aporta 110 € y recibe 100 unidades (110 ÷ 1,10). No se lleva ganancia de la semana 1 porque no estaba.
 - Ahora el P&L de Ana = 100 × 1,10 − 100 = **+10 €**; el de Beto = **+5 €**; el de Caro = **0 €**.
+
+---
+
+<a id="empresas"></a>
+## Empresas (no aplica a índices)
+
+Estas medidas son de la contabilidad de **una empresa**. Un índice (NASDAQ, DAX) no tiene EBITDA propio, así que el sistema **no las calcula ni las ingiere**. Quedan acá para entenderlas.
+
+<a id="ebitda"></a>
+### EBITDA
+Ganancia de una empresa **antes** de intereses, impuestos, depreciación y amortización. Sirve para comparar cuánto genera el negocio en sí, sin mirar cómo se financia ni cuánto "gasta" en el desgaste contable de sus máquinas.
+*Cómo se arma:* resultado operativo + depreciación + amortización. **No es una partida oficial** de las normas contables de EE. UU. (GAAP): la empresa no está obligada a publicarla, así que hay que armarla con las partidas que sí publica.
+*Fuente oficial que haría falta:* los estados contables que cada empresa presenta ante la SEC (EDGAR, en formato XBRL), de donde se toman el resultado operativo y la depreciación y amortización.
+
+<a id="ebitda-ajustado"></a>
+### EBITDA ajustado
+El EBITDA al que **la propia empresa** le saca gastos que considera "extraordinarios" (reestructuraciones, juicios, pagos en acciones, etc.). Cada empresa elige qué saca, así que **no es comparable entre empresas** y suele mostrar un número más lindo. Lo publica la empresa en sus presentaciones de resultados, no en los estados contables.
+
+<a id="ebitda-normalizado"></a>
+### EBITDA normalizado
+El EBITDA corregido por **quien analiza** (no la empresa) para llevarlo a un año "típico": se sacan efectos que no se repiten y se ajustan los que dependen del ciclo. Lo usan sobre todo para valuar una empresa en una compra. No hay una fórmula única.
+
+**Diferencia en una línea:** el EBITDA sale de los números contables; el ajustado lo decide la empresa; el normalizado lo decide el analista.
+

@@ -1,5 +1,6 @@
 //! Exporta velas reales de PostgreSQL con sus indicadores, puntajes, pivotes y las operaciones
-//! del backtest (`contracts/chart_export.v1`, #81). Lo leen la comparación con la referencia
+//! del backtest (`contracts/chart_export.v1`, #81), con las herramientas de análisis de
+//! `config/analysis.toml` (#491). Lo leen la comparación con la referencia
 //! (`tools/verify/`) y el visor; ninguno recalcula nada.
 //!
 //! ```text
@@ -11,7 +12,9 @@
 #[path = "common/news_filter.rs"]
 mod news_filter;
 
-use cfds_backtest::{BacktestConfig, chart_export, run_checked, setup_from_catalog};
+use cfds_backtest::{
+    AnalysisConfig, BacktestConfig, analysis_export, chart_export, run_checked, setup_from_catalog,
+};
 use cfds_core::Timeframe;
 use cfds_indicators::TrendConfig;
 use cfds_liquidity::LiquidityConfig;
@@ -115,8 +118,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
              nada más hasta el final del período"
         );
     }
-    let export =
+    let mut export =
         chart_export(&m15, &h1, &data_errors, &setup, &report).map_err(|e| format!("{e:?}"))?;
+    // Herramientas de análisis (#491): solo se muestran. La EMA diaria necesita los días
+    // anteriores al período (calentamiento), por eso se leen todas las diarias guardadas hasta `to`.
+    let analysis_cfg = AnalysisConfig::from_toml(cfg!("analysis.toml"))?;
+    let first_day = chrono::NaiveDate::from_ymd_opt(2000, 1, 1).ok_or("fecha")?;
+    let daily = store
+        .daily_candles(&id, first_day, to.date_naive().succ_opt().ok_or("fecha")?)
+        .await?;
+    export.analysis = Some(analysis_export(
+        &m15,
+        &daily,
+        setup.strategy.patterns.pivots.strength,
+        &analysis_cfg,
+    ));
     std::fs::write(out, serde_json::to_string(&export)?)?;
     println!(
         "{out}: {} velas, {} pivotes, {} operaciones",

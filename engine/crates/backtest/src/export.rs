@@ -12,6 +12,7 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
+use crate::analysis::ExportAnalysis;
 use crate::{CloseReason, ExitReason, Report, Setup};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -23,6 +24,9 @@ pub struct ChartExport {
     pub candles: Vec<ExportCandle>,
     pub pivots: Vec<ExportPivot>,
     pub trades: Vec<ExportTrade>,
+    /// Herramientas de análisis (#491), opcional: solo se muestran, no entran al puntaje.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub analysis: Option<ExportAnalysis>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -248,5 +252,6 @@ pub fn chart_export(
         candles,
         pivots,
         trades,
+        analysis: None,
     })
 }
