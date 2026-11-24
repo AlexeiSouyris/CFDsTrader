@@ -83,6 +83,46 @@ describe('Modelo (informativo) (#426)', () => {
     )
   })
 
+  it('muestra la calibración por grupos tal como la guardó el experimento (#433)', async () => {
+    gateway(ok(ENTRIES))
+    render(<MlExperimentsSection />)
+    const de40 = await screen.findByRole('article', { name: 'Modelo de DE40' })
+    expect(de40).toHaveTextContent('Calibración por grupos · 3 grupos iguales por orden')
+    expect(de40).toHaveTextContent('intervalo de Wilson del 95 %')
+    const m1 = within(de40).getByRole('region', { name: 'Calibración de M1' })
+    expect(
+      within(m1)
+        .getByRole('img', { name: /^Calibración de M1/ })
+        .querySelectorAll('circle'),
+    ).toHaveLength(3)
+    const rows = within(within(m1).getByRole('table', { name: 'Grupos de M1' }))
+      .getAllByRole('row')
+      .slice(1)
+    expect(rows).toHaveLength(3)
+    expect(rows[0]).toHaveTextContent('14043,1 %de 38,0 % a 46,0 %40,0 %26,4 % a 55,4 %')
+    expect(rows[2]).toHaveTextContent('34058,9 %de 54,0 % a 66,0 %57,5 %42,1 % a 71,6 %')
+    // los tres modelos, en el orden de siempre
+    expect(
+      within(de40)
+        .getAllByRole('region', { name: /^Calibración de / })
+        .map((r) => r.getAttribute('aria-label')),
+    ).toEqual(['Calibración de B0', 'Calibración de B1', 'Calibración de M1'])
+    expect(de40).not.toHaveTextContent('se guardó sin la calibración')
+    // en suspenso no hay calibración ni aviso
+    const us500 = screen.getByRole('article', { name: 'Modelo de US500.FUT' })
+    expect(us500).not.toHaveTextContent(/calibración/i)
+  })
+
+  it('un experimento guardado antes de #433 avisa que no trae la calibración', async () => {
+    const old = { ...ENTRIES[0].experiment }
+    delete old.calibration
+    gateway(ok([{ ...ENTRIES[0], experiment: old }]))
+    render(<MlExperimentsSection />)
+    const de40 = await screen.findByRole('article', { name: 'Modelo de DE40' })
+    expect(de40).toHaveTextContent('Este experimento se guardó sin la calibración por grupos')
+    expect(within(de40).queryByRole('region', { name: /^Calibración de / })).toBeNull()
+  })
+
   it('sin experimentos o sin gateway, lo dice', async () => {
     gateway(ok([]))
     const { unmount } = render(<MlExperimentsSection />)

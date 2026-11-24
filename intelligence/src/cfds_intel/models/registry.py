@@ -16,7 +16,7 @@ import psycopg
 from cfds_intel.models.compare import Comparison
 from cfds_intel.models.config import MlConfig
 from cfds_intel.models.dataset import Example
-from cfds_intel.models.metrics import auc, brier, log_loss
+from cfds_intel.models.metrics import auc, brier, calibration, log_loss
 from cfds_intel.models.train import MODELS, Evaluation, Scores
 
 
@@ -40,6 +40,29 @@ def dataset_fingerprint(examples: Sequence[Example]) -> str:
 
 def _scores(s: Scores) -> dict[str, Any]:
     return {"log_loss": s.log_loss, "brier": s.brier, "auc": s.auc}
+
+
+def _calibration(evaluation: Evaluation, bins: int) -> dict[str, Any]:
+    """Calibración por grupos de la predicción sobre las validaciones juntas (spec §6, #433): lo
+    mismo que la sección «Calibración» del informe, para guardarlo con el experimento."""
+    trained = [r for r in evaluation.windows if r.skipped is None]
+    y = [e.y for r in trained for e in r.validation]
+    pooled = {}
+    for name in MODELS:
+        p = [q for r in trained for q in r.predictions[name]]
+        pooled[name] = [
+            {
+                "p_min": b.p_min,
+                "p_max": b.p_max,
+                "n": b.n,
+                "mean_predicted": b.mean_predicted,
+                "observed": b.observed,
+                "low": b.low,
+                "high": b.high,
+            }
+            for b in calibration(y, p, bins)
+        ]
+    return {"bins": bins, "interval": "wilson_95", "pooled": pooled}
 
 
 # De qué tabla puede ser la corrida de un experimento (`label_source` de ml_experiment.v1, #409).
@@ -107,6 +130,12 @@ def document(
         backtest_run_id if label_source == "backtest_runs" else f"{label_source}:{backtest_run_id}"
     )
     source_field = {} if label_source == "backtest_runs" else {"label_source": label_source}
+    # Opcional (#433): sin ventanas entrenadas no hay predicciones que calibrar.
+    calibration_field = (
+        {}
+        if evaluation.suspended
+        else {"calibration": _calibration(evaluation, cfg.evaluation.calibration_bins)}
+    )
     return {
         "experiment_id": sha256_hex(
             code_version, run_ref, config_sha256, dataset_fingerprint(examples)
@@ -130,6 +159,7 @@ def document(
         "windows": windows,
         "pooled": {name: _scores(s) for name, s in evaluation.pooled.items()},
         "result": result,
+        **calibration_field,
     }
 
 

@@ -70,6 +70,8 @@ def test_metrics_match_hand_calculations() -> None:
     assert (round(low, 4), round(high, 4)) == (0.2366, 0.7634)
     bins = calibration([0, 1] * 50, [i / 100 for i in range(100)])
     assert len(bins) == 10 and all(b.n == 10 and b.low <= b.observed <= b.high for b in bins)
+    assert (bins[0].p_min, bins[0].p_max, bins[-1].p_max) == (0.0, 0.09, 0.99)
+    assert all(b.p_min <= b.mean_predicted <= b.p_max for b in bins)
     with pytest.raises(ValueError):
         log_loss([2], [0.5])
 

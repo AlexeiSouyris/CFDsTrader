@@ -64,6 +64,32 @@ def test_a_trained_experiment_matches_the_contract() -> None:
     assert set(d["pooled"]) == {"B0", "B1", "M1"}
 
 
+def test_the_calibration_is_stored_with_the_experiment() -> None:
+    # #433: la misma calibración por grupos del informe, por modelo, para que la UI la muestre.
+    train, val = synthetic(500, 1), synthetic(100, 2)
+    d = doc([Fold(W, train, val, 0, 0)], Comparison(-0.02, -0.04, -0.001, 12), train + val)
+    jsonschema.validate(d, SCHEMA)
+    cal = d["calibration"]
+    assert cal["bins"] == CFG.evaluation.calibration_bins and cal["interval"] == "wilson_95"
+    assert set(cal["pooled"]) == {"B0", "B1", "M1"}
+    for groups in cal["pooled"].values():
+        assert sum(g["n"] for g in groups) == len(val)
+        assert all(g["low"] <= g["observed"] <= g["high"] for g in groups)
+        assert all(g["p_min"] <= g["mean_predicted"] <= g["p_max"] for g in groups)
+        assert [g["p_min"] for g in groups] == sorted(g["p_min"] for g in groups)
+    # Un grupo mal formado no pasa el contrato.
+    bad = {**cal, "pooled": {"M1": [{**cal["pooled"]["M1"][0], "observed": 1.5}]}}
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({**d, "calibration": bad}, SCHEMA)
+
+
+def test_a_document_without_calibration_is_still_valid() -> None:
+    # Cambio compatible: los experimentos guardados antes de #433 no la tienen.
+    train, val = synthetic(500, 1), synthetic(100, 2)
+    d = doc([Fold(W, train, val, 0, 0)], Comparison(-0.02, -0.04, -0.001, 12), train + val)
+    jsonschema.validate({k: v for k, v in d.items() if k != "calibration"}, SCHEMA)
+
+
 def test_a_suspended_experiment_is_recorded_too() -> None:
     small = synthetic(50, 3)
     d = doc([Fold(W, small, small, 0, 0)], None, small)
@@ -76,6 +102,7 @@ def test_a_suspended_experiment_is_recorded_too() -> None:
         "blocks": None,
     }
     assert d["pooled"] == {} and d["windows"][0]["skipped"]
+    assert "calibration" not in d, "sin ventanas entrenadas no hay calibración"
 
 
 def test_the_id_changes_with_the_data_but_not_with_the_time() -> None:

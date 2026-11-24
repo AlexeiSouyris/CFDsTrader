@@ -86,6 +86,99 @@
           "low": -0.0021,
           "high": 0.0109,
           "blocks": 52
+        },
+        "calibration": {
+          "bins": 3,
+          "interval": "wilson_95",
+          "pooled": {
+            "B0": [
+              {
+                "p_min": 0.5,
+                "p_max": 0.5,
+                "n": 40,
+                "mean_predicted": 0.5,
+                "observed": 0.45,
+                "low": 0.3109,
+                "high": 0.5975
+              },
+              {
+                "p_min": 0.5,
+                "p_max": 0.5,
+                "n": 40,
+                "mean_predicted": 0.5,
+                "observed": 0.5,
+                "low": 0.352,
+                "high": 0.648
+              },
+              {
+                "p_min": 0.5,
+                "p_max": 0.5,
+                "n": 40,
+                "mean_predicted": 0.5,
+                "observed": 0.55,
+                "low": 0.4025,
+                "high": 0.6891
+              }
+            ],
+            "B1": [
+              {
+                "p_min": 0.41,
+                "p_max": 0.47,
+                "n": 40,
+                "mean_predicted": 0.442,
+                "observed": 0.425,
+                "low": 0.2851,
+                "high": 0.5776
+              },
+              {
+                "p_min": 0.47,
+                "p_max": 0.53,
+                "n": 40,
+                "mean_predicted": 0.501,
+                "observed": 0.475,
+                "low": 0.3313,
+                "high": 0.6229
+              },
+              {
+                "p_min": 0.53,
+                "p_max": 0.62,
+                "n": 40,
+                "mean_predicted": 0.574,
+                "observed": 0.6,
+                "low": 0.445,
+                "high": 0.7376
+              }
+            ],
+            "M1": [
+              {
+                "p_min": 0.38,
+                "p_max": 0.46,
+                "n": 40,
+                "mean_predicted": 0.431,
+                "observed": 0.4,
+                "low": 0.2639,
+                "high": 0.5536
+              },
+              {
+                "p_min": 0.46,
+                "p_max": 0.54,
+                "n": 40,
+                "mean_predicted": 0.497,
+                "observed": 0.5,
+                "low": 0.352,
+                "high": 0.648
+              },
+              {
+                "p_min": 0.54,
+                "p_max": 0.66,
+                "n": 40,
+                "mean_predicted": 0.589,
+                "observed": 0.575,
+                "low": 0.421,
+                "high": 0.7158
+              }
+            ]
+          }
         }
       }
     },
