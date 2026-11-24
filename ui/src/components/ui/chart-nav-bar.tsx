@@ -7,6 +7,7 @@ import { ArrowRightToLine, Ruler } from 'lucide-react'
 
 import { useMapping, type HistoryState, type Viewport } from '@/components/ui/chart-nav'
 import { atLatest, visibleRange, type Mapping } from '@/lib/chart-viewport'
+import { useCoarsePointer } from '@/lib/use-coarse-pointer'
 import { cn } from '@/lib/utils'
 
 /** Capa chica que sigue al encuadre vivo (ejes, rótulos): recibe la escala vigente. */
@@ -45,6 +46,7 @@ export function ChartNavBar({
   history?: HistoryState
   onRetry?: () => void
 }) {
+  const coarse = useCoarsePointer()
   const latest = useSyncExternalStore(
     vp.store.subscribe,
     () => atLatest(vp.store.get(), vp.store.count()),
@@ -101,7 +103,11 @@ export function ChartNavBar({
           type="button"
           aria-pressed={ruler}
           aria-label="Regla: medir arrastrando"
-          title="Medir: activá la regla o usá Shift + arrastrar"
+          title={
+            coarse
+              ? 'Medir: activá la regla o mantené apretado y arrastrá'
+              : 'Medir: activá la regla o usá Shift + arrastrar'
+          }
           onClick={() => onRuler(!ruler)}
           className={cn(
             pill,

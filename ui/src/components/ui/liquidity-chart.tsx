@@ -34,6 +34,7 @@ import { Segmented } from '@/components/ui/segmented'
 import { niceTicks, renderWindow, timeTicks, visibleRange } from '@/lib/chart-viewport'
 import { dateTimeUtc, decimal, timeTickLabel } from '@/lib/format'
 import { fvgKey, levelKey, levelName, levelShort, STATE_LABEL } from '@/lib/liquidity-labels'
+import { useCoarsePointer } from '@/lib/use-coarse-pointer'
 import { useElementWidth } from '@/lib/use-element-width'
 import { cn } from '@/lib/utils'
 import { mergeBars, type ChartBar } from '@/lib/liquidity-bars'
@@ -119,6 +120,7 @@ export function LiquidityChart({
   const [mode, setMode] = useState<ChartMode>('Velas')
   const [ruler, setRuler] = useState(false)
   const [boxRef, width] = useElementWidth<HTMLDivElement>(720, 300)
+  const coarse = useCoarsePointer()
   const svgRef = useRef<SVGSVGElement>(null)
   const clipPrice = useId()
   const clipMarks = useId()
@@ -350,9 +352,10 @@ export function LiquidityChart({
           viewBox={`0 0 ${width} ${height}`}
           role="img"
           tabIndex={0}
-          aria-label={`${instrument}, ${count} ${TF_LABEL[timeframe].long[count === 1 ? 0 : 1]} con ${shownLevels.length} niveles de liquidez y ${shownFvgs.length} FVG. Arrastrá para moverte en el tiempo y usá la rueda para acercar o alejar; con el foco, flechas para desplazar y + y − para el zoom.`}
+          data-swipe-ignore
+          aria-label={`${instrument}, ${count} ${TF_LABEL[timeframe].long[count === 1 ? 0 : 1]} con ${shownLevels.length} niveles de liquidez y ${shownFvgs.length} FVG. ${coarse ? 'Deslizá un dedo en horizontal para moverte en el tiempo y pellizcá con dos para acercar o alejar' : 'Arrastrá para moverte en el tiempo y usá la rueda para acercar o alejar'}; con el foco, flechas para desplazar y + y − para el zoom.`}
           className={cn(
-            'block w-full touch-none select-none focus-visible:outline-2 focus-visible:outline-ring',
+            'block w-full touch-pan-y select-none focus-visible:outline-2 focus-visible:outline-ring',
             ruler ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing',
           )}
           {...nav.handlers}
@@ -629,11 +632,23 @@ export function LiquidityChart({
           FVG lleno o vencido
         </li>
         <li>▲ ▼ vela de desplazamiento</li>
-        <li>
-          Arrastrá para moverte en el tiempo · rueda: zoom · eje de precio: arrastrá para estirarlo,
-          doble clic vuelve a automático
-        </li>
-        <li>Shift + arrastrar (o la regla) mide; un clic o Esc borra la medición</li>
+        {coarse ? (
+          <>
+            <li>
+              Un dedo en horizontal te mueve en el tiempo · dos dedos: zoom · eje de precio:
+              arrastrá para estirarlo, doble toque vuelve a automático
+            </li>
+            <li>Mantené apretado y arrastrá (o usá la regla) para medir; un toque la borra</li>
+          </>
+        ) : (
+          <>
+            <li>
+              Arrastrá para moverte en el tiempo · rueda: zoom · eje de precio: arrastrá para
+              estirarlo, doble clic vuelve a automático
+            </li>
+            <li>Shift + arrastrar (o la regla) mide; un clic o Esc borra la medición</li>
+          </>
+        )}
         {signals.length > 0 && (
           <li className="flex items-center gap-1.5">
             <span className="inline-block size-2 rounded-[2px] bg-up" aria-hidden />

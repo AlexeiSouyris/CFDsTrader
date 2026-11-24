@@ -6,6 +6,11 @@
  * el gráfico: ← → desplazan, + − acercan y alejan, Fin va a la última vela, Inicio a la primera.
  * La medición (#281) pasa a Shift + arrastrar o al botón de regla.
  *
+ * Con el dedo (#424): el gráfico deja el desplazamiento vertical a la página (`touch-action:
+ * pan-y`), así no atrapa el scroll. Un dedo en horizontal mueve el gráfico, dos dedos hacen zoom,
+ * mantener apretado y arrastrar mide, y sobre el eje de precio el arrastre vertical lo estira.
+ * Para esos tres gestos se cancela el `touchmove` (la página no se mueve mientras tanto).
+ *
  * Rendimiento: el encuadre vive en `ViewportStore` (fuera de React). Las velas se dibujan una vez
  * para un tramo (lo visible más una pantalla a cada lado) y, mientras se arrastra o se hace zoom,
  * se mueven con una transformación del SVG (`matrix`) puesta a mano, sin volver a dibujarlas.
@@ -56,6 +61,10 @@ const WHEEL_ZOOM = 0.002
 const PINCH_ZOOM = 0.01
 /** Sensibilidad del arrastre vertical sobre el eje de precio. */
 const AXIS_STRETCH = 0.006
+/** Mantener apretado el dedo este tiempo (ms) sin moverlo empieza a medir. */
+export const LONG_PRESS_MS = 450
+/** Cuánto (px de pantalla) puede temblar el dedo durante esa espera. */
+const LONG_PRESS_SLOP = 8
 
 export type HistoryState = 'idle' | 'loading' | 'done' | 'error'
 
@@ -310,6 +319,12 @@ export function useChartNav(
   const drag = useRef<Drag | null>(null)
   const pointers = useRef(new Map<number, { x: number; y: number }>())
   const pinch = useRef<{ d0: number; view: View } | null>(null)
+  /** dedo apoyado esperando el toque largo que empieza a medir */
+  const press = useRef<{ timer: number } | null>(null)
+  const endPress = () => {
+    if (press.current) window.clearTimeout(press.current.timer)
+    press.current = null
+  }
 
   /** De la pantalla al SVG: posición y cuántas unidades del SVG mide un px. */
   const toSvg = (clientX: number, clientY: number) => {
@@ -355,6 +370,22 @@ export function useChartNav(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [svgRef, vp.store])
 
+  // El dedo: el vertical es de la página (pan-y), salvo al medir, estirar el eje o pellizcar.
+  useEffect(() => {
+    const svg = svgRef.current
+    if (!svg) return
+    const onTouchMove = (e: TouchEvent) => {
+      const mode = drag.current?.mode
+      if (e.touches.length > 1 || pinch.current || mode === 'measure' || mode === 'axis')
+        if (e.cancelable) e.preventDefault()
+    }
+    svg.addEventListener('touchmove', onTouchMove, { passive: false })
+    return () => {
+      svg.removeEventListener('touchmove', onTouchMove)
+      endPress()
+    }
+  }, [svgRef])
+
   const capture = (e: PointerEvent<SVGSVGElement>) => {
     try {
       e.currentTarget.setPointerCapture?.(e.pointerId)
@@ -369,6 +400,8 @@ export function useChartNav(
     // dos dedos: pellizco (zoom)
     if (pointers.current.size === 2 && e.pointerType === 'touch') {
       const [a, b] = [...pointers.current.values()]
+      endPress()
+      if (drag.current?.mode === 'measure') measure.handlers.onPointerCancel()
       drag.current = null
       pinch.current = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, view: vp.store.get() }
       measure.clear()
@@ -399,8 +432,30 @@ export function useChartNav(
     } else if (p.x >= 0 && p.x <= plotW && p.y >= 0 && p.y <= height) {
       drag.current = { ...base, mode: 'pan' }
       measure.clear()
+      if (e.pointerType === 'touch') startPress(e)
     } else return
     capture(e)
+  }
+
+  /** Toque largo: si el dedo queda quieto, el arrastre pasa a medir desde donde se apoyó. */
+  const startPress = (e: PointerEvent<SVGSVGElement>) => {
+    endPress()
+    const svg = e.currentTarget
+    const down = { clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, button: 0 }
+    const timer = window.setTimeout(() => {
+      const d = drag.current
+      const waiting = press.current !== null
+      press.current = null
+      if (!waiting || !d || d.id !== down.pointerId || d.mode !== 'pan') return
+      // lo poco que se movió mientras esperaba se deshace: medir no desplaza
+      vp.store.set({ ...d.view, manual: d.manual, user: true })
+      drag.current = { ...d, mode: 'measure' }
+      measure.handlers.onPointerDown({
+        ...down,
+        currentTarget: svg,
+      } as unknown as PointerEvent<SVGSVGElement>)
+    }, LONG_PRESS_MS)
+    press.current = { timer }
   }
 
   const onPointerMove = (e: PointerEvent<SVGSVGElement>) => {
@@ -417,6 +472,8 @@ export function useChartNav(
     }
     const d = drag.current
     if (!d || d.id !== e.pointerId || d.mode === 'measure') return measure.handlers.onPointerMove(e)
+    if (press.current && Math.hypot(e.clientX - d.cx, e.clientY - d.cy) > LONG_PRESS_SLOP)
+      endPress()
     const p = toSvg(e.clientX, e.clientY)
     if (!p) return
     const dx = (e.clientX - d.cx) * p.k
@@ -442,6 +499,7 @@ export function useChartNav(
 
   const onPointerUp = (e: PointerEvent<SVGSVGElement>) => {
     pointers.current.delete(e.pointerId)
+    endPress()
     if (pinch.current) {
       if (pointers.current.size < 2) pinch.current = null
       return
@@ -467,6 +525,7 @@ export function useChartNav(
 
   const onPointerCancel = (e: PointerEvent<SVGSVGElement>) => {
     pointers.current.delete(e.pointerId)
+    endPress()
     pinch.current = null
     drag.current = null
     measure.handlers.onPointerCancel()
