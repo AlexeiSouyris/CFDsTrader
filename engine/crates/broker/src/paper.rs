@@ -269,6 +269,8 @@ pub struct PaperBroker {
     events: Vec<BrokerEvent>,
     trades: Vec<OpenTrade>,
     kill_switch: Option<(String, DateTime<Utc>)>,
+    /// Máximo del capital para el drawdown. Solo lo actualiza `assess` (cada orden), nunca una
+    /// lectura: así la reconstrucción desde el registro llega al mismo valor (#464).
     peak_equity: Decimal,
     /// Primer corte sin tasa de referencia que encontró una valuación (error de datos).
     missing_rate: Cell<Option<DateTime<Utc>>>,
@@ -961,8 +963,9 @@ impl crate::Broker for PaperBroker {
     }
 
     fn account(&mut self, now: DateTime<Utc>) -> PaperAccount {
+        // Es una lectura (la UI la pide cuando quiere): no mueve el máximo del capital. Solo lo
+        // mueve la evaluación de una orden, que la reconstrucción repite igual (#464).
         let (equity, unrealized, margin_used) = self.equity_at(now);
-        self.peak_equity = self.peak_equity.max(equity);
         let day_start = self.day_start(now);
         let realized_today: Decimal = self
             .trades

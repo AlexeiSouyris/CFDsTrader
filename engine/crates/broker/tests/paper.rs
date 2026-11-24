@@ -716,3 +716,47 @@ fn a_rate_published_after_the_start_is_used_once_read_again() {
             .is_err()
     );
 }
+
+/// US100 sube después de la entrada y vuelve: el capital pasa por un máximo entre dos órdenes.
+fn up_and_back() -> PaperBroker {
+    let mut c = flat("US100");
+    c[22] = bar("US100", 22, dec!(100), dec!(103), dec!(100), dec!(103));
+    c[23] = bar("US100", 23, dec!(103), dec!(103), dec!(100), dec!(100));
+    broker_with(
+        |r| r.max_drawdown_pct = dec!(0.5),
+        vec![("US100", c, limits()), ("DE40", flat("DE40"), limits())],
+    )
+}
+
+#[test]
+fn reading_the_account_does_not_change_the_peak_nor_later_decisions() {
+    // #464: `account()` es una lectura (la UI la llama cuando quiere). No mueve el máximo del
+    // capital: si lo moviera, una lectura en el pico cambiaría la decisión siguiente y la
+    // reconstrucción (que no repite lecturas) daría otro informe.
+    let first = order("up", "US100", OrderSide::Long, dec!(96), 20);
+    let second = order("next", "DE40", OrderSide::Long, dec!(96), 26);
+
+    let mut quiet = up_and_back();
+    quiet.submit(&first);
+    let quiet_report = quiet.submit(&second);
+
+    let mut read = up_and_back();
+    read.submit(&first);
+    let peak = read.account(at(23));
+    assert!(peak.equity > dec!(1005), "{peak:?}");
+    let read_report = read.submit(&second);
+
+    assert_eq!(read_report, quiet_report);
+    assert_eq!(read.kill_switch_active(), quiet.kill_switch_active());
+    assert_eq!(read.journal(), quiet.journal());
+
+    let positions = read.positions(at(28));
+    let (_, rec) = cfds_broker::restore_and_reconcile(
+        read.config().clone(),
+        up_and_back().markets().clone(),
+        read.journal(),
+        &positions,
+        at(28),
+    );
+    assert!(rec.is_clean(), "{rec:?}");
+}
