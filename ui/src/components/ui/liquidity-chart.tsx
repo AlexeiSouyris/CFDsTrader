@@ -32,7 +32,7 @@ import { ChartReadout } from '@/components/ui/chart-readout'
 import { LineArea } from '@/components/ui/line-area'
 import { Segmented } from '@/components/ui/segmented'
 import { niceTicks, renderWindow, timeTicks, visibleRange } from '@/lib/chart-viewport'
-import { dateTimeUtc, dateUtc, decimal } from '@/lib/format'
+import { dateTimeUtc, decimal, timeTickLabel } from '@/lib/format'
 import { fvgKey, levelKey, levelName, levelShort, STATE_LABEL } from '@/lib/liquidity-labels'
 import { useElementWidth } from '@/lib/use-element-width'
 import { cn } from '@/lib/utils'
@@ -429,7 +429,7 @@ export function LiquidityChart({
                       </text>
                     </g>
                   ))}
-                  {timeTicks(m, n, 4).map((i) => {
+                  {timeTicks(m, n, 4).map((i, _, ticks) => {
                     const tx = m.x(i)
                     // cerca de los bordes no entra el rótulo entero: se omite (no se pisa con el vecino)
                     if (tx < 22 || tx > plotW - 22) return null
@@ -443,7 +443,10 @@ export function LiquidityChart({
                         fontSize={10}
                         fill="var(--muted-foreground)"
                       >
-                        {dateUtc(all[i].start)}
+                        {timeTickLabel(
+                          all[i].start,
+                          ticks.length > 1 ? all[i - (ticks[1] - ticks[0])]?.start : undefined,
+                        )}
                       </text>
                     )
                   })}

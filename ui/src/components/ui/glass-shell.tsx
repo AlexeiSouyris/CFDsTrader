@@ -243,9 +243,10 @@ export function GlassShell({
             role="note"
             className="mt-8 rounded-xl border border-border px-3 py-2 text-[11px] text-muted-foreground"
           >
-            Prototipo con <strong className="text-foreground">datos de ejemplo</strong>: no está
-            conectado al motor ni a IG y no calcula nada. Nada de lo que se ve acá es una señal real
-            ni una promesa de ganancia.
+            Prototipo en <strong className="text-foreground">simulación (paper)</strong>: muestra lo
+            que guardó el motor y, donde el gateway no responde, datos de ejemplo. La interfaz no
+            calcula nada ni envía órdenes reales. Nada de lo que se ve acá es una señal real ni una
+            promesa de ganancia.
           </p>
         </main>
       </div>
@@ -421,8 +422,19 @@ function Dock({
   onSelect: (id: string) => void
   side?: boolean
 }) {
+  // En el teléfono la barra se desplaza en horizontal: la vista activa se trae a la vista, si no
+  // al llegar por el buscador o el deslizamiento quedaba fuera de la barra (#415).
+  const bar = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const nav = bar.current
+    const on = nav?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (side || !nav || !on || nav.scrollWidth <= nav.clientWidth) return
+    const left = on.offsetLeft - (nav.clientWidth - on.offsetWidth) / 2
+    nav.scrollTo?.({ left: Math.max(0, left) })
+  }, [active, side])
   return (
     <nav
+      ref={bar}
       aria-label={side ? 'Accesos' : 'Vistas'}
       className={cn(
         'glass z-20 flex gap-1 rounded-full p-1.5',
@@ -447,7 +459,9 @@ function Dock({
             }}
             className={cn(
               'flex min-h-11 items-center justify-center gap-1 rounded-full text-[10px] font-bold transition-colors',
-              side ? 'size-11' : 'min-w-[60px] flex-1 shrink-0 flex-col px-1 py-1',
+              side
+                ? 'size-11'
+                : 'min-w-[60px] flex-[1_0_auto] flex-col px-2 py-1 whitespace-nowrap',
               on
                 ? 'bg-primary text-primary-foreground'
                 : 'hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]',
