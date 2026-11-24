@@ -22,9 +22,13 @@
       "pattern": "^[0-9a-f]{7,40}(-dirty)?$"
     },
     "backtest_run_id": {
-      "description": "Corrida de backtest_runs de la que salen las propuestas.",
+      "description": "Corrida de la que salen las propuestas: de backtest_runs o, con label_source = ml_label_runs, de ml_label_runs (#409).",
       "type": "string",
       "pattern": "^[A-Za-z0-9._-]{1,100}$"
+    },
+    "label_source": {
+      "description": "Opcional (#409, cambio compatible): de qué tabla es backtest_run_id. 'backtest_runs' (con P/L, #200) si falta; 'ml_label_runs' para las corridas de etiquetas sin P/L (#399).",
+      "enum": ["backtest_runs", "ml_label_runs"]
     },
     "config_sha256": {
       "description": "SHA-256 (hex) de config/ml.toml, probability.toml, data_split.toml y backtest.toml.",

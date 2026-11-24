@@ -104,6 +104,7 @@ def run(
         created_at=datetime.now(UTC),
         code_version=code_version(),
         backtest_run_id=labels.ref,
+        label_source=labels.table,
         config_sha256=sha256_hex(*(f"{n}\n{texts[n]}" for n in sorted(CONFIG_FILES))),
         examples=dataset.examples,
         feature_names=dataset.feature_names,

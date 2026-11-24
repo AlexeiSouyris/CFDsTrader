@@ -423,8 +423,27 @@ impl PgStore {
         &self,
         rows: &[DailyIndicator],
     ) -> Result<InsertReport, StorageError> {
+        Ok(self.insert_daily_indicators_with(rows, false).await?.0)
+    }
+
+    /// Como [`Self::insert_daily_indicators`], pero una fila que ya está guardada con **otros** valores no frena
+    /// la carga (#409): se deja la guardada tal cual (solo agregar: nunca se pisa), no se guarda
+    /// la nueva y su día vuelve en la lista, para reportarlo. El resto se guarda.
+    pub async fn insert_daily_indicators_keeping(
+        &self,
+        rows: &[DailyIndicator],
+    ) -> Result<(InsertReport, Vec<NaiveDate>), StorageError> {
+        self.insert_daily_indicators_with(rows, true).await
+    }
+
+    async fn insert_daily_indicators_with(
+        &self,
+        rows: &[DailyIndicator],
+        keep: bool,
+    ) -> Result<(InsertReport, Vec<NaiveDate>), StorageError> {
         let mut tx = self.pool.begin().await?;
         let mut report = InsertReport::default();
+        let mut kept = Vec::new();
         for r in rows {
             let atr_period = i32::try_from(r.atr_period).unwrap_or(i32::MAX);
             let window = i32::try_from(r.realized_vol_window).unwrap_or(i32::MAX);
@@ -463,14 +482,17 @@ impl PgStore {
             if stored == (r.published_at, r.atr, r.realized_vol) {
                 report.unchanged += 1;
             } else {
-                return Err(StorageError::DailyIndicatorConflict {
-                    instrument: r.instrument_id.to_string(),
-                    day: r.day,
-                });
+                if !keep {
+                    return Err(StorageError::DailyIndicatorConflict {
+                        instrument: r.instrument_id.to_string(),
+                        day: r.day,
+                    });
+                }
+                kept.push(r.day);
             }
         }
         tx.commit().await?;
-        Ok(report)
+        Ok((report, kept))
     }
 
     /// Guarda caídas desde el máximo (#213) en **una sola transacción**, como
@@ -480,8 +502,27 @@ impl PgStore {
         &self,
         rows: &[DailyDrawdown],
     ) -> Result<InsertReport, StorageError> {
+        Ok(self.insert_daily_drawdowns_with(rows, false).await?.0)
+    }
+
+    /// Como [`Self::insert_daily_drawdowns`], pero una fila que ya está guardada con **otros** valores no frena
+    /// la carga (#409): se deja la guardada tal cual (solo agregar: nunca se pisa), no se guarda
+    /// la nueva y su día vuelve en la lista, para reportarlo. El resto se guarda.
+    pub async fn insert_daily_drawdowns_keeping(
+        &self,
+        rows: &[DailyDrawdown],
+    ) -> Result<(InsertReport, Vec<NaiveDate>), StorageError> {
+        self.insert_daily_drawdowns_with(rows, true).await
+    }
+
+    async fn insert_daily_drawdowns_with(
+        &self,
+        rows: &[DailyDrawdown],
+        keep: bool,
+    ) -> Result<(InsertReport, Vec<NaiveDate>), StorageError> {
         let mut tx = self.pool.begin().await?;
         let mut report = InsertReport::default();
+        let mut kept = Vec::new();
         for r in rows {
             let window = i32::try_from(r.drawdown_window).unwrap_or(i32::MAX);
             let inserted = sqlx::query(
@@ -515,14 +556,17 @@ impl PgStore {
             if stored == (r.published_at, r.drawdown) {
                 report.unchanged += 1;
             } else {
-                return Err(StorageError::DailyIndicatorConflict {
-                    instrument: r.instrument_id.to_string(),
-                    day: r.day,
-                });
+                if !keep {
+                    return Err(StorageError::DailyIndicatorConflict {
+                        instrument: r.instrument_id.to_string(),
+                        day: r.day,
+                    });
+                }
+                kept.push(r.day);
             }
         }
         tx.commit().await?;
-        Ok(report)
+        Ok((report, kept))
     }
 
     /// Guarda tercios de la volatilidad (`daily_vol_tercile.v1`) en **una sola transacción**,
@@ -533,8 +577,27 @@ impl PgStore {
         &self,
         rows: &[DailyVolTercile],
     ) -> Result<InsertReport, StorageError> {
+        Ok(self.insert_daily_vol_terciles_with(rows, false).await?.0)
+    }
+
+    /// Como [`Self::insert_daily_vol_terciles`], pero una fila que ya está guardada con **otros** valores no frena
+    /// la carga (#409): se deja la guardada tal cual (solo agregar: nunca se pisa), no se guarda
+    /// la nueva y su día vuelve en la lista, para reportarlo. El resto se guarda.
+    pub async fn insert_daily_vol_terciles_keeping(
+        &self,
+        rows: &[DailyVolTercile],
+    ) -> Result<(InsertReport, Vec<NaiveDate>), StorageError> {
+        self.insert_daily_vol_terciles_with(rows, true).await
+    }
+
+    async fn insert_daily_vol_terciles_with(
+        &self,
+        rows: &[DailyVolTercile],
+        keep: bool,
+    ) -> Result<(InsertReport, Vec<NaiveDate>), StorageError> {
         let mut tx = self.pool.begin().await?;
         let mut report = InsertReport::default();
+        let mut kept = Vec::new();
         for r in rows {
             let window = i32::try_from(r.realized_vol_window).unwrap_or(i32::MAX);
             let years = i32::try_from(r.history_years).unwrap_or(i32::MAX);
@@ -573,14 +636,17 @@ impl PgStore {
             if (stored.0, stored.1.as_deref()) == (r.published_at, tercile) {
                 report.unchanged += 1;
             } else {
-                return Err(StorageError::DailyIndicatorConflict {
-                    instrument: r.instrument_id.to_string(),
-                    day: r.day,
-                });
+                if !keep {
+                    return Err(StorageError::DailyIndicatorConflict {
+                        instrument: r.instrument_id.to_string(),
+                        day: r.day,
+                    });
+                }
+                kept.push(r.day);
             }
         }
         tx.commit().await?;
-        Ok(report)
+        Ok((report, kept))
     }
 
     /// Tercios de la volatilidad de un instrumento con día en `[from, to)` y los parámetros
@@ -694,8 +760,27 @@ impl PgStore {
         &self,
         candles: &[DailyCandle],
     ) -> Result<InsertReport, StorageError> {
+        Ok(self.insert_daily_with(candles, false).await?.0)
+    }
+
+    /// Como [`Self::insert_daily`], pero una fila que ya está guardada con **otros** valores no frena
+    /// la carga (#409): se deja la guardada tal cual (solo agregar: nunca se pisa), no se guarda
+    /// la nueva y su día vuelve en la lista, para reportarlo. El resto se guarda.
+    pub async fn insert_daily_keeping(
+        &self,
+        candles: &[DailyCandle],
+    ) -> Result<(InsertReport, Vec<NaiveDate>), StorageError> {
+        self.insert_daily_with(candles, true).await
+    }
+
+    async fn insert_daily_with(
+        &self,
+        candles: &[DailyCandle],
+        keep: bool,
+    ) -> Result<(InsertReport, Vec<NaiveDate>), StorageError> {
         let mut tx = self.pool.begin().await?;
         let mut report = InsertReport::default();
+        let mut kept = Vec::new();
         for c in candles {
             let inserted = sqlx::query(concat!(
                 "INSERT INTO daily_candles (",
@@ -732,14 +817,17 @@ impl PgStore {
             if row_to_daily(&row)? == *c {
                 report.unchanged += 1;
             } else {
-                return Err(StorageError::DailyConflict {
-                    instrument: c.instrument_id.to_string(),
-                    day: c.day,
-                });
+                if !keep {
+                    return Err(StorageError::DailyConflict {
+                        instrument: c.instrument_id.to_string(),
+                        day: c.day,
+                    });
+                }
+                kept.push(c.day);
             }
         }
         tx.commit().await?;
-        Ok(report)
+        Ok((report, kept))
     }
 
     /// Velas diarias de un instrumento con día en `[from, to)`, en orden.

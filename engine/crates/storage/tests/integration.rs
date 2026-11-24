@@ -911,3 +911,59 @@ async fn news_interpretations_are_read_by_interpreter_range_and_cutoff() {
 fn id_of(s: &str) -> InstrumentId {
     s.parse().unwrap()
 }
+
+/// #409: con `_keeping`, una fila ya guardada con otros valores no se pisa ni frena el resto.
+#[tokio::test]
+#[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
+async fn keeping_loads_save_the_rest_and_report_the_rows_that_differ() {
+    use cfds_core::{DailyVolTercile, VolTercile};
+    let s = store().await;
+    // Tablas de solo agregar: un instrumento propio por corrida.
+    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
+    let us = with_instrument(&s, &format!("ITKEEP{nanos}")).await;
+    let d = days(&us);
+    // La historia vieja empezaba en el día 2 y ese día quedó distinto.
+    let mut old_first = d[1].clone();
+    old_first.open += dec!(3);
+    s.insert_daily(&[old_first.clone()]).await.unwrap();
+    assert!(
+        s.insert_daily(&d).await.is_err(),
+        "sin _keeping sigue frenando"
+    );
+    let (r, kept) = s.insert_daily_keeping(&d).await.unwrap();
+    assert_eq!((r.inserted, r.unchanged), (2, 0));
+    assert_eq!(kept, vec![d[1].day]);
+    let (from, to) = ("2026-10-01".parse().unwrap(), "2026-11-01".parse().unwrap());
+    assert_eq!(
+        s.daily_candles(&us, from, to).await.unwrap(),
+        vec![d[0].clone(), old_first, d[2].clone()],
+        "la guardada no se pisa"
+    );
+    let (again, kept) = s.insert_daily_keeping(&d).await.unwrap();
+    assert_eq!((again.inserted, again.unchanged, kept.len()), (0, 2, 1));
+
+    // Tercios: el día viejo sin historia (sin valor) queda sin valor; el resto se guarda.
+    let row = |day: &str, tercile: Option<VolTercile>| DailyVolTercile {
+        instrument_id: us.clone(),
+        day: day.parse().unwrap(),
+        published_at: format!("{day}T23:00:00Z").parse().unwrap(),
+        realized_vol_window: 20,
+        history_years: 3,
+        tercile,
+    };
+    s.insert_daily_vol_terciles(&[row("2026-11-20", None)])
+        .await
+        .unwrap();
+    let new = vec![
+        row("2026-11-19", Some(VolTercile::Low)),
+        row("2026-11-20", Some(VolTercile::High)),
+    ];
+    let (r, kept) = s.insert_daily_vol_terciles_keeping(&new).await.unwrap();
+    assert_eq!((r.inserted, kept.len()), (1, 1));
+    let day = |d: &str| d.parse::<chrono::NaiveDate>().unwrap();
+    let read = s
+        .daily_vol_terciles(&us, 20, 3, day("2026-11-01"), day("2026-12-01"))
+        .await
+        .unwrap();
+    assert_eq!(read, vec![new[0].clone(), row("2026-11-20", None)]);
+}

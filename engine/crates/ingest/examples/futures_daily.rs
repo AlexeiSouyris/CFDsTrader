@@ -11,8 +11,10 @@
 //! - Se guardan en `daily_candles` bajo el instrumento derivado (por ejemplo `US500.FUT`): nunca
 //!   pisan las diarias de IG. Después, `daily_indicators -- --fuente futuros` les calcula los
 //!   indicadores.
-//! - Es idempotente: una diaria ya guardada e idéntica cuenta como "ya estaba", y una distinta es
-//!   un error (sería repintado).
+//! - Es idempotente: una diaria ya guardada e idéntica cuenta como "ya estaba". Una ya guardada
+//!   con **otros** valores no se pisa (solo agregar) ni frena el resto (#409): queda la guardada,
+//!   la nueva no se guarda y se avisa qué días son. Pasa, por ejemplo, con el primer día de una
+//!   historia que después se extendió hacia atrás (ese día se había armado sin su primera hora).
 
 use std::path::PathBuf;
 
@@ -68,7 +70,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     &sources.derived_instrument(CandleSource::Futures, &spec.instrument)?,
                 )
                 .await?;
-            let saved = store.insert_daily(&daily).await?;
+            // Solo agregar (#409): una diaria ya guardada con otros valores no se pisa ni frena el
+            // resto; queda la guardada y se avisa.
+            let (saved, kept) = store.insert_daily_keeping(&daily).await?;
             println!(
                 "{out} ({}): {} diarias del {} al {} ({} vencimientos) → {} nuevas, {} ya estaban",
                 sources.label(CandleSource::Futures),
@@ -79,6 +83,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 saved.inserted,
                 saved.unchanged
             );
+            if !kept.is_empty() {
+                eprintln!(
+                    "⚠️  {out}: {} diarias ya guardadas con otros valores, no se pisan (quedan las \
+                     guardadas): {}",
+                    kept.len(),
+                    days_text(&kept)
+                );
+            }
             Ok(())
         }
         .await;
@@ -91,4 +103,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err(format!("{failed} instrumentos con errores").into());
     }
     Ok(())
+}
+
+/// Los días en texto: todos si son pocos; si no, cuántos y el primero y el último.
+fn days_text(days: &[chrono::NaiveDate]) -> String {
+    match days {
+        [] => String::new(),
+        [a, .., b] if days.len() > 5 => format!("{} días, del {a} al {b}", days.len()),
+        _ => days
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(", "),
+    }
 }
