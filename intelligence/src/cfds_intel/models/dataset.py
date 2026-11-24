@@ -201,6 +201,12 @@ class LabelSource(Protocol):
         """Identificador que queda en el experimento (`backtest_run_id` de ml_experiment.v1)."""
         ...
 
+    @property
+    def table(self) -> str:
+        """De qué tabla es `ref` (`label_source` de ml_experiment.v1, #409): `backtest_runs` o
+        `ml_label_runs`."""
+        ...
+
     def rows(self, conn: psycopg.Connection) -> list[Row]: ...
 
     def span(self, conn: psycopg.Connection) -> tuple[datetime, datetime]:
@@ -228,6 +234,10 @@ class BacktestOutcomes:
     @property
     def ref(self) -> str:
         return self.run_id
+
+    @property
+    def table(self) -> str:
+        return "backtest_runs"
 
     def span(self, conn: psycopg.Connection) -> tuple[datetime, datetime]:
         with conn.cursor() as cur:
@@ -269,6 +279,10 @@ class MlLabels:
     @property
     def ref(self) -> str:
         return self.run_id
+
+    @property
+    def table(self) -> str:
+        return "ml_label_runs"
 
     def span(self, conn: psycopg.Connection) -> tuple[datetime, datetime]:
         with conn.cursor() as cur:

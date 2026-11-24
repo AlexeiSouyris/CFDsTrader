@@ -14,7 +14,7 @@ import psycopg
 import pytest
 
 from cfds_intel.models.config import ROOT, load_config
-from cfds_intel.models.dataset import BacktestOutcomes
+from cfds_intel.models.dataset import BacktestOutcomes, MlLabels
 from cfds_intel.models.experiment import CONFIG_FILES, run
 from cfds_intel.models.registry import record
 
@@ -26,20 +26,29 @@ CFG = load_config(TEXTS["ml.toml"])
 SCHEMA = json.loads((ROOT / "contracts" / "ml_experiment.v1.schema.json").read_text())
 
 
-def seed_run(conn: psycopg.Connection, run_id: str) -> None:
-    """Corrida de 2021-01 a 2024-04: 12 meses fuera de muestra y una sola ventana de 24 + 3."""
+def seed_run(conn: psycopg.Connection, run_id: str, *, without_pnl: bool = False) -> None:
+    """Corrida de 2021-01 a 2024-04: 12 meses fuera de muestra y una sola ventana de 24 + 3.
+    `without_pnl`: corrida de etiquetas sin P/L (`ml_label_runs` y `ml_labels`, #399)."""
     start, end = datetime(2021, 1, 1, tzinfo=UTC), datetime(2024, 4, 1, tzinfo=UTC)
     conn.execute(
         """INSERT INTO instruments (id, name, asset_class, currency, exchange_timezone)
            VALUES ('US500', 'US 500', 'index', 'USD', 'America/New_York')
            ON CONFLICT (id) DO NOTHING"""
     )
-    conn.execute(
-        """INSERT INTO backtest_runs (run_id, instruments, timeframe, from_at, to_at,
-             config_sha256, initial_equity, costs, news, metrics, started_at, finished_at)
-           VALUES (%s, '["US500"]', '15m', %s, %s, %s, 10000, '{}', NULL, '{}', %s, %s)""",
-        (run_id, start, end, "0" * 64, end, end),
-    )
+    if without_pnl:
+        conn.execute(
+            """INSERT INTO ml_label_runs (run_id, instrument_id, candle_source, from_at, to_at,
+                 method, config_sha256)
+               VALUES (%s, 'US500', 'futures', %s, %s, 'mid_no_costs', %s)""",
+            (run_id, start, end, "0" * 64),
+        )
+    else:
+        conn.execute(
+            """INSERT INTO backtest_runs (run_id, instruments, timeframe, from_at, to_at,
+                 config_sha256, initial_equity, costs, news, metrics, started_at, finished_at)
+               VALUES (%s, '["US500"]', '15m', %s, %s, %s, 10000, '{}', NULL, '{}', %s, %s)""",
+            (run_id, start, end, "0" * 64, end, end),
+        )
     rnd = random.Random(7)  # noqa: S311
     with conn.cursor() as cur:
         for i in range(700):
@@ -64,21 +73,28 @@ def seed_run(conn: psycopg.Connection, run_id: str) -> None:
             )
             exit_at = (at + timedelta(hours=3)).isoformat().replace("+00:00", "Z")
             reason = "tp1" if hit else "stop"
-            cur.execute(
-                """INSERT INTO outcomes (proposal_id, kind, entry_at, entry_price, exits,
-                     commission, funding, gross_pnl, net_pnl, hit_tp1, hit_stop, exit_reason)
-                   VALUES (%s, 'simulated', %s, 100, %s, 0, 0, 1, 1, %s, %s, %s)""",
-                (
-                    pid,
-                    at,
-                    json.dumps(
-                        [{"at": exit_at, "price": "100", "fraction": "1", "reason": reason}]
+            if without_pnl:
+                cur.execute(
+                    """INSERT INTO ml_labels (proposal_id, signal_at, y, exit_reason,
+                         resolved_at, method) VALUES (%s, %s, %s, %s, %s, 'mid_no_costs')""",
+                    (pid, at, int(hit), reason, at + timedelta(hours=3)),
+                )
+            else:
+                cur.execute(
+                    """INSERT INTO outcomes (proposal_id, kind, entry_at, entry_price, exits,
+                         commission, funding, gross_pnl, net_pnl, hit_tp1, hit_stop, exit_reason)
+                       VALUES (%s, 'simulated', %s, 100, %s, 0, 0, 1, 1, %s, %s, %s)""",
+                    (
+                        pid,
+                        at,
+                        json.dumps(
+                            [{"at": exit_at, "price": "100", "fraction": "1", "reason": reason}]
+                        ),
+                        hit,
+                        not hit,
+                        reason,
                     ),
-                    hit,
-                    not hit,
-                    reason,
-                ),
-            )
+                )
             cur.execute(
                 """INSERT INTO ml_features (proposal_id, as_of, atr14_m15, realized_vol_tercile,
                      session_band) VALUES (%s, %s, %s, 'mid', 'open')""",
@@ -105,3 +121,31 @@ def test_an_experiment_runs_end_to_end_and_is_recorded_once() -> None:
             conn.execute(
                 "DELETE FROM ml_experiments WHERE experiment_id = %s", (doc["experiment_id"],)
             )
+
+
+def test_an_experiment_on_labels_without_pnl_is_recorded_against_its_label_run() -> None:
+    # #409: antes la clave foránea exigía la corrida en backtest_runs.
+    run_id = f"ml-exp-sinpl-{time.time_ns()}"
+    with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as conn:
+        seed_run(conn, run_id, without_pnl=True)
+        dataset, evaluation, doc, _ = run(conn, MlLabels(run_id), CFG, TEXTS)
+        jsonschema.validate(doc, SCHEMA)
+        assert doc["label_source"] == "ml_label_runs"
+        assert len(dataset.examples) == 700
+        assert evaluation.windows[0].skipped is None
+        assert record(conn, doc) is True
+        assert record(conn, doc) is False
+        stored = conn.execute(
+            """SELECT label_source, backtest_run_ref, ml_label_run_ref FROM ml_experiments
+               WHERE experiment_id = %s""",
+            (doc["experiment_id"],),
+        ).fetchone()
+        assert stored == ("ml_label_runs", None, run_id)
+        # La integridad sigue: una corrida que no está en ml_label_runs no se registra.
+        ghost = dict(doc, backtest_run_id="no-existe", experiment_id="f" * 64)
+        with pytest.raises(psycopg.errors.ForeignKeyViolation):
+            record(conn, ghost)
+        # Y una de backtest_runs tiene que estar en backtest_runs.
+        wrong = dict(doc, label_source="backtest_runs", experiment_id="e" * 64)
+        with pytest.raises(psycopg.errors.ForeignKeyViolation):
+            record(conn, wrong)

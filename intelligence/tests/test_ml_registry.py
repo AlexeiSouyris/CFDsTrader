@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import jsonschema
+import pytest
 
 from cfds_intel.models.baselines import load_probability_config
 from cfds_intel.models.compare import Comparison
@@ -99,3 +100,39 @@ def test_the_contract_rejects_bad_documents() -> None:
         except jsonschema.ValidationError:
             continue
         raise AssertionError(f"el contrato aceptó {key}={bad!r}")
+
+
+def test_the_label_source_is_optional_and_changes_the_id_only_when_present() -> None:
+    # #409: los experimentos de backtest_runs conservan documento e id; los de ml_label_runs
+    # llevan el campo y otro id, aunque el run_id sea el mismo.
+    train, val = synthetic(300, 1), synthetic(60, 2)
+    base = doc([Fold(W, train, val, 0, 0)], None, train + val)
+    assert "label_source" not in base
+    other = document(
+        created_at=T0,
+        code_version="0123456789abcdef0123456789abcdef01234567",
+        backtest_run_id="bt-1",
+        config_sha256="a" * 64,
+        examples=train + val,
+        feature_names=["signal", "instrument_US500"],
+        cfg=CFG,
+        evaluation=evaluate([Fold(W, train, val, 0, 0)], CFG.training, PROB),
+        comparison=None,
+        label_source="ml_label_runs",
+    )
+    jsonschema.validate(other, SCHEMA)
+    assert other["label_source"] == "ml_label_runs"
+    assert other["experiment_id"] != base["experiment_id"]
+    with pytest.raises(ValueError, match="label_source"):
+        document(
+            created_at=T0,
+            code_version="0123456789abcdef0123456789abcdef01234567",
+            backtest_run_id="bt-1",
+            config_sha256="a" * 64,
+            examples=train + val,
+            feature_names=["signal"],
+            cfg=CFG,
+            evaluation=evaluate([Fold(W, train, val, 0, 0)], CFG.training, PROB),
+            comparison=None,
+            label_source="otra",
+        )

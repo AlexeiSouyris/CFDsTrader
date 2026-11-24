@@ -55,7 +55,8 @@ def render(
         "",
         "## Experimento",
         "",
-        f"- Corrida de backtest: `{doc['backtest_run_id']}` (fuente: {source})",
+        f"- Corrida: `{doc['backtest_run_id']}` de"
+        f" `{doc.get('label_source', 'backtest_runs')}` (fuente de velas: {source})",
         f"- Versión del código: `{doc['code_version']}`",
         f"- Experimento: `{str(doc['experiment_id'])[:12]}`"
         f" (configuración `{str(doc['config_sha256'])[:12]}`)",

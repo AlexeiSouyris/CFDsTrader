@@ -42,6 +42,10 @@ def _scores(s: Scores) -> dict[str, Any]:
     return {"log_loss": s.log_loss, "brier": s.brier, "auc": s.auc}
 
 
+# De qué tabla puede ser la corrida de un experimento (`label_source` de ml_experiment.v1, #409).
+LABEL_SOURCES = ("backtest_runs", "ml_label_runs")
+
+
 def document(
     *,
     created_at: datetime,
@@ -49,6 +53,7 @@ def document(
     backtest_run_id: str,
     config_sha256: str,
     examples: Sequence[Example],
+    label_source: str = "backtest_runs",
     feature_names: Sequence[str],
     cfg: MlConfig,
     evaluation: Evaluation,
@@ -93,14 +98,23 @@ def document(
             "high": comparison.high,
             "blocks": comparison.blocks,
         }
+    if label_source not in LABEL_SOURCES:
+        raise ValueError(f"label_source {label_source!r}: tiene que ser una de {LABEL_SOURCES}")
     t = cfg.training
+    # La tabla de la corrida entra en el id solo si no es la de siempre: los experimentos ya
+    # guardados (de `backtest_runs`) conservan su id (#409).
+    run_ref = (
+        backtest_run_id if label_source == "backtest_runs" else f"{label_source}:{backtest_run_id}"
+    )
+    source_field = {} if label_source == "backtest_runs" else {"label_source": label_source}
     return {
         "experiment_id": sha256_hex(
-            code_version, backtest_run_id, config_sha256, dataset_fingerprint(examples)
+            code_version, run_ref, config_sha256, dataset_fingerprint(examples)
         ),
         "created_at": _utc(created_at),
         "code_version": code_version,
         "backtest_run_id": backtest_run_id,
+        **source_field,
         "config_sha256": config_sha256,
         "features": list(feature_names),
         "hyperparameters": {
@@ -124,14 +138,15 @@ def record(conn: psycopg.Connection, doc: dict[str, Any]) -> bool:
     with conn.transaction(), conn.cursor() as cur:
         cur.execute(
             """INSERT INTO ml_experiments (experiment_id, created_at, code_version,
-                 backtest_run_id, config_sha256, status, document)
-               VALUES (%s, %s, %s, %s, %s, %s, %s)
+                 backtest_run_id, label_source, config_sha256, status, document)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                ON CONFLICT (experiment_id) DO NOTHING""",
             (
                 doc["experiment_id"],
                 datetime.fromisoformat(doc["created_at"].replace("Z", "+00:00")),
                 doc["code_version"],
                 doc["backtest_run_id"],
+                doc.get("label_source", "backtest_runs"),
                 doc["config_sha256"],
                 doc["result"]["status"],
                 json.dumps(doc),

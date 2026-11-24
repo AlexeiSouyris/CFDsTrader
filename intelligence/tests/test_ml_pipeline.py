@@ -82,6 +82,10 @@ class Synthetic:
     def ref(self) -> str:
         return "sintetico"
 
+    @property
+    def table(self) -> str:
+        return "ml_label_runs"
+
     def rows(self, conn: psycopg.Connection) -> list[Row]:
         return list(self.data)
 

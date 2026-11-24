@@ -68,7 +68,7 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 
 | Contrato | Tabla | Contenido |
 |---|---|---|
-| `ml_experiment.v1` | `ml_experiments` | Un entrenamiento y evaluación walk-forward (spec ML §7): id propio (SHA-256 de código, corrida, configuración y datos), versión del código (commit de git), corrida de `backtest_runs`, variables, hiperparámetros, cada ventana (con su motivo si no entrenó), métricas de B0, B1 y M1 (números: no son dinero) y el resultado: `suspended`, `m1_improves` o `b1_stays`. |
+| `ml_experiment.v1` | `ml_experiments` | Un entrenamiento y evaluación walk-forward (spec ML §7): id propio (SHA-256 de código, corrida, configuración y datos), versión del código (commit de git), corrida de `backtest_runs` o, con `label_source = ml_label_runs` (opcional, #409), de `ml_label_runs`, variables, hiperparámetros, cada ventana (con su motivo si no entrenó), métricas de B0, B1 y M1 (números: no son dinero) y el resultado: `suspended`, `m1_improves` o `b1_stays`. |
 
 - Se registran **todos**, también los que no funcionan o quedan en suspenso. Sirve para el Sharpe deflactado y el PBO de la fase 5.
 - Tabla de **solo agregar** (`infra/migrations/0015_ml_experiments.sql`): las columnas de arriba más `document`, el `JSONB` con el documento entero. El mismo experimento no se repite.
