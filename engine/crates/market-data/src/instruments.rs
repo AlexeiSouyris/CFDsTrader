@@ -56,6 +56,29 @@ pub struct BrokerTerms {
     pub funding_benchmark: Sourced<String>,
 }
 
+/// Fórmula de la financiación nocturna de IG para el instrumento.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FundingModel {
+    /// Índices y acciones: tipo de referencia ± tasa administrativa (`ig-es-costes`).
+    Benchmark,
+    /// Materias primas al contado (ADR 0013 §3): base de la curva de futuros ± costo de IG.
+    CommodityBasis,
+}
+
+impl FromStr for FundingModel {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "benchmark" => Ok(Self::Benchmark),
+            "commodity_basis" => Ok(Self::CommodityBasis),
+            other => Err(format!(
+                "{other:?} no es un modelo de financiación (benchmark o commodity_basis)"
+            )),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstrumentSpec {
     pub instrument: Instrument,
@@ -63,6 +86,8 @@ pub struct InstrumentSpec {
     pub exchange: String,
     /// Tope propio de apalancamiento (spec §8). Nunca supera el regulatorio (100 / margen).
     pub max_leverage: Decimal,
+    /// Fórmula de la financiación (`funding_model`; por omisión, `benchmark`).
+    pub funding_model: FundingModel,
     pub terms: BrokerTerms,
 }
 
@@ -176,6 +201,8 @@ struct RawInstrument {
     exchange: String,
     exchange_timezone: String,
     max_leverage: String,
+    #[serde(default)]
+    funding_model: Option<String>,
     epic: RawSourced,
     margin_retail_pct: RawSourced,
     spread_min_points: RawSourced,
@@ -332,6 +359,18 @@ impl Catalog {
             Tz::from_str(&r.exchange_timezone)
                 .map_err(|_| bad("exchange_timezone", "zona horaria desconocida".into()))?;
             let max_leverage = positive(&r.max_leverage).map_err(|e| bad("max_leverage", e))?;
+            let funding_model = match &r.funding_model {
+                Some(m) => m.parse().map_err(|e| bad("funding_model", e))?,
+                None => FundingModel::Benchmark,
+            };
+            // Las materias primas usan su propia fórmula de IG y nadie más la usa (ADR 0013).
+            let commodity = asset_class == AssetClass::Commodity;
+            if commodity != (funding_model == FundingModel::CommodityBasis) {
+                return Err(bad(
+                    "funding_model",
+                    "commodity_basis es el de las materias primas, y solo el de ellas".into(),
+                ));
+            }
             let terms = BrokerTerms {
                 epic: cx.sourced(k, "epic", r.epic, text)?,
                 margin_retail_pct: cx.sourced(k, "margin_retail_pct", r.margin_retail_pct, pct)?,
@@ -397,6 +436,7 @@ impl Catalog {
                     instrument,
                     exchange: r.exchange,
                     max_leverage,
+                    funding_model,
                     terms,
                 },
             );

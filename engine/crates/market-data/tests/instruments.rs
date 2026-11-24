@@ -213,3 +213,43 @@ fn an_instrument_cannot_use_a_benchmark_without_a_rate_entry() {
         Some(&dec!(-0.5))
     );
 }
+
+#[test]
+fn the_commodity_funding_model_is_only_for_commodities() {
+    use cfds_market_data::FundingModel;
+    let us100 = "US100".parse().unwrap();
+    // Por omisión, índices y acciones usan el tipo de referencia.
+    assert_eq!(
+        catalog().instruments[&us100].funding_model,
+        FundingModel::Benchmark
+    );
+    let commodity = REAL.replacen(
+        r#"asset_class = "index""#,
+        "asset_class = \"commodity\"\nfunding_model = \"commodity_basis\"",
+        1,
+    );
+    assert_eq!(
+        Catalog::from_toml(&commodity).unwrap().instruments[&us100].funding_model,
+        FundingModel::CommodityBasis
+    );
+    // Una materia prima sin su fórmula, o un índice con la de materias primas: error.
+    let without = REAL.replacen(
+        r#"asset_class = "index""#,
+        r#"asset_class = "commodity""#,
+        1,
+    );
+    let index_with = REAL.replacen(
+        r#"asset_class = "index""#,
+        "asset_class = \"index\"\nfunding_model = \"commodity_basis\"",
+        1,
+    );
+    let unknown = REAL.replacen(
+        r#"asset_class = "index""#,
+        "asset_class = \"index\"\nfunding_model = \"swap\"",
+        1,
+    );
+    for bad in [without, index_with, unknown] {
+        let err = Catalog::from_toml(&bad).unwrap_err().to_string();
+        assert!(err.contains("funding_model"), "{err}");
+    }
+}
