@@ -11,6 +11,7 @@ chrono-tz = "0.10.4"
 cfds-core = { version = "0.1.0", path = "../core" }
 cfds-indicators = { version = "0.1.0", path = "../indicators" }
 cfds-patterns = { version = "0.1.0", path = "../patterns" }
+cfds-regime = { version = "0.1.0", path = "../regime" }
 cfds-risk = { version = "0.1.0", path = "../risk" }
 cfds-strategy = { version = "0.1.0", path = "../strategy" }
 rust_decimal = { version = "1.43.0", features = ["macros", "maths"] }

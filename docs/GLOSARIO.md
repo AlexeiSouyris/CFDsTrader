@@ -171,6 +171,16 @@ Precio promedio del día ponderado por el volumen. Muchos institucionales lo usa
 ### Volumen
 Cuánto se operó en esa vela. Una ruptura con mucho volumen es más confiable.
 
+<a id="cruce-dorado"></a>
+### Cruce dorado / Cruce de la muerte
+**Cruce dorado:** la media móvil rápida (por convención, la [SMA](#sma) de 50 días) pasa por **encima** de la lenta (la de 200 días). Se lee como un cambio a tendencia alcista de largo plazo. **Cruce de la muerte:** lo contrario, la rápida pasa por debajo. Son señales lentas: llegan cuando el movimiento ya empezó, y fallan seguido en mercados de lado. Un simple toque que vuelve al mismo lado no cuenta como cruce.
+*Ejemplo:* la SMA50 diaria del NASDAQ estaba en 26.500 y la SMA200 en 26.550; al cierre de un día la SMA50 queda en 26.560 y la SMA200 en 26.552: cruce dorado ese día.
+
+<a id="puntos-pivote"></a>
+### Puntos pivote diarios (clásicos)
+Niveles del día que salen del máximo (H), mínimo (L) y cierre (C) del **día anterior**: el pivote P = (H + L + C) / 3, tres resistencias (R1, R2, R3) arriba y tres soportes (S1, S2, S3) abajo. Muchos traders intradía los miran porque son los mismos para todos. No confundir con el [pivote](#pivote) (máximo o mínimo local).
+*Ejemplo:* ayer H = 26.900, L = 26.600, C = 26.750 → P = 26.750, R1 = 26.900, S1 = 26.600.
+
 <a id="tendencia"></a>
 ### Tendencia
 Dirección general del precio. **Alcista** = máximos y mínimos cada vez más altos. **Bajista** = cada vez más bajos.
@@ -225,6 +235,17 @@ El tramo existe recién cuando se confirma su pivote final (N velas después). S
 ### Golden pocket (bolsillo dorado)
 La zona entre los retrocesos de **61,8 % y 65 %** de un tramo de [Fibonacci](#fibonacci). Es la zona de retroceso más vigilada; marcamos las velas que la **tocan** y las que **cierran adentro**.
 *Ejemplo:* en el tramo de 26.600 a 26.800, el golden pocket va de 26.670 a 26.676,4. Una vela que baja hasta 26.672 la toca. Es contexto para mirar, no una señal de compra.
+
+<a id="spring"></a>
+### Spring y upthrust (Wyckoff)
+Ideas del método de Richard Wyckoff. Un **spring** ("resorte") es una **ruptura falsa por debajo** de un rango lateral: el precio perfora el [soporte](#soporte) del rango, no sigue cayendo y vuelve a cerrar adentro. Se interpreta como que los vendedores se agotaron (posible acumulación). El **upthrust** es lo mismo por encima de la [resistencia](#resistencia).
+*Cómo lo medimos:* un rango con soporte y resistencia de al menos 3 toques cada uno; una vela perfora el soporte más allá de la tolerancia, pero no más de 0,5 %; y dentro de las 3 velas siguientes una vela **cierra** de nuevo arriba del soporte. La señal va en esa vela de cierre (todo en `config/analysis.toml`).
+*Relación con el [sweep](#sweep):* un spring que vuelve en la misma vela es un sweep de un soporte de varios toques. Nuestro sweep mira solo el último mínimo de 1h y no pide rango; el spring pide un rango completo.
+
+<a id="precio-de-fondo"></a>
+### Precio de fondo
+**No es un término técnico estándar.** En el uso común, "fondo" o "suelo" es el **mínimo de una bajada**: el precio "tocó fondo". Nosotros lo medimos así: un [pivote](#pivote) bajo confirmado que llega después de una caída de al menos 1 % (o 3 [ATR](#atr)) desde el máximo de las 50 velas anteriores, y desde el que el precio rebota al menos 1 ATR antes de 10 velas. La señal va en la vela en que se cumple todo (pivote confirmado y rebote). Parámetros en `config/analysis.toml`.
+Solo se sabe que fue un fondo **después**: un fondo marcado no promete que el precio no vuelva a bajar. El [doble suelo](#doble-techo) son dos fondos parecidos, y el [spring](#spring) ocurre justamente en el fondo de un rango.
 
 ---
 
@@ -340,6 +361,11 @@ Clasificar una noticia como positiva, negativa o neutral para un activo, con una
 ## Psicología del mercado
 
 Capa de contexto experimental ([spec §9.1](spec/fase-1-especificacion.md#psicologia-del-mercado)): se mide y se registra, pero no suma al puntaje hasta demostrar valor.
+
+<a id="vix"></a>
+### VIX (índice del miedo)
+Índice de Cboe que mide cuánta volatilidad **espera** el mercado para el S&P 500 en los próximos 30 días, sacado de los precios de las opciones. Sube cuando hay miedo y baja cuando hay calma. Lo usamos solo como **contexto**, con cuatro regímenes por convención (`config/analysis.toml`): **calma** debajo de 15, **normal** de 15 a 20, **elevado** de 20 a 30 y **estrés** desde 30. Cada vela ve el último valor ya publicado, nunca el del día en curso.
+*Ejemplo:* con el VIX en 32, el gráfico marca "estrés": movimientos grandes en ambos sentidos son más probables. No dice hacia dónde.
 
 <a id="indice-sentimiento"></a>
 ### Índice de sentimiento

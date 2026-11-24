@@ -986,6 +986,25 @@ impl PgStore {
         rows.iter().map(row_to_daily).collect()
     }
 
+    /// Cierres del VIX (`vix_daily`, ADR 0012) publicados en `[from, to)`, en orden de
+    /// publicación: `(published_at, close)`. Una corrección de Cboe es otra fila (#491).
+    pub async fn vix_closes(
+        &self,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<(DateTime<Utc>, Decimal)>, StorageError> {
+        let rows: Vec<(DateTime<Utc>, Decimal)> = sqlx::query_as(
+            "SELECT published_at, close FROM vix_daily
+             WHERE published_at >= $1 AND published_at < $2
+             ORDER BY published_at, ref_date",
+        )
+        .bind(from)
+        .bind(to)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
     /// Fin de la última vela diaria guardada de un instrumento que ya terminó en `at`
     /// (`end <= at`). `None` si no hay ninguna.
     pub async fn last_daily_end(

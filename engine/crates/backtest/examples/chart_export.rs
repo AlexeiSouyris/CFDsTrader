@@ -127,9 +127,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let daily = store
         .daily_candles(&id, first_day, to.date_naive().succ_opt().ok_or("fecha")?)
         .await?;
+    // VIX publicado (Cboe, ADR 0012): desde dos semanas antes, para tener el valor vigente al
+    // empezar el período.
+    let vix = store
+        .vix_closes(from - chrono::TimeDelta::days(14), to)
+        .await?;
     export.analysis = Some(analysis_export(
         &m15,
         &daily,
+        &vix,
         setup.strategy.patterns.pivots.strength,
         &analysis_cfg,
     ));

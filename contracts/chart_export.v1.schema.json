@@ -104,7 +104,7 @@
       "description": "Herramientas de análisis (#491, cambio compatible): solo se muestran, NO entran al puntaje ni a la estrategia. Parámetros en config/analysis.toml. Opcional: ausente si el productor no tiene velas diarias.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["ema_daily_period", "ema_daily", "fibonacci", "golden_pocket"],
+      "required": ["ema_daily_period", "ema_daily", "fibonacci", "golden_pocket", "wyckoff", "bottoms", "ma_cross", "floor_pivots", "vix"],
       "properties": {
         "ema_daily_period": { "description": "Período de la EMA diaria (config/analysis.toml [ema_daily]).", "type": "integer", "minimum": 1 },
         "ema_daily": {
@@ -146,6 +146,103 @@
               "touches": { "type": "boolean" },
               "closes_inside": { "type": "boolean" }
             }
+          }
+        },
+        "wyckoff": {
+          "description": "Springs (ruptura falsa por debajo del soporte del rango) y upthrusts (por encima de la resistencia). La señal es confirmed_index: la vela que vuelve a cerrar dentro del rango.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "break_index", "confirmed_index", "level", "touches", "extreme"],
+            "properties": {
+              "kind": { "enum": ["spring", "upthrust"] },
+              "break_index": { "type": "integer", "minimum": 0 },
+              "confirmed_index": { "type": "integer", "minimum": 0 },
+              "level": { "$ref": "#/$defs/decimal" },
+              "touches": { "type": "integer", "minimum": 2 },
+              "extreme": { "description": "Mínimo del spring o máximo del upthrust.", "$ref": "#/$defs/decimal" }
+            }
+          }
+        },
+        "bottoms": {
+          "description": "\"Precio de fondo\": pivote bajo confirmado que cierra una bajada y desde el que el precio rebota (config/analysis.toml [bottom]). La señal es confirmed_index.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["index", "price", "prior_high", "rebound_index", "confirmed_index"],
+            "properties": {
+              "index": { "description": "Vela del mínimo.", "type": "integer", "minimum": 0 },
+              "price": { "$ref": "#/$defs/decimal" },
+              "prior_high": { "description": "Máximo previo del que bajó.", "$ref": "#/$defs/decimal" },
+              "rebound_index": { "type": "integer", "minimum": 0 },
+              "confirmed_index": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "ma_cross": {
+          "description": "Medias diarias rápida y lenta (por vela de 15m, del último día terminado) y sus cruces dorado y de la muerte dentro del período.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "fast_period", "slow_period", "fast", "slow", "crosses"],
+          "properties": {
+            "kind": { "enum": ["sma", "ema"] },
+            "fast_period": { "type": "integer", "minimum": 1 },
+            "slow_period": { "type": "integer", "minimum": 2 },
+            "fast": { "type": "array", "items": { "$ref": "#/$defs/optional_decimal" } },
+            "slow": { "type": "array", "items": { "$ref": "#/$defs/optional_decimal" } },
+            "crosses": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "day", "known_from_index"],
+                "properties": {
+                  "kind": { "enum": ["golden", "death"] },
+                  "day": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+                  "known_from_index": { "description": "Primera vela de 15m que ya ve el cruce (el día terminó).", "type": "integer", "minimum": 0 }
+                }
+              }
+            }
+          }
+        },
+        "floor_pivots": {
+          "description": "Puntos pivote clásicos del último día terminado; cada entrada vale desde from_index hasta la siguiente.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["day", "from_index", "pp", "r1", "r2", "r3", "s1", "s2", "s3"],
+            "properties": {
+              "day": { "description": "Día del que salen (AAAA-MM-DD).", "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+              "from_index": { "type": "integer", "minimum": 0 },
+              "pp": { "$ref": "#/$defs/signed_decimal" },
+              "r1": { "$ref": "#/$defs/signed_decimal" },
+              "r2": { "$ref": "#/$defs/signed_decimal" },
+              "r3": { "$ref": "#/$defs/signed_decimal" },
+              "s1": { "$ref": "#/$defs/signed_decimal" },
+              "s2": { "$ref": "#/$defs/signed_decimal" },
+              "s3": { "$ref": "#/$defs/signed_decimal" }
+            }
+          }
+        },
+        "vix": {
+          "description": "Un valor por vela de candles: el último cierre del VIX publicado (published_at de vix_daily.v1) en o antes del cierre de la vela y su régimen (config/analysis.toml [vix]); null sin dato. Contexto: no entra al puntaje.",
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["close", "regime"],
+                "properties": {
+                  "close": { "$ref": "#/$defs/decimal" },
+                  "regime": { "enum": ["calm", "normal", "elevated", "stress"] }
+                }
+              },
+              { "type": "null" }
+            ]
           }
         }
       }

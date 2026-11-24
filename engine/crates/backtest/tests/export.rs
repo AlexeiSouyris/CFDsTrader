@@ -219,10 +219,37 @@ fn daily_of(m15: &[Candle]) -> Vec<cfds_core::DailyCandle> {
         .collect()
 }
 
+/// VIX sintético publicado cada día a las 14:30 UTC (no es de Cboe).
+fn vix_of(m15: &[Candle]) -> Vec<(DateTime<Utc>, Decimal)> {
+    let first = m15.first().map(|c| c.start).unwrap_or_default();
+    (0..m15.len() / 96 + 1)
+        .map(|d| {
+            (
+                first + TimeDelta::days(d as i64) + TimeDelta::minutes(14 * 60 + 30),
+                Decimal::from(12 + 4 * (d as i64 % 6)),
+            )
+        })
+        .collect()
+}
+
 fn analysis(m15: &[Candle], daily: &[cfds_core::DailyCandle], period: usize) -> ExportAnalysis {
     let mut cfg = AnalysisConfig::from_toml(ANALYSIS).unwrap();
     cfg.ema_daily_period = period;
-    analysis_export(m15, daily, setup().strategy.patterns.pivots.strength, &cfg)
+    // Medias cortas y fondos fáciles: las series sintéticas son de pocos días.
+    cfg.ma_cross.fast = 2;
+    cfg.ma_cross.slow = 4;
+    cfg.wyckoff.levels.min_touches = 2;
+    cfg.wyckoff.levels.tolerance = dec!(0.001);
+    cfg.wyckoff.max_bars_to_reclaim = 20;
+    cfg.wyckoff.max_penetration = dec!(0.05);
+    cfg.bottom.min_decline = dec!(0.001);
+    analysis_export(
+        m15,
+        daily,
+        &vix_of(m15),
+        setup().strategy.patterns.pivots.strength,
+        &cfg,
+    )
 }
 
 #[test]
@@ -233,6 +260,9 @@ fn the_analysis_block_follows_the_contract_and_roundtrips() {
     let a = e.analysis.as_ref().unwrap();
     assert_eq!(a.ema_daily.len(), m15.len());
     assert!(!a.fibonacci.is_empty() && !a.golden_pocket.is_empty());
+    assert!(!a.wyckoff.is_empty() && !a.bottoms.is_empty());
+    assert!(!a.ma_cross.crosses.is_empty() && !a.floor_pivots.is_empty());
+    assert!(a.vix.iter().any(Option::is_some));
     let json = serde_json::to_value(&e).unwrap();
     let errors: Vec<String> = validator()
         .iter_errors(&json)
@@ -268,6 +298,9 @@ fn without_daily_candles_or_with_few_candles_nothing_breaks() {
     let a = analysis(&m15, &[], 365);
     assert!(a.ema_daily.iter().all(Option::is_none));
     assert!(a.fibonacci.is_empty() && a.golden_pocket.is_empty());
+    assert!(a.wyckoff.is_empty() && a.bottoms.is_empty());
+    assert!(a.ma_cross.crosses.is_empty() && a.floor_pivots.is_empty());
+    assert!(a.ma_cross.fast.iter().all(Option::is_none));
     let a = analysis(&[], &[], 365);
     assert!(a.ema_daily.is_empty());
 }
@@ -300,5 +333,53 @@ fn no_analysis_value_changes_when_more_candles_arrive() {
             .cloned()
             .collect();
         assert_eq!(part.golden_pocket, events, "golden pocket con {n}");
+        let w: Vec<_> = all
+            .wyckoff
+            .iter()
+            .filter(|x| x.confirmed_index < n)
+            .cloned()
+            .collect();
+        assert_eq!(part.wyckoff, w, "wyckoff con {n}");
+        let b: Vec<_> = all
+            .bottoms
+            .iter()
+            .filter(|x| x.confirmed_index < n)
+            .cloned()
+            .collect();
+        assert_eq!(part.bottoms, b, "fondos con {n}");
+        let c: Vec<_> = all
+            .ma_cross
+            .crosses
+            .iter()
+            .filter(|x| x.known_from_index < n)
+            .cloned()
+            .collect();
+        assert_eq!(part.ma_cross.crosses, c, "cruces con {n}");
+        assert_eq!(part.ma_cross.slow[..], all.ma_cross.slow[..n]);
+        let f: Vec<_> = all
+            .floor_pivots
+            .iter()
+            .filter(|x| x.from_index < n)
+            .cloned()
+            .collect();
+        assert_eq!(part.floor_pivots, f, "pivotes diarios con {n}");
+        assert_eq!(part.vix[..], all.vix[..n], "VIX con {n}");
     }
+}
+
+#[test]
+fn the_vix_and_the_floor_pivots_come_from_what_was_known() {
+    let m15 = random_walk(96 * 4, 4);
+    let daily = daily_of(&m15);
+    let a = analysis(&m15, &daily, 3);
+    // El VIX del día 0 se publica a las 14:30: la vela de 14:15 (índice 57, cierra 14:30) ya lo ve.
+    assert!(a.vix[..57].iter().all(Option::is_none));
+    let v = a.vix[57].as_ref().unwrap();
+    assert_eq!((v.close, v.regime.as_str()), (dec!(12), "calm"));
+    assert_eq!(a.vix[96 + 57].as_ref().unwrap().regime, "normal");
+    // Pivotes diarios: desde la última vela del día 0 (su cierre es el fin del día), con sus datos.
+    assert_eq!(a.floor_pivots[0].from_index, 95);
+    let pp = (daily[0].high + daily[0].low + daily[0].close) / Decimal::from(3);
+    assert_eq!(a.floor_pivots[0].pp, pp);
+    assert_eq!(a.floor_pivots.len(), 4);
 }
