@@ -10,13 +10,17 @@ Una fila por propuesta de una corrida de backtest (`backtest_runs`), con su resu
   `as_of` igual a `signal_at`. Si no coincide, la fila es un error y no entra.
 - **Calentamiento:** una propuesta sin variables no entra y se cuenta aparte; no se rellena.
 - Los cálculos de distancias usan `Decimal` y se pasan a `float` al final: son razones, no dinero.
+- **Fuente de las velas** (#400): las propuestas de un backtest con futuros llevan el instrumento
+  derivado (por ejemplo `US500.FUT`, `config/candle_sources.toml`). Con `suffix`, entran solo
+  esas y se codifican con su instrumento base (`US500`); sin `suffix`, solo las del CFD. Nunca se
+  mezclan: serían el mismo mercado dos veces.
 """
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Protocol
 
 import psycopg
 
@@ -154,12 +158,25 @@ def encode(row: Row, cfg: DatasetConfig) -> Example:
     )
 
 
-def build(rows: Iterable[Row], cfg: DatasetConfig) -> Dataset:
-    """Arma el dataset en orden de `signal_at` (y de id, para que sea reproducible)."""
+def base_instrument(instrument_id: str, suffix: str | None) -> str | None:
+    """El instrumento base de una propuesta de la fuente elegida, o `None` si es de otra fuente."""
+    if suffix is None:
+        return None if "." in instrument_id else instrument_id
+    if not instrument_id.endswith(suffix):
+        return None
+    return instrument_id.removesuffix(suffix)
+
+
+def build(rows: Iterable[Row], cfg: DatasetConfig, suffix: str | None = None) -> Dataset:
+    """Arma el dataset en orden de `signal_at` (y de id, para que sea reproducible). `suffix`:
+    el de los futuros (`.FUT`) o `None` para las propuestas del CFD."""
     examples: list[Example] = []
     other = no_outcome = no_features = 0
     for row in sorted(rows, key=lambda r: (r.signal_at, r.proposal_id)):
-        if row.instrument_id not in cfg.instruments:
+        base = base_instrument(row.instrument_id, suffix)
+        if base is not None and base != row.instrument_id:
+            row = replace(row, instrument_id=base)
+        if base is None or base not in cfg.instruments:
             other += 1
         elif row.hit_tp1 is None or not row.exits:
             no_outcome += 1
@@ -168,6 +185,28 @@ def build(rows: Iterable[Row], cfg: DatasetConfig) -> Dataset:
         else:
             examples.append(encode(row, cfg))
     return Dataset(tuple(examples), feature_names(cfg), other, no_outcome, no_features)
+
+
+class LabelSource(Protocol):
+    """De dónde salen las propuestas con su etiqueta (#400). El dataset no sabe de tablas: una
+    fuente entrega las filas (`Row`) y el período de datos que cubre, para los cortes de §5.
+
+    - `BacktestOutcomes`: una corrida de `backtest_runs` con `outcomes.hit_tp1` (#200).
+    - Etiqueta sin P/L (#399, opción C del dueño): su contrato lo define #399; la fuente se suma
+      cuando esté publicado. Debe entregar en `exits` al menos `{"at": <cuándo se resolvió>}`,
+      que es lo que usa la purga.
+    """
+
+    @property
+    def ref(self) -> str:
+        """Identificador que queda en el experimento (`backtest_run_id` de ml_experiment.v1)."""
+        ...
+
+    def rows(self, conn: psycopg.Connection) -> list[Row]: ...
+
+    def span(self, conn: psycopg.Connection) -> tuple[datetime, datetime]:
+        """Primera y última vela de los datos de donde salen las propuestas."""
+        ...
 
 
 _QUERY = """
@@ -181,12 +220,41 @@ WHERE p.run_id = %s AND p.source = 'backtest'
 """
 
 
-def load(conn: psycopg.Connection, run_id: str, cfg: DatasetConfig) -> Dataset:
+@dataclass(frozen=True)
+class BacktestOutcomes:
+    """Una corrida guardada en `backtest_runs` (#200), con la etiqueta de `outcomes.hit_tp1`."""
+
+    run_id: str
+
+    @property
+    def ref(self) -> str:
+        return self.run_id
+
+    def span(self, conn: psycopg.Connection) -> tuple[datetime, datetime]:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT from_at, to_at FROM backtest_runs WHERE run_id = %s", (self.run_id,)
+            )
+            row = cur.fetchone()
+        if row is None:
+            raise DatasetError(f"la corrida {self.run_id!r} no está en backtest_runs")
+        return row[0], row[1]
+
+    def rows(self, conn: psycopg.Connection) -> list[Row]:
+        self.span(conn)  # sin la corrida, es un error
+        with conn.cursor() as cur:
+            cur.execute(_QUERY, (self.run_id,))
+            return [Row(*r) for r in cur.fetchall()]
+
+
+def load_from(
+    conn: psycopg.Connection, source: LabelSource, cfg: DatasetConfig, suffix: str | None = None
+) -> Dataset:
+    return build(source.rows(conn), cfg, suffix)
+
+
+def load(
+    conn: psycopg.Connection, run_id: str, cfg: DatasetConfig, suffix: str | None = None
+) -> Dataset:
     """Lee una corrida guardada en `backtest_runs` (#200). Sin esa corrida, es un error."""
-    with conn.cursor() as cur:
-        cur.execute("SELECT 1 FROM backtest_runs WHERE run_id = %s", (run_id,))
-        if cur.fetchone() is None:
-            raise DatasetError(f"la corrida {run_id!r} no está en backtest_runs")
-        cur.execute(_QUERY, (run_id,))
-        rows = [Row(*r) for r in cur.fetchall()]
-    return build(rows, cfg)
+    return load_from(conn, BacktestOutcomes(run_id), cfg, suffix)

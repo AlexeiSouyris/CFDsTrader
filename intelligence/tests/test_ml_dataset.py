@@ -132,3 +132,17 @@ def test_ml_features_contract_matches_what_the_dataset_reads() -> None:
             jsonschema.validate({**ok, key: bad}, schema)
     assert set(schema["properties"]["realized_vol_tercile"]["enum"]) == {"low", "mid", "high"}
     assert set(schema["properties"]["session_band"]["enum"]) == {"open", "mid", "close"}
+
+
+def test_the_futures_source_reads_only_derived_ids_and_never_mixes() -> None:
+    # #400: las propuestas del backtest con futuros llevan `US500.FUT`; se codifican como US500.
+    rows = [row(1, instrument_id="US500.FUT"), row(2), row(3, instrument_id="US100.FUT")]
+    fut = build(rows, CFG, ".FUT")
+    assert [e.proposal_id for e in fut.examples] == ["bt:US500:1:long"]
+    assert fut.other_instrument == 2, "el CFD y otro índice quedan afuera"
+    x = dict(zip(feature_names(CFG), fut.examples[0].x, strict=True))
+    assert x["instrument_US500"] == 1.0
+    cfd = build(rows, CFG)
+    assert [e.proposal_id for e in cfd.examples] == ["bt:US500:2:long"]
+    assert cfd.other_instrument == 2, "sin sufijo, los futuros nunca entran"
+    assert fut.examples[0].x == cfd.examples[0].x, "misma codificación en las dos fuentes"

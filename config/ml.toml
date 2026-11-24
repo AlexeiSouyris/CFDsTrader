@@ -24,6 +24,8 @@ seed = 42
 # (ISO, en UTC) sobre todas las validaciones juntas.
 bootstrap_resamples = 1000
 confidence = "0.95"
+# Gráfico de calibración (spec §6): por deciles de la predicción, con su intervalo de Wilson.
+calibration_bins = 10
 
 [interval]
 # Intervalo de cada predicción (spec §6): percentiles de las predicciones de N modelos M1
