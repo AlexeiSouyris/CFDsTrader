@@ -15,12 +15,12 @@ Primero va el motor y la inteligencia. La UI viene después (fase 10).
 | 4 | Estrategia | `engine/strategy` | aprobada (#86, 21-11-2026) |
 | 4b | Inteligencia: noticias, análogos históricos, ML | `intelligence/` | **en curso** (#99) |
 | 5 | Evaluación y anti-sobreajuste | `engine/backtest` + `intelligence/` | pendiente. Adelantos: métricas (#58), financiación con el €STR diario (#79) |
-| 6 | Gestión de riesgo (independiente) | `engine/risk` | pendiente. Adelanto: el módulo `risk` ya lo usa el backtest |
-| 6b | Fondo del grupo: aportes, unidades, NAV, P&L por miembro | `engine/fund` | pendiente |
+| 6 | Gestión de riesgo (independiente) | `engine/risk` | aprobada (#350, 24-11-2026, fuera de orden) |
+| 6b | Fondo del grupo: aportes, unidades, NAV, P&L por miembro | `engine/fund` | aprobada (#351, 24-11-2026, fuera de orden) |
 | 7 | Capa de broker (simulado / real intercambiables) | `engine/market-data`, `engine/execution` | pendiente. Adelanto: proveedor de IG de solo lectura (ADR 0002) |
 | 8 | Paper trading en tiempo real | todo el motor | pendiente. Adelanto: velas en vivo por REST (`ig_live`, #68) |
 | 8b | Aprendizaje continuo: diario, calibración, aporte por señal, reentrenamiento | `engine/journal`, `intelligence/learning` | pendiente. Adelanto: diario de propuestas (#60) |
-| 9 | Observabilidad y operación segura | `engine/`, `infra/` | pendiente |
+| 9 | Observabilidad y operación segura | `engine/`, `infra/` | aprobada (#352, 24-11-2026, fuera de orden). Telegram, a decisión del dueño |
 | 10 | UI en TypeScript | `ui/` | pendiente. Adelanto: prototipo con datos de ejemplo (#30) |
 | 11 | Dinero real (requiere ADR firmado por ambos) | — | bloqueada |
 
