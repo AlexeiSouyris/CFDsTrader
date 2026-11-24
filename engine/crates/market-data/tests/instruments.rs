@@ -17,7 +17,7 @@ fn catalog() -> Catalog {
 fn the_repository_catalog_loads_with_its_sources() {
     let c = catalog();
     let ids: Vec<&str> = c.instruments.keys().map(|i| i.as_str()).collect();
-    assert_eq!(ids, ["DE40", "US100", "US2000", "US30", "US500"]);
+    assert_eq!(ids, ["DE40", "US100", "US2000", "US30", "US500", "XAUUSD"]);
 
     let us100 = &c.instruments[&"US100".parse().unwrap()];
     assert_eq!(us100.instrument.asset_class, AssetClass::Index);
@@ -54,8 +54,8 @@ fn own_leverage_cap_is_below_the_regulatory_one() {
 fn backtests_are_blocked_while_costs_are_pending() {
     let missing = catalog().ready_for_backtest().unwrap_err();
     let fields: Vec<_> = missing.iter().map(|p| (p.item.as_str(), p.field)).collect();
-    // Falta el tipo de referencia de la financiación de los índices de EE. UU., y los términos
-    // de IG del Russell 2000, que solo está para el estudio (#371).
+    // Falta el tipo de referencia de la financiación de los índices de EE. UU., los términos
+    // de IG del Russell 2000, que solo está para el estudio (#371), y los del oro (#418).
     assert_eq!(
         fields,
         [
@@ -70,6 +70,12 @@ fn backtests_are_blocked_while_costs_are_pending() {
             ("US2000", "funding_admin_fee_pct"),
             ("US30", "funding_benchmark"),
             ("US500", "funding_benchmark"),
+            // El oro (ADR 0013, #418): lo que IG no publica y la base de su financiación.
+            ("XAUUSD", "funding_benchmark"),
+            ("XAUUSD", "spread_typical_points"),
+            ("XAUUSD", "value_per_point"),
+            ("XAUUSD", "min_deal_size"),
+            ("XAUUSD", "tick"),
         ]
     );
     assert!(missing.iter().all(|p| !p.reason.is_empty()));
@@ -108,7 +114,8 @@ fn feeds_the_session_calendar() {
     let c = catalog();
     let cal = ExchangeCalendar::load(&config, c.exchange_map()).unwrap();
     let day: DateTime<Utc> = "2026-11-25T00:00:00Z".parse().unwrap();
-    for (id, expected) in [("US100", 26), ("DE40", 34)] {
+    // El oro (ADR 0013): dos tramos de la sesión de casi 23 h que cruzan ese día UTC.
+    for (id, expected) in [("US100", 26), ("DE40", 34), ("XAUUSD", 92)] {
         let n = cal
             .expected_starts(
                 &id.parse().unwrap(),
@@ -252,4 +259,33 @@ fn the_commodity_funding_model_is_only_for_commodities() {
         let err = Catalog::from_toml(&bad).unwrap_err().to_string();
         assert!(err.contains("funding_model"), "{err}");
     }
+}
+
+#[test]
+fn gold_is_in_the_catalog_but_cannot_be_simulated_yet() {
+    use cfds_market_data::FundingModel;
+    let c = catalog();
+    let gold = &c.instruments[&"XAUUSD".parse().unwrap()];
+    assert_eq!(gold.instrument.asset_class, AssetClass::Commodity);
+    assert_eq!(gold.instrument.currency, Currency::USD);
+    assert_eq!(gold.exchange, "CMEGLOBEX_METALS");
+    assert_eq!(gold.funding_model, FundingModel::CommodityBasis);
+    // Tope propio 10:1, la mitad del regulatorio (margen 5 % → 20:1).
+    assert_eq!(gold.max_leverage, dec!(10));
+    assert_eq!(gold.terms.margin_retail_pct.value(), Some(&dec!(5)));
+    assert_eq!(gold.terms.spread_min_points.value(), Some(&dec!(0.9)));
+    // Lo que IG no publica queda pendiente, nunca inventado.
+    let pending: Vec<_> = gold.pending().into_iter().map(|p| p.field).collect();
+    assert_eq!(
+        pending,
+        [
+            "epic",
+            "funding_benchmark",
+            "spread_typical_points",
+            "value_per_point",
+            "min_deal_size",
+            "tick"
+        ]
+    );
+    assert!(!gold.missing_costs().is_empty());
 }

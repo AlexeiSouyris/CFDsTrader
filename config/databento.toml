@@ -87,9 +87,8 @@ start = "2017-07-09"
 # cercano en el calendario casi nunca es el que se negocia (los activos son feb, abr, jun, ago,
 # oct y dic). Medido con --estimate el 24-11-2026, de 2011 a hoy: GC.c.0 da 241.103 barras
 # (USD 0,88), casi sin operaciones, y GC.v.0 da 5.513.746 (USD 20,13).
-# `XAUUSD` todavía no está en config/instruments.toml (falta decidir clase de activo, sesión y
-# financiación): las barras de 1 minuto se guardan igual (`futures_bars_1m` no depende del
-# catálogo), pero no se arman velas hasta que esté.
+# `XAUUSD` está en config/instruments.toml desde #418 (ADR 0013), con los datos de IG que faltan
+# pendientes: nadie lo opera hasta tenerlos.
 [[symbols]]
 dataset = "GLBX.MDP3"
 symbol = "GC.v.0"
