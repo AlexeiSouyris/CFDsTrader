@@ -274,7 +274,9 @@ export function mergeLayers(
     ...newer.fibonacci,
   ]
 
-  const pivots = older.pivots.filter((p) => before(p.from)).map((p) => ({ ...p, to: upTo(p.to) }))
+  const pivots: PivotLayer[] = older.pivots
+    .filter((p) => before(p.from))
+    .map((p) => ({ ...p, to: upTo(p.to) }))
   const [head, ...tail] = newer.pivots
   const last = pivots[pivots.length - 1]
   if (head && last && last.day === head.day && head.from === from) {
