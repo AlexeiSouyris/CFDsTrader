@@ -1,8 +1,8 @@
 # 0016 – Calendario histórico oficial de FOMC, CPI y empleo (Fed y BLS), 2011–2025
 
-- **Estado:** propuesta
+- **Estado:** aceptada
 - **Fecha:** 2026-11-24
-- **Aprobada por:** pendiente. La aprueba el dueño (modo de un solo constructor, `CLAUDE.md`), con su aprobación explícita registrada en el Issue o en el PR. Este ADR no habilita dinero real.
+- **Aprobada por:** el dueño (Alexei), el 24-11-2026, en el chat con su agente, textual: "apruebo el ADR 0016" (modo de un solo constructor, `CLAUDE.md`). Registrado en #505. Queda abierto cómo se accede al BLS (§1.3): no se eligió todavía. Este ADR no habilita dinero real.
 - **Issue:** #505 (la ingesta va en otro Issue, después de aprobar este)
 - **Relacionados:** [ADR 0006](0006-fuentes-de-noticias.md) (§1 Fed, §3 BLS, regla de publicación del calendario), [ADR 0010](0010-calendario-forex-factory.md) (Forex Factory, solo desde 2026-11-23), [ADR 0012](0012-tesoro-y-vix.md) (ejemplo de fuente oficial), `docs/analysis/2026-11-programa-2-propuesta.md` §1.1 b) y familia E, #466 (D2)
 
