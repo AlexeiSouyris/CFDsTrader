@@ -662,3 +662,110 @@ fn restored_pending_orders_trim_the_candles_like_the_session_without_restart() {
     let (_, rec) = restore_and_reconcile(cfg, rebuilt, restarted.journal(), &positions, at(27));
     assert!(rec.is_clean(), "{rec:?}");
 }
+
+/// `wide_then_narrow` corrida 20 velas: anchas de at(20) a at(40), angostas hasta at(100).
+fn shifted(id: &str, from: i64, to: i64) -> Vec<Candle> {
+    wide_then_narrow(id)
+        .into_iter()
+        .map(|mut c| {
+            c.start += TimeDelta::minutes(15 * 20);
+            c
+        })
+        .filter(|c| c.start >= at(from) && c.start < at(to))
+        .collect()
+}
+
+fn shifted_markets(from: i64) -> BTreeMap<InstrumentId, MarketSetup> {
+    let (_, mut markets) = setup(dec!(100));
+    for (id, m) in &mut markets {
+        m.candles = shifted(id.as_str(), from, 101);
+    }
+    markets
+}
+
+/// #481: con el registro vacío, el gateway carga las velas desde `now` menos la ventana. La
+/// primera orden del runner tiene `created_at` = cierre de la vela de la decisión, antes de
+/// `now`: sin las velas de `[created_at − ventana, now − ventana)` su ATR sale distinto del de la
+/// reconstrucción, que las carga desde la orden. Con `prepend_candles` (lo que hace el gateway
+/// antes de mandarla) la sesión tiene exactamente las mismas velas y decide igual.
+#[test]
+fn the_first_order_after_a_start_gets_the_same_candles_as_its_rebuild() {
+    let (cfg, _) = setup(dec!(100));
+    let window = TimeDelta::minutes(15 * 80);
+    // La decisión se manda con `created_at` = at(100); el gateway arrancó 40 velas después
+    // (datos atrasados) y cargó desde at(140) − ventana = at(60). La reconstrucción carga desde
+    // at(100) − ventana = at(20), con las 20 velas anchas.
+    let mut o = order("a", "DE40", dec!(93.6));
+    o.created_at = at(100);
+    let loaded_from = 60;
+
+    // Sin completar: el ATR sale solo de velas angostas y el stop a 6,4 es `stop_too_far`; en
+    // la reconstrucción pasa.
+    let mut loose = PaperBroker::new(cfg.clone(), shifted_markets(loaded_from));
+    loose.anchor_candles_before_first_order(window);
+    let r = loose.submit(&o);
+    assert_eq!(r.rejection, Some(OrderRejection::StopTooFar));
+    let (_, rec) = restore_and_reconcile(
+        cfg.clone(),
+        shifted_markets(20),
+        loose.journal(),
+        &[],
+        at(101),
+    );
+    assert_eq!(rec.drifts.len(), 1, "{rec:?}");
+
+    // Completando antes de mandarla (como `cover_first_order` del gateway): igual que la
+    // reconstrucción.
+    let mut covered = PaperBroker::new(cfg.clone(), shifted_markets(loaded_from));
+    covered.anchor_candles_before_first_order(window);
+    for id in ["US100", "DE40"] {
+        covered
+            .prepend_candles(&id.parse().unwrap(), shifted(id, 20, loaded_from))
+            .unwrap();
+    }
+    let r = covered.submit(&o);
+    assert_eq!(r.status, OrderStatus::Filled, "{r:?}");
+    for m in covered.markets().values() {
+        assert_eq!(m.candles[0].start, at(20));
+    }
+    let positions = covered.positions(at(101));
+    let (_, rec) = restore_and_reconcile(
+        cfg,
+        shifted_markets(20),
+        covered.journal(),
+        &positions,
+        at(101),
+    );
+    assert!(rec.is_clean(), "{rec:?}");
+}
+
+/// #481: `prepend_candles` solo completa hacia atrás y solo con el registro vacío.
+#[test]
+fn prepending_candles_is_only_for_an_empty_journal_and_older_candles() {
+    let (cfg, _) = setup(dec!(100));
+    let de40: InstrumentId = "DE40".parse().unwrap();
+    let all = wide_then_narrow("DE40");
+    let mut b = PaperBroker::new(cfg, markets_from(40));
+    // Que se pisan con las que ya están, desordenadas o de otro instrumento: error, sin cambios.
+    assert!(b.prepend_candles(&de40, all[30..41].to_vec()).is_err());
+    let mut swapped = all[10..12].to_vec();
+    swapped.reverse();
+    assert!(b.prepend_candles(&de40, swapped).is_err());
+    assert!(
+        b.prepend_candles(&de40, wide_then_narrow("US100")[10..12].to_vec())
+            .is_err()
+    );
+    assert!(
+        b.prepend_candles(&"XX".parse().unwrap(), all[10..12].to_vec())
+            .is_err()
+    );
+    assert_eq!(b.markets()[&de40].candles[0].start, at(40));
+    b.prepend_candles(&de40, all[30..40].to_vec()).unwrap();
+    assert_eq!(b.markets()[&de40].candles[0].start, at(30));
+    // Con una orden en el registro, nunca.
+    let mut o = order("a", "DE40", dec!(98));
+    o.created_at = at(80);
+    b.submit(&o);
+    assert!(!b.journal().is_empty());
+    assert!(b.prepend_candles(&de40, all[20..30].to_vec()).is_err());
+}
