@@ -6,8 +6,8 @@
 use std::path::PathBuf;
 
 use cfds_backtest::{
-    BacktestConfig, DailyRates, FundingRates, Setup, apply_funding_scenario, mark_rollovers,
-    setup_from_catalog,
+    BacktestConfig, DailyRates, FundingRates, Setup, StudyAssumptions, apply_assumptions,
+    apply_funding_scenario, mark_rollovers, setup_from_catalog,
 };
 use cfds_core::{Candle, InstrumentId, NewsInterpretation, Timeframe};
 use cfds_indicators::TrendConfig;
@@ -58,6 +58,13 @@ pub struct FundingScenario {
     pub rates: Option<DailyRates>,
 }
 
+/// Lo que un estudio cambia en memoria (ver `common/study.rs`). Nunca es oficial.
+pub struct Study {
+    pub funding: Option<FundingScenario>,
+    /// Costos supuestos que completan los `pending` del catálogo (#421).
+    pub assumptions: Option<StudyAssumptions>,
+}
+
 #[allow(dead_code, reason = "walk_forward usa `prepare_with`")]
 pub async fn prepare(
     id: &InstrumentId,
@@ -77,18 +84,30 @@ pub async fn prepare_with(
     equity: Decimal,
     reset_days: Option<u32>,
     without_news: bool,
-    scenario: Option<FundingScenario>,
+    study: Option<Study>,
 ) -> Result<Prepared, Box<dyn std::error::Error>> {
     // Las velas y lo que lee la estrategia (noticias, calendario, sesión) son del CFD `id`; lo que
     // se guarda queda bajo `out` (con futuros, el instrumento derivado: nunca se mezcla).
-    let sources = CandleSources::from_toml(cfg!("candle_sources.toml"))?;
+    let mut sources = CandleSources::from_toml(cfg!("candle_sources.toml"))?;
+    let mut catalog = Catalog::from_toml(cfg!("instruments.toml"))?;
+    let (scenario, assumptions) = match study {
+        Some(s) => (s.funding, s.assumptions),
+        None => (None, None),
+    };
+    if let Some(a) = &assumptions {
+        let filled = apply_assumptions(&mut catalog, &mut sources, a)?;
+        println!(
+            "⚠️  COSTOS SUPUESTOS (estudio, no oficial; fuente \"{}\"): {}. config/ no cambia.",
+            a.source,
+            filled.join(", ")
+        );
+    }
     let out = sources.instrument_for(source, id)?;
     let feed = match source {
         CandleSource::Ig => CandleFeed::Ig,
         CandleSource::Futures => CandleFeed::Futures(&sources.futures_source),
     };
     println!("velas: {} ({out})", sources.label(source));
-    let mut catalog = Catalog::from_toml(cfg!("instruments.toml"))?;
     // Escenario (#405): el valor constante que se agrega solo completa el catálogo en memoria;
     // la corrida usa la serie diaria (más abajo).
     let mut scenario_rates = None;
