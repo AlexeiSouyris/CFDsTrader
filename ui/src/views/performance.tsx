@@ -19,7 +19,7 @@ import { dateTimeUtc, decimal } from '@/lib/format'
 import { currencySign, useFund } from '@/lib/fund-api'
 import { dayYear, numOrDash, pctOrDash, signedPct, tone } from '@/lib/run-format'
 import { useBacktestRuns, useRunDetail } from '@/lib/paper-api'
-import { LearningSection, PaperVsBacktestSection } from '@/views/phase8'
+import { LearningSection, MlExperimentsSection, PaperVsBacktestSection } from '@/views/phase8'
 import { cn } from '@/lib/utils'
 import { BACKTEST_RUN_DETAIL, BACKTEST_RUNS, type BacktestRun } from '@/mocks'
 
@@ -339,6 +339,7 @@ export function PerformanceView({ onOpen }: { onOpen: (view: string) => void }) 
 
       <PaperVsBacktestSection />
       <LearningSection />
+      <MlExperimentsSection />
     </div>
   )
 }

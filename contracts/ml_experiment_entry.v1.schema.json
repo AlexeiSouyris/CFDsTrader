@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/ml_experiment_entry.v1.schema.json",
+  "title": "ML experiment entry v1",
+  "description": "Respuesta del gateway en GET /api/v1/ml/experiments (#426): un experimento de ML (ml_experiment.v1, tal como lo guardó Python en ml_experiments) junto con el instrumento de su corrida, que el documento no trae. El instrumento sale de la corrida: instrument_id de ml_label_runs o cada uno de instruments de backtest_runs (una entrada por instrumento). Solo lectura: el gateway no calcula nada y el modelo es solo informativo.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instrument_id", "label_source", "experiment"],
+  "properties": {
+    "instrument_id": {
+      "description": "Instrumento de la corrida del experimento (por ejemplo US500.FUT).",
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$"
+    },
+    "label_source": {
+      "description": "De qué tabla es la corrida (columna label_source de ml_experiments, #409).",
+      "enum": ["backtest_runs", "ml_label_runs"]
+    },
+    "experiment": { "$ref": "ml_experiment.v1.schema.json" }
+  }
+}

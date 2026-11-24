@@ -1018,6 +1018,66 @@ impl PgJournal {
             .collect()
     }
 
+    /// Experimentos de ML guardados (`ml_experiments`, escritos por Python), cada uno con el
+    /// instrumento de su corrida (`ml_experiment_entry.v1`, #426): `instrument_id` de
+    /// `ml_label_runs` o cada uno de `instruments` de `backtest_runs` (una entrada por
+    /// instrumento). Sin `instrument`, el último de cada instrumento (ordenado por instrumento);
+    /// con `instrument`, los de ese instrumento del más nuevo al más viejo, hasta `limit`. El
+    /// documento va tal como se guardó. Solo lectura.
+    pub async fn ml_experiment_entries(
+        &self,
+        instrument: Option<&str>,
+        limit: i64,
+    ) -> Result<Vec<serde_json::Value>, JournalError> {
+        // `query_scalar` pide SQL estático: la parte común va con `concat!`.
+        macro_rules! with_instruments {
+            () => {
+                "WITH e AS (
+                SELECT x.experiment_id, x.created_at, x.label_source, x.document,
+                       CASE WHEN x.label_source = 'ml_label_runs'
+                            THEN jsonb_build_array(l.instrument_id)
+                            ELSE b.instruments END AS instruments
+                FROM ml_experiments x
+                LEFT JOIN backtest_runs b ON b.run_id = x.backtest_run_ref
+                LEFT JOIN ml_label_runs l ON l.run_id = x.ml_label_run_ref
+            ), i AS (
+                SELECT e.*, inst FROM e, jsonb_array_elements_text(e.instruments) AS inst
+            )"
+            };
+        }
+        let texts: Vec<String> = match instrument {
+            None => {
+                sqlx::query_scalar(concat!(
+                    with_instruments!(),
+                    " SELECT DISTINCT ON (inst) jsonb_build_object(
+                         'instrument_id', inst, 'label_source', label_source,
+                         'experiment', document)::text
+                     FROM i ORDER BY inst, created_at DESC, experiment_id DESC"
+                ))
+                .fetch_all(&self.pool)
+                .await?
+            }
+            Some(id) => {
+                sqlx::query_scalar(concat!(
+                    with_instruments!(),
+                    " SELECT jsonb_build_object(
+                         'instrument_id', inst, 'label_source', label_source,
+                         'experiment', document)::text
+                     FROM i WHERE inst = $1
+                     ORDER BY created_at DESC, experiment_id DESC LIMIT $2"
+                ))
+                .bind(id)
+                .bind(limit)
+                .fetch_all(&self.pool)
+                .await?
+            }
+        };
+        texts
+            .iter()
+            .map(|t| serde_json::from_str(t).map_err(JournalError::from))
+            .collect()
+    }
+
     /// El último informe de aprendizaje guardado (`learning_report.v1`, #331): el creado más
     /// tarde. `None` si todavía no hay ninguno. Solo lectura.
     pub async fn latest_learning_report(&self) -> Result<Option<serde_json::Value>, JournalError> {

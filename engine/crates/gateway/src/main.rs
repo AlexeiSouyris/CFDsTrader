@@ -30,6 +30,7 @@ use cfds_gateway::context::{ContextConfig, is_context_route, respond_context};
 use cfds_gateway::emotions::{is_emotions_route, respond_emotions};
 use cfds_gateway::fund::{is_fund_route, respond_fund};
 use cfds_gateway::learning::{PgLearning, is_learning_route, respond_learning};
+use cfds_gateway::ml::{is_ml_route, respond_ml};
 use cfds_gateway::ops::url_password;
 use cfds_gateway::ops_store::{persistence, run_persister};
 use cfds_gateway::paper::{HttpIn, Ops, PaperConfig, PgPaper, is_paper_route, respond_paper};
@@ -88,7 +89,7 @@ struct State {
     feed: Arc<Feed>,
     daily_loss_limit_pct: rust_decimal::Decimal,
     log: Arc<Logger>,
-    /// Reportes de walk-forward (#316): solo lectura del diario.
+    /// Reportes de walk-forward (#316) y experimentos de ML (#426): solo lectura del diario.
     walk_forward: cfds_journal::pg::PgJournal,
     /// Informe de aprendizaje y estado de sus propuestas (#331), solo lectura.
     learning: PgLearning,
@@ -171,6 +172,15 @@ async fn handle(
             req.method().as_str(),
             req.uri().path(),
             chrono::Utc::now(),
+        )
+        .await
+    } else if is_ml_route(req.uri().path()) {
+        // Experimentos de ML (#426): solo lectura, el modelo es informativo.
+        respond_ml(
+            &state.walk_forward,
+            req.method().as_str(),
+            req.uri().path(),
+            req.uri().query(),
         )
         .await
     } else if is_walk_forward_route(req.uri().path()) {
