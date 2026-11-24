@@ -12,7 +12,7 @@ import psycopg
 import pytest
 
 from cfds_intel.models.config import load_default
-from cfds_intel.models.dataset import DatasetError, load
+from cfds_intel.models.dataset import DatasetError, MlLabels, load, load_from
 
 # Escribe en PostgreSQL: solo contra una base cfds_test* (guardia en conftest.py, #376).
 pytestmark = pytest.mark.pg
@@ -94,3 +94,50 @@ def test_ml_features_are_append_only(conn: psycopg.Connection) -> None:
     pid = put_proposal(conn, run_id, 1, hit=True, features=True)
     with pytest.raises(psycopg.errors.RaiseException):
         conn.execute("UPDATE ml_features SET atr14_m15 = 5 WHERE proposal_id = %s", (pid,))
+
+
+def test_a_label_run_without_pnl_is_read_with_its_labels_and_features(
+    conn: psycopg.Connection,
+) -> None:
+    # #399: ml_label_runs + ml_labels (sin P/L), de solo agregar: un run_id propio por corrida.
+    run_id = f"ml-labels-test-{time.time_ns()}"
+    with pytest.raises(DatasetError, match="ml_label_runs"):
+        MlLabels(run_id).rows(conn)
+    conn.execute(
+        """INSERT INTO ml_label_runs (run_id, instrument_id, candle_source, from_at, to_at,
+             method, config_sha256)
+           VALUES (%s, 'US500', 'futures', %s, %s, 'mid_no_costs', %s)""",
+        (run_id, T0, T0 + timedelta(days=1), "0" * 64),
+    )
+    ids = []
+    for k, (y, reason, features) in enumerate(
+        [(1, "tp1", True), (0, "time", True), (1, "tp1", False), (None, None, True)], start=1
+    ):
+        at = T0 + timedelta(minutes=15 * k)
+        pid = f"{run_id}:US500:{k}:long"
+        ids.append(pid)
+        conn.execute(
+            """INSERT INTO proposals (id, source, run_id, instrument_id, side, signal_at,
+                 reference, stop, tp1, size, leverage, score, breakdown, triggers)
+               VALUES (%s, 'backtest', %s, 'US500', 'long', %s, 100, 98, 103, 1, 5, 6, %s, %s)""",
+            (pid, run_id, at, json.dumps([{"component": "trend", "points": 2}]), '["sweep"]'),
+        )
+        if y is not None:
+            conn.execute(
+                """INSERT INTO ml_labels (proposal_id, signal_at, y, exit_reason, resolved_at,
+                     method) VALUES (%s, %s, %s, %s, %s, 'mid_no_costs')""",
+                (pid, at, y, reason, at + timedelta(hours=2)),
+            )
+        if features:
+            conn.execute(
+                """INSERT INTO ml_features (proposal_id, as_of, atr14_m15, realized_vol_tercile,
+                     session_band) VALUES (%s, %s, 4, 'high', 'mid')""",
+                (pid, at),
+            )
+    src = MlLabels(run_id)
+    assert src.span(conn) == (T0, T0 + timedelta(days=1))
+    d = load_from(conn, src, CFG)
+    assert [(e.proposal_id, e.y) for e in d.examples] == [(ids[0], 1), (ids[1], 0)]
+    # La purga usa cuándo se conoció el resultado: resolved_at.
+    assert d.examples[0].known_at == T0 + timedelta(minutes=15, hours=2)
+    assert (d.without_features, d.without_outcome) == (1, 1)

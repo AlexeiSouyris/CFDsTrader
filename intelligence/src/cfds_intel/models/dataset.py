@@ -192,9 +192,8 @@ class LabelSource(Protocol):
     fuente entrega las filas (`Row`) y el período de datos que cubre, para los cortes de §5.
 
     - `BacktestOutcomes`: una corrida de `backtest_runs` con `outcomes.hit_tp1` (#200).
-    - Etiqueta sin P/L (#399, opción C del dueño): su contrato lo define #399; la fuente se suma
-      cuando esté publicado. Debe entregar en `exits` al menos `{"at": <cuándo se resolvió>}`,
-      que es lo que usa la purga.
+    - `MlLabels`: etiqueta sin P/L (#399, opción C del dueño): `ml_labels` y `ml_label_runs`.
+    Toda fuente entrega en `exits` al menos `{"at": <cuándo se resolvió>}`, que usa la purga.
     """
 
     @property
@@ -245,6 +244,75 @@ class BacktestOutcomes:
         with conn.cursor() as cur:
             cur.execute(_QUERY, (self.run_id,))
             return [Row(*r) for r in cur.fetchall()]
+
+
+_LABELS_QUERY = """
+SELECT p.id, p.instrument_id, p.side, p.signal_at, p.reference, p.stop, p.tp1, p.score,
+       p.breakdown, p.triggers, l.y = 1, l.resolved_at, l.exit_reason,
+       f.as_of, f.atr14_m15, f.realized_vol_tercile, f.session_band
+FROM proposals p
+LEFT JOIN ml_labels l ON l.proposal_id = p.id
+LEFT JOIN ml_features f ON f.proposal_id = p.id
+WHERE p.run_id = %s AND p.source = 'backtest'
+"""
+
+
+@dataclass(frozen=True)
+class MlLabels:
+    """Una corrida de etiquetas sin P/L (#399: `ml_label_run.v1` y `ml_label.v1`), que escribe el
+    ejemplo `ml_dataset` de Rust. `y = 1` si tocó TP1 antes que el stop; `resolved_at` (fin de la
+    vela en la que se conoció el resultado) va como la única salida, para la purga. Una propuesta
+    sin etiqueta (sin resolver al final de los datos) cuenta como sin resultado."""
+
+    run_id: str
+
+    @property
+    def ref(self) -> str:
+        return self.run_id
+
+    def span(self, conn: psycopg.Connection) -> tuple[datetime, datetime]:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT from_at, to_at FROM ml_label_runs WHERE run_id = %s", (self.run_id,)
+            )
+            row = cur.fetchone()
+        if row is None:
+            raise DatasetError(f"la corrida {self.run_id!r} no está en ml_label_runs")
+        return row[0], row[1]
+
+    def rows(self, conn: psycopg.Connection) -> list[Row]:
+        self.span(conn)  # sin la corrida, es un error
+        with conn.cursor() as cur:
+            cur.execute(_LABELS_QUERY, (self.run_id,))
+            out = []
+            for r in cur.fetchall():
+                resolved_at, reason = r[11], r[12]
+                exits = (
+                    None
+                    if resolved_at is None
+                    else [{"at": resolved_at.isoformat().replace("+00:00", "Z"), "reason": reason}]
+                )
+                out.append(
+                    Row(
+                        proposal_id=r[0],
+                        instrument_id=r[1],
+                        side=r[2],
+                        signal_at=r[3],
+                        reference=r[4],
+                        stop=r[5],
+                        tp1=r[6],
+                        score=r[7],
+                        breakdown=r[8],
+                        triggers=r[9],
+                        hit_tp1=r[10],
+                        exits=exits,
+                        as_of=r[13],
+                        atr14_m15=r[14],
+                        realized_vol_tercile=r[15],
+                        session_band=r[16],
+                    )
+                )
+            return out
 
 
 def load_from(
