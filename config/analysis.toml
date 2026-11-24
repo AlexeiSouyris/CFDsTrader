@@ -15,3 +15,41 @@ retracements = ["0.236", "0.382", "0.5", "0.618", "0.786"]
 extensions = ["1.272", "1.618", "2.618"]
 # Zona del golden pocket, como retrocesos (desde, hasta).
 golden_pocket = ["0.618", "0.65"]
+
+[wyckoff]
+# Spring (ruptura falsa por debajo del rango) y upthrust (por encima). El rango: el soporte más
+# alto por debajo y la resistencia más baja por encima del cierre anterior, cada uno con
+# ≥ min_touches pivotes confirmados de las últimas lookback_bars velas, dentro de ±tolerance_pct %.
+lookback_bars = 200
+min_touches = 3
+tolerance_pct = "0.15"
+# Velas después de la ruptura para volver a cerrar dentro del rango (0 = la misma vela).
+max_bars_to_reclaim = 3
+# Si pasa el nivel más de este %, es una ruptura de verdad y no un spring.
+max_penetration_pct = "0.5"
+
+[bottom]
+# "Precio de fondo": mínimo confirmado que cierra una bajada y desde el que el precio rebota.
+# Bajada: desde el máximo de las `lookback` velas anteriores, ≥ min_decline_pct % de ese máximo
+# o ≥ min_decline_atr ATR (alcanza con una).
+lookback = 50
+min_decline_pct = "1"
+min_decline_atr = "3"
+atr_period = 14
+# Rebote: un cierre ≥ fondo + min_rebound_atr ATR dentro de max_bars_to_rebound velas.
+min_rebound_atr = "1"
+max_bars_to_rebound = 10
+
+[ma_cross]
+# Cruce dorado (la rápida pasa arriba de la lenta) y de la muerte (abajo), sobre los cierres
+# DIARIOS. La convención es SMA 50 y SMA 200. kind = "sma" o "ema".
+kind = "sma"
+fast = 50
+slow = 200
+
+[vix]
+# Régimen del VIX (contexto, no entra al puntaje): calma < normal_from ≤ normal < elevated_from
+# ≤ elevado < stress_from ≤ estrés. Convención habitual del mercado, no un ajuste.
+normal_from = "15"
+elevated_from = "20"
+stress_from = "30"

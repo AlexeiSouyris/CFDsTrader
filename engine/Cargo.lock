@@ -203,6 +203,7 @@ dependencies = [
  "cfds-liquidity",
  "cfds-market-data",
  "cfds-patterns",
+ "cfds-regime",
  "cfds-risk",
  "cfds-storage",
  "cfds-strategy",
