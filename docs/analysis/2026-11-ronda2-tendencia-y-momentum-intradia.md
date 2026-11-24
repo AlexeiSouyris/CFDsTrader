@@ -1,6 +1,6 @@
 # Ronda 2 de investigación: tendencia mensual (A) y momentum intradía (B)
 
-Issue #486 · 24-11-2026 · propuesta y regla: `docs/analysis/2026-11-propuesta-investigacion.md` (#466) · pre-registro: `docs/analysis/2026-11-ronda2-preregistro.md` (commits del 24-11-2026 a las 15:08 y a las 15:19, hora de autor de Madrid; los dos **antes** de la primera corrida, que fue a las 15:20. Se publicaron en la rama como `f9eadb7` y `1b599bf`; después del rebase sobre `main` cambian de hash, con el mismo contenido y la misma hora de autor).
+Issue #486 · 24-11-2026 · propuesta y regla: `docs/analysis/2026-11-propuesta-investigacion.md` (#466) · pre-registro: `docs/analysis/2026-11-ronda2-preregistro.md` (commits del 24-11-2026 a las 15:08 y a las 15:19, hora de autor de Madrid; los dos **antes** de la primera corrida, que fue a las 15:20. Se publicaron en la rama como `f9eadb7` y `1b599bf`; después del rebase sobre `main` son `4b2a116` y `d6083c3`, con el mismo contenido y la misma hora de autor).
 
 > **Es un estudio, no un resultado oficial.** El tipo de referencia de la financiación de US500, US100 y US30 sigue pendiente con IG: se usan los dos escenarios de #421, solo en memoria. **El fuera de muestra (desde el 01-11-2025) no se cargó ni se miró.** Las velas son de futuros, no del CFD. Los resultados pasados no prometen ningún resultado futuro, y nada de esto es una recomendación de operar.
 
