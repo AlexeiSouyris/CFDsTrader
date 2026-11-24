@@ -26,7 +26,7 @@ use std::collections::BTreeMap;
 use std::future::Future;
 use std::sync::Arc;
 
-use cfds_backtest::{AccountFx, DailyRates, FundingRates, market_terms_from_catalog};
+use cfds_backtest::{AccountFx, DailyRates, FundingRates, FxRates, market_terms_from_catalog};
 use cfds_broker::{
     Broker, BrokerConfig, Flush, FundingSetup, MarketSetup, PaperBroker, ReconcileSchedule,
     flush_journal, reconcile_periodically, restore_and_reconcile, submit_and_record,
@@ -343,14 +343,18 @@ impl PgPaper {
                     continue;
                 }
             };
-            // El broker simulado todavía convierte con un tipo fijo: un contrato en otra moneda
-            // que la cuenta (el oro, en USD) no entra hasta que use el tipo vigente (ADR 0013).
-            if terms.account_to_instrument != AccountFx::Same {
-                skipped.push(format!(
-                    "{id}: contrato en otra moneda que la cuenta; el broker simulado todavía no \
-                     convierte con el tipo de cambio vigente (ADR 0013 §4)"
-                ));
-                continue;
+            // Contrato en otra moneda que la cuenta (el oro, en USD; ADR 0013 §4): el tipo de
+            // cambio diario guardado hasta `now`. Sin ninguno guardado, no entra.
+            let mut fx = terms.account_to_instrument.clone();
+            if let AccountFx::Missing { pair } = &fx {
+                let saved = store.fx_rates(pair, now).await.map_err(|e| e.to_string())?;
+                match FxRates::new(saved) {
+                    Some(daily) => fx = AccountFx::Daily(daily),
+                    None => {
+                        skipped.push(format!("{id}: no hay tipos de {pair} guardados"));
+                        continue;
+                    }
+                }
             }
             // Financiación con la serie diaria guardada (#79) si existe; si no, la constante
             // documentada del catálogo (`[funding_benchmarks]`).
@@ -376,7 +380,7 @@ impl PgPaper {
                 MarketSetup {
                     limits: terms.limits,
                     costs: terms.costs,
-                    account_to_instrument: rust_decimal::Decimal::ONE,
+                    account_to_instrument: fx,
                     candles,
                     funding: FundingSetup {
                         cutoff: terms.funding_cutoff,

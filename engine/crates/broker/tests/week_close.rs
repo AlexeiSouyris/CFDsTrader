@@ -94,7 +94,7 @@ fn broker(m15: Vec<Candle>, with_sessions: bool) -> PaperBroker {
             min_deal_size: Some(dec!(0.01)),
         },
         costs: costs(),
-        account_to_instrument: Decimal::ONE,
+        account_to_instrument: cfds_backtest::AccountFx::Same,
         candles: m15,
         funding: FundingSetup {
             cutoff: NaiveTime::from_hms_opt(23, 0, 0).unwrap(),

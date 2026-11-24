@@ -146,7 +146,7 @@ fn broker(candles: &[Candle], rate: Decimal) -> PaperBroker {
     let m = MarketSetup {
         limits: limits(),
         costs: costs(),
-        account_to_instrument: Decimal::ONE,
+        account_to_instrument: cfds_backtest::AccountFx::Same,
         candles: candles.to_vec(),
         funding: FundingSetup {
             cutoff: NaiveTime::from_hms_opt(23, 0, 0).unwrap(),

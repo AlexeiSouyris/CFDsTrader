@@ -104,6 +104,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(d) => FundingRates::Daily(d),
         None => terms.funding_rates.clone(),
     };
+    // Tipo de cambio (ADR 0013 §4): la serie guardada, igual en los dos lados.
+    let fx = match &terms.account_to_instrument {
+        cfds_backtest::AccountFx::Missing { pair } => cfds_backtest::AccountFx::Daily(
+            cfds_backtest::FxRates::new(store.fx_rates(pair, to).await?)
+                .ok_or_else(|| format!("no hay tipos de {pair} guardados"))?,
+        ),
+        other => other.clone(),
+    };
 
     // Paper: el registro de este instrumento, reconstruido sobre las mismas velas.
     let journal: Vec<_> = store
@@ -115,14 +123,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let market = MarketSetup {
         limits: terms.limits,
         costs: terms.costs,
-        // El broker simulado todavía convierte con un tipo fijo (ADR 0013 §4).
-        account_to_instrument: match terms.account_to_instrument {
-            cfds_backtest::AccountFx::Same => rust_decimal::Decimal::ONE,
-            _ => return Err(
-                "contrato en otra moneda que la cuenta: el broker simulado todavía no lo convierte"
-                    .into(),
-            ),
-        },
+        account_to_instrument: fx.clone(),
         candles: raw_m15.clone(),
         funding: FundingSetup {
             cutoff: terms.funding_cutoff,
@@ -188,6 +189,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Como en vivo: el kill switch no se reactiva.
     setup.backtest.kill_switch_reset_days = None;
     setup.funding_rates = rates;
+    setup.account_to_instrument = fx;
     let report = run_with_news(
         &m15,
         &h1,

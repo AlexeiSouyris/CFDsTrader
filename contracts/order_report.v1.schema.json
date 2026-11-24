@@ -32,12 +32,12 @@
   "$defs": {
     "decimal_or_null": { "oneOf": [{ "type": "string", "pattern": "^\\d+(\\.\\d+)?$" }, { "type": "null" }] },
     "rejection": {
-      "description": "Los motivos del módulo de riesgo (cfds-risk `Rejection`) más los del broker: no_price (no hay vela para ejecutar), unknown_instrument, stop_wrong_side y no_recent_candles (hay vela de referencia pero no alcanzan las velas cerradas recientes para el ATR del riesgo; por ejemplo, el modo en vivo está en pausa sin cupo de IG, #361).",
+      "description": "Los motivos del módulo de riesgo (cfds-risk `Rejection`) más los del broker: no_price (no hay vela para ejecutar), unknown_instrument, stop_wrong_side y no_recent_candles (hay vela de referencia pero no alcanzan las velas cerradas recientes para el ATR del riesgo; por ejemplo, el modo en vivo está en pausa sin cupo de IG, #361) y missing_fx_rate (contrato en otra moneda que la cuenta, por ejemplo el oro en USD, sin tipo de cambio publicado a la hora de la señal; ADR 0013, #418).",
       "enum": [
         "invalid_input", "kill_switch_active", "drawdown_limit", "daily_loss_limit", "max_open_positions",
         "instrument_already_open", "stop_too_close", "stop_too_far", "insufficient_margin",
         "below_min_deal_size", "min_deal_size_unknown", "no_price", "unknown_instrument", "stop_wrong_side",
-        "no_recent_candles"
+        "no_recent_candles", "missing_fx_rate"
       ]
     }
   }

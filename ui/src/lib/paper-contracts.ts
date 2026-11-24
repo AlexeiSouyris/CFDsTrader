@@ -27,6 +27,7 @@ export type Rejection =
   | 'unknown_instrument'
   | 'stop_wrong_side'
   | 'no_recent_candles'
+  | 'missing_fx_rate'
 
 /** `order.v1`: una orden de mercado. El tamaño no va: lo decide el módulo de riesgo. */
 export type Order = {
@@ -120,4 +121,6 @@ export const REJECTION_LABEL: Record<Rejection, string> = {
   stop_wrong_side: 'El stop está del lado equivocado del precio.',
   no_recent_candles:
     'Sin velas en vivo suficientes para calcular el ATR (puede faltar cupo de IG). No se opera hasta que lleguen.',
+  missing_fx_rate:
+    'Falta el tipo de cambio EUR/USD de este momento para un contrato en dólares. No se opera sin él.',
 }
