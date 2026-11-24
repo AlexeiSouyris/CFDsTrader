@@ -6,6 +6,7 @@
  */
 import { AlertTriangle } from 'lucide-react'
 
+import { roundedText } from '@/components/ui/rounded-text'
 import type { AnalogGroup, AnalogReport, SentimentIndex } from '@/lib/context-contracts'
 import { dateTimeUtc, dateUtc, decimal, signed, signedPercent } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -20,7 +21,7 @@ export function SentimentGauge({ index }: { index: SentimentIndex }) {
     <div className="grid gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <strong className="text-[clamp(26px,3vw,36px)] leading-none font-extrabold tracking-[-0.04em] tabular-nums">
-          {signed(index.value)}
+          {signed(roundedText(index.value))}
         </strong>
         <span className="text-[11px] text-muted-foreground">
           al {dateTimeUtc(index.published_at)}
@@ -32,7 +33,7 @@ export function SentimentGauge({ index }: { index: SentimentIndex }) {
         aria-valuemin={-1}
         aria-valuemax={1}
         aria-valuenow={Number(index.value)}
-        aria-valuetext={signed(index.value)}
+        aria-valuetext={signed(roundedText(index.value))}
         className="relative h-2 rounded-full bg-gradient-to-r from-down/50 via-border to-up/50"
       >
         <span

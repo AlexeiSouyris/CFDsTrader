@@ -6,7 +6,7 @@
  * vista de `GET /api/v1/liquidity` (`contracts/liquidity_view.v1`), que se vuelve a pedir cada
  * minuto. Sin velas guardadas muestra "sin datos todavía".
  */
-import { useState, type ReactNode } from 'react'
+import { createContext, useContext, useState, type ReactNode } from 'react'
 
 import { LiquidityChart } from '@/components/ui/liquidity-chart'
 import { FvgTable, ImbalanceGauge, LevelsTable, StatsPanel } from '@/components/ui/liquidity-panels'
@@ -17,13 +17,26 @@ import { chartBars } from '@/lib/liquidity-bars'
 import type { LiquidityViewData, ViewSource, ViewTimeframe } from '@/lib/liquidity-contracts'
 import { dateTimeUtc } from '@/lib/format'
 
+/**
+ * Nivel de los títulos de las tarjetas: `h2` en `#liquidez` sola y `h3` dentro del Panel, donde
+ * "Liquidez" ya es el `h2` (#357). Solo cambia la etiqueta, no el aspecto.
+ */
+const HeadingLevel = createContext<2 | 3>(2)
+
 function Card({ title, children }: { title?: ReactNode; children: ReactNode }) {
+  const Heading = useContext(HeadingLevel) === 3 ? 'h3' : 'h2'
   return (
     <section className="glass relative min-w-0 rounded-[20px] p-4 has-[[role=dialog]]:z-30">
-      {title && <h2 className="mb-3 text-[14px] font-bold">{title}</h2>}
+      {title && <Heading className="mb-3 text-[14px] font-bold">{title}</Heading>}
       {children}
     </section>
   )
+}
+
+/** Un selector que, si no entra (muchos instrumentos en un celular), se desliza en vez de
+ * ensanchar la página. */
+function ScrollRow({ children }: { children: ReactNode }) {
+  return <div className="max-w-full min-w-0 overflow-x-auto [scrollbar-width:thin]">{children}</div>
 }
 
 const INTRO = (
@@ -42,8 +55,8 @@ const TF_TEXT: Record<ViewTimeframe, [string, string]> = {
 
 function Shell({ children, controls }: { children: ReactNode; controls?: ReactNode }) {
   return (
-    <div className="grid gap-3">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
+      <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
         {INTRO}
         {controls}
       </div>
@@ -74,7 +87,15 @@ function Unreachable({ message }: { message: string }) {
 }
 
 /** La vista conectada al motor: instrumento y timeframe salen del gateway (catálogo y config). */
-export function LiquidityView() {
+export function LiquidityView({ headingLevel = 2 }: { headingLevel?: 2 | 3 }) {
+  return (
+    <HeadingLevel.Provider value={headingLevel}>
+      <LiveLiquidity />
+    </HeadingLevel.Provider>
+  )
+}
+
+function LiveLiquidity() {
   const catalog = useInstruments()
   const [picked, setPicked] = useState<{
     instrument: string
@@ -102,28 +123,34 @@ export function LiquidityView() {
   // Las fuentes las manda el motor; sin ellas (gateway anterior) solo existe la del CFD.
   const sources = catalog.data.sources ?? []
   const controls = sel && (
-    <div className="flex flex-wrap gap-2">
-      <Segmented
-        label="Instrumento"
-        options={catalog.data.instruments.map((i) => i.id)}
-        value={sel.instrument}
-        onChange={(instrument) => setPicked({ ...sel, instrument })}
-      />
-      <Segmented
-        label="Timeframe"
-        options={catalog.data.timeframes}
-        value={sel.timeframe}
-        onChange={(tf) => setPicked({ ...sel, timeframe: tf as ViewTimeframe })}
-      />
-      {sources.length > 1 && (
+    <div className="flex min-w-0 flex-wrap gap-2">
+      <ScrollRow>
         <Segmented
-          label="Fuente"
-          options={sources.map((s) => s.label)}
-          value={(sources.find((s) => s.id === (sel.source ?? 'ig')) ?? sources[0]).label}
-          onChange={(label) =>
-            setPicked({ ...sel, source: sources.find((s) => s.label === label)?.id ?? 'ig' })
-          }
+          label="Instrumento"
+          options={catalog.data.instruments.map((i) => i.id)}
+          value={sel.instrument}
+          onChange={(instrument) => setPicked({ ...sel, instrument })}
         />
+      </ScrollRow>
+      <ScrollRow>
+        <Segmented
+          label="Timeframe"
+          options={catalog.data.timeframes}
+          value={sel.timeframe}
+          onChange={(tf) => setPicked({ ...sel, timeframe: tf as ViewTimeframe })}
+        />
+      </ScrollRow>
+      {sources.length > 1 && (
+        <ScrollRow>
+          <Segmented
+            label="Fuente"
+            options={sources.map((s) => s.label)}
+            value={(sources.find((s) => s.id === (sel.source ?? 'ig')) ?? sources[0]).label}
+            onChange={(label) =>
+              setPicked({ ...sel, source: sources.find((s) => s.label === label)?.id ?? 'ig' })
+            }
+          />
+        </ScrollRow>
       )}
     </div>
   )

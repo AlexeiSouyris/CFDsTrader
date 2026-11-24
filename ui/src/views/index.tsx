@@ -55,17 +55,17 @@ const KPI_TERM: Record<string, string> = { nav: 'nav', pnl: 'pl', dd: 'drawdown'
 
 export function OverviewView({ onOpen }: { onOpen: (view: string) => void }) {
   return (
-    <div className="grid gap-3">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {KPIS.map((k) => (
-          <Card key={k.id} className="flex min-h-28 flex-col justify-between">
-            <span className="flex items-center justify-between text-[11px] font-bold text-muted-foreground">
+          <Card key={k.id} className="flex min-h-28 flex-col justify-between gap-2">
+            <span className="flex items-start justify-between gap-2 text-[11px] font-bold text-muted-foreground">
               {KPI_TERM[k.id] ? <Term id={KPI_TERM[k.id]}>{k.label}</Term> : k.label}
               {k.id === 'pnl' && <CoinsIcon size={16} />}
             </span>
             <strong
               className={cn(
-                'text-[clamp(22px,2.4vw,32px)] leading-none font-extrabold tracking-[-0.04em]',
+                'text-[clamp(22px,2.4vw,32px)] leading-none font-extrabold tracking-[-0.04em] whitespace-nowrap tabular-nums',
                 k.tone === 'up' && 'text-up',
                 k.tone === 'down' && 'text-down',
               )}
@@ -79,7 +79,7 @@ export function OverviewView({ onOpen }: { onOpen: (view: string) => void }) {
               <button
                 type="button"
                 onClick={() => onOpen('propuestas')}
-                className="text-left text-[10.5px] text-muted-foreground underline-offset-2 hover:underline"
+                className="-mx-1 self-start rounded-md px-1 text-left text-[10.5px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
               >
                 {k.detail} →
               </button>
@@ -89,7 +89,7 @@ export function OverviewView({ onOpen }: { onOpen: (view: string) => void }) {
           </Card>
         ))}
       </div>
-      <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <Card title="Índices">
           <SparkTable rows={INDEX_ROWS} />
         </Card>
@@ -97,7 +97,7 @@ export function OverviewView({ onOpen }: { onOpen: (view: string) => void }) {
           <MarketHeatmap data={HEATMAP} />
         </Card>
       </div>
-      <div className="grid gap-3 lg:grid-cols-[1.6fr_1fr]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Card>
           <TradeJournal trades={TRADES.slice(0, 4)} title="Últimas operaciones" />
           <button
@@ -184,17 +184,24 @@ function Ranking({ compact = false }: { compact?: boolean }) {
           key={r.member.id}
           className="flex items-center gap-3 rounded-xl border border-border px-3 py-2"
         >
-          <span className="w-5 text-[12px] font-extrabold text-muted-foreground">{i + 1}</span>
-          <span className="grid size-8 place-items-center rounded-full border border-border text-[10px] font-bold">
+          <span className="w-5 shrink-0 text-[12px] font-extrabold text-muted-foreground tabular-nums">
+            {i + 1}
+          </span>
+          <span
+            aria-hidden="true"
+            className="grid size-8 shrink-0 place-items-center rounded-full border border-border text-[10px] font-bold"
+          >
             {r.member.initials}
           </span>
-          <span className="flex-1 text-[13px] font-semibold">{r.member.name}</span>
+          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{r.member.name}</span>
           {!compact && (
-            <span className="text-[11px] text-muted-foreground">{r.trades} operaciones</span>
+            <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+              {r.trades} operaciones
+            </span>
           )}
           <span
             className={cn(
-              'w-16 text-right text-[13px] font-extrabold',
+              'shrink-0 text-right text-[13px] font-extrabold whitespace-nowrap tabular-nums',
               isNegative(r.result) ? 'text-down' : 'text-up',
             )}
           >

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AnalogDistribution, SentimentGauge } from '@/components/ui/market-context'
+import { roundedText } from '@/components/ui/rounded-text'
 import type { AnalogReport, EmotionalState, SentimentIndex } from '@/lib/context-contracts'
 import { signedPercent } from '@/lib/format'
 import { MarketContextView } from '@/views/market-context'
@@ -89,6 +90,20 @@ describe('contexto de mercado del Panel (#294)', () => {
     expect(meter).toHaveAttribute('aria-valuemax', '1')
   })
 
+  it('el índice largo se escribe con dos decimales, sin pasar por float (#357)', () => {
+    expect(roundedText('-0.3975550788299792283856028877')).toBe('-0.40')
+    expect(roundedText('0.335648857561208158817720571')).toBe('0.34')
+    expect(roundedText('-0.004')).toBe('0.00')
+    expect(roundedText('0.995')).toBe('1.00')
+    expect(roundedText('12345678901234567890.125')).toBe('12345678901234567890.13')
+    expect(roundedText('-3.2306', 4)).toBe('-3.2306')
+    expect(roundedText('-0.35')).toBe('-0.35')
+    expect(roundedText('abc')).toBe('abc')
+    render(<SentimentGauge index={sentiment('US100.FUT', '-0.3975550788299792283856028877')} />)
+    expect(screen.getByText('−0,40')).toBeInTheDocument()
+    expect(screen.getByRole('meter')).toHaveAttribute('aria-valuetext', '−0,40')
+  })
+
   it('los análogos muestran p10, p50, p90, % positivos y n, y dicen que no es un pronóstico', () => {
     render(<AnalogDistribution report={report('US500.FUT', 20)} />)
     expect(screen.getByText('n = 20')).toBeInTheDocument()
@@ -118,6 +133,33 @@ describe('contexto de mercado del Panel (#294)', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('Muestra chica')
     expect(fetch).toHaveBeenCalledWith('/api/v1/sentiment?instrument=US500.FUT', expect.anything())
+  })
+
+  it('sin elegir, abre en el primer instrumento con índice y no en uno vacío (#357)', async () => {
+    // DE40 solo tiene análogos y va primero en orden alfabético; el índice está en US100.FUT.
+    vi.stubGlobal('fetch', gateway([report('DE40', 20), report('US100.FUT', 20)]))
+    render(<MarketContextView />)
+    expect(await screen.findByRole('meter', { name: /US100.FUT/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'US100.FUT' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+  })
+
+  it('si una lectura falla lo dice en su tarjeta, sin decir que no hay datos (#357)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = new URL(String(input), 'http://ui.test')
+        if (url.pathname === '/api/v1/analogs')
+          return new Response(JSON.stringify([report('US100.FUT', 20)]), { status: 200 })
+        return new Response('boom', { status: 500 })
+      }),
+    )
+    render(<MarketContextView />)
+    expect(await screen.findByText(/No se pudo leer el índice del motor/)).toBeInTheDocument()
+    expect(screen.getByText(/No se pudieron leer los estados emocionales/)).toBeInTheDocument()
+    expect(screen.queryByText('Sin índice guardado para este instrumento.')).not.toBeInTheDocument()
   })
 
   it('sin análogos guardados lo dice, y ningún texto promete nada', async () => {

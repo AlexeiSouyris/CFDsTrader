@@ -40,8 +40,8 @@ export function MarketHeatmap({
 
   return (
     <div className="w-full">
-      <div className="mb-2 flex items-baseline justify-between">
-        <span className="text-[13px] font-bold">{title}</span>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-2">
+        <span className="text-[14px] font-bold">{title}</span>
         <span className="text-[10px] text-muted-foreground">tamaño = capitalización</span>
       </div>
       <div
@@ -122,7 +122,7 @@ export function MarketHeatmap({
         {tile && (
           <div
             role="status"
-            className="glass-strong pointer-events-none absolute z-10 w-40 rounded-xl px-3 py-2 text-[11px]"
+            className="glass-strong pointer-events-none absolute z-10 w-40 rounded-xl px-3 py-2 text-[11px] tabular-nums"
             style={{
               left: Math.min(width - 164, Math.max(0, tile.x + tile.w / 2 - 80)),
               top: tile.y > 70 ? tile.y - 66 : Math.min(height - 62, tile.y + tile.h + 6),

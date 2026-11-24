@@ -34,9 +34,9 @@ export function TradeJournal({
   return (
     <section aria-label={title} className="w-full">
       <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-baseline gap-2">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <h2 className="text-[15px] font-bold">{title}</h2>
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground tabular-nums">
             {shown.length} {shown.length === 1 ? 'operación' : 'operaciones'} · simulación
           </span>
         </div>
@@ -48,7 +48,8 @@ export function TradeJournal({
         />
       </header>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[560px] border-separate border-spacing-0 text-[12px]">
+        <table className="w-full min-w-[560px] border-separate border-spacing-0 text-[12px] tabular-nums">
+          <caption className="sr-only">{title}, de la más nueva a la más vieja</caption>
           <thead>
             <tr className="text-left text-[10px] tracking-[0.08em] text-muted-foreground uppercase">
               {[
@@ -63,7 +64,10 @@ export function TradeJournal({
                 <th
                   key={h}
                   scope="col"
-                  className={cn('border-b border-border pb-2 font-bold', i >= 3 && 'text-right')}
+                  className={cn(
+                    'border-b border-border pb-2 font-bold whitespace-nowrap',
+                    i >= 3 && 'text-right',
+                  )}
                 >
                   {h}
                 </th>
@@ -81,7 +85,9 @@ export function TradeJournal({
                   <td className="border-b border-border py-2.5 whitespace-nowrap text-muted-foreground">
                     {dateTimeUtc(t.at)}
                   </td>
-                  <td className="border-b border-border py-2.5 font-bold">{t.instrument}</td>
+                  <td className="border-b border-border py-2.5 font-bold whitespace-nowrap">
+                    {t.instrument}
+                  </td>
                   <td className="border-b border-border py-2.5">
                     <span
                       className={cn(
@@ -96,7 +102,7 @@ export function TradeJournal({
                   <td className="border-b border-border py-2.5 text-right">{decimal(t.entry)}</td>
                   <td
                     className={cn(
-                      'border-b border-border py-2.5 text-right font-bold',
+                      'border-b border-border py-2.5 text-right font-bold whitespace-nowrap',
                       t.netPnl === null
                         ? 'text-muted-foreground'
                         : isNegative(t.netPnl)
@@ -106,7 +112,7 @@ export function TradeJournal({
                   >
                     {t.netPnl === null ? '—' : signed(t.netPnl, 2)}
                   </td>
-                  <td className="border-b border-border py-2.5 text-right">
+                  <td className="border-b border-border py-2.5 text-right whitespace-nowrap">
                     <Status status={t.status} />
                   </td>
                 </tr>
@@ -136,7 +142,7 @@ function Status({ status }: { status: TradeRow['status'] }) {
     >
       {status === 'Ganada' && <Check className="size-3" strokeWidth={3} aria-hidden="true" />}
       {status === 'Perdida' && <X className="size-3" strokeWidth={3} aria-hidden="true" />}
-      {status === 'Abierta' && <i className="size-1.5 rounded-full bg-up" />}
+      {status === 'Abierta' && <i aria-hidden="true" className="size-1.5 rounded-full bg-up" />}
       {status}
     </span>
   )
