@@ -326,6 +326,10 @@ pub struct PgPaper {
     /// `[paper] candles_days`: las velas del broker empiezan esto antes de la primera orden del
     /// registro (#438).
     candles_window: TimeDelta,
+    /// Desde cuándo están cargadas las velas del broker (#481). Con el registro vacío, una
+    /// primera orden anterior a esto más la ventana trae antes las velas que le faltan
+    /// ([`Self::cover_first_order`]).
+    candles_loaded_from: std::sync::Mutex<DateTime<Utc>>,
     /// Instrumentos cuya financiación usa una serie guardada (`reference_rates`), con su serie:
     /// se vuelve a leer en cada `refresh` (#439).
     funding_series: BTreeMap<InstrumentId, String>,
@@ -603,6 +607,7 @@ impl PgPaper {
             ))),
             kill_switch_saved: std::sync::atomic::AtomicBool::new(saved),
             candles_window,
+            candles_loaded_from: std::sync::Mutex::new(from),
             funding_series,
             fx_pairs,
         };
@@ -710,6 +715,55 @@ impl PgPaper {
     /// primera en llegar puede no ser la primera del registro).
     pub(crate) fn anchor_candles(&self, broker: &mut PaperBroker) {
         broker.anchor_candles_before_first_order(self.candles_window);
+    }
+
+    /// Antes de mandar una orden con el registro vacío (#481): la reconstrucción cargará las
+    /// velas desde `created_at` de la primera orden menos `[paper] candles_days`, pero al
+    /// arrancar se cargaron desde `now` menos esa ventana. Una orden anterior al arranque (la del
+    /// runner, con `created_at` = cierre de la vela de la decisión, o una manual de hasta
+    /// `[paper] max_order_age_secs`) se quedaría sin las velas de ese tramo y su ATR saldría
+    /// distinto del de la reconstrucción. Acá se traen esas velas (todas cerradas) antes de
+    /// decidirla. Con órdenes en el registro no hace nada. Si la lectura falla no cambia nada y
+    /// devuelve el error: la orden no se manda.
+    pub(crate) async fn cover_first_order(
+        &self,
+        broker: &mut PaperBroker,
+        order: &Order,
+        now: DateTime<Utc>,
+    ) -> Result<(), String> {
+        if !broker.journal().is_empty() {
+            return Ok(());
+        }
+        let need = order.created_at - self.candles_window;
+        let loaded = *self
+            .candles_loaded_from
+            .lock()
+            .map_err(|_| "candado de las velas cargadas".to_owned())?;
+        if need >= loaded {
+            return Ok(());
+        }
+        // Primero se leen todas; recién después se agregan (todo o nada).
+        let mut older = Vec::new();
+        for id in broker.markets().keys() {
+            let candles: Vec<_> = self
+                .store
+                .candles(id, Timeframe::M15, need, loaded)
+                .await
+                .map_err(|e| e.to_string())?
+                .into_iter()
+                .filter(|c| c.is_closed_at(now))
+                .collect();
+            older.push((id.clone(), candles));
+        }
+        for (id, candles) in older {
+            broker
+                .prepend_candles(&id, candles)
+                .map_err(|e| format!("{id}: {e}"))?;
+        }
+        if let Ok(mut l) = self.candles_loaded_from.lock() {
+            *l = need;
+        }
+        Ok(())
     }
 
     /// `refresh` con sus errores logueados y alertados.
@@ -827,6 +881,7 @@ impl PaperService for PgPaper {
         }
         let now = order.created_at;
         self.refresh_checked(broker, sched, now).await?;
+        self.cover_first_order(broker, &order, now).await?;
         self.anchor_candles(broker);
         let r = submit_and_record(broker, &self.store, &order)
             .await

@@ -459,6 +459,41 @@ impl PaperBroker {
         Ok(())
     }
 
+    /// Agrega velas **anteriores** a las que tiene un instrumento, mientras el registro está
+    /// vacío (#481): quien carga las velas desde `now` menos la ventana y recibe una primera
+    /// orden con `created_at` anterior a `now` completa así las que le faltan desde esa orden
+    /// menos la ventana, como las cargará la reconstrucción (#438). Con órdenes ya procesadas,
+    /// con el instrumento ya cortado por un punto de control, o con velas desordenadas o que no
+    /// terminan antes de la primera que tiene, no cambia nada y devuelve error.
+    pub fn prepend_candles(
+        &mut self,
+        instrument: &InstrumentId,
+        candles: Vec<Candle>,
+    ) -> Result<(), &'static str> {
+        if !self.journal.is_empty() {
+            return Err("el broker ya procesó órdenes: sus velas no se cambian");
+        }
+        if self.atr_seeds.contains_key(instrument) {
+            return Err("el instrumento ya arranca en un punto de control");
+        }
+        let m = self
+            .markets
+            .get_mut(instrument)
+            .ok_or("instrumento desconocido")?;
+        if candles.iter().any(|c| &c.instrument_id != instrument)
+            || candles.windows(2).any(|w| w[0].start >= w[1].start)
+        {
+            return Err("velas de otro instrumento o fuera de orden");
+        }
+        if let (Some(last), Some(first)) = (candles.last(), m.candles.first())
+            && last.start >= first.start
+        {
+            return Err("las velas agregadas no terminan antes de las que ya están");
+        }
+        m.candles.splice(0..0, candles);
+        Ok(())
+    }
+
     /// Las velas van a empezar `window` antes de la primera orden que entre al registro
     /// ([`Self::start_candles_at`] en ese momento), como las carga la reconstrucción (#438).
     /// Con órdenes ya en el registro no cambia nada.
