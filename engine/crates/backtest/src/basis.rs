@@ -16,7 +16,10 @@
 //!
 //! Comprar y mantener cruza los vencimientos con el continuo sin ajustar: en cada cambio de
 //! contrato el precio salta por la base del contrato nuevo. Ese salto no es un movimiento del
-//! mercado ([`roll_jumps`]): se descuenta, y la deriva queda como en las operaciones.
+//! mercado ([`roll_jumps`]): se descuenta, y la deriva queda como en las operaciones. El salto
+//! incluye además lo que se movió el mercado entre la última vela del contrato viejo y la primera
+//! del nuevo (en CME, un fin de semana): eso se pierde. Es ruido sin sesgo, una vez por
+//! vencimiento.
 
 use cfds_core::{Candle, ReferenceRate};
 use cfds_market_data::RateSegment;
