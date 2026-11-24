@@ -13,6 +13,7 @@ pub mod rollover;
 pub mod runner;
 pub mod sensitivity;
 pub mod setup;
+pub mod variants;
 
 pub use config::{BacktestConfig, CostConfig, ExitConfig, MetricsConfig};
 pub use costs::{
@@ -20,8 +21,8 @@ pub use costs::{
     funding_nights, funding_over,
 };
 pub use evaluation::{
-    Aggregate, EvalError, EvaluationConfig, FoldResult, Inputs, PeriodResult, aggregate,
-    evaluate_holdout, evaluate_period, research_period, walk_forward,
+    Aggregate, EvalError, EvaluationConfig, FoldResult, Inputs, PeriodResult, Slice, aggregate,
+    evaluate_holdout, evaluate_period, evaluate_period_with, research_period, walk_forward,
 };
 pub use exits::{ExitReason, Fill, Outcome, Trade, simulate};
 pub use export::{ChartExport, chart_export};
@@ -41,3 +42,6 @@ pub use sensitivity::{
     sensitivity, setup_with, stability, value_text,
 };
 pub use setup::{MarketTerms, SetupError, market_terms_from_catalog, setup_from_catalog};
+pub use variants::{
+    Override, TradeStats, Variant, entry_filter, research_blocks, setup_for, variants_from_toml,
+};
