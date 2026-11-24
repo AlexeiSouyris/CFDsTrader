@@ -1,0 +1,34 @@
+# Estrategias de ESTUDIO de la ronda 1 de investigación (#472). Definiciones y regla de decisión de
+# docs/analysis/2026-11-propuesta-investigacion.md (#466) y su pre-registro,
+# docs/analysis/2026-11-ronda1-preregistro.md. Los valores salen de la fuente citada allí: NO se
+# ajustan mirando resultados (cambiarlos es una prueba nueva, con su costo en el presupuesto).
+# Solo los lee el ejemplo `ronda1` de cfds-backtest: ni el runner ni el paper ni la estrategia en
+# uso (config/strategy.toml) los usan.
+
+[orb]
+# Familia C, ruptura del rango de apertura: el rango son las primeras `range_candles` velas de 15m
+# de la sesión de contado.
+range_candles = 2
+# La vela de la ruptura tiene que cerrar a esta hora local de la bolsa o antes; si no, ese día no
+# se opera.
+last_breakout_close = "15:00"
+
+[turn_of_month]
+# Familia D1, cambio de mes (McConnell y Xu, 2008): salida al cierre del día hábil número
+# `exit_business_day` del mes nuevo.
+exit_business_day = 3
+# Stop de protección a `stop_atr` × ATR(`atr_period`) de las diarias de la sesión de contado.
+atr_period = 20
+stop_atr = "2"
+
+[rule]
+# Regla de decisión pre-registrada (#466 §4.3).
+# Nivel unilateral de la prueba t de los retornos mensuales de la cartera (ronda 1: 2,5 % / 2).
+alpha = "0.0125"
+# Sharpe deflactado: pruebas registradas hasta ahora y mínimo para pasar.
+dsr_trials = 350
+dsr_min = "0.95"
+# Estrés de costos: multiplicador de todos los costos sobre las mismas operaciones.
+cost_stress = "1.5"
+# Inicio de la segunda mitad de la validación para la consistencia (criterio 3).
+second_half_from = "2020-01-01"
