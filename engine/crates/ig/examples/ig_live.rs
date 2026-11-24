@@ -16,6 +16,10 @@
 //! - Con `DATABASE_URL` y `REDIS_URL`, las velas entran por el circuito de ingesta completo:
 //!   validación → PostgreSQL → Redis Streams. Sin ellas, es una corrida en seco: valida y
 //!   muestra las velas, pero no guarda nada.
+//! - **Spread de cierre** (#437): del mismo pedido (IG manda bid y ask con cada vela, sin cupo
+//!   extra) guarda en `candle_spreads` el spread de cada vela cerrada que entró, de solo
+//!   agregar. Es lo que lee el filtro de spread (spec §7.3). Si no se puede guardar, avisa y
+//!   sigue: la vela ya está, y el filtro, sin ese spread, simplemente no deja entrar.
 //! - Solo pide las velas que el calendario de sesiones espera; fuera de horario no gasta cupo.
 //! - **Kill switch** (CLAUDE.md §5b): si una vela cerrada no se puede guardar pasado
 //!   `live.give_up_after_secs`, cierra la sesión y termina con error.
@@ -39,13 +43,14 @@ use std::path::PathBuf;
 use cfds_core::{InstrumentId, Timeframe};
 use cfds_ig::live::{
     PAUSED_EXIT_CODE, due_points, due_range, next_wake, out_of_allowance, overdue, pause_message,
+    spreads_to_store,
 };
 use cfds_ig::{
     Credentials, DATA_MACHINE_ENV, IgConfig, IgProvider, Recent, ReqwestTransport, WeekSpend,
     api_key_from_env, epics_from_catalog, is_data_machine, usage_of,
 };
 use cfds_ingest::{IngestRequest, ingest, prepare};
-use cfds_market_data::{Catalog, ExchangeCalendar, MarketDataProvider, ValidationConfig};
+use cfds_market_data::{Catalog, ExchangeCalendar, StaticProvider, ValidationConfig};
 use cfds_storage::{CandlePublisher, PgStore};
 use chrono::{TimeDelta, Utc};
 
@@ -251,12 +256,16 @@ async fn run(
     sink: &mut Sink,
     req: &IngestRequest,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let recent = Recent(ig);
+    // Velas y spreads del mismo pedido exacto (#437): 1 punto por vela, como antes.
+    let (candles, spreads) = Recent(ig)
+        .history_with_spreads(&req.instrument, req.timeframe, req.from, req.to)
+        .await?;
     let now = Utc::now();
     match sink {
         Some((store, publisher)) => {
+            let to_store = spreads_to_store(spreads, &candles, now);
             let r = ingest(
-                &recent,
+                &StaticProvider::new(candles),
                 calendar,
                 validation,
                 store,
@@ -265,22 +274,36 @@ async fn run(
                 now,
             )
             .await?;
+            // La ingesta salió bien: las velas cerradas ya están guardadas, y con ellas su spread.
+            // Si el spread falla, se avisa y no frena el modo en vivo (la vela no se pierde).
+            let spreads = match store.insert_spreads(&to_store).await {
+                Ok(sr) => format!(
+                    "spreads: {} nuevos, {} ya estaban",
+                    sr.inserted, sr.unchanged
+                ),
+                Err(e) => {
+                    eprintln!(
+                        "⚠️  {} {} [{}, {}): no se pudo guardar el spread: {e}",
+                        req.instrument, req.timeframe, req.from, req.to
+                    );
+                    "spreads: sin guardar".to_owned()
+                }
+            };
             Ok(format!(
-                "{} nuevas, {} publicadas en Redis",
+                "{} nuevas, {} publicadas en Redis; {spreads}",
                 r.inserted, r.published
             ))
         }
         None => {
-            let candles = recent
-                .history(&req.instrument, req.timeframe, req.from, req.to)
-                .await?;
+            let to_store = spreads_to_store(spreads, &candles, now);
             let (ready, open) = prepare(req, candles, calendar, validation, now)?;
             let closes: Vec<String> = ready.iter().map(|c| c.close.to_string()).collect();
             Ok(format!(
-                "{} velas válidas ({} abiertas descartadas), cierres {}",
+                "{} velas válidas ({} abiertas descartadas), cierres {}, {} spreads de cierre",
                 ready.len(),
                 open,
-                closes.join(" ")
+                closes.join(" "),
+                to_store.len()
             ))
         }
     }
