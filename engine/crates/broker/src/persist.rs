@@ -15,7 +15,7 @@
 
 use std::collections::BTreeMap;
 
-use cfds_core::{InstrumentId, Order, OrderReport, Position};
+use cfds_core::{InstrumentId, Order, OrderReport, OrderStatus, Position};
 use cfds_storage::{CheckpointRow, PgStore, StorageError};
 use chrono::{DateTime, Utc};
 
@@ -108,8 +108,30 @@ pub async fn submit_and_record(
     order: &Order,
 ) -> Result<OrderReport, StorageError> {
     let report = broker.submit(order);
-    store.insert_paper_order(order, &report).await?;
+    // Una pendiente (#471) no está en el registro: se guarda cuando se decide.
+    if report.status != OrderStatus::Pending {
+        store.insert_paper_order(order, &report).await?;
+    }
     Ok(report)
+}
+
+/// Decide las órdenes pendientes cuya vela del fill ya llegó (`PaperBroker::settle_pending`,
+/// #471) y las guarda en el registro, en orden. Si un guardado falla, sigue con las demás y
+/// devuelve el primer error: lo que no se guardó queda en el registro del broker (la parada
+/// segura lo vuelve a intentar y la reconciliación periódica lo marca).
+pub async fn settle_and_record(
+    broker: &mut PaperBroker,
+    store: &PgStore,
+) -> Result<Vec<OrderReport>, StorageError> {
+    let mut first_err = None;
+    let mut out = Vec::new();
+    for (order, report) in broker.settle_pending() {
+        if let Err(e) = store.insert_paper_order(&order, &report).await {
+            first_err.get_or_insert(e);
+        }
+        out.push(report);
+    }
+    first_err.map_or(Ok(out), Err)
 }
 
 /// Los cambios guardados del kill switch (#441), en orden.
@@ -296,6 +318,9 @@ pub struct Flush {
     pub saved_now: Vec<String>,
     /// Órdenes que siguen sin guardar después del intento (huérfanas). Vacío = parada limpia.
     pub orphans: Vec<String>,
+    /// Órdenes pendientes de su vela del fill (#471) que se pierden al apagar: no se
+    /// ejecutaron y no están en el registro.
+    pub pending_dropped: Vec<String>,
 }
 
 impl Flush {
@@ -311,7 +336,14 @@ pub async fn flush_journal<S: JournalStore>(
     store: &S,
 ) -> Result<Flush, String> {
     let saved = store.saved_ids().await?;
-    let mut flush = Flush::default();
+    let mut flush = Flush {
+        pending_dropped: broker
+            .pending()
+            .iter()
+            .map(|o| o.order_id.to_string())
+            .collect(),
+        ..Flush::default()
+    };
     for (o, r) in broker.journal() {
         let id = o.order_id.to_string();
         if !saved.contains(&id) && store.save(o, r).await.is_ok() {

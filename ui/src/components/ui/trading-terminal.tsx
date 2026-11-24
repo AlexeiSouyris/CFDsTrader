@@ -519,6 +519,14 @@ function Report({ report: r, since }: { report: OrderReport | 'mock'; since?: st
     )
   if (r.status === 'rejected' && r.rejection === 'no_recent_candles')
     return <NoCandlesNotice since={since} />
+  if (r.status === 'pending')
+    return (
+      <p role="status" className="rounded-2xl border border-border p-3 text-[12.5px]">
+        <strong className="block font-extrabold">Pendiente de la próxima vela.</strong>
+        El motor la decide y la ejecuta (o la rechaza) en la apertura de la vela siguiente, desde{' '}
+        {dateTimeUtc(r.at)}. Mirá las posiciones abiertas.
+      </p>
+    )
   if (r.status === 'rejected')
     return (
       <p role="status" className="rounded-2xl border border-down/40 p-3 text-[12.5px]">

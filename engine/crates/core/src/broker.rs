@@ -140,6 +140,9 @@ impl OrderRejection {
 pub enum OrderStatus {
     Rejected,
     Filled,
+    /// Aceptable por el riesgo, esperando la vela del fill (#471). Solo en la respuesta de
+    /// `submit`: nunca entra al registro guardado.
+    Pending,
 }
 
 /// `order_report.v1`: qué pasó con una orden.

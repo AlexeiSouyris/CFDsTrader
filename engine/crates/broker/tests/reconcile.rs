@@ -246,9 +246,10 @@ fn only_a_saved_release_turns_the_kill_switch_off_and_later_orders_rebuild_the_s
     assert_eq!(again.journal(), after_vote.journal());
 }
 
-/// 20 velas anchas (rango 20) y después 60 angostas (rango 2), desde `at(0)`.
+/// 20 velas anchas (rango 20) y después 61 angostas (rango 2), desde `at(0)`. La última
+/// (`at(80)`) es la del fill de una orden de `at(80)`.
 fn wide_then_narrow(id: &str) -> Vec<Candle> {
-    (0..80)
+    (0..81)
         .map(|i| {
             let half = if i < 20 { dec!(10) } else { dec!(1) };
             Candle {
@@ -305,5 +306,127 @@ fn the_candles_start_at_the_first_order_so_a_restart_rebuilds_the_same() {
     assert!(rec.is_clean(), "{rec:?}");
     // Con órdenes ya procesadas las velas no se tocan.
     assert!(anchored.start_candles_at(at(40)).is_err());
-    assert_eq!(anchored.markets()[&o.instrument_id].candles.len(), 60);
+    assert_eq!(anchored.markets()[&o.instrument_id].candles.len(), 61);
+}
+
+/// Las velas de `markets` que empiezan en `[from, to)`, por instrumento.
+fn window_of(
+    mut markets: BTreeMap<InstrumentId, MarketSetup>,
+    id: &str,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> BTreeMap<InstrumentId, MarketSetup> {
+    let id: InstrumentId = id.parse().unwrap();
+    for (k, m) in &mut markets {
+        m.candles
+            .retain(|c| c.start >= from && (k != &id || c.start < to));
+    }
+    markets
+}
+
+fn candle_of(markets: &BTreeMap<InstrumentId, MarketSetup>, id: &str, i: i64) -> Candle {
+    markets[&id.parse::<InstrumentId>().unwrap()]
+        .candles
+        .iter()
+        .find(|c| c.start == at(i))
+        .unwrap()
+        .clone()
+}
+
+/// #471: una orden manual de ahora (a mitad de una vela) no tiene todavía su vela del fill.
+/// La sesión en marcha no la rechaza con `no_price`: queda pendiente, fuera del registro, y se
+/// decide cuando llega esa vela. La reconstrucción, que ya tiene la vela, la decide igual.
+#[test]
+fn a_manual_order_waits_for_its_fill_candle_and_rebuilds_the_same() {
+    let (cfg, full) = setup(dec!(100));
+    let mut o = order("manual", "US100", dec!(98));
+    o.created_at = at(25) + TimeDelta::minutes(7);
+    // En marcha: velas de US100 cerradas hasta la 24 (termina en at(25)).
+    let mut live = PaperBroker::new(cfg.clone(), window_of(full.clone(), "US100", at(0), at(25)));
+
+    let r = live.submit(&o);
+    assert_eq!(r.status, OrderStatus::Pending);
+    assert_eq!(r.rejection, None);
+    assert!(live.journal().is_empty());
+    assert_eq!(live.pending().len(), 1);
+    // Repetirla no la duplica.
+    assert_eq!(live.submit(&o), r);
+    assert_eq!(live.pending().len(), 1);
+
+    // La vela 25 (la de created_at) no es la del fill: sigue pendiente.
+    live.push_candle(candle_of(&full, "US100", 25)).unwrap();
+    assert!(live.settle_pending().is_empty());
+    // La 26 empieza después de created_at: se decide y se llena en su apertura.
+    live.push_candle(candle_of(&full, "US100", 26)).unwrap();
+    let settled = live.settle_pending();
+    assert_eq!(settled.len(), 1);
+    let filled = &settled[0].1;
+    assert_eq!(filled.status, OrderStatus::Filled, "{filled:?}");
+    assert_eq!(filled.at, at(26));
+    assert!(live.pending().is_empty());
+    assert_eq!(live.journal().len(), 1);
+    // Ya decidida, repetirla devuelve el informe del registro.
+    assert_eq!(&live.submit(&o), filled);
+
+    // La reconstrucción (con todas las velas) decide lo mismo: sin diferencias.
+    let positions = live.positions(at(27));
+    assert_eq!(positions.len(), 1);
+    let (mut restored, rec) = restore_and_reconcile(cfg, full, live.journal(), &positions, at(27));
+    assert!(rec.is_clean(), "{rec:?}");
+    assert_eq!(restored.journal(), live.journal());
+    assert_eq!(restored.positions(at(27)), positions);
+}
+
+/// #471: si el riesgo la rechaza, el rechazo no depende de la vela del fill: se registra ya, y
+/// la reconstrucción lo repite.
+#[test]
+fn a_manual_order_the_risk_rejects_is_recorded_at_once_and_rebuilds_the_same() {
+    let (cfg, full) = setup(dec!(100));
+    let mut o = order("wrong", "US100", dec!(101)); // stop del lado equivocado
+    o.created_at = at(25) + TimeDelta::minutes(7);
+    let mut live = PaperBroker::new(cfg.clone(), window_of(full.clone(), "US100", at(0), at(25)));
+    let r = live.submit(&o);
+    assert_eq!(r.status, OrderStatus::Rejected);
+    assert_eq!(r.rejection, Some(OrderRejection::StopWrongSide));
+    assert!(live.pending().is_empty());
+    assert_eq!(live.journal().len(), 1);
+    let (_, rec) = restore_and_reconcile(cfg, full, live.journal(), &[], at(27));
+    assert!(rec.is_clean(), "{rec:?}");
+}
+
+/// #471 con #438: las velas se recortan antes de la primera orden que **entra al registro**,
+/// no de la primera que llega. Una pendiente que llega antes que otra orden de fecha anterior
+/// (la del runner, con `created_at` = cierre de la vela de la decisión) no fija el comienzo.
+#[test]
+fn the_candles_start_at_the_first_recorded_order_even_with_a_pending_one() {
+    let (cfg, full) = setup(dec!(100));
+    let window = TimeDelta::minutes(15 * 15);
+    let mut manual = order("manual", "US100", dec!(98));
+    manual.created_at = at(25) + TimeDelta::minutes(7);
+    let mut runner = order("runner", "DE40", dec!(98));
+    runner.created_at = at(20);
+
+    let mut live = PaperBroker::new(cfg.clone(), window_of(full.clone(), "US100", at(0), at(25)));
+    live.anchor_candles_before_first_order(window);
+    assert_eq!(live.submit(&manual).status, OrderStatus::Pending);
+    // Todavía nada en el registro: las velas no se tocaron.
+    assert_eq!(
+        live.markets()[&manual.instrument_id].candles[0].start,
+        at(0)
+    );
+    assert_eq!(live.submit(&runner).status, OrderStatus::Filled);
+    for m in live.markets().values() {
+        assert_eq!(m.candles[0].start, runner.created_at - window);
+    }
+    live.push_candle(candle_of(&full, "US100", 25)).unwrap();
+    live.push_candle(candle_of(&full, "US100", 26)).unwrap();
+    let settled = live.settle_pending();
+    assert_eq!(settled[0].1.status, OrderStatus::Filled, "{settled:?}");
+
+    // La reconstrucción carga las velas desde la primera orden del registro (la del runner).
+    let positions = live.positions(at(27));
+    assert_eq!(positions.len(), 2);
+    let rebuilt = window_of(full, "US100", runner.created_at - window, at(30));
+    let (_, rec) = restore_and_reconcile(cfg, rebuilt, live.journal(), &positions, at(27));
+    assert!(rec.is_clean(), "{rec:?}");
 }
