@@ -4,43 +4,44 @@
  * motor. Reúne dos vistas que ya existen; no calcula nada. La sección "Operación" (#314) muestra
  * el estado del broker simulado y sus eventos y alertas.
  * `#liquidez` sigue existiendo sola.
+ *
+ * La columna es `minmax(0,1fr)` (#357): ningún hijo ancho (una tabla, un selector con muchas
+ * opciones) puede ensanchar la página y empujar las tarjetas fuera de la pantalla del celular.
  */
+import type { ReactNode } from 'react'
+
 import { OverviewView } from '@/views'
 import { LiquidityView } from '@/views/liquidity'
 import { MarketContextView } from '@/views/market-context'
 import { OperationView } from '@/views/operation'
 
+function PanelSection({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  return (
+    <section aria-labelledby={id} className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
+      <h2
+        id={id}
+        className="scroll-mt-24 px-1 text-[clamp(20px,2vw,26px)] font-bold tracking-[-0.03em]"
+      >
+        {title}
+      </h2>
+      {children}
+    </section>
+  )
+}
+
 export function PanelView({ onOpen }: { onOpen: (view: string) => void }) {
   return (
-    <div className="grid gap-8">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-8">
       <OverviewView onOpen={onOpen} />
-      <section aria-labelledby="panel-operacion" className="grid gap-3">
-        <h2
-          id="panel-operacion"
-          className="px-1 text-[clamp(20px,2vw,26px)] font-bold tracking-[-0.03em]"
-        >
-          Operación
-        </h2>
+      <PanelSection id="panel-operacion" title="Operación">
         <OperationView />
-      </section>
-      <section aria-labelledby="panel-contexto" className="grid gap-3">
-        <h2
-          id="panel-contexto"
-          className="px-1 text-[clamp(20px,2vw,26px)] font-bold tracking-[-0.03em]"
-        >
-          Contexto de mercado
-        </h2>
+      </PanelSection>
+      <PanelSection id="panel-contexto" title="Contexto de mercado">
         <MarketContextView />
-      </section>
-      <section aria-labelledby="panel-liquidez" className="grid gap-3">
-        <h2
-          id="panel-liquidez"
-          className="px-1 text-[clamp(20px,2vw,26px)] font-bold tracking-[-0.03em]"
-        >
-          Liquidez
-        </h2>
-        <LiquidityView />
-      </section>
+      </PanelSection>
+      <PanelSection id="panel-liquidez" title="Liquidez">
+        <LiquidityView headingLevel={3} />
+      </PanelSection>
     </div>
   )
 }

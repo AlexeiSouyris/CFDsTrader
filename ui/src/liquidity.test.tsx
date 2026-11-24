@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from '@/App'
 import { placeLabels } from '@/components/ui/chart-measure'
 import { LiquidityChart } from '@/components/ui/liquidity-chart'
-import { ImbalanceGauge, LevelsTable, Rate } from '@/components/ui/liquidity-panels'
+import { FvgTable, ImbalanceGauge, LevelsTable, Rate } from '@/components/ui/liquidity-panels'
+import { roundedText } from '@/components/ui/rounded-text'
 import { decimal, percent, signed } from '@/lib/format'
 import { chartBars } from '@/lib/liquidity-bars'
 import { levelName, STATE_LABEL } from '@/lib/liquidity-labels'
@@ -200,12 +201,29 @@ describe('vista de liquidez en vivo (#231)', () => {
     const current = DATA.imbalance.at(-1)!
     render(<ImbalanceGauge imbalance={current} />)
     expect(screen.getByText('aproximación desde el precio')).toBeInTheDocument()
-    expect(screen.getByText(signed(current.index))).toBeInTheDocument()
+    // Con dos decimales (#357): el valor guardado no cambia, solo cómo se escribe.
+    expect(screen.getByText(signed(roundedText(current.index)))).toBeInTheDocument()
     expect(screen.getByRole('meter', { name: /aproximación desde el precio/ })).toHaveAttribute(
       'aria-valuetext',
-      signed(current.index),
+      signed(roundedText(current.index)),
     )
     expect(screen.getByText('no es flujo de órdenes')).toBeInTheDocument()
+  })
+
+  it('con muchos FVG muestra los más nuevos y un botón para ver el resto (#357)', () => {
+    const many = DATA.fvgs
+    expect(many.length).toBeGreaterThan(3)
+    render(<FvgTable fvgs={many} preview={3} />)
+    const table = screen.getByRole('table', { name: /FVG/ })
+    expect(within(table).getAllByRole('row')).toHaveLength(1 + 3)
+    const more = screen.getByRole('button', { name: `Mostrar los ${many.length - 3} restantes` })
+    expect(more).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(more)
+    expect(within(table).getAllByRole('row')).toHaveLength(1 + many.length)
+    expect(screen.getByRole('button', { name: /Mostrar solo los 3 más nuevos/ })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
   })
 
   it('el ejemplo trae un nivel vencido y la tabla lo muestra atenuado', () => {

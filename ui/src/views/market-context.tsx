@@ -39,7 +39,18 @@ function Card({
   )
 }
 
+/** Lo que se muestra mientras llega una lectura o cuando no hay nada guardado. */
 const muted = (text: string) => <p className="text-[12.5px] text-muted-foreground">{text}</p>
+const waiting = (
+  <p role="status" className="text-[12.5px] text-muted-foreground">
+    Pidiendo los datos al motor…
+  </p>
+)
+const failed = (text: string) => (
+  <p role="alert" className="text-[12.5px]">
+    {text} Se vuelve a intentar cada minuto.
+  </p>
+)
 
 export function MarketContextView() {
   const latest = useLatestSentiment()
@@ -54,7 +65,12 @@ export function MarketContextView() {
       ...(emotions.status === 'ok' ? emotions.data.map((e) => e.instrument_id) : []),
     ]),
   ].sort()
-  const selected = picked && ids.includes(picked) ? picked : (ids[0] ?? null)
+  // Sin elección, el primero que tenga índice guardado: abrir en uno vacío no muestra nada (#357).
+  const withIndex =
+    latest.status === 'ok'
+      ? ids.find((id) => latest.data.some((s) => s.instrument_id === id))
+      : undefined
+  const selected = picked && ids.includes(picked) ? picked : (withIndex ?? ids[0] ?? null)
   const history = useSentimentHistory(selected)
   const index =
     latest.status === 'ok' ? latest.data.find((s) => s.instrument_id === selected) : undefined
@@ -71,39 +87,46 @@ export function MarketContextView() {
     )
 
   return (
-    <div className="grid gap-3">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
+      <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
         <p className="max-w-2xl text-[12.5px] text-muted-foreground">
           Solo informativo: no suma al puntaje de las propuestas ni es una recomendación.
         </p>
         {ids.length > 1 && selected && (
-          <Segmented label="Índice" options={ids} value={selected} onChange={setPicked} />
+          // Con muchos instrumentos el selector se desliza en vez de ensanchar la página (#357).
+          <div className="max-w-full min-w-0 overflow-x-auto [scrollbar-width:thin]">
+            <Segmented label="Índice" options={ids} value={selected} onChange={setPicked} />
+          </div>
         )}
       </div>
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-2">
         <Card title={<Term id="indice-sentimiento">Índice de sentimiento</Term>}>
           {latest.status === 'loading' ? (
-            muted('Pidiendo los datos al motor…')
+            waiting
           ) : index ? (
             <div className="grid gap-4">
               <SentimentGauge index={index} />
-              {history.status === 'ok' && <SentimentHistory history={history.data} />}
+              {history.status === 'ok' ? (
+                <SentimentHistory history={history.data} />
+              ) : history.status === 'error' ? (
+                muted('No se pudo leer la historia del índice; se vuelve a intentar cada minuto.')
+              ) : null}
             </div>
+          ) : latest.status === 'error' ? (
+            failed('No se pudo leer el índice del motor.')
           ) : (
             muted('Sin índice guardado para este instrumento.')
           )}
         </Card>
         <Card title="Estados emocionales">
           {emotions.status === 'loading' ? (
-            muted('Pidiendo los datos al motor…')
+            waiting
           ) : moods.length ? (
             <EmotionalStates rows={moods} />
+          ) : emotions.status === 'error' ? (
+            failed('No se pudieron leer los estados emocionales.')
           ) : (
-            muted(
-              emotions.status === 'error'
-                ? 'No se pudieron leer los estados emocionales.'
-                : 'Sin estados guardados para este instrumento.',
-            )
+            muted('Sin estados guardados para este instrumento.')
           )}
           <p className="mt-3 text-[11px] text-muted-foreground">
             Son reglas medidas sobre lo que ya pasó, no un pronóstico.
@@ -111,9 +134,11 @@ export function MarketContextView() {
         </Card>
         <Card title={<Term id="analogos">Análogos históricos</Term>} wide>
           {analogs.status === 'loading' ? (
-            muted('Pidiendo los datos al motor…')
+            waiting
           ) : report ? (
             <AnalogDistribution report={report} />
+          ) : analogs.status === 'error' ? (
+            failed('No se pudieron leer los análogos.')
           ) : (
             muted('Sin análogos guardados para este instrumento.')
           )}

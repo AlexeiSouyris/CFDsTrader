@@ -5,6 +5,7 @@
  */
 import type { ReactNode } from 'react'
 
+import { roundedText } from '@/components/ui/rounded-text'
 import { Term } from '@/components/ui/term'
 import type { EmotionalState, EmotionKind } from '@/lib/context-contracts'
 import { dateTimeUtc, decimal } from '@/lib/format'
@@ -41,7 +42,8 @@ const VIA: Record<string, string> = {
   sweep: 'sweep',
 }
 
-const num = (v: string | undefined) => (v === undefined ? '—' : decimal(v))
+/** Hasta cuatro decimales: el motor puede mandar más de 20 y la regla se volvía ilegible (#357). */
+const num = (v: string | undefined) => (v === undefined ? '—' : decimal(roundedText(v, 4)))
 
 /** La regla con sus valores, en palabras. Solo arma el texto. */
 function ruleText(state: EmotionKind, v: Record<string, string>): string {

@@ -13,6 +13,9 @@ import type { SparkRow } from '@/mocks'
 
 const W = 240
 const H = 40
+/** Las mismas columnas en el encabezado y en cada fila, para que todo quede alineado. */
+const COLS =
+  'grid grid-cols-[minmax(0,1fr)_48px_auto_auto] items-center gap-2 sm:grid-cols-[minmax(92px,1.1fr)_minmax(80px,2.4fr)_minmax(70px,1fr)_68px] sm:gap-3'
 
 export function SparkTable({
   rows,
@@ -48,10 +51,20 @@ export function SparkTable({
       aria-label="Comparación de índices. Flechas para recorrer las fechas, Escape para volver al último dato."
       onKeyDown={onKey}
     >
-      <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(48px,1fr)_auto_auto] sm:grid-cols-[minmax(92px,1.1fr)_minmax(80px,2.4fr)_minmax(70px,1fr)_64px] items-center gap-2 sm:gap-3 border-b border-border pb-2 text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
+      <div
+        className={cn(
+          COLS,
+          'border-b border-border pb-2 text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase',
+        )}
+      >
         <span>Índice</span>
-        <span className="text-center normal-case tracking-normal">
-          {index === null ? periodLabel : dateUtc(rows[0].points[index].t)}
+        <span className="truncate text-center tracking-normal normal-case tabular-nums">
+          {index === null ? (
+            // En el celular la columna de la curva es angosta: el período no entra (#357).
+            <span className="hidden sm:inline">{periodLabel}</span>
+          ) : (
+            dateUtc(rows[0].points[index].t)
+          )}
         </span>
         <span className="text-right">Valor</span>
         <span className="text-right">Cambio</span>
@@ -69,15 +82,12 @@ export function SparkTable({
         const k = Math.min(vals.length - 1, index ?? vals.length - 1)
         const neg = isNegative(r.changePct)
         return (
-          <div
-            key={r.id}
-            className="grid grid-cols-[minmax(0,1.3fr)_minmax(48px,1fr)_auto_auto] sm:grid-cols-[minmax(92px,1.1fr)_minmax(80px,2.4fr)_minmax(70px,1fr)_64px] items-center gap-2 sm:gap-3 border-b border-border py-2 last:border-b-0"
-          >
+          <div key={r.id} className={cn(COLS, 'border-b border-border py-2 last:border-b-0')}>
             <button
               type="button"
               aria-pressed={on}
               onClick={() => setSelected(r.id)}
-              className="min-w-0 text-left"
+              className="min-w-0 rounded-md text-left"
             >
               <span className="flex items-center gap-1.5 truncate text-[13px] font-bold">
                 <i
@@ -93,7 +103,7 @@ export function SparkTable({
               </span>
             </button>
             <div
-              className="touch-pan-y"
+              className="relative touch-pan-y"
               onPointerMove={onMove}
               onPointerLeave={() => setIndex(null)}
             >
@@ -122,19 +132,25 @@ export function SparkTable({
                     vectorEffect="non-scaling-stroke"
                   />
                 )}
-                <circle
-                  cx={x(k)}
-                  cy={y(vals[k])}
-                  r={2.6}
-                  fill={on ? 'var(--chart-accent)' : 'var(--foreground)'}
-                />
               </svg>
+              {/* El punto va fuera del SVG estirado (preserveAspectRatio="none"), para que sea
+                  redondo y no un óvalo (#357). */}
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'pointer-events-none absolute size-[5px] -translate-x-1/2 -translate-y-1/2 rounded-full',
+                  on ? 'bg-[var(--chart-accent)]' : 'bg-foreground',
+                )}
+                style={{ left: `${(x(k) / W) * 100}%`, top: `${(y(vals[k]) / H) * 100}%` }}
+              />
             </div>
-            <span className="text-right text-[13px] font-semibold">{decimal(at(r).v)}</span>
+            <span className="text-right text-[13px] font-semibold whitespace-nowrap tabular-nums">
+              {decimal(at(r).v)}
+            </span>
             <span className="flex justify-end">
               <span
                 className={cn(
-                  'rounded-md px-1.5 py-0.5 text-[11px] font-bold',
+                  'rounded-md px-1.5 py-0.5 text-[11px] font-bold whitespace-nowrap tabular-nums',
                   neg ? 'bg-down/10 text-down' : 'bg-up/10 text-up',
                 )}
               >
