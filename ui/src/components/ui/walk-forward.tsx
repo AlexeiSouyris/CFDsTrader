@@ -74,7 +74,7 @@ function Folds({ r }: { r: WalkForwardReport }) {
             <tr key={f.index} className="border-t border-border/60">
               <th scope="row" className="px-2 py-2 text-left font-normal">
                 <strong>{f.index + 1}</strong>{' '}
-                <span className="block text-[11px] text-muted-foreground">
+                <span className="block text-[11px] whitespace-nowrap text-muted-foreground">
                   {dayYear(f.train.from)} · {dayYear(f.test.from)} – {dayYear(f.test.to)}
                 </span>
               </th>
@@ -84,7 +84,10 @@ function Folds({ r }: { r: WalkForwardReport }) {
           ))}
         </tbody>
       </table>
-      <p aria-label="Resumen de las pruebas" className="mt-2 text-[11.5px] text-muted-foreground">
+      <p
+        aria-label="Resumen de las pruebas"
+        className="mt-2 text-[11.5px] text-pretty text-muted-foreground tabular-nums"
+      >
         Pruebas: {a.with_data} de {a.periods} con datos, {a.trades} operaciones, retorno medio{' '}
         <strong className={a.mean_return ? tone(a.mean_return) : undefined}>
           {signedOrDash(a.mean_return)}
@@ -130,7 +133,7 @@ function Stability({ r }: { r: WalkForwardReport }) {
                 <span className="block text-[11px] text-muted-foreground">{s.file}</span>
               </th>
               <td className="px-2 py-2">
-                <ul className="flex flex-wrap gap-x-4 gap-y-1">
+                <ul className="flex flex-wrap gap-x-4 gap-y-1 tabular-nums">
                   {s.by_value.map((v) => (
                     <li key={v.value}>
                       <strong>{v.value}</strong>:{' '}
@@ -177,7 +180,7 @@ function Holdout({ r }: { r: WalkForwardReport }) {
         Evaluado una sola vez, aparte y sin retocar, con los parámetros de config.
       </p>
       {m ? (
-        <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[12.5px] sm:grid-cols-5">
+        <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-[12.5px] tabular-nums sm:grid-cols-5">
           <div>
             <dt className="text-[10.5px] text-muted-foreground uppercase">Retorno</dt>
             <dd className={cn('font-extrabold', tone(m.total_return))}>
@@ -212,8 +215,8 @@ function Holdout({ r }: { r: WalkForwardReport }) {
 
 export function WalkForwardReportView({ report: r }: { report: WalkForwardReport }) {
   return (
-    <div data-walk-forward="ready" className="grid gap-4">
-      <p className="text-[11.5px] text-muted-foreground">
+    <div data-walk-forward="ready" className="grid min-w-0 gap-4">
+      <p className="text-[11.5px] [overflow-wrap:anywhere] text-muted-foreground">
         {r.instrument_id} · velas {r.candle_source === 'futures' ? 'de futuros' : 'de IG'} ·{' '}
         {r.split.train_months} meses de entrenamiento, {r.split.validation_months} de prueba, paso{' '}
         {r.split.step_months} · calculado el {dateTimeUtc(r.computed_at)} · {r.report_id}
@@ -233,7 +236,11 @@ export function WalkForwardLive({ instrument }: { instrument: string }) {
   const wf = useWalkForward(instrument)
   if (wf.status === 'loading')
     return (
-      <p data-walk-forward="loading" className="text-[12.5px] text-muted-foreground">
+      <p
+        data-walk-forward="loading"
+        role="status"
+        className="text-[12.5px] text-muted-foreground motion-safe:animate-pulse"
+      >
         Cargando el walk-forward de {instrument}…
       </p>
     )

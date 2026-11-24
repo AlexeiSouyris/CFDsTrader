@@ -113,4 +113,46 @@ describe('detalle de una corrida de backtest (#299)', () => {
     open('bt-gw.2')
     expect(await screen.findByRole('alert')).toHaveTextContent('500')
   })
+
+  it('muestra las operaciones de a 25, corta los decimales de más y lleva el foco al detalle (#358)', async () => {
+    const base = BACKTEST_RUN_DETAIL.trades[0]
+    const trades = Array.from({ length: 30 }, (_, i) => ({
+      proposal: { ...base.proposal, id: `t-${i}` },
+      outcome: {
+        ...base.outcome!,
+        entry_price: '22629.18',
+        exits: [{ ...base.outcome!.exits[0], price: '22926.2221445079372' }],
+      },
+    }))
+    const run = { ...BACKTEST_RUNS[0], run_id: 'bt-gw.3' }
+    const detail = { run, curve: null, trades } as unknown as RunDetail
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input)
+        const json = (b: unknown) => new Response(JSON.stringify(b), { status: 200 })
+        if (url === '/api/v1/backtest_runs') return json([run])
+        if (url === '/api/v1/backtest_runs/bt-gw.3') return json(detail)
+        return new Response('', { status: 404 })
+      }),
+    )
+    render(<PerformanceView onOpen={() => {}} />)
+    await screen.findByText('1 corrida del motor')
+    open('bt-gw.3')
+    const region = await detailOf('bt-gw.3')
+    // el foco va al título del detalle, para teclado y lector de pantalla
+    expect(within(region).getByRole('heading', { level: 2, name: 'bt-gw.3' })).toHaveFocus()
+
+    const table = within(region).getByRole('table', { name: 'Operaciones de la corrida' })
+    expect(within(table).getAllByRole('row').slice(1)).toHaveLength(25)
+    // la salida con slippage se ve con los decimales de la entrada; el valor exacto, en el title
+    const exit = within(table).getAllByText('22.926,22')[0]
+    expect(exit).toHaveAttribute('title', '22926.2221445079372')
+    expect(table).not.toHaveTextContent('22.926,2221')
+
+    expect(within(region).getByText('25 de 30')).toBeInTheDocument()
+    fireEvent.click(within(region).getByRole('button', { name: 'Mostrar 5 más' }))
+    expect(within(table).getAllByRole('row').slice(1)).toHaveLength(30)
+    expect(within(region).queryByRole('button', { name: /Mostrar/ })).toBeNull()
+  })
 })

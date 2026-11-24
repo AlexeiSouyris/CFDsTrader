@@ -9,8 +9,9 @@
  */
 import { useState } from 'react'
 
+import { Price } from '@/components/ui/run-detail'
 import { Segmented } from '@/components/ui/segmented'
-import { dateTimeUtc, decimal, isNegative, signed } from '@/lib/format'
+import { dateTimeUtc, isNegative, signed } from '@/lib/format'
 import { CAUSES, type Cause, type PaperComparison } from '@/lib/learning-api'
 import { cn } from '@/lib/utils'
 
@@ -75,7 +76,7 @@ export function CauseBars({ c }: { c: PaperComparison }) {
 
 const th =
   'py-2 pr-3 text-left text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase'
-const td = 'py-2 pr-3 tabular-nums'
+const td = 'py-2 pr-3 tabular-nums whitespace-nowrap'
 
 function Comparison({ c }: { c: PaperComparison }) {
   return (
@@ -135,11 +136,13 @@ function Comparison({ c }: { c: PaperComparison }) {
                     <td className={td}>{dateTimeUtc(m.decision_at)}</td>
                     <td className={td}>{SIDE[m.side]}</td>
                     <td className={td}>
-                      {decimal(m.paper.entry_price)} → {decimal(m.paper.exit_price)},{' '}
+                      <Price value={m.paper.entry_price} /> →{' '}
+                      <Price value={m.paper.exit_price} reference={m.paper.entry_price} />,{' '}
                       {signed(m.paper.net_pnl)}
                     </td>
                     <td className={td}>
-                      {decimal(m.backtest.entry_price)} → {decimal(m.backtest.exit_price)},{' '}
+                      <Price value={m.backtest.entry_price} /> →{' '}
+                      <Price value={m.backtest.exit_price} reference={m.backtest.entry_price} />,{' '}
                       {signed(m.backtest.net_pnl)}
                     </td>
                     <td className={cn(td, 'font-bold', tone(m.difference.net_pnl))}>

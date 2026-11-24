@@ -23,6 +23,8 @@ import { LearningSection, PaperVsBacktestSection } from '@/views/phase8'
 import { cn } from '@/lib/utils'
 import { BACKTEST_RUN_DETAIL, BACKTEST_RUNS, type BacktestRun } from '@/mocks'
 
+const members = (n: number) => `${n} ${n === 1 ? 'miembro' : 'miembros'}`
+
 function Card({
   title,
   aside,
@@ -54,15 +56,19 @@ function Card({
 
 function Kpi({ label, value, detail }: { label: ReactNode; value: ReactNode; detail: string }) {
   return (
-    <Card className="flex min-h-28 flex-col justify-between">
-      <span className="text-[11px] font-bold text-muted-foreground">{label}</span>
-      <strong className="text-[clamp(22px,2.4vw,30px)] leading-none font-extrabold tracking-[-0.04em]">
+    <Card className="flex min-h-28 flex-col justify-between gap-2">
+      <span className="text-[11px] leading-tight font-bold text-muted-foreground">{label}</span>
+      <strong className="text-[clamp(22px,2.4vw,30px)] leading-none font-extrabold tracking-[-0.04em] whitespace-nowrap tabular-nums">
         {value}
       </strong>
-      <span className="text-[10.5px] text-muted-foreground">{detail}</span>
+      <span className="text-[10.5px] leading-snug text-muted-foreground">{detail}</span>
     </Card>
   )
 }
+
+/** Celda que, más angosto que `lg`, muestra el título de su columna arriba (la fila es una tarjeta). */
+const cell =
+  'py-2.5 max-lg:p-0 max-lg:before:block max-lg:before:text-[10px] max-lg:before:font-bold max-lg:before:tracking-[0.1em] max-lg:before:text-muted-foreground max-lg:before:uppercase max-lg:before:content-[attr(data-label)]'
 
 function RunsTable({
   runs,
@@ -73,64 +79,122 @@ function RunsTable({
   open: string | null
   onOpen: (runId: string) => void
 }) {
+  const th = 'py-2 pr-3 font-bold whitespace-nowrap last:pr-0'
   return (
-    <div className="overflow-x-auto">
-      <table aria-label="Corridas de backtest" className="w-full min-w-[860px] text-[12.5px]">
-        <thead>
+    <div className="overflow-x-auto max-lg:overflow-visible">
+      <table
+        aria-label="Corridas de backtest"
+        className="w-full text-[12.5px] lg:min-w-[760px] max-lg:block"
+      >
+        <thead className="max-lg:sr-only">
           <tr className="border-b border-border text-left text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
-            <th className="py-2 font-bold">Corrida</th>
-            <th className="py-2 font-bold">Instrumentos</th>
-            <th className="py-2 font-bold">TF</th>
-            <th className="py-2 font-bold">Período</th>
-            <th className="py-2 text-right font-bold">Operaciones</th>
-            <th className="py-2 text-right font-bold">Retorno</th>
-            <th className="py-2 text-right font-bold">DD máx.</th>
-            <th className="py-2 text-right font-bold">Sharpe</th>
-            <th className="py-2 text-right font-bold">Acierto</th>
-            <th className="py-2 text-right font-bold">Kill switch</th>
+            <th className={th}>Corrida</th>
+            <th className={th}>Instrumentos</th>
+            <th className={th}>TF</th>
+            <th className={th}>Período</th>
+            <th className={cn(th, 'text-right')}>Operaciones</th>
+            <th className={cn(th, 'text-right')}>Retorno</th>
+            <th className={cn(th, 'text-right')}>DD máx.</th>
+            <th className={cn(th, 'text-right')}>Sharpe</th>
+            <th className={cn(th, 'text-right')}>Acierto</th>
+            <th className={cn(th, 'text-right')}>Kill switch</th>
           </tr>
         </thead>
-        <tbody>
-          {runs.map((r) => (
-            <tr
-              key={r.run_id}
-              aria-selected={open === r.run_id}
-              className="border-b border-border last:border-b-0 aria-selected:bg-foreground/5"
-            >
-              <td className="py-2.5">
-                <button
-                  type="button"
-                  aria-expanded={open === r.run_id}
-                  aria-label={`Ver el detalle de ${r.run_id}`}
-                  onClick={() => onOpen(r.run_id)}
-                  className="block text-left font-semibold underline-offset-4 hover:underline"
+        <tbody className="max-lg:grid max-lg:gap-2 sm:max-lg:grid-cols-2">
+          {runs.map((r) => {
+            const isOpen = open === r.run_id
+            return (
+              <tr
+                key={r.run_id}
+                data-open={isOpen || undefined}
+                className={cn(
+                  'border-b border-border transition-colors last:border-b-0 hover:bg-foreground/[0.03] data-open:bg-foreground/5',
+                  'max-lg:grid max-lg:grid-cols-3 max-lg:gap-x-3 max-lg:gap-y-2.5 max-lg:rounded-xl max-lg:border max-lg:p-3 max-lg:last:border-b',
+                )}
+              >
+                <td className="py-2.5 pr-3 max-lg:col-span-3 max-lg:p-0">
+                  <button
+                    type="button"
+                    aria-expanded={isOpen}
+                    aria-label={`Ver el detalle de ${r.run_id}`}
+                    onClick={() => onOpen(r.run_id)}
+                    className="block rounded-sm text-left font-semibold [overflow-wrap:anywhere] underline-offset-4 hover:underline lg:whitespace-nowrap"
+                  >
+                    {r.run_id}
+                  </button>
+                  <span className="text-[10.5px] text-muted-foreground">
+                    {dateTimeUtc(r.finished_at)} ·{' '}
+                    {r.costs.spread_source === 'config' ? 'spread de config' : 'spread medido'}
+                  </span>
+                </td>
+                <td data-label="Instrumentos" className={cn(cell, 'pr-3 max-lg:col-span-2')}>
+                  {r.instruments.join(', ')}
+                </td>
+                <td data-label="TF" className={cn(cell, 'pr-3')}>
+                  {r.timeframe}
+                </td>
+                <td
+                  data-label="Período"
+                  className={cn(cell, 'pr-3 tabular-nums max-lg:col-span-3')}
                 >
-                  {r.run_id}
-                </button>
-                <span className="text-[10.5px] text-muted-foreground">
-                  {dateTimeUtc(r.finished_at)} ·{' '}
-                  {r.costs.spread_source === 'config' ? 'spread de config' : 'spread medido'}
-                </span>
-              </td>
-              <td className="py-2.5">{r.instruments.join(', ')}</td>
-              <td className="py-2.5">{r.timeframe}</td>
-              <td className="py-2.5 whitespace-nowrap">
-                {dayYear(r.from)} – {dayYear(r.to)}
-              </td>
-              <td className="py-2.5 text-right tabular-nums">{r.metrics.trades}</td>
-              <td className={cn('py-2.5 text-right tabular-nums', tone(r.metrics.total_return))}>
-                {signedPct(r.metrics.total_return)}
-              </td>
-              <td className="py-2.5 text-right tabular-nums">
-                {pctOrDash(r.metrics.max_drawdown, 2)}
-              </td>
-              <td className="py-2.5 text-right tabular-nums">{numOrDash(r.metrics.sharpe)}</td>
-              <td className="py-2.5 text-right tabular-nums">{pctOrDash(r.metrics.win_rate)}</td>
-              <td className="py-2.5 text-right">
-                {r.metrics.kill_switch_at ? dayYear(r.metrics.kill_switch_at) : 'no'}
-              </td>
-            </tr>
-          ))}
+                  <span className="whitespace-nowrap">{dayYear(r.from)} –</span>{' '}
+                  <span className="whitespace-nowrap">{dayYear(r.to)}</span>
+                </td>
+                <td
+                  data-label="Operaciones"
+                  className={cn(
+                    cell,
+                    'pr-3 text-right whitespace-nowrap tabular-nums max-lg:text-left',
+                  )}
+                >
+                  {r.metrics.trades}
+                </td>
+                <td
+                  data-label="Retorno"
+                  className={cn(
+                    cell,
+                    'pr-3 text-right font-semibold whitespace-nowrap tabular-nums max-lg:text-left',
+                    tone(r.metrics.total_return),
+                  )}
+                >
+                  {signedPct(r.metrics.total_return)}
+                </td>
+                <td
+                  data-label="DD máx."
+                  className={cn(
+                    cell,
+                    'pr-3 text-right whitespace-nowrap tabular-nums max-lg:text-left',
+                  )}
+                >
+                  {pctOrDash(r.metrics.max_drawdown, 2)}
+                </td>
+                <td
+                  data-label="Sharpe"
+                  className={cn(
+                    cell,
+                    'pr-3 text-right whitespace-nowrap tabular-nums max-lg:text-left',
+                  )}
+                >
+                  {numOrDash(r.metrics.sharpe)}
+                </td>
+                <td
+                  data-label="Acierto"
+                  className={cn(
+                    cell,
+                    'pr-3 text-right whitespace-nowrap tabular-nums max-lg:text-left',
+                  )}
+                >
+                  {pctOrDash(r.metrics.win_rate)}
+                </td>
+                <td
+                  data-label="Kill switch"
+                  className={cn(cell, 'text-right whitespace-nowrap tabular-nums max-lg:text-left')}
+                >
+                  {r.metrics.kill_switch_at ? dayYear(r.metrics.kill_switch_at) : 'no'}
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -182,7 +246,7 @@ export function PerformanceView({ onOpen }: { onOpen: (view: string) => void }) 
               {currencySign(fund.currency)}
             </>
           }
-          detail={`${fund.members.length} miembros, simulación${fundLive ? '' : ' (ejemplo)'}`}
+          detail={`${members(fund.members.length)}, simulación${fundLive ? '' : ' (ejemplo)'}`}
         />
         {m && (
           <>
@@ -253,15 +317,22 @@ export function PerformanceView({ onOpen }: { onOpen: (view: string) => void }) 
         )}
         <Card title="Fondo" aside={fundLive ? 'simulación, del motor' : 'simulación (ejemplo)'}>
           <p className="text-[12.5px] text-muted-foreground">
-            {decimal(fund.total_units)} unidades a {decimal(fund.nav, 4)}{' '}
-            {currencySign(fund.currency)} cada una, repartidas entre {fund.members.length} miembros.
+            {fund.members.length === 0 ? (
+              'Todavía no hay aportes liquidados: el fondo no tiene unidades emitidas.'
+            ) : (
+              <>
+                {decimal(fund.total_units)} unidades a {decimal(fund.nav, 4)}{' '}
+                {currencySign(fund.currency)} cada una, repartidas entre{' '}
+                {members(fund.members.length)}.
+              </>
+            )}
           </p>
           <button
             type="button"
             onClick={() => onOpen('fondo')}
-            className="mt-3 text-[12px] font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            className="mt-3 rounded-sm text-[12px] font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           >
-            Ver el fondo y cada miembro
+            Ver el fondo y cada miembro →
           </button>
         </Card>
       </div>

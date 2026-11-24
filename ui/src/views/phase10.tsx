@@ -23,7 +23,7 @@ export function ProposalsView({ member }: { member: Member }) {
         propuesta ya pasó por el módulo de riesgo.
       </p>
       {PROPOSALS.length === 0 ? (
-        <p className="glass rounded-[20px] p-6 text-center text-[13px]">
+        <p className="glass rounded-[20px] p-6 text-center text-[13px] text-muted-foreground">
           No hay propuestas esperando.
         </p>
       ) : (
@@ -45,13 +45,13 @@ export function FundView() {
   const cur = currencySign(f.currency)
   const origin = live ? 'del motor' : loading ? 'pidiendo al motor…' : '(ejemplo)'
   const stat = (label: ReactNode, value: string, detail: string) => (
-    <section className="glass relative flex min-h-28 flex-col justify-between rounded-[20px] p-4 has-[[role=dialog]]:z-30">
-      <span className="text-[11px] font-bold text-muted-foreground">{label}</span>
-      <strong className="text-[clamp(22px,2.4vw,30px)] leading-none font-extrabold tracking-[-0.04em]">
+    <div className="glass relative flex min-h-28 min-w-0 flex-col justify-between gap-2 rounded-[20px] p-4 has-[[role=dialog]]:z-30">
+      <span className="text-[11px] leading-tight font-bold text-muted-foreground">{label}</span>
+      <strong className="text-[clamp(22px,2.4vw,30px)] leading-none font-extrabold tracking-[-0.04em] [overflow-wrap:anywhere] tabular-nums">
         {value}
       </strong>
-      <span className="text-[11px] text-muted-foreground">{detail}</span>
-    </section>
+      <span className="text-[11px] leading-snug text-muted-foreground">{detail}</span>
+    </div>
   )
   return (
     <div className="grid gap-3" data-fund-source={live ? 'engine' : 'example'}>
@@ -82,38 +82,40 @@ export function FundView() {
       </div>
 
       <section className="glass relative min-w-0 rounded-[20px] p-4 has-[[role=dialog]]:z-30">
-        <h2 className="mb-3 text-[14px] font-bold">
+        <h2 className="mb-3 flex flex-wrap items-baseline gap-x-2 text-[14px] font-bold">
           Cada miembro: <Term id="unidades">unidades</Term> y <Term id="pl">P&amp;L</Term>{' '}
           <span className="text-[11px] font-semibold text-muted-foreground">{origin}</span>
         </h2>
         {f.members.length === 0 ? (
-          <p className="text-[12.5px]">Todavía no hay aportes liquidados.</p>
+          <p className="rounded-xl border border-dashed border-border px-3 py-2.5 text-[12.5px] text-muted-foreground">
+            Todavía no hay aportes liquidados.
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[520px] text-[13px]" aria-label="Cada miembro">
               <thead>
                 <tr className="border-b border-border text-left text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
                   <th className="py-2 font-bold">Miembro</th>
-                  <th className="py-2 text-right font-bold">Unidades</th>
-                  <th className="py-2 text-right font-bold">Aportes netos</th>
-                  <th className="py-2 text-right font-bold">Valor</th>
-                  <th className="py-2 text-right font-bold">P&amp;L</th>
+                  <th className="py-2 pl-3 text-right font-bold">Unidades</th>
+                  <th className="py-2 pl-3 text-right font-bold">Aportes netos</th>
+                  <th className="py-2 pl-3 text-right font-bold">Valor</th>
+                  <th className="py-2 pl-3 text-right font-bold">P&amp;L</th>
                 </tr>
               </thead>
               <tbody>
                 {f.members.map((m) => (
                   <tr key={m.member_id} className="border-b border-border last:border-b-0">
                     <td className="py-2.5 font-semibold">{memberName(m.member_id)}</td>
-                    <td className="py-2.5 text-right tabular-nums">{decimal(m.units)}</td>
-                    <td className="py-2.5 text-right tabular-nums">
+                    <td className="py-2.5 pl-3 text-right tabular-nums">{decimal(m.units)}</td>
+                    <td className="py-2.5 pl-3 text-right tabular-nums">
                       {decimal(m.net_contributions)} {cur}
                     </td>
-                    <td className="py-2.5 text-right tabular-nums">
+                    <td className="py-2.5 pl-3 text-right tabular-nums">
                       {decimal(m.value)} {cur}
                     </td>
                     <td
                       className={cn(
-                        'py-2.5 text-right font-bold tabular-nums',
+                        'py-2.5 pl-3 text-right font-bold tabular-nums',
                         isNegative(m.pnl) ? 'text-down' : 'text-up',
                       )}
                     >
@@ -137,7 +139,9 @@ export function FundView() {
           modifica ni se borra.
         </p>
         {movements.length === 0 ? (
-          <p className="text-[12.5px]">Todavía no hay movimientos.</p>
+          <p className="rounded-xl border border-dashed border-border px-3 py-2.5 text-[12.5px] text-muted-foreground">
+            Todavía no hay movimientos.
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[520px] text-[12px]" aria-label="Movimientos del fondo">
@@ -146,24 +150,26 @@ export function FundView() {
                   <th className="py-2 font-bold">Liquidación</th>
                   <th className="py-2 font-bold">Miembro</th>
                   <th className="py-2 font-bold">Tipo</th>
-                  <th className="py-2 text-right font-bold">Monto</th>
-                  <th className="py-2 text-right font-bold">Unidades</th>
-                  <th className="py-2 text-right font-bold">NAV</th>
+                  <th className="py-2 pl-3 text-right font-bold">Monto</th>
+                  <th className="py-2 pl-3 text-right font-bold">Unidades</th>
+                  <th className="py-2 pl-3 text-right font-bold">NAV</th>
                 </tr>
               </thead>
               <tbody>
                 {[...movements].reverse().map((mv) => (
                   <tr key={mv.id} className="border-b border-border last:border-b-0">
-                    <td className="py-2 text-muted-foreground">{dateTimeUtc(mv.settled_at)}</td>
+                    <td className="py-2 whitespace-nowrap text-muted-foreground tabular-nums">
+                      {dateTimeUtc(mv.settled_at)}
+                    </td>
                     <td className="py-2 font-semibold">{memberName(mv.member_id)}</td>
                     <td className={mv.kind === 'contribution' ? 'py-2 text-up' : 'py-2 text-down'}>
                       {mv.kind === 'contribution' ? 'aporte' : 'retiro'}
                     </td>
-                    <td className="py-2 text-right tabular-nums">
+                    <td className="py-2 pl-3 text-right tabular-nums">
                       {decimal(mv.amount)} {currencySign(mv.currency)}
                     </td>
-                    <td className="py-2 text-right tabular-nums">{decimal(mv.units)}</td>
-                    <td className="py-2 text-right tabular-nums">{decimal(mv.nav)}</td>
+                    <td className="py-2 pl-3 text-right tabular-nums">{decimal(mv.units)}</td>
+                    <td className="py-2 pl-3 text-right tabular-nums">{decimal(mv.nav)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -193,7 +199,9 @@ export function FundView() {
               <span className="text-muted-foreground tabular-nums">
                 {decimal(mv.units)} unidades a {decimal(mv.nav)} €
               </span>
-              <span className="ml-auto text-muted-foreground">{dateTimeUtc(mv.at)}</span>
+              <span className="text-muted-foreground tabular-nums sm:ml-auto">
+                {dateTimeUtc(mv.at)}
+              </span>
             </li>
           ))}
         </ul>

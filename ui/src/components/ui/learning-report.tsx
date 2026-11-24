@@ -34,7 +34,7 @@ const SOURCE_LABEL = { backtest: 'backtest', paper: 'paper', live: 'real' } as c
 
 const th =
   'py-2 pr-3 text-left text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase'
-const td = 'py-2 pr-3 tabular-nums'
+const td = 'py-2 pr-3 tabular-nums whitespace-nowrap'
 
 function Badge({ children, warn }: { children: string; warn?: boolean }) {
   return (
@@ -83,7 +83,9 @@ export function LearningReportView({
                 <th className={th}>Mostrado (promedio)</th>
                 <th className={th}>Frecuencia real</th>
                 <th className={th}>Intervalo de Wilson</th>
-                <th className={th} />
+                <th className={th}>
+                  <span className="sr-only">Aviso</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -127,7 +129,9 @@ export function LearningReportView({
                 <th className={th}>Con ella (casos, TP1, R medio)</th>
                 <th className={th}>Sin ella</th>
                 <th className={th}>Diferencia de R</th>
-                <th className={th} />
+                <th className={th}>
+                  <span className="sr-only">Aviso</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -179,9 +183,9 @@ export function LearningReportView({
                       <span className="text-[11px] text-muted-foreground">{vote.detail}</span>
                     )}
                   </span>
-                  <span>{p.text}</span>
+                  <span className="text-pretty">{p.text}</span>
                   <span className="text-[11px] text-muted-foreground">
-                    Evidencia: <code>{p.evidence}</code>
+                    Evidencia: <code className="[overflow-wrap:anywhere]">{p.evidence}</code>
                   </span>
                 </li>
               )
