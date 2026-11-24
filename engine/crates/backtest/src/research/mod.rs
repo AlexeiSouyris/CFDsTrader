@@ -6,7 +6,8 @@
 //!   y momentum intradía (familia B), con comprar y mantener como vara del criterio 5 de A;
 //! - ronda 3 (#493, `docs/analysis/2026-11-ronda3-preregistro.md`): exposición manejada por
 //!   volatilidad (familia V), cascada al cruzar un número redondo (familia M1) y el descriptivo
-//!   de la deriva nocturna.
+//!   de la deriva nocturna;
+//! - chequeos descriptivos de la revisión externa (#512, sin voto): `review_checks`.
 //!
 //! Están aparte a propósito: ni el runner, ni el paper, ni la estrategia en uso (la confluencia
 //! de `cfds_strategy`) las usan. Solo las corren los ejemplos `ronda1`, `ronda2` y `ronda3`.
@@ -26,6 +27,7 @@ pub mod config;
 pub mod intraday_momentum;
 pub mod orb;
 pub mod overnight;
+pub mod review_checks;
 pub mod round_number;
 pub mod run;
 pub mod stats;
@@ -40,12 +42,15 @@ use rust_decimal::Decimal;
 
 pub use buy_and_hold::buy_and_hold_returns;
 pub use config::{
-    IntradayMomentumConfig, OrbConfig, OvernightDriftConfig, ResearchConfig, RoundNumberConfig,
-    RuleConfig, TrendConfig, TurnOfMonthConfig, VolManagedConfig,
+    IntradayMomentumConfig, OrbConfig, OvernightDriftConfig, ResearchConfig, ReviewChecksConfig,
+    RoundNumberConfig, RuleConfig, TrendConfig, TurnOfMonthConfig, VolManagedConfig,
 };
 pub use intraday_momentum::intraday_momentum_plans;
 pub use orb::orb_plans;
 pub use overnight::window_returns;
+pub use review_checks::{
+    blend_return, drift_after_close, session_close_returns, strong_drop_flags, vol_match_scale,
+};
 pub use round_number::{Levels, round_number_plans};
 pub use run::{
     StudyExit, StudyRejected, StudyRun, StudyTrade, execute_plan, monthly_returns, run_plans,

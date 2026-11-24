@@ -71,7 +71,7 @@ pub fn review_variances(
     out
 }
 
-fn sample_sd(xs: &[Decimal]) -> Option<Decimal> {
+pub(crate) fn sample_sd(xs: &[Decimal]) -> Option<Decimal> {
     let n = Decimal::from(xs.len());
     if xs.len() < 2 {
         return None;

@@ -93,6 +93,19 @@ pub struct OvernightDriftConfig {
     pub to: NaiveTime,
 }
 
+/// Chequeos descriptivos de la revisión externa (#512): fijados antes de mirar, sin voto.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReviewChecksConfig {
+    /// Corte entre las dos mitades de la deriva nocturna (la segunda empieza acá).
+    pub drift_split_from: NaiveDate,
+    /// Días anteriores con los que se mide la caída fuerte.
+    pub drop_lookback_days: usize,
+    /// Percentil (0–1) bajo el cual el retorno del día es una caída fuerte.
+    pub drop_quantile: Decimal,
+    /// Peso de comprar y mantener en la cartera mezclada con V.
+    pub blend_hold_weight: Decimal,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResearchConfig {
     pub orb: OrbConfig,
@@ -108,6 +121,7 @@ pub struct ResearchConfig {
     pub overnight_drift: OvernightDriftConfig,
     /// Regla de la ronda 3 (V y M1), programa 2 (#493).
     pub rule_round3: RuleConfig,
+    pub review_checks: ReviewChecksConfig,
 }
 
 impl ResearchConfig {
@@ -172,6 +186,14 @@ impl ResearchConfig {
         }
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
+        struct Review {
+            drift_split_from: String,
+            drop_lookback_days: usize,
+            drop_quantile: String,
+            blend_hold_weight: String,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Raw {
             orb: Orb,
             turn_of_month: Tom,
@@ -183,6 +205,7 @@ impl ResearchConfig {
             round_number: Round,
             overnight_drift: Overnight,
             rule_round3: Rule,
+            review_checks: Review,
         }
         let raw: Raw = toml::from_str(text).map_err(|e| e.to_string())?;
         let dec = |s: &str, name: &str| -> Result<Decimal, String> {
@@ -276,6 +299,26 @@ impl ResearchConfig {
         if overnight_drift.to <= overnight_drift.from {
             return Err("overnight_drift: `to` tiene que ser posterior a `from`".into());
         }
+        let rc = &raw.review_checks;
+        let drop_quantile = dec(&rc.drop_quantile, "review_checks.drop_quantile")?;
+        let blend_hold_weight = dec(&rc.blend_hold_weight, "review_checks.blend_hold_weight")?;
+        if drop_quantile >= Decimal::ONE || blend_hold_weight > Decimal::ONE {
+            return Err(
+                "review_checks: drop_quantile tiene que ser menor que 1 y blend_hold_weight no \
+                 mayor que 1"
+                    .into(),
+            );
+        }
+        if rc.drop_lookback_days < 2 {
+            return Err("review_checks.drop_lookback_days tiene que ser al menos 2".into());
+        }
+        let review_checks = ReviewChecksConfig {
+            drift_split_from: NaiveDate::parse_from_str(&rc.drift_split_from, "%Y-%m-%d")
+                .map_err(|_| "review_checks.drift_split_from no es AAAA-MM-DD".to_owned())?,
+            drop_lookback_days: rc.drop_lookback_days,
+            drop_quantile,
+            blend_hold_weight,
+        };
         Ok(Self {
             orb: OrbConfig {
                 range_candles: raw.orb.range_candles,
@@ -315,6 +358,7 @@ impl ResearchConfig {
             },
             overnight_drift,
             rule_round3: rule(&raw.rule_round3, "rule_round3")?,
+            review_checks,
         })
     }
 }

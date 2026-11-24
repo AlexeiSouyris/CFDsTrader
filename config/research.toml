@@ -105,3 +105,17 @@ dsr_trials = 354
 dsr_min = "0.95"
 cost_stress = "1.5"
 second_half_from = "2020-01-01"
+
+# ── Chequeos de la revisión externa (#512) ─────────────────────────────────────────────────────
+# Descriptivos, sin voto y sin presupuesto: docs/analysis/2026-11-chequeos-revision-externa.md.
+# Fijados antes de mirar los resultados. Solo los lee el ejemplo `chequeos_revision`.
+
+[review_checks]
+# La deriva nocturna se parte en 2013–2020 y desde esta fecha (2021–10/2025).
+drift_split_from = "2021-01-01"
+# Caída fuerte: el retorno de cierre a cierre de sesión del día queda por debajo del percentil
+# 20 de los 250 días anteriores (k-ésimo menor, k = ⌈0,2 × 250⌉ = 50).
+drop_lookback_days = 250
+drop_quantile = "0.2"
+# Cartera mezclada: 50 % comprar y mantener + 50 % V escalada a su volatilidad.
+blend_hold_weight = "0.5"
