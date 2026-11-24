@@ -83,7 +83,7 @@ fn broker(rates: FundingRates, monday: Candle) -> PaperBroker {
             min_deal_size: Some(dec!(0.01)),
         },
         costs: costs(),
-        account_to_instrument: Decimal::ONE,
+        account_to_instrument: cfds_backtest::AccountFx::Same,
         candles: candles(monday),
         funding: FundingSetup {
             cutoff: NaiveTime::from_hms_opt(23, 0, 0).unwrap(),

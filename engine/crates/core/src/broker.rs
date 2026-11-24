@@ -108,11 +108,14 @@ pub enum OrderRejection {
     /// Hay vela de referencia, pero no alcanzan las velas cerradas recientes para el ATR del
     /// riesgo (calentamiento), por ejemplo porque el modo en vivo está en pausa sin cupo (#361).
     NoRecentCandles,
+    /// El contrato está en otra moneda que la cuenta (el oro, en USD) y no hay tipo de cambio
+    /// publicado a la hora de la señal (ADR 0013, #418): no se inventa uno.
+    MissingFxRate,
 }
 
 impl OrderRejection {
     /// Todos, en el orden del contrato.
-    pub const ALL: [OrderRejection; 15] = [
+    pub const ALL: [OrderRejection; 16] = [
         Self::InvalidInput,
         Self::KillSwitchActive,
         Self::DrawdownLimit,
@@ -128,6 +131,7 @@ impl OrderRejection {
         Self::UnknownInstrument,
         Self::StopWrongSide,
         Self::NoRecentCandles,
+        Self::MissingFxRate,
     ];
 }
 

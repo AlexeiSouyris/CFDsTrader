@@ -85,7 +85,7 @@ fn market(candles: Vec<Candle>, limits: InstrumentLimits) -> MarketSetup {
     MarketSetup {
         limits,
         costs: costs(),
-        account_to_instrument: Decimal::ONE,
+        account_to_instrument: cfds_backtest::AccountFx::Same,
         candles,
         funding: funding(FundingRates::Constant(dec!(2))),
     }
@@ -600,4 +600,96 @@ fn tp1_is_measured_from_the_executed_entry() {
         "no tocó el TP1 ({from_fill}): {:?}",
         out[0].exits
     );
+}
+
+// ---------- Contrato en USD con la cuenta en EUR (ADR 0013 §4, #418) ----------
+
+/// Serie EUR/USD: (publicación, tipo).
+fn eurusd(points: &[(DateTime<Utc>, Decimal)]) -> cfds_backtest::AccountFx {
+    let rates = points
+        .iter()
+        .map(|&(at, rate)| cfds_core::FxRate {
+            pair: "EURUSD".into(),
+            ref_date: at.date_naive(),
+            published_at: at,
+            rate,
+        })
+        .collect();
+    cfds_backtest::AccountFx::Daily(cfds_backtest::FxRates::new(rates).unwrap())
+}
+
+fn usd_broker(fx: cfds_backtest::AccountFx, candles: Vec<Candle>) -> PaperBroker {
+    let mut m = market(candles, limits());
+    m.account_to_instrument = fx;
+    PaperBroker::new(
+        config(|_| {}),
+        [("XAUUSD".parse().unwrap(), m)].into_iter().collect(),
+    )
+}
+
+#[test]
+fn a_usd_contract_is_sized_and_valued_at_the_rate_in_force() {
+    let mut b = usd_broker(
+        eurusd(&[(at(0) - TimeDelta::days(1), dec!(1.25))]),
+        flat("XAUUSD"),
+    );
+    let r = b.submit(&order("g1", "XAUUSD", OrderSide::Long, dec!(98), 20));
+    assert_eq!(r.status, OrderStatus::Filled, "{r:?}");
+    // 1 % de 1.000 € = 10 € = 12,5 $; R = 2 → 6,25 $ por punto.
+    assert_eq!(r.size, Some(dec!(6.25)));
+    let p = b.positions(at(25));
+    // En dólares: (100 − 100,7) × 6,25 = −4,375.
+    assert_eq!(p[0].unrealized_pl, dec!(-4.38));
+    // En la cuenta, al tipo de ese momento: −4,375 / 1,25 = −3,5 €.
+    assert_eq!(b.account(at(25)).equity, dec!(996.50));
+}
+
+#[test]
+fn a_new_rate_changes_the_valuation_from_its_publication_on() {
+    let mut b = usd_broker(
+        eurusd(&[(at(0) - TimeDelta::days(1), dec!(1.25)), (at(24), dec!(2))]),
+        flat("XAUUSD"),
+    );
+    b.submit(&order("g1", "XAUUSD", OrderSide::Long, dec!(98), 20));
+    // Antes de la publicación vale 1,25; desde ahí, 2.
+    assert_eq!(b.account(at(23)).equity, dec!(996.50));
+    assert_eq!(b.account(at(25)).equity, dec!(997.81));
+    // En dólares no cambia: lo que cambia es la conversión.
+    assert_eq!(b.positions(at(25))[0].unrealized_pl, dec!(-4.38));
+}
+
+#[test]
+fn without_a_rate_at_the_signal_the_order_is_rejected() {
+    // Primer tipo publicado después de la señal: no se usa antes (sin look-ahead).
+    let mut b = usd_broker(eurusd(&[(at(25), dec!(1.25))]), flat("XAUUSD"));
+    let o = order("g1", "XAUUSD", OrderSide::Long, dec!(98), 20);
+    assert_eq!(
+        b.preview(&o, at(20)).rejection,
+        Some(OrderRejection::MissingFxRate)
+    );
+    assert_eq!(rejected(&mut b, &o), OrderRejection::MissingFxRate);
+    // Sin serie: nunca hay tipo.
+    let mut b = usd_broker(
+        cfds_backtest::AccountFx::Missing {
+            pair: "EURUSD".into(),
+        },
+        flat("XAUUSD"),
+    );
+    assert_eq!(rejected(&mut b, &o), OrderRejection::MissingFxRate);
+    assert_eq!(b.account(at(25)).equity, dec!(1000.00));
+}
+
+#[test]
+fn a_realized_loss_in_usd_uses_the_rate_of_its_exit() {
+    let mut c = flat("XAUUSD");
+    c[22] = bar("XAUUSD", 22, dec!(97), dec!(97.5), dec!(96), dec!(97));
+    let mut b = usd_broker(
+        eurusd(&[(at(0) - TimeDelta::days(1), dec!(1.25)), (at(22), dec!(2))]),
+        c,
+    );
+    b.submit(&order("g1", "XAUUSD", OrderSide::Long, dec!(98), 20));
+    let acc = b.account(at(29));
+    // Salida a 96,3: (96,3 − 100,7) × 6,25 = −27,5 $, al tipo de la vela de salida (2): −13,75 €.
+    assert_eq!(acc.equity, dec!(986.25));
+    assert_eq!(acc.kill_switch, KillSwitch::Inactive);
 }

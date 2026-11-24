@@ -17,14 +17,22 @@
 //! Sin ejecuciones parciales (la spec §12 las prevé solo para el registro real).
 //! Si en algún corte no hay tasa de referencia publicada, no se inventa: ese corte no se cobra y
 //! se activa el kill switch por error de datos (spec §12).
+//!
+//! Moneda (ADR 0013 §4): los montos de un contrato en otra moneda que la cuenta (el oro, en USD)
+//! pasan a EUR con el tipo **vigente en cada momento** (`MarketSetup::account_to_instrument`,
+//! el mismo `AccountFx` del backtest): la comisión de entrada al tipo de la apertura, cada salida
+//! al de su vela, lo no realizado y el margen al de `now`, y el riesgo de una orden al de la vela
+//! de la señal. Sin tipo publicado a la hora de la señal, la orden se rechaza
+//! (`missing_fx_rate`); si falta para valuar algo ya abierto, ese monto no se cuenta y se activa
+//! el kill switch por error de datos, como con la financiación.
 
 use std::collections::BTreeMap;
 
 use std::cell::Cell;
 
 use cfds_backtest::{
-    CostConfig, Execution, ExitConfig, ExitReason, Fill, FundingRates, InstrumentCosts, Trade,
-    commission, fill_price, funding_cutoffs, funding_over, simulate,
+    AccountFx, CostConfig, Execution, ExitConfig, ExitReason, Fill, FundingRates, InstrumentCosts,
+    Trade, commission, fill_price, funding_cutoffs, funding_over, simulate,
 };
 use cfds_core::{
     AccountCurrency, Candle, ClientId, InstrumentId, KillSwitch, Order, OrderRejection,
@@ -146,8 +154,9 @@ fn week_close_flags(session: Option<&Session>, candles: &[Candle], from: usize) 
 pub struct MarketSetup {
     pub limits: InstrumentLimits,
     pub costs: InstrumentCosts,
-    /// Moneda del instrumento por 1 unidad de la moneda de la cuenta (1 si son iguales).
-    pub account_to_instrument: Decimal,
+    /// Moneda del instrumento por 1 unidad de la moneda de la cuenta, en cada momento
+    /// (`AccountFx::Same` si son iguales; la serie `fx_rates` si no, ADR 0013).
+    pub account_to_instrument: AccountFx,
     pub candles: Vec<Candle>,
     /// Financiación nocturna: corte del catálogo y tasa de referencia (€STR guardado o constante).
     pub funding: FundingSetup,
@@ -263,6 +272,8 @@ pub struct PaperBroker {
     peak_equity: Decimal,
     /// Primer corte sin tasa de referencia que encontró una valuación (error de datos).
     missing_rate: Cell<Option<DateTime<Utc>>>,
+    /// Primer momento sin tipo de cambio que encontró una valuación (error de datos).
+    missing_fx: Cell<Option<DateTime<Utc>>>,
 }
 
 fn strategy_side(s: OrderSide) -> Side {
@@ -328,6 +339,7 @@ impl PaperBroker {
             kill_switch: None,
             peak_equity: peak,
             missing_rate: Cell::new(None),
+            missing_fx: Cell::new(None),
         }
     }
 
@@ -375,7 +387,8 @@ impl PaperBroker {
         self.kill_switch.is_some()
     }
 
-    /// Si una valuación encontró un corte sin tasa de referencia, activa el kill switch.
+    /// Si una valuación encontró un corte sin tasa de referencia o un momento sin tipo de
+    /// cambio, activa el kill switch.
     fn flag_missing_rate(&mut self) {
         if let Some(at) = self.missing_rate.take() {
             self.activate_kill_switch(
@@ -384,6 +397,31 @@ impl PaperBroker {
                 ),
                 at,
             );
+        }
+        if let Some(at) = self.missing_fx.take() {
+            self.activate_kill_switch(
+                format!("Falta el tipo de cambio de {at} (ADR 0013, spec §12)."),
+                at,
+            );
+        }
+    }
+
+    /// Tipo de cambio de `instrument` vigente en `at`, o `None` (sin inventar).
+    fn fx_at(&self, instrument: &InstrumentId, at: DateTime<Utc>) -> Option<Decimal> {
+        self.markets.get(instrument)?.account_to_instrument.at(at)
+    }
+
+    /// `amount` (moneda del instrumento) en EUR al tipo vigente en `at`. Si no hay tipo, 0 y
+    /// se anota el error de datos (kill switch en el próximo `flag_missing_rate`).
+    fn to_eur(&self, instrument: &InstrumentId, amount: Decimal, at: DateTime<Utc>) -> Decimal {
+        match self.fx_at(instrument, at) {
+            Some(fx) => amount / fx,
+            None => {
+                if self.missing_fx.get().is_none_or(|prev| at < prev) {
+                    self.missing_fx.set(Some(at));
+                }
+                Decimal::ZERO
+            }
         }
     }
 
@@ -522,16 +560,17 @@ impl PaperBroker {
 
     fn valuate(&self, t: &OpenTrade, now: DateTime<Utc>) -> Valued {
         let m = &self.markets[&t.instrument];
-        let fx = m.account_to_instrument;
+        let eur = |amount, at| self.to_eur(&t.instrument, amount, at);
         let closed: Vec<Candle> = m
             .candles
             .iter()
             .filter(|c| c.end() <= now)
             .cloned()
             .collect();
+        let entry_fee = eur(-t.entry_commission, t.opened_at);
         let mut v = Valued {
-            realized_eur: -t.entry_commission / fx,
-            realized_events: vec![(t.opened_at, -t.entry_commission / fx)],
+            realized_eur: entry_fee,
+            realized_events: vec![(t.opened_at, entry_fee)],
             open_fraction: Decimal::ONE,
             last: closed.last().map(|c| c.close),
             unrealized: Decimal::ZERO,
@@ -551,8 +590,9 @@ impl PaperBroker {
             let pnl = size * (px - t.entry_fill) * sign(t.side)
                 - commission(&m.costs, size, px)
                 - self.funding(t, size, exit_at);
-            v.realized_eur += pnl / fx;
-            v.realized_events.push((exit_at, pnl / fx));
+            let pnl = eur(pnl, exit_at);
+            v.realized_eur += pnl;
+            v.realized_events.push((exit_at, pnl));
         }
         v.open_fraction = open;
         if let Some(last) = v.last {
@@ -563,7 +603,7 @@ impl PaperBroker {
             } else {
                 Decimal::ZERO
             };
-            v.unrealized = (open * (last - t.entry_fill) * sign(t.side) - swap) / fx;
+            v.unrealized = eur(open * (last - t.entry_fill) * sign(t.side) - swap, now);
         }
         v
     }
@@ -577,8 +617,7 @@ impl PaperBroker {
             let v = self.valuate(t, now);
             equity += v.realized_eur + v.unrealized;
             unrealized += v.unrealized;
-            margin_used +=
-                v.open_fraction * t.margin / self.markets[&t.instrument].account_to_instrument;
+            margin_used += self.to_eur(&t.instrument, v.open_fraction * t.margin, now);
         }
         (equity, unrealized, margin_used)
     }
@@ -643,12 +682,16 @@ impl PaperBroker {
         let Some(atr) = atr else {
             return fail(OrderRejection::NoRecentCandles);
         };
+        // El riesgo, al tipo vigente a la hora de la señal (ADR 0013). Sin tipo, no se opera.
+        let Some(fx) = m.account_to_instrument.at(as_of) else {
+            return fail(OrderRejection::MissingFxRate);
+        };
         let req = Request {
             instrument: order.instrument_id.clone(),
             entry: reference,
             stop: order.stop,
             atr,
-            account_to_instrument: m.account_to_instrument,
+            account_to_instrument: fx,
         };
         let limits = m.limits;
         let (equity, _, margin_used) = self.equity_at(as_of);
@@ -692,10 +735,10 @@ impl crate::Broker for PaperBroker {
             ..order.clone()
         };
         let a = probe.assess(&order);
+        // Aceptada implica tipo vigente en `as_of` (si no, `assess` la rechazó).
         let fx = self
-            .markets
-            .get(&order.instrument_id)
-            .map_or(Decimal::ONE, |m| m.account_to_instrument);
+            .fx_at(&order.instrument_id, a.as_of)
+            .unwrap_or(Decimal::ONE);
         let (equity, _, _) = self.equity_at(a.as_of);
         match a.result {
             Ok(s) => {
@@ -820,7 +863,10 @@ impl crate::Broker for PaperBroker {
             if v.open_fraction <= Decimal::ZERO {
                 continue;
             }
-            let fx = self.markets[&t.instrument].account_to_instrument;
+            // Lo no realizado vuelve a la moneda del instrumento con el mismo tipo de `now`.
+            let Some(fx) = self.fx_at(&t.instrument, now) else {
+                continue;
+            };
             let size = t.size * v.open_fraction;
             let r = (t.entry_fill - t.stop).abs();
             let pl_instr = v.unrealized * fx;
@@ -876,7 +922,7 @@ impl crate::Broker for PaperBroker {
         let notional: Decimal = self
             .positions(now)
             .iter()
-            .map(|p| p.size * p.last / self.markets[&p.instrument_id].account_to_instrument)
+            .map(|p| self.to_eur(&p.instrument_id, p.size * p.last, now))
             .sum();
         let open = self.open_instruments(now).len();
         self.flag_missing_rate();
