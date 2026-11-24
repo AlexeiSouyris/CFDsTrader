@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import App from '@/App'
+import { placeLabels } from '@/components/ui/chart-measure'
 import { LiquidityChart } from '@/components/ui/liquidity-chart'
 import { ImbalanceGauge, LevelsTable, Rate } from '@/components/ui/liquidity-panels'
 import { decimal, percent, signed } from '@/lib/format'
@@ -253,6 +254,72 @@ describe('vista de liquidez en vivo (#231)', () => {
       />,
     )
     expect(container.querySelectorAll('[data-level-state]')).toHaveLength(0)
+  })
+
+  it('los rótulos del eje no se pisan entre sí ni con los precios, y no salen del panel (#355)', () => {
+    const bars = chartBars(DATA)
+    const base = DATA.levels.find((l) => l.state === 'intact' && !l.expired_at)!
+    const lows = bars.slice(-192).map((b) => Number(b.low))
+    const lo = Math.min(...lows)
+    // muchos niveles juntos cerca del mínimo y varios por debajo de la escala
+    const levels = [0, 1, 2, 3, 4, 5].map((k) => ({
+      ...base,
+      kind: 'session_low' as const,
+      price: String(lo + k * 2),
+      exists_from: bars[0].start,
+    }))
+    const below = [1, 2, 3].map((k) => ({
+      ...base,
+      kind: 'pdl' as const,
+      price: String(lo - 1000 * k),
+      exists_from: bars[0].start,
+    }))
+    const { container } = render(
+      <LiquidityChart
+        instrument="US100"
+        bars={bars}
+        levels={[...levels, ...below]}
+        fvgs={[]}
+        imbalance={[]}
+        height={440}
+      />,
+    )
+    const ys = [...container.querySelectorAll('[data-level-label]')].map((g) =>
+      Number(g.querySelector('rect')!.getAttribute('y')),
+    )
+    expect(ys).toHaveLength(9)
+    // la caja de cada rótulo (11 px) queda dentro del panel de precio: de 6 a 440 − 22
+    for (const y of ys) {
+      expect(y).toBeGreaterThanOrEqual(6)
+      expect(y + 11).toBeLessThanOrEqual(440 - 22)
+    }
+    const sorted = [...ys].sort((a, b) => a - b)
+    sorted.slice(1).forEach((y, k) => expect(y - sorted[k]).toBeGreaterThanOrEqual(11.9))
+    // los precios del eje que quedan a la vista no chocan con ningún rótulo
+    const ticks = [...container.querySelectorAll('[data-axis-tick]')].map(
+      (t) => Number(t.getAttribute('y')) - 3,
+    )
+    expect(ticks.length).toBeGreaterThan(0)
+    for (const t of ticks)
+      for (const y of ys) expect(Math.abs(t - (y + 6))).toBeGreaterThanOrEqual(12)
+  })
+
+  it('placeLabels separa, empuja desde abajo y no sale nunca del rango', () => {
+    const ys = (xs: number[], min: number, max: number) =>
+      placeLabels(
+        xs.map((y) => ({ y })),
+        min,
+        max,
+      ).map((t) => t.y)
+    expect(ys([50, 10, 30], 0, 100)).toEqual([10, 30, 50])
+    expect(ys([10, 11, 12], 0, 100)).toEqual([10, 22, 34])
+    // pegados al borde de abajo: suben desde ahí
+    expect(ys([95, 99, 200], 0, 100)).toEqual([76, 88, 100])
+    // si no entran todos, ninguno sale del rango
+    for (const y of ys([5, 5, 5, 5, 5], 0, 30)) {
+      expect(y).toBeGreaterThanOrEqual(0)
+      expect(y).toBeLessThanOrEqual(30)
+    }
   })
 
   it('el porcentaje corre la coma en el texto, sin float', () => {
