@@ -8,7 +8,8 @@
  */
 import { useEffect, useState } from 'react'
 
-import { chartBars } from '@/lib/liquidity-bars'
+import type { ChartAnalysis } from '@/lib/analysis-contracts'
+import { chartBars, type ChartBar } from '@/lib/liquidity-bars'
 import type {
   GatewayInstruments,
   LiquidityViewData,
@@ -43,13 +44,23 @@ export const fetchLiquidityView = (
     signal,
   )
 
-/** Velas cerradas antes de `before` (#401), para el gráfico que se desplaza al pasado. */
+/** Una página de velas más viejas con su bloque `analysis` (índices de `bars`), si lo trae. */
+export type OlderPage = { bars: ChartBar[]; analysis?: ChartAnalysis }
+
+/**
+ * Velas cerradas antes de `before` (#401), para el gráfico que se desplaza al pasado, con las
+ * herramientas de análisis del motor para esas velas (#511).
+ */
 export const fetchOlderBars = (
   instrument: string,
   timeframe: ViewTimeframe,
   before: string,
   source: ViewSource['id'] = 'ig',
-) => fetchLiquidityView(instrument, timeframe, undefined, source, before).then(chartBars)
+): Promise<OlderPage> =>
+  fetchLiquidityView(instrument, timeframe, undefined, source, before).then((data) => ({
+    bars: chartBars(data),
+    analysis: data.analysis,
+  }))
 
 export type Remote<T> =
   { status: 'loading' } | { status: 'error'; message: string } | { status: 'ok'; data: T }

@@ -14,7 +14,10 @@
 //!
 //! En 15m con las velas de IG, la vista trae además el bloque opcional `analysis` (#501): las
 //! herramientas de análisis tal como las arma `cfds_backtest::analysis` (el mismo bloque de
-//! `chart_export.v1`), sobre las velas de la vista. Solo se muestran: no entran al puntaje.
+//! `chart_export.v1`). Se calculan con `[warmup]` velas de 15m antes de la primera de la vista
+//! (`config/analysis.toml`) y se devuelve solo lo de la vista (#511), también con `before`; las
+//! diarias y el VIX salen de un caché en memoria ([`series_cache`]). Solo se muestran: no
+//! entran al puntaje.
 //!
 //! No calcula nada nuevo, no envía órdenes ni escribe en la base.
 
@@ -27,6 +30,7 @@ pub mod ops;
 pub mod ops_store;
 pub mod paper;
 pub mod paper_runner;
+pub mod series_cache;
 pub mod status;
 pub mod walk_forward;
 
@@ -34,7 +38,7 @@ use std::future::Future;
 use std::net::SocketAddr;
 use std::num::NonZeroU32;
 
-use cfds_backtest::{AnalysisConfig, ExportAnalysis, analysis_export};
+use cfds_backtest::{AnalysisConfig, ExportAnalysis, analysis_export, analysis_view};
 use cfds_core::{
     Candle, DailyCandle, FvgEvent, Imbalance, Instrument, InstrumentId, LiquidityLevel,
     LiquidityStats, StatsTimeframe, Timeframe,
@@ -265,6 +269,36 @@ impl ViewAnalysis {
     ) -> ExportAnalysis {
         analysis_export(m15, daily, vix, self.pivot_strength, &self.config)
     }
+
+    /// El bloque de la vista `view` calculado con las velas de calentamiento `warmup` (las
+    /// anteriores a la primera de la vista, en orden, #511): índices de `view`, nada de antes.
+    pub fn view_block(
+        &self,
+        warmup: &[Candle],
+        view: &[Candle],
+        daily: &[DailyCandle],
+        vix: &[(DateTime<Utc>, rust_decimal::Decimal)],
+    ) -> ExportAnalysis {
+        let all: Vec<Candle> = warmup.iter().chain(view).cloned().collect();
+        analysis_view(
+            &all,
+            warmup.len(),
+            daily,
+            vix,
+            self.pivot_strength,
+            &self.config,
+        )
+    }
+
+    /// Las últimas `[warmup] m15_bars` de `before` (velas que empezaron antes de la primera de
+    /// la vista), en orden.
+    pub fn warmup_tail(&self, mut before: Vec<Candle>) -> Vec<Candle> {
+        let n = self.config.warmup.m15_bars;
+        if before.len() > n {
+            before.drain(..before.len() - n);
+        }
+        before
+    }
 }
 
 fn ser_timeframe<S: serde::Serializer>(tf: &StatsTimeframe, s: S) -> Result<S::Ok, S::Error> {
@@ -335,6 +369,8 @@ pub struct PgSource {
     pub sources: CandleSources,
     /// Herramientas de análisis (#501); `None` = la vista no las trae.
     pub analysis: Option<ViewAnalysis>,
+    /// Diarias y VIX ya leídos para `analysis` (#511).
+    pub cache: series_cache::SeriesCache,
 }
 
 impl PgSource {
@@ -397,31 +433,70 @@ impl PgSource {
         Ok(Some((Bars::Daily(daily), as_of, first)))
     }
 
-    /// El bloque `analysis` (#501) de las velas de 15m de la vista. La EMA diaria necesita los
-    /// días anteriores a la ventana (calentamiento): se leen todas las diarias guardadas hasta
-    /// `as_of`, como en el export. El VIX, desde dos semanas antes de la primera vela.
+    /// El bloque `analysis` (#501) de las velas de 15m de la vista. Pivotes, Fibonacci,
+    /// spring/upthrust y fondos se calculan con `[warmup]` velas anteriores (#511). La EMA y las
+    /// medias diarias necesitan los días anteriores a la ventana: todas las diarias guardadas
+    /// hasta `as_of`, como en el export, del caché; el VIX publicado hasta `as_of`, también.
     async fn analysis(
         &self,
         va: &ViewAnalysis,
+        feed: CandleFeed<'_>,
+        base: &InstrumentId,
         id: &InstrumentId,
         m15: &[Candle],
         as_of: DateTime<Utc>,
     ) -> Result<ExportAnalysis, StorageError> {
+        let first = m15.first().map_or(as_of, |c| c.start);
+        let lookback = TimeDelta::days(i64::from(va.config.warmup.max_lookback_days));
+        let before = self
+            .store
+            .candles_from(feed, base, id, Timeframe::M15, first - lookback, first)
+            .await?;
+        let warmup = va.warmup_tail(before);
+        let daily = self.daily_known(id, as_of).await?;
+        let vix = self.vix_known(as_of).await?;
+        Ok(va.view_block(&warmup, m15, &daily, &vix))
+    }
+
+    /// Las diarias terminadas hasta `as_of`, del caché; se vuelven a leer todas solo si en la
+    /// base hay un día terminado posterior al último del caché.
+    async fn daily_known(
+        &self,
+        id: &InstrumentId,
+        as_of: DateTime<Utc>,
+    ) -> Result<Vec<DailyCandle>, StorageError> {
+        let last_end = self.store.last_daily_end(id, as_of).await?;
+        if let Some(days) = self.cache.daily_known(id, as_of, last_end) {
+            return Ok(days);
+        }
         let first_day = NaiveDate::from_ymd_opt(2000, 1, 1).unwrap_or(NaiveDate::MIN);
-        let daily: Vec<DailyCandle> = self
+        let days = self
             .store
             .daily_candles(id, first_day, as_of.date_naive() + TimeDelta::days(1))
-            .await?
-            .into_iter()
-            .filter(|d| d.end <= as_of)
-            .collect();
-        let from = m15.first().map_or(as_of, |c| c.start) - TimeDelta::days(14);
-        // `vix_closes` deja afuera `to`: un segundo más para incluir lo publicado justo en `as_of`.
-        let vix = self
-            .store
-            .vix_closes(from, as_of + TimeDelta::seconds(1))
             .await?;
-        Ok(va.block(m15, &daily, &vix))
+        Ok(self.cache.store_daily(id, days, as_of))
+    }
+
+    /// El VIX publicado hasta `as_of`: se leen solo los cierres desde el último del caché.
+    async fn vix_known(
+        &self,
+        as_of: DateTime<Utc>,
+    ) -> Result<Vec<series_cache::VixClose>, StorageError> {
+        let from = self.cache.vix_last().unwrap_or_else(|| {
+            NaiveDate::from_ymd_opt(2000, 1, 1)
+                .unwrap_or(NaiveDate::MIN)
+                .and_time(chrono::NaiveTime::MIN)
+                .and_utc()
+        });
+        // `vix_closes` deja afuera `to`: un segundo más para incluir lo publicado justo en `as_of`.
+        let read = if from <= as_of {
+            self.store
+                .vix_closes(from, as_of + TimeDelta::seconds(1))
+                .await?
+        } else {
+            Vec::new()
+        };
+        Ok(self.cache.add_vix(&read, as_of))
     }
 }
 
@@ -463,9 +538,10 @@ impl LiquiditySource for PgSource {
             .filter(|g| g.timeframe == tf && g.as_of <= as_of)
             .collect();
         let analysis = match (&self.analysis, &candles) {
-            (Some(va), Bars::Intraday(m15)) if has_analysis(source, tf) && !m15.is_empty() => {
-                Some(self.analysis(va, id, m15, as_of).await?)
-            }
+            (Some(va), Bars::Intraday(m15)) if has_analysis(source, tf) && !m15.is_empty() => Some(
+                self.analysis(va, CandleFeed::Ig, base, id, m15, as_of)
+                    .await?,
+            ),
             _ => None,
         };
         Ok(LiquidityView {
@@ -689,6 +765,44 @@ mod tests {
         .unwrap();
         assert_eq!(va.config.ema_daily_period, 365);
         assert!(ViewAnalysis::from_toml("x = 1", "").is_err());
+    }
+
+    /// `[warmup]` de `config/analysis.toml` (#511): se valida al cargar y se usan solo las
+    /// últimas `m15_bars` velas antes de la vista.
+    #[test]
+    fn the_warmup_is_validated_and_keeps_the_last_bars() {
+        let real = include_str!("../../../../config/analysis.toml");
+        let patterns = include_str!("../../../../config/patterns.toml");
+        let va = ViewAnalysis::from_toml(real, patterns).unwrap();
+        assert_eq!(va.config.warmup.m15_bars, 1000);
+        for bad in [
+            real.replace("m15_bars = 1000", "m15_bars = 50"),
+            real.replace("max_lookback_days = 45", "max_lookback_days = 3"),
+            real.replace("max_lookback_days = 45", "max_lookback_days = \"45\""),
+            real.replace("m15_bars = 1000", "m15_bars = 1000\nextra = 1"),
+        ] {
+            assert!(ViewAnalysis::from_toml(&bad, patterns).is_err(), "{bad}");
+        }
+        let t0: DateTime<Utc> = "2026-11-20T00:00:00Z".parse().unwrap();
+        let bars: Vec<Candle> = (0..1200i64)
+            .map(|k| Candle {
+                instrument_id: "US100".parse().unwrap(),
+                timeframe: Timeframe::M15,
+                start: t0 + TimeDelta::minutes(15 * k),
+                open: rust_decimal::Decimal::ONE,
+                high: rust_decimal::Decimal::ONE,
+                low: rust_decimal::Decimal::ONE,
+                close: rust_decimal::Decimal::ONE,
+                volume: None,
+            })
+            .collect();
+        let tail = va.warmup_tail(bars.clone());
+        assert_eq!(tail.len(), 1000);
+        assert_eq!(tail[0].start, bars[200].start);
+        assert_eq!(va.warmup_tail(bars[..10].to_vec()).len(), 10);
+        // El bloque tiene un valor por vela de la vista, nada del calentamiento.
+        let block = va.view_block(&tail[..990], &tail[990..], &[], &[]);
+        assert_eq!(block.ema_daily.len(), 10);
     }
 
     #[test]

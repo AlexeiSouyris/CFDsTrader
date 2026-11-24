@@ -70,6 +70,7 @@ async fn source() -> PgSource {
         sources: CandleSources::from_toml(include_str!("../../../../config/candle_sources.toml"))
             .unwrap(),
         analysis: Some(view_analysis()),
+        cache: Default::default(),
     }
 }
 
@@ -544,4 +545,111 @@ fn ui_mock_analysis_is_what_the_engine_computes() {
         return;
     }
     assert_eq!(doc["analysis"], analysis);
+}
+
+/// Velas de 15m seguidas con un zigzag y ruido fijo (sin azar): hay pivotes, tramos y fondos.
+fn walk(id: &InstrumentId, t0: DateTime<Utc>, n: i64) -> Vec<Candle> {
+    let mut seed: u64 = 7;
+    let mut mid = rust_decimal::Decimal::from(20_000);
+    (0..n)
+        .map(|k| {
+            seed = seed
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            let noise = rust_decimal::Decimal::from((seed >> 33) % 21) - dec!(10);
+            let trend = if (k / 30) % 2 == 0 { dec!(4) } else { dec!(-4) };
+            let open = mid;
+            mid += trend + noise;
+            // Mechas distintas en cada vela: si no, la vela del giro y la siguiente empatan.
+            let wick = rust_decimal::Decimal::from((seed >> 40) % 7);
+            Candle {
+                open,
+                high: open.max(mid) + dec!(1) + wick,
+                low: open.min(mid) - dec!(1) - wick,
+                close: mid,
+                ..candle(id, t0 + TimeDelta::minutes(15 * k))
+            }
+        })
+        .collect()
+}
+
+/// #511: dos vistas que empiezan en lugares distintos (la de ahora y la de antes, como al
+/// desplazar el gráfico) dan lo mismo para las velas que comparten, porque las dos se calculan
+/// con su calentamiento; las diarias y el VIX salen del caché sin adelantar nada.
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn the_analysis_of_a_closed_candle_does_not_depend_on_where_the_view_starts() {
+    let src = source().await;
+    let id = fresh_instrument(&src.store).await;
+    let t0 = at("2026-10-01T00:00:00Z");
+    let m15 = walk(&id, t0, 1600);
+    src.store.insert_candles(&m15).await.unwrap();
+    let days: Vec<DailyCandle> = ["2026-10-01", "2026-10-02", "2026-10-13", "2026-10-14"]
+        .iter()
+        .map(|d| daily(&id, d))
+        .collect();
+    src.store.insert_daily(&days).await.unwrap();
+    let end_of = |k: i64| t0 + TimeDelta::minutes(15 * (k + 1));
+    let view_at = |now| src.view(&id, CandleSource::Ig, M15, now);
+    let (a, b) = (
+        view_at(end_of(1400)).await.unwrap(),
+        view_at(end_of(1500)).await.unwrap(),
+    );
+    let starts = |v: &cfds_gateway::LiquidityView| match &v.candles {
+        cfds_gateway::Bars::Intraday(c) => c.iter().map(|c| c.start).collect::<Vec<_>>(),
+        cfds_gateway::Bars::Daily(_) => unreachable!(),
+    };
+    let (sa, sb) = (starts(&a), starts(&b));
+    let (aa, ab) = (a.analysis.unwrap(), b.analysis.unwrap());
+    assert_eq!(aa.ema_daily.len(), sa.len());
+    // Lo de cada vista en horas de vela, solo en las velas que las dos tienen.
+    let shared = |t: &DateTime<Utc>| sa.contains(t) && sb.contains(t) && *t >= sb[0];
+    let legs = |x: &cfds_backtest::ExportAnalysis, s: &[DateTime<Utc>]| {
+        x.fibonacci
+            .iter()
+            .filter(|l| shared(&s[l.start_index]) && shared(&s[l.confirmed_index]))
+            .map(|l| (s[l.start_index], s[l.end_index], l.direction.clone()))
+            .collect::<Vec<_>>()
+    };
+    let marks = |x: &cfds_backtest::ExportAnalysis, s: &[DateTime<Utc>]| {
+        let mut v: Vec<(DateTime<Utc>, String)> = x
+            .wyckoff
+            .iter()
+            .filter(|w| shared(&s[w.break_index]) && shared(&s[w.confirmed_index]))
+            .map(|w| (s[w.confirmed_index], w.kind.clone()))
+            .collect();
+        v.extend(
+            x.bottoms
+                .iter()
+                .filter(|b| shared(&s[b.index]) && shared(&s[b.confirmed_index]))
+                .map(|b| (s[b.confirmed_index], "bottom".to_owned())),
+        );
+        v
+    };
+    assert!(!legs(&aa, &sa).is_empty(), "hay tramos en lo compartido");
+    assert_eq!(legs(&aa, &sa), legs(&ab, &sb));
+    assert_eq!(marks(&aa, &sa), marks(&ab, &sb));
+    // Pivotes cerca del borde izquierdo de la vista nueva: el calentamiento los trae.
+    assert!(
+        ab.fibonacci.iter().any(|l| l.start_index < 40),
+        "tramos que empiezan al principio de la vista"
+    );
+    // Diarias del caché: un día nuevo en la base se ve en la vista de ahora…
+    let pivot_days = |x: &cfds_backtest::ExportAnalysis| {
+        x.floor_pivots
+            .iter()
+            .map(|p| p.day.clone())
+            .collect::<Vec<_>>()
+    };
+    assert!(!pivot_days(&ab).contains(&"2026-10-15".to_owned()));
+    src.store
+        .insert_daily(&[daily(&id, "2026-10-15")])
+        .await
+        .unwrap();
+    let b2 = view_at(end_of(1500)).await.unwrap().analysis.unwrap();
+    assert!(pivot_days(&b2).contains(&"2026-10-15".to_owned()));
+    // …y la de antes, con el caché ya lleno, no ve días que no habían terminado.
+    let a2 = view_at(end_of(1400)).await.unwrap().analysis.unwrap();
+    assert_eq!(pivot_days(&a2), pivot_days(&aa));
+    assert_eq!(a2, aa);
 }

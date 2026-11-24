@@ -16,6 +16,8 @@ import {
   ViewportStore,
   zoomAt,
 } from '@/lib/chart-viewport'
+import type { ChartAnalysis } from '@/lib/analysis-contracts'
+import { TOOLS_KEY } from '@/lib/analysis-layers'
 import { chartBars, mergeBars, type ChartBar } from '@/lib/liquidity-bars'
 import { LIQUIDITY_US100 as DATA, US100_1H } from '@/mocks'
 
@@ -316,6 +318,60 @@ describe('gráficos navegables (#401)', () => {
     expect(container.querySelector('[data-history="done"]')).not.toBeNull()
     fireEvent.keyDown(svg, { key: 'ArrowLeft' })
     expect(loadOlder).toHaveBeenCalledTimes(2)
+  })
+
+  it('las velas más viejas traen su análisis del motor y se suma al de la vista (#511)', async () => {
+    localStorage.setItem(TOOLS_KEY, JSON.stringify({ wyckoff: true }))
+    const older = BARS.slice(0, 100)
+    const shown = BARS.slice(100)
+    // Solo un spring en cada pedido (valores de prueba: acá no se calcula nada).
+    const block = (n: number, at: number): ChartAnalysis => ({
+      ema_daily_period: 365,
+      ema_daily: Array.from({ length: n }, () => null),
+      fibonacci: [],
+      golden_pocket: [],
+      wyckoff: [
+        {
+          kind: 'spring',
+          break_index: at - 1,
+          confirmed_index: at,
+          level: '95.0',
+          touches: 3,
+          extreme: '94.5',
+        },
+      ],
+      bottoms: [],
+      ma_cross: {
+        kind: 'sma',
+        fast_period: 50,
+        slow_period: 200,
+        fast: Array.from({ length: n }, () => null),
+        slow: Array.from({ length: n }, () => null),
+        crosses: [],
+      },
+      floor_pivots: [],
+      vix: Array.from({ length: n }, () => null),
+    })
+    const loadOlder = vi.fn(async () => ({ bars: older, analysis: block(older.length, 10) }))
+    const { container } = render(
+      <LiquidityChart
+        instrument="US100"
+        bars={shown}
+        levels={DATA.levels}
+        fvgs={DATA.fvgs}
+        imbalance={DATA.imbalance}
+        analysis={block(shown.length, 5)}
+        loadOlder={loadOlder}
+      />,
+    )
+    const svg = screen.getByRole('img', { name: /US100, \d+ velas/ })
+    const springs = () => container.querySelectorAll('[data-marker="spring"]').length
+    expect(springs()).toBe(1)
+    fireEvent.keyDown(svg, { key: 'Home' })
+    await act(async () => {})
+    expect(loadOlder).toHaveBeenCalledTimes(1)
+    expect(springs()).toBe(2)
+    localStorage.clear()
   })
 
   it('el gráfico de precio también se desplaza y mide con Shift', () => {

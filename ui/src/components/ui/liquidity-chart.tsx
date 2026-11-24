@@ -12,8 +12,8 @@
  *
  * Navegable (#401, `chart-nav.tsx`): arrastrar desplaza en el tiempo, la rueda hace zoom anclado
  * en el cursor y, al llegar al borde izquierdo, pide velas más viejas (`loadOlder`, que lee el
- * gateway con `before`). Solo se suman velas: los niveles, los FVG y las marcas de
- * desplazamiento son los de la vista actual.
+ * gateway con `before`). Se suman las velas y sus herramientas de análisis (#511); los niveles,
+ * los FVG y las marcas de desplazamiento son los de la vista actual.
  *
  * Herramientas de análisis (#501, `chart-tools.tsx`): las capas del bloque `analysis` que manda el
  * motor (Fibonacci con su golden pocket, EMA diaria, spring/upthrust, fondos, cruces de medias,
@@ -42,6 +42,8 @@ import type { ChartAnalysis, VixRegime } from '@/lib/analysis-contracts'
 import {
   activeAt,
   analysisLayers,
+  mergeLayers,
+  type AnalysisLayers,
   MARKER_GLYPH,
   MARKER_NAME,
   MARKER_TOOL,
@@ -55,6 +57,7 @@ import { useCoarsePointer } from '@/lib/use-coarse-pointer'
 import { useElementWidth } from '@/lib/use-element-width'
 import { cn } from '@/lib/utils'
 import { mergeBars, type ChartBar } from '@/lib/liquidity-bars'
+import type { OlderPage } from '@/lib/liquidity-api'
 import type {
   FvgEvent,
   Imbalance,
@@ -141,14 +144,16 @@ export function LiquidityChart({
   signals?: { at: string; side: 'long' | 'short'; label: string }[]
   /**
    * Bloque `analysis` del motor (#501), con índices de `bars` (las velas que llegan, sin las más
-   * viejas que se suman al desplazarse). Sin esto, el menú de herramientas avisa que no hay.
+   * viejas que se suman al desplazarse, que traen el suyo). Sin esto, el menú de herramientas
+   * avisa que no hay.
    */
   analysis?: ChartAnalysis
   /**
    * Velas cerradas antes de `before` (#401): se piden al gateway al desplazarse hasta el borde
-   * izquierdo. Sin esto, el gráfico muestra solo las velas que recibe.
+   * izquierdo, con su bloque `analysis` si lo hay (#511). Sin esto, el gráfico muestra solo las
+   * velas que recibe.
    */
-  loadOlder?: (before: string) => Promise<ChartBar[]>
+  loadOlder?: (before: string) => Promise<ChartBar[] | OlderPage>
   height?: number
   className?: string
 }) {
@@ -166,10 +171,25 @@ export function LiquidityChart({
   const [older, setOlder] = useState<ChartBar[]>([])
   const [history, setHistory] = useState<HistoryState>('idle')
   const all = useMemo(() => (older.length ? mergeBars(older, bars) : bars), [older, bars])
-  const live = useRef({ all, history, busy: false, alive: true })
+  // Herramientas de análisis (#501): índices del motor → cierres de vela, una vez por dato. Las
+  // de las velas más viejas (#511) se suman antes de las de la vista.
+  const [olderLayers, setOlderLayers] = useState<AnalysisLayers | null>(null)
+  const current = useMemo(
+    () => (analysis ? analysisLayers(analysis, bars) : null),
+    [analysis, bars],
+  )
+  const layers = useMemo(
+    () =>
+      current && olderLayers && bars.length
+        ? mergeLayers(olderLayers, current, bars[0].end)
+        : (current ?? olderLayers),
+    [current, olderLayers, bars],
+  )
+  const live = useRef({ all, history, layers, busy: false, alive: true })
   useLayoutEffect(() => {
     live.current.all = all
     live.current.history = history
+    live.current.layers = layers
   })
   useEffect(() => {
     const l = live.current
@@ -185,15 +205,23 @@ export function LiquidityChart({
     l.busy = true
     setHistory('loading')
     const seen = l.all
+    const seenLayers = l.layers
     loadOlder(seen[0].start).then(
-      (page) => {
+      (got) => {
         l.busy = false
         if (!live.current.alive) return
+        const page = Array.isArray(got) ? { bars: got } : got
         const first = Date.parse(live.current.all[0].start)
-        const fresh = page.filter((b) => Date.parse(b.start) < first)
+        const fresh = page.bars.filter((b) => Date.parse(b.start) < first)
         if (fresh.length === 0) return setHistory('done')
         // se guardan también las que se veían: si la ventana de las últimas se corre, no queda hueco
         setOlder((o) => mergeBars(mergeBars(o, seen), fresh))
+        const pageLayers = page.analysis ? analysisLayers(page.analysis, page.bars) : null
+        setOlderLayers(
+          pageLayers && seenLayers
+            ? mergeLayers(pageLayers, seenLayers, seen[0].end)
+            : (seenLayers ?? pageLayers),
+        )
         setHistory('idle')
       },
       () => {
@@ -265,9 +293,7 @@ export function LiquidityChart({
   const axisLevels = shownLevels.filter((l) => l.state === 'intact' && !expired(l))
   const fvgEnd = (f: FvgEvent) => f.fill?.at ?? f.expiry?.at ?? null
   const shownFvgs = fvgs.filter((f) => idxAt(fvgEnd(f)) > 0)
-  // Herramientas de análisis (#501): índices del motor → cierres de vela, una vez por dato.
   const [tools, toggleTool] = useChartTools()
-  const layers = useMemo(() => (analysis ? analysisLayers(analysis, bars) : null), [analysis, bars])
   const markers = layers ? layers.markers.filter((mk) => tools[MARKER_TOOL[mk.kind]]) : []
   const vix = tools.vix ? (layers?.vix ?? null) : null
   // Fibonacci: solo el último tramo confirmado (con decenas de tramos en la ventana, dibujarlos

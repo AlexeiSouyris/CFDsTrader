@@ -27,6 +27,20 @@ pub struct AnalysisConfig {
     pub bottom: BottomConfig,
     pub ma_cross: MaCrossConfig,
     pub vix: VixConfig,
+    pub warmup: WarmupConfig,
+}
+
+/// `[warmup]` (#511): cuántas velas de 15m **antes** de la primera que se muestra se usan para
+/// calcular los pivotes, Fibonacci, spring/upthrust y fondos de una vista (el gráfico del
+/// gateway). Sin esto, las señales cerca del borde izquierdo faltarían o cambiarían según
+/// dónde empiece la vista.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WarmupConfig {
+    /// Velas de 15m de calentamiento.
+    pub m15_bars: usize,
+    /// Hasta cuántos días corridos hacia atrás se buscan esas velas (noches, fines de semana y
+    /// huecos de datos). Con menos velas en ese plazo, se usan las que haya.
+    pub max_lookback_days: u32,
 }
 
 /// Media de los cruces dorado y de la muerte (sobre los cierres diarios).
@@ -63,6 +77,13 @@ impl AnalysisConfig {
             bottom: RawBottom,
             ma_cross: RawCross,
             vix: RawVix,
+            warmup: RawWarmup,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct RawWarmup {
+            m15_bars: usize,
+            max_lookback_days: u32,
         }
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
@@ -139,6 +160,24 @@ impl AnalysisConfig {
         if c.fast == 0 || c.fast >= c.slow {
             return Err("ma_cross: 0 < fast < slow".into());
         }
+        let wu = raw.warmup;
+        // Lo mínimo para que la primera vela visible ya tenga su historia completa: los niveles de
+        // Wyckoff miran `lookback_bars` velas y el fondo, `lookback` velas más su ATR.
+        let need = w.lookback_bars.max(b.lookback + b.atr_period);
+        if wu.m15_bars < need {
+            return Err(format!(
+                "warmup.m15_bars: {} < {need} (wyckoff.lookback_bars y bottom.lookback + atr_period)",
+                wu.m15_bars
+            ));
+        }
+        // El plazo tiene que alcanzar para esas velas aun sin noches ni fines de semana.
+        let min_days = (wu.m15_bars as u64).div_ceil(96);
+        if u64::from(wu.max_lookback_days) < min_days {
+            return Err(format!(
+                "warmup.max_lookback_days: {} < {min_days} (m15_bars velas de 15m seguidas)",
+                wu.max_lookback_days
+            ));
+        }
         let v = raw.vix;
         Ok(Self {
             ema_daily_period: raw.ema_daily.period,
@@ -175,6 +214,10 @@ impl AnalysisConfig {
                 dec("vix.elevated_from", &v.elevated_from)?,
                 dec("vix.stress_from", &v.stress_from)?,
             )?,
+            warmup: WarmupConfig {
+                m15_bars: wu.m15_bars,
+                max_lookback_days: wu.max_lookback_days,
+            },
         })
     }
 }
@@ -506,6 +549,96 @@ pub fn analysis_export(
     }
 }
 
+/// Bloque `analysis` de una **vista** (#511): se calcula sobre `m15` entero (las velas de
+/// calentamiento más las de la vista) y se devuelve solo lo de las velas desde `first_visible`,
+/// con los índices contados desde ahí. Así una vela cerrada da lo mismo aunque la vista empiece
+/// en otro lado (sin repintado por el borde), siempre que tenga su calentamiento.
+///
+/// Lo que se refiere a una vela anterior a la vista no se puede expresar con índices de la vista
+/// y se descarta: un tramo de Fibonacci que empieza antes (y los toques de su golden pocket), un
+/// spring/upthrust cuya ruptura fue antes, un fondo cuyo mínimo fue antes y un cruce de medias
+/// que ya se conocía antes. Los puntos pivote vigentes en la primera vela empiezan en 0.
+pub fn analysis_view(
+    m15: &[Candle],
+    first_visible: usize,
+    daily: &[DailyCandle],
+    vix: &[(DateTime<Utc>, Decimal)],
+    pivot_strength: usize,
+    cfg: &AnalysisConfig,
+) -> ExportAnalysis {
+    analysis_export(m15, daily, vix, pivot_strength, cfg).since(first_visible)
+}
+
+impl ExportAnalysis {
+    /// Lo de las velas desde `offset`, con los índices corridos (ver [`analysis_view`]).
+    #[must_use]
+    pub fn since(mut self, offset: usize) -> Self {
+        if offset == 0 {
+            return self;
+        }
+        fn cut<T>(v: &mut Vec<T>, offset: usize) {
+            v.drain(..offset.min(v.len()));
+        }
+        cut(&mut self.ema_daily, offset);
+        cut(&mut self.vix, offset);
+        cut(&mut self.ma_cross.fast, offset);
+        cut(&mut self.ma_cross.slow, offset);
+        // Tramos: los que empiezan en la vista; `kept[k]` = nuevo índice del tramo `k`.
+        let mut kept = Vec::with_capacity(self.fibonacci.len());
+        let mut fibonacci = Vec::new();
+        for mut leg in std::mem::take(&mut self.fibonacci) {
+            if leg.start_index >= offset {
+                kept.push(Some(fibonacci.len()));
+                leg.start_index -= offset;
+                leg.end_index -= offset;
+                leg.confirmed_index -= offset;
+                fibonacci.push(leg);
+            } else {
+                kept.push(None);
+            }
+        }
+        self.fibonacci = fibonacci;
+        self.golden_pocket = std::mem::take(&mut self.golden_pocket)
+            .into_iter()
+            .filter_map(|mut e| {
+                e.leg = kept.get(e.leg).copied().flatten()?;
+                e.index = e.index.checked_sub(offset)?;
+                Some(e)
+            })
+            .collect();
+        self.wyckoff.retain(|w| w.break_index >= offset);
+        for w in &mut self.wyckoff {
+            w.break_index -= offset;
+            w.confirmed_index -= offset;
+        }
+        self.bottoms.retain(|b| b.index >= offset);
+        for b in &mut self.bottoms {
+            b.index -= offset;
+            b.rebound_index -= offset;
+            b.confirmed_index -= offset;
+        }
+        self.ma_cross
+            .crosses
+            .retain(|c| c.known_from_index >= offset);
+        for c in &mut self.ma_cross.crosses {
+            c.known_from_index -= offset;
+        }
+        // Puntos pivote: el vigente en la primera vela de la vista arranca en 0.
+        let floor = std::mem::take(&mut self.floor_pivots);
+        let active = floor.iter().rposition(|p| p.from_index <= offset);
+        self.floor_pivots = floor
+            .into_iter()
+            .enumerate()
+            .filter(|(k, p)| p.from_index > offset || Some(*k) == active)
+            .map(|(_, mut p)| {
+                p.from_index = p.from_index.saturating_sub(offset);
+                p
+            })
+            .collect();
+        self
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -516,6 +649,8 @@ mod tests {
     fn the_repository_config_loads() {
         let c = AnalysisConfig::from_toml(REAL).unwrap();
         assert_eq!(c.ema_daily_period, 365);
+        assert_eq!(c.warmup.m15_bars, 1000);
+        assert_eq!(c.warmup.max_lookback_days, 45);
         assert_eq!(c.fibonacci.retracements.len(), 5);
         assert_eq!(
             c.fibonacci.golden_pocket,
@@ -536,6 +671,15 @@ mod tests {
             REAL.replace("fast = 50", "fast = 300"),
             REAL.replace(r#"elevated_from = "20""#, r#"elevated_from = "10""#),
             REAL.replace(r#"min_rebound_atr = "1""#, r#"min_rebound_atr = "-1""#),
+            // Calentamiento (#511): menos que lo que miran Wyckoff o el fondo, un plazo que no
+            // alcanza para esas velas, negativo o sin la sección.
+            REAL.replace("m15_bars = 1000", "m15_bars = 199"),
+            REAL.replace("m15_bars = 1000", "m15_bars = 0"),
+            REAL.replace("max_lookback_days = 45", "max_lookback_days = 10"),
+            REAL.replace("max_lookback_days = 45", "max_lookback_days = -1"),
+            REAL.replace("max_lookback_days = 45", "max_lookback_days = 0"),
+            REAL.replace("[warmup]", "[calentamiento]"),
+            REAL.split("[warmup]").next().unwrap().to_owned(),
         ] {
             assert!(AnalysisConfig::from_toml(&bad).is_err(), "{bad}");
         }

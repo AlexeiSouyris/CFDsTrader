@@ -423,6 +423,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             reaction_bars: stats.reaction_bars,
             sources: CandleSources::from_toml(SOURCES)?,
             analysis: Some(ViewAnalysis::from_toml(ANALYSIS, PATTERNS)?),
+            cache: Default::default(),
         },
         catalog: catalog
             .instruments
