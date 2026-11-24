@@ -6,7 +6,8 @@
 use std::path::PathBuf;
 
 use cfds_backtest::{
-    BacktestConfig, DailyRates, FundingRates, Setup, mark_rollovers, setup_from_catalog,
+    BacktestConfig, DailyRates, FundingRates, Setup, apply_funding_scenario, mark_rollovers,
+    setup_from_catalog,
 };
 use cfds_core::{Candle, InstrumentId, NewsInterpretation, Timeframe};
 use cfds_indicators::TrendConfig;
@@ -49,13 +50,34 @@ pub struct Prepared {
     pub interpreter: BacktestInterpreter,
 }
 
+/// Escenario de financiación de un estudio (#405): el tipo de referencia rotulado `series`
+/// reemplaza EN MEMORIA al del catálogo (`config/` no cambia). Con `rates`, la serie diaria sale
+/// de ahí (por ejemplo, un CSV de la fuente oficial); sin `rates`, de `reference_rates`.
+pub struct FundingScenario {
+    pub series: String,
+    pub rates: Option<DailyRates>,
+}
+
+#[allow(dead_code, reason = "walk_forward usa `prepare_with`")]
 pub async fn prepare(
+    id: &InstrumentId,
+    source: CandleSource,
+    period: (DateTime<Utc>, DateTime<Utc>),
+    equity: Decimal,
+    reset_days: Option<u32>,
+    without_news: bool,
+) -> Result<Prepared, Box<dyn std::error::Error>> {
+    prepare_with(id, source, period, equity, reset_days, without_news, None).await
+}
+
+pub async fn prepare_with(
     id: &InstrumentId,
     source: CandleSource,
     (from, to): (DateTime<Utc>, DateTime<Utc>),
     equity: Decimal,
     reset_days: Option<u32>,
     without_news: bool,
+    scenario: Option<FundingScenario>,
 ) -> Result<Prepared, Box<dyn std::error::Error>> {
     // Las velas y lo que lee la estrategia (noticias, calendario, sesión) son del CFD `id`; lo que
     // se guarda queda bajo `out` (con futuros, el instrumento derivado: nunca se mezcla).
@@ -66,7 +88,25 @@ pub async fn prepare(
         CandleSource::Futures => CandleFeed::Futures(&sources.futures_source),
     };
     println!("velas: {} ({out})", sources.label(source));
-    let catalog = Catalog::from_toml(cfg!("instruments.toml"))?;
+    let mut catalog = Catalog::from_toml(cfg!("instruments.toml"))?;
+    // Escenario (#405): el valor constante que se agrega solo completa el catálogo en memoria;
+    // la corrida usa la serie diaria (más abajo).
+    let mut scenario_rates = None;
+    if let Some(s) = scenario {
+        let value = s
+            .rates
+            .as_ref()
+            .and_then(|r| r.at(to))
+            .unwrap_or(Decimal::ZERO);
+        let before = apply_funding_scenario(&mut catalog, id, &s.series, value)?;
+        println!(
+            "⚠️  ESCENARIO DE FINANCIACIÓN (estudio, no oficial): tipo de referencia {} en memoria \
+             (en config/instruments.toml: {}). config/ no cambia.",
+            s.series,
+            before.as_deref().unwrap_or("pendiente")
+        );
+        scenario_rates = s.rates;
+    }
     let strategy = Configs {
         patterns: PatternsConfig::from_toml(cfg!("patterns.toml"))?,
         liquidity: LiquidityConfig::from_toml(cfg!("liquidity.toml"))?,
@@ -98,9 +138,14 @@ pub async fn prepare(
         .get(id)
         .and_then(|spec| spec.terms.funding_benchmark.value())
         .ok_or("el instrumento no tiene tipo de referencia de financiación")?;
-    let daily = DailyRates::new(store.reference_rates(series, to).await?).ok_or_else(|| {
-        format!("no hay valores de {series} guardados: cargarlos con `python -m cfds_intel.rates`")
-    })?;
+    let daily = match scenario_rates {
+        Some(d) => d,
+        None => DailyRates::new(store.reference_rates(series, to).await?).ok_or_else(|| {
+            format!(
+                "no hay valores de {series} guardados: cargarlos con `python -m cfds_intel.rates`"
+            )
+        })?,
+    };
     if let Some((day, pct)) = daily.at_with_day(from) {
         println!("financiación: {series} diario (al inicio, {pct} % del {day})");
     }
