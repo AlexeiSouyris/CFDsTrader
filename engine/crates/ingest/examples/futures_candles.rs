@@ -75,7 +75,10 @@ async fn build(
     feed: &FuturesFeed,
     now: DateTime<Utc>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let Some((from, to)) = store.futures_loaded_range(SOURCE, id).await? else {
+    let Some((from, to)) = store
+        .futures_loaded_range(SOURCE, &feed.dataset, &feed.symbol, id)
+        .await?
+    else {
         println!("{id}: sin barras de {SOURCE} bajadas");
         return Ok(());
     };

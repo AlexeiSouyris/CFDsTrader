@@ -126,42 +126,59 @@ async fn futures_candles_are_idempotent_separate_from_ig_and_refuse_to_repaint()
 
 #[tokio::test]
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
-async fn the_loaded_range_comes_from_the_loads_of_the_instrument() {
+async fn the_loaded_range_comes_from_the_loads_of_the_instrument_dataset_and_symbol() {
     let s = store().await;
     let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
     let id: InstrumentId = format!("ITFL{nanos}").parse().unwrap();
     let dataset = format!("T{nanos}.TEST");
-    assert_eq!(
-        s.futures_loaded_range("databento", &id).await.unwrap(),
-        None
-    );
-    sqlx::query(
-        "INSERT INTO futures_bars_1m (source, dataset, symbol, contract_id, instrument_id,
-             start_at, open, high, low, close, volume)
-         VALUES ('databento', $1, 'FDAX.c.0', 7, $2, '2026-11-18T09:00:00Z', 1, 1, 1, 1, 1)",
-    )
-    .bind(&dataset)
-    .bind(id.as_str())
-    .execute(s.pool())
-    .await
-    .unwrap();
-    for (from, to) in [
-        ("2026-11-01T00:00:00Z", "2026-12-01T00:00:00Z"),
-        ("2026-12-01T00:00:00Z", "2026-12-10T00:00:00Z"),
+    let other = format!("O{nanos}.TEST");
+    let range = |dataset: String, symbol: &'static str| {
+        let (s, id) = (s.clone(), id.clone());
+        async move {
+            s.futures_loaded_range("databento", &dataset, symbol, &id)
+                .await
+                .unwrap()
+        }
+    };
+    assert_eq!(range(dataset.clone(), "FDAX.c.0").await, None);
+    // Barras del mismo instrumento en dos datasets: cada uno con sus cargas.
+    for ds in [&dataset, &other] {
+        sqlx::query(
+            "INSERT INTO futures_bars_1m (source, dataset, symbol, contract_id, instrument_id,
+                 start_at, open, high, low, close, volume)
+             VALUES ('databento', $1, 'FDAX.c.0', 7, $2, '2026-11-18T09:00:00Z', 1, 1, 1, 1, 1)",
+        )
+        .bind(ds)
+        .bind(id.as_str())
+        .execute(s.pool())
+        .await
+        .unwrap();
+    }
+    for (ds, from, to) in [
+        (&dataset, "2026-11-01T00:00:00Z", "2026-12-01T00:00:00Z"),
+        (&dataset, "2026-12-01T00:00:00Z", "2026-12-10T00:00:00Z"),
+        (&other, "2025-01-01T00:00:00Z", "2027-01-01T00:00:00Z"),
     ] {
         sqlx::query(
             "INSERT INTO futures_bar_loads (source, dataset, symbol, from_at, to_at, bars, cost_usd)
              VALUES ('databento', $1, 'FDAX.c.0', $2, $3, 1, 0)",
         )
-        .bind(&dataset)
+        .bind(ds)
         .bind(at(from))
         .bind(at(to))
         .execute(s.pool())
         .await
         .unwrap();
     }
+    // Las cargas del otro dataset (más amplias) no se mezclan (#385).
     assert_eq!(
-        s.futures_loaded_range("databento", &id).await.unwrap(),
+        range(dataset.clone(), "FDAX.c.0").await,
         Some((at("2026-11-01T00:00:00Z"), at("2026-12-10T00:00:00Z")))
     );
+    assert_eq!(
+        range(other, "FDAX.c.0").await,
+        Some((at("2025-01-01T00:00:00Z"), at("2027-01-01T00:00:00Z")))
+    );
+    // Otro símbolo del mismo dataset: nada bajado.
+    assert_eq!(range(dataset, "FESX.c.0").await, None);
 }

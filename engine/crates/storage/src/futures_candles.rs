@@ -129,20 +129,27 @@ impl PgStore {
     }
 
     /// Desde y hasta cuándo (`[desde, hasta)`) están bajadas las barras de 1 minuto del futuro
-    /// de `instrument` (`futures_bar_loads`). `None` si no se bajó nada.
+    /// `dataset`/`symbol` que corresponde a `instrument` (`futures_bar_loads`). `None` si no se
+    /// bajó nada. `dataset` y `symbol` salen de `config/databento.toml`
+    /// (`cfds_market_data::FuturesFeeds`), como en [`PgStore::futures_bars`]: las cargas de otro
+    /// dataset o símbolo con el mismo instrumento no cuentan (#385).
     pub async fn futures_loaded_range(
         &self,
         source: &str,
+        dataset: &str,
+        symbol: &str,
         instrument: &InstrumentId,
     ) -> Result<Option<(DateTime<Utc>, DateTime<Utc>)>, StorageError> {
         let row: (Option<DateTime<Utc>>, Option<DateTime<Utc>>) = sqlx::query_as(
             "SELECT min(l.from_at), max(l.to_at) FROM futures_bar_loads l
-             WHERE l.source = $1 AND EXISTS (
+             WHERE l.source = $1 AND l.dataset = $2 AND l.symbol = $3 AND EXISTS (
                  SELECT 1 FROM futures_bars_1m b
                  WHERE b.source = l.source AND b.dataset = l.dataset AND b.symbol = l.symbol
-                   AND b.instrument_id = $2)",
+                   AND b.instrument_id = $4)",
         )
         .bind(source)
+        .bind(dataset)
+        .bind(symbol)
         .bind(instrument.as_str())
         .fetch_one(self.pool())
         .await?;

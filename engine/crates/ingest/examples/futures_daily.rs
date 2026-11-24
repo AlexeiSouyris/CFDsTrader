@@ -17,17 +17,21 @@
 use std::path::PathBuf;
 
 use cfds_core::{InstrumentId, Timeframe};
-use cfds_market_data::{CandleSource, CandleSources, Catalog, ExchangeCalendar, futures_daily};
+use cfds_market_data::{
+    CandleSource, CandleSources, Catalog, ExchangeCalendar, FuturesFeeds, futures_daily,
+};
 use cfds_storage::PgStore;
 use chrono::Utc;
 
 const CATALOG: &str = include_str!("../../../../config/instruments.toml");
 const SOURCES: &str = include_str!("../../../../config/candle_sources.toml");
+const DATABENTO: &str = include_str!("../../../../config/databento.toml");
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let catalog = Catalog::from_toml(CATALOG)?;
     let sources = CandleSources::from_toml(SOURCES)?;
+    let feeds = FuturesFeeds::from_toml(DATABENTO)?;
     let config_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../config");
     let calendar = ExchangeCalendar::load(&config_dir, catalog.exchange_map())?;
     let store = PgStore::connect(&std::env::var("DATABASE_URL")?).await?;
@@ -35,9 +39,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let now = Utc::now();
     let mut failed = 0;
     for (id, spec) in &catalog.instruments {
+        let Some(feed) = feeds.get(id) else {
+            println!("{id}: sin futuro en config/databento.toml");
+            continue;
+        };
         let r: Result<(), Box<dyn std::error::Error>> = async {
             let Some((from, to)) = store
-                .futures_loaded_range(&sources.futures_source, id)
+                .futures_loaded_range(&sources.futures_source, &feed.dataset, &feed.symbol, id)
                 .await?
             else {
                 println!("{id}: sin barras de futuros bajadas");
