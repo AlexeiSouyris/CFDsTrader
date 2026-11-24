@@ -343,4 +343,23 @@ mod from_catalog {
             "{errs:?}"
         );
     }
+
+    #[test]
+    fn commodities_pay_no_commission_but_wait_for_their_funding_model() {
+        // ADR 0013: el oro no paga comisión, pero su financiación no es la de los índices.
+        let toml = REAL.replacen(
+            r#"asset_class = "index""#,
+            r#"asset_class = "commodity""#,
+            1,
+        );
+        let errs = costs(&toml, "US100").unwrap_err();
+        assert!(
+            errs.contains(&("US100".to_string(), "funding_model")),
+            "{errs:?}"
+        );
+        assert!(
+            !errs.contains(&("US100".to_string(), "commission")),
+            "{errs:?}"
+        );
+    }
 }

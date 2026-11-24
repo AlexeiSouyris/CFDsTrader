@@ -4,7 +4,7 @@
 //! ```text
 //! ejecución:   precio = medio ± (spread / 2 + slippage), siempre en contra
 //!              slippage = 0,1 × spread + 1 tick
-//! comisión:    índices 0 · acciones EE. UU. max(mín, por_acción × acciones)
+//! comisión:    índices y materias primas 0 · acciones EE. UU. max(mín, por_acción × acciones)
 //!              · acciones UE max(mín, % × nocional)          (por ejecución)
 //! financiación: noches × cierre × tamaño × tasa / base_días
 //!              largo: tasa = referencia + adm. · corto: tasa = adm. − referencia (puede cobrar)
@@ -53,14 +53,29 @@ impl InstrumentCosts {
     /// ningún backtest corre con un costo inventado o en cero (spec §11, CLAUDE.md §5b).
     ///
     /// - Spread: el típico del catálogo (ya es el mayor entre el medido y el mínimo publicado).
-    /// - Comisión: índices, ninguna. Acciones: todavía no están en el catálogo, quedan pendientes.
+    /// - Comisión: índices y materias primas, ninguna (IG cobra el spread). Acciones: todavía no
+    ///   están en el catálogo, quedan pendientes.
+    /// - Materias primas (ADR 0013): la financiación usa otra fórmula de IG (base de la curva de
+    ///   futuros ± costo de IG). Mientras el motor no la implemente queda pendiente: nunca se
+    ///   simula una materia prima con la fórmula de los índices.
     pub fn from_spec(spec: &InstrumentSpec) -> Result<Self, Vec<PendingField>> {
         let mut missing = spec.missing_costs();
+        let item = spec.instrument.id.as_str().to_owned();
         let commission = match spec.instrument.asset_class {
             AssetClass::Index => Some(Commission::None),
-            _ => {
+            AssetClass::Commodity => {
                 missing.push(PendingField {
-                    item: spec.instrument.id.as_str().to_owned(),
+                    item: item.clone(),
+                    field: "funding_model",
+                    reason: "la financiación de materias primas de IG (ADR 0013 §3) todavía no \
+                             está en el motor"
+                        .into(),
+                });
+                Some(Commission::None)
+            }
+            AssetClass::Share => {
+                missing.push(PendingField {
+                    item,
                     field: "commission",
                     reason: "las acciones todavía no están en el catálogo de instrumentos".into(),
                 });

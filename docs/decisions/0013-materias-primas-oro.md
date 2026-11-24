@@ -1,8 +1,8 @@
 # 0013 – Materias primas en el catálogo y el motor, empezando por el oro (XAUUSD)
 
-- **Estado:** propuesta
+- **Estado:** aceptada el 24-11-2026 por el dueño, con todas sus recomendaciones (cita en el comentario del PR #392 y en el Issue #418)
 - **Fecha:** 2026-11-24
-- **Aprobada por:** pendiente. La aprueba el dueño (modo de un solo constructor, `CLAUDE.md`). Este documento no da nada por aprobado.
+- **Aprobada por:** el dueño (Alexei), 24-11-2026, ~03:20 UTC, en modo de un solo constructor (`CLAUDE.md`): «Yo acepto todas las recomendaciones que me propongas por predeterminado… te apruebo los 11 ya ahora para que hagas lo que necesites con todo mi permiso.» Implementación: #418, **solo en paper**. Nada de esto habilita dinero real.
 - **Issue:** #389 (sigue a #371, opción A)
 - **Relacionados:** [ADR 0002](0002-broker-ig.md) (broker IG), [ADR 0011](0011-historico-intradia-databento.md) (histórico de Databento), PR #378 (`GC.v.0` → `XAUUSD` en `config/databento.toml`), spec de la fase 1 §2 y §8
 
@@ -40,7 +40,7 @@ El dueño decidió en #371 (24-11-2026, «dale, hacé la A») bajar el históric
 | Spread típico del oro (no el mínimo) | Solo está el mínimo publicado | Medir en la demo como en #67 |
 | Feriados de CME para el oro | No hay archivo `holidays/` para CME | Calendario oficial de CME |
 
-## Decisión (propuesta)
+## Decisión
 
 Cada punto tiene opciones con pros y contras en «Alternativas consideradas». Esto es lo que se recomienda:
 

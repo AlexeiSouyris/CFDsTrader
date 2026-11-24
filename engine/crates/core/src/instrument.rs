@@ -68,14 +68,17 @@ impl fmt::Display for InstrumentId {
 pub enum AssetClass {
     Index,
     Share,
+    /// Materia prima (ADR 0013), por ejemplo el oro.
+    Commodity,
 }
 
 impl AssetClass {
-    /// Texto del contrato (`"index"`, `"share"`): el mismo en JSON y en la base de datos.
+    /// Texto del contrato (`"index"`, `"share"`, `"commodity"`): el mismo en JSON y en la base de datos.
     pub fn as_str(self) -> &'static str {
         match self {
             AssetClass::Index => "index",
             AssetClass::Share => "share",
+            AssetClass::Commodity => "commodity",
         }
     }
 }
@@ -87,6 +90,7 @@ impl FromStr for AssetClass {
         match s {
             "index" => Ok(AssetClass::Index),
             "share" => Ok(AssetClass::Share),
+            "commodity" => Ok(AssetClass::Commodity),
             other => Err(format!("tipo de instrumento desconocido: {other:?}")),
         }
     }
@@ -114,6 +118,16 @@ mod tests {
         for ok in ["US100", "DE40", "AAPL", "BRK.B", "X", "EU_STOXX-50"] {
             assert!(ok.parse::<InstrumentId>().is_ok(), "debería aceptar {ok:?}");
         }
+    }
+
+    #[test]
+    fn asset_classes_round_trip_as_text() {
+        for c in [AssetClass::Index, AssetClass::Share, AssetClass::Commodity] {
+            assert_eq!(c.as_str().parse::<AssetClass>(), Ok(c));
+            let json = serde_json::to_string(&c).unwrap();
+            assert_eq!(json, format!("\"{}\"", c.as_str()));
+        }
+        assert!("metal".parse::<AssetClass>().is_err());
     }
 
     #[test]

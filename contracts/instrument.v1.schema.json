@@ -19,8 +19,8 @@
       "maxLength": 100
     },
     "asset_class": {
-      "description": "Tipo de subyacente del CFD.",
-      "enum": ["index", "share"]
+      "description": "Tipo de subyacente del CFD. commodity (materias primas, por ejemplo el oro) se agregó sin romper v1 (ADR 0013).",
+      "enum": ["index", "share", "commodity"]
     },
     "currency": {
       "description": "Moneda de cotización, código ISO 4217.",
