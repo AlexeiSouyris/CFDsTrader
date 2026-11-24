@@ -15,9 +15,8 @@ import pytest
 from cfds_intel.phase4b.__main__ import report
 from cfds_intel.phase4b.report import load_run
 
-pytestmark = pytest.mark.skipif(
-    "DATABASE_URL" not in os.environ, reason="necesita PostgreSQL con migraciones (DATABASE_URL)"
-)
+# Escribe en PostgreSQL: solo contra una base cfds_test* (guardia en conftest.py, #376).
+pytestmark = pytest.mark.pg
 
 FROM, TO = datetime(2021, 1, 1, tzinfo=UTC), datetime(2026, 4, 30, tzinfo=UTC)
 NEWS = {

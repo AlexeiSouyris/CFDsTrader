@@ -28,9 +28,8 @@ from cfds_intel.sentiment.index_store import (
     load_points,
 )
 
-pytestmark = pytest.mark.skipif(
-    "DATABASE_URL" not in os.environ, reason="necesita PostgreSQL con migraciones (DATABASE_URL)"
-)
+# Escribe en PostgreSQL: solo contra una base cfds_test* (guardia en conftest.py, #376).
+pytestmark = pytest.mark.pg
 
 ROOT = Path(__file__).resolve().parents[2]
 CFG = load_config((ROOT / "config" / "sentiment.toml").read_text())

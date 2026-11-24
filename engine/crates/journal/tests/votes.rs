@@ -193,7 +193,7 @@ fn pair(source: Source, tag: &str, i: u32, start: DateTime<Utc>, hit: bool) -> (
 #[tokio::test]
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn the_report_its_proposals_and_votes_are_stored_once() {
-    let url = std::env::var("DATABASE_URL").expect("necesita PostgreSQL: DATABASE_URL");
+    let url = cfds_storage::test_db::test_database_url();
     let store = PgStore::connect(&url).await.unwrap();
     store.migrate().await.unwrap();
     store

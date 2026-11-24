@@ -30,7 +30,7 @@ fn doc(id: &str, instrument: &str, from: &str, to: &str, created: &str, diff: &s
 #[tokio::test]
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn latest_per_instrument_is_the_most_recent_period() {
-    let url = std::env::var("DATABASE_URL").expect("necesita PostgreSQL: DATABASE_URL");
+    let url = cfds_storage::test_db::test_database_url();
     let store = PgStore::connect(&url).await.unwrap();
     store.migrate().await.unwrap();
     let n = Utc::now().timestamp_nanos_opt().unwrap();

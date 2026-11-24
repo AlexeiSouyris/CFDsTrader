@@ -21,7 +21,9 @@ fn env(name: &str) -> String {
 }
 
 async fn store() -> PgStore {
-    let s = PgStore::connect(&env("DATABASE_URL")).await.unwrap();
+    let s = PgStore::connect(&cfds_storage::test_db::test_database_url())
+        .await
+        .unwrap();
     s.migrate().await.unwrap();
     s
 }
@@ -41,7 +43,9 @@ async fn with_instrument(store: &PgStore, name: &str) -> InstrumentId {
         exchange_timezone: "America/New_York".into(),
     };
     store.upsert_instrument(&i).await.unwrap();
-    let pool = sqlx::PgPool::connect(&env("DATABASE_URL")).await.unwrap();
+    let pool = sqlx::PgPool::connect(&cfds_storage::test_db::test_database_url())
+        .await
+        .unwrap();
     sqlx::query("DELETE FROM daily_candles WHERE instrument_id = $1")
         .bind(i.id.as_str())
         .execute(&pool)
@@ -301,7 +305,9 @@ async fn sentiment_is_append_only_and_idempotent() {
         matches!(err, StorageError::SentimentConflict { .. }),
         "{err}"
     );
-    let pool = sqlx::PgPool::connect(&env("DATABASE_URL")).await.unwrap();
+    let pool = sqlx::PgPool::connect(&cfds_storage::test_db::test_database_url())
+        .await
+        .unwrap();
     let count: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM sentiment_observations WHERE instrument_id = $1 AND observed_for >= $2",
     )
@@ -506,7 +512,9 @@ async fn reference_rates_are_read_only_once_published_in_publication_order() {
     // La tabla es de solo agregar: una serie propia por corrida.
     let nanos = Utc::now().timestamp_nanos_opt().unwrap();
     let series = format!("ITRATE{nanos}");
-    let pool = sqlx::PgPool::connect(&env("DATABASE_URL")).await.unwrap();
+    let pool = sqlx::PgPool::connect(&cfds_storage::test_db::test_database_url())
+        .await
+        .unwrap();
     for (day, published, rate) in [
         ("2026-11-13", "2026-11-16T08:00:00Z", "2.437"),
         ("2026-11-12", "2026-11-13T08:00:00Z", "2.443"),

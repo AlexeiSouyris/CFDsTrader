@@ -23,11 +23,15 @@ type BarRow = (
 );
 
 impl PgStore {
-    /// Barras de `source` del futuro que corresponde a `instrument`, con inicio en `[from, to)`,
-    /// en orden.
+    /// Barras de `source` del futuro `dataset`/`symbol` que corresponde a `instrument`, con
+    /// inicio en `[from, to)`, en orden. `dataset` y `symbol` salen de `config/databento.toml`
+    /// (`cfds_market_data::FuturesFeeds`): una fila de otro dataset o símbolo con el mismo
+    /// instrumento nunca se mezcla (#376).
     pub async fn futures_bars(
         &self,
         source: &str,
+        dataset: &str,
+        symbol: &str,
         instrument: &InstrumentId,
         from: DateTime<Utc>,
         to: DateTime<Utc>,
@@ -35,10 +39,13 @@ impl PgStore {
         let rows: Vec<BarRow> = sqlx::query_as(
             "SELECT source, dataset, symbol, contract_id, start_at, open, high, low, close, volume
              FROM futures_bars_1m
-             WHERE source = $1 AND instrument_id = $2 AND start_at >= $3 AND start_at < $4
+             WHERE source = $1 AND dataset = $2 AND symbol = $3 AND instrument_id = $4
+               AND start_at >= $5 AND start_at < $6
              ORDER BY start_at",
         )
         .bind(source)
+        .bind(dataset)
+        .bind(symbol)
         .bind(instrument.as_str())
         .bind(from)
         .bind(to)

@@ -162,7 +162,7 @@ fn the_contract_rejects_what_rust_never_writes() {
 #[tokio::test]
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn a_report_is_stored_once_and_never_rewritten() {
-    let url = std::env::var("DATABASE_URL").expect("necesita PostgreSQL: DATABASE_URL");
+    let url = cfds_storage::test_db::test_database_url();
     let store = PgStore::connect(&url).await.unwrap();
     store.migrate().await.unwrap();
     store

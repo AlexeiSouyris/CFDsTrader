@@ -11,7 +11,7 @@ use cfds_storage::{PgStore, StorageError};
 use chrono::{DateTime, TimeDelta, Utc};
 
 async fn store() -> PgStore {
-    let url = std::env::var("DATABASE_URL").expect("falta DATABASE_URL (necesita PostgreSQL)");
+    let url = cfds_storage::test_db::test_database_url();
     let s = PgStore::connect(&url).await.unwrap();
     s.migrate().await.unwrap();
     s

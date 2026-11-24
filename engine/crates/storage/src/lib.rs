@@ -27,6 +27,7 @@ mod ops_events;
 mod paper_orders;
 mod pg;
 mod stream;
+pub mod test_db;
 
 pub use futures_candles::CandleFeed;
 pub use liquidity_levels::LevelsReport;

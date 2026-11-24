@@ -39,7 +39,9 @@ fn series(id: &InstrumentId, n: usize) -> Vec<Candle> {
 
 /// Instrumento de prueba propio de cada test, limpio en la base y en Redis.
 async fn setup(name: &str) -> (PgStore, ExchangeCalendar, InstrumentId) {
-    let store = PgStore::connect(&env("DATABASE_URL")).await.unwrap();
+    let store = PgStore::connect(&cfds_storage::test_db::test_database_url())
+        .await
+        .unwrap();
     store.migrate().await.unwrap();
     let id: InstrumentId = name.parse().unwrap();
     store
@@ -52,7 +54,9 @@ async fn setup(name: &str) -> (PgStore, ExchangeCalendar, InstrumentId) {
         })
         .await
         .unwrap();
-    let pool = sqlx::PgPool::connect(&env("DATABASE_URL")).await.unwrap();
+    let pool = sqlx::PgPool::connect(&cfds_storage::test_db::test_database_url())
+        .await
+        .unwrap();
     sqlx::query("DELETE FROM candles WHERE instrument_id = $1")
         .bind(id.as_str())
         .execute(&pool)

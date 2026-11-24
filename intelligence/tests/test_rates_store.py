@@ -15,9 +15,8 @@ import pytest
 from cfds_intel.rates.ecb import Rate
 from cfds_intel.rates.store import insert_rates
 
-pytestmark = pytest.mark.skipif(
-    "DATABASE_URL" not in os.environ, reason="necesita PostgreSQL con migraciones (DATABASE_URL)"
-)
+# Escribe en PostgreSQL: solo contra una base cfds_test* (guardia en conftest.py, #376).
+pytestmark = pytest.mark.pg
 
 SERIES = "TEST_ESTR"
 
