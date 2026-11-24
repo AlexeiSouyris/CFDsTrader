@@ -36,7 +36,7 @@ pub use news_stream::{
     Delivery, NEWS_INTERPRETATIONS_STREAM, NewsBatch, NewsInterpretationConsumer, Rejected, StartAt,
 };
 pub use ops_events::OpsEventRecord;
-pub use pg::{AllowanceRecord, InsertReport, PgStore, migrator};
+pub use pg::{AllowanceRecord, InsertReport, NULL_FILL_REASON, PgStore, migrator};
 pub use stream::{CandlePublisher, Published, stream_id, stream_key};
 
 use chrono::{DateTime, Utc};
