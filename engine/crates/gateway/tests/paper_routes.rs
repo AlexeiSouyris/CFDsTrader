@@ -433,9 +433,21 @@ async fn the_read_only_session_writes_only_the_broker_journal() {
         .unwrap();
     let nanos = Utc::now().timestamp_nanos_opt().unwrap();
     let id = format!("gw-ro-{nanos}");
-    let order: Order = serde_json::from_value(order(&id, dec!(98))).unwrap();
-    let report = paper().0.lock().await.submit(&order);
-    assert!(ro.insert_paper_order(&order, &report).await.unwrap());
+    let decided: Order = serde_json::from_value(order(&id, dec!(98))).unwrap();
+    let report = paper().0.lock().await.submit(&decided);
+    assert!(ro.insert_paper_order(&decided, &report).await.unwrap());
+    // #479: también las pendientes guardadas y su final, cada uno en su transacción de escritura.
+    let pid = format!("gw-ro-pending-{nanos}");
+    let pending: Order = serde_json::from_value(order(&pid, dec!(98))).unwrap();
+    assert!(ro.insert_paper_pending(&pending).await.unwrap());
+    let stored = |p: Vec<Order>| p.iter().any(|o| o.order_id == pending.order_id);
+    assert!(stored(ro.paper_pending().await.unwrap()));
+    assert!(
+        ro.drop_paper_pending(&pid, "prueba", Utc::now())
+            .await
+            .unwrap()
+    );
+    assert!(!stored(ro.paper_pending().await.unwrap()));
     let direct = sqlx::query(
         "INSERT INTO paper_orders (order_id, instrument_id, created_at, document)
          VALUES ('gw-ro-direct', 'US100', now(), '{\"order_id\": \"gw-ro-direct\", \"mode\": \"paper\"}')",

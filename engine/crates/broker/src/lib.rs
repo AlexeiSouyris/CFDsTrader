@@ -24,12 +24,13 @@ pub use checkpoint::{
 pub use live::{LiveAuthorization, LiveBroker, live_trading_status};
 pub use paper::{
     BrokerConfig, BrokerEvent, FundingSetup, MarketSetup, PaperBroker, PaperExit, PaperTrade,
-    rejection_code,
+    RestorePending, rejection_code,
 };
 pub use persist::{
-    Flush, JournalStore, ReconcileSchedule, flush_journal, kill_switch_marks,
+    Flush, JournalStore, ReconcileSchedule, RestoredPending, flush_journal, kill_switch_marks,
     kill_switch_stored_active, reconcile_periodically, restore_best, restore_from_store,
-    save_checkpoint, save_kill_switch, settle_and_record, stored_checkpoints, submit_and_record,
+    restore_pending_from_store, save_checkpoint, save_kill_switch, settle_and_record,
+    stored_checkpoints, submit_and_record,
 };
 pub use reconcile::{
     Drift, KillSwitchChange, KillSwitchMark, Mismatch, Reconciliation, reconcile,

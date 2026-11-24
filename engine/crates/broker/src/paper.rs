@@ -10,7 +10,8 @@
 //!   → fill a la apertura con medio spread + slippage, y comisión (cfds-backtest)
 //!   → si la vela del fill todavía no llegó (una orden manual de ahora, #471): **pendiente**.
 //!     No entra al registro: espera esa vela y recién ahí se decide igual que en la
-//!     reconstrucción (`settle_pending`), que ya tiene la vela
+//!     reconstrucción (`settle_pending`), que ya tiene la vela. Se guarda como pendiente
+//!     (#479): al arrancar se retoma sin evaluarla otra vez (`restore_pending`)
 //! cada posición se valúa con cfds_backtest::simulate (stop, TP1, trailing, tiempo, gaps y el
 //! cierre de fin de semana de la spec §8, con las mismas marcas que el backtest: #334)
 //! y paga la financiación nocturna (swap) de cada corte en que siguió abierta, con la tasa de
@@ -291,6 +292,17 @@ pub enum BrokerEvent {
         reason: String,
         at: DateTime<Utc>,
     },
+}
+
+/// Por qué una orden guardada como pendiente no se puede retomar (#479).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RestorePending {
+    /// Ya está en el registro: se decidió.
+    AlreadyDecided,
+    /// Ya está pendiente.
+    AlreadyPending,
+    /// Su instrumento no se opera en este arranque (no está en los mercados del broker).
+    UnknownInstrument,
 }
 
 /// El broker simulado. Solo modo paper.
@@ -752,6 +764,32 @@ impl PaperBroker {
             out.push((order, report));
         }
         out
+    }
+
+    /// Vuelve a dejar pendiente una orden guardada como pendiente (#479), al arrancar y después
+    /// de reconstruir el broker desde el registro, en el orden en que llegó. No se evalúa otra
+    /// vez: la sesión que la recibió ya la evaluó al llegar y no la vuelve a mirar hasta su vela
+    /// del fill; ahí la decide [`Self::settle_pending`] con el estado de ese momento, igual que
+    /// si no hubiera habido reinicio.
+    pub fn restore_pending(&mut self, order: Order) -> Result<(), RestorePending> {
+        if self.reports.contains_key(&order.order_id) {
+            return Err(RestorePending::AlreadyDecided);
+        }
+        if self.pending.iter().any(|o| o.order_id == order.order_id) {
+            return Err(RestorePending::AlreadyPending);
+        }
+        if !self.markets.contains_key(&order.instrument_id) {
+            return Err(RestorePending::UnknownInstrument);
+        }
+        self.pending.push(order);
+        Ok(())
+    }
+
+    /// Quita una orden pendiente (la que no se pudo guardar como pendiente, #479): así no queda
+    /// una pendiente que un reinicio perdería, y se puede reenviar con el mismo `order_id`.
+    pub fn forget_pending(&mut self, order_id: &ClientId) -> Option<Order> {
+        let i = self.pending.iter().position(|o| &o.order_id == order_id)?;
+        Some(self.pending.remove(i))
     }
 
     /// `true` si el instrumento existe y todavía no hay vela que empiece en `created_at` o

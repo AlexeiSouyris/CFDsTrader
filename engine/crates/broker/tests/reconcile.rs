@@ -430,3 +430,235 @@ fn the_candles_start_at_the_first_recorded_order_even_with_a_pending_one() {
     let (_, rec) = restore_and_reconcile(cfg, rebuilt, live.journal(), &positions, at(27));
     assert!(rec.is_clean(), "{rec:?}");
 }
+
+/// Las velas de todos los instrumentos que empiezan en `[from, to)`.
+fn between(
+    mut markets: BTreeMap<InstrumentId, MarketSetup>,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> BTreeMap<InstrumentId, MarketSetup> {
+    for m in markets.values_mut() {
+        m.candles.retain(|c| c.start >= from && c.start < to);
+    }
+    markets
+}
+
+/// #479: reinicio con una orden pendiente guardada. Arranca como el gateway: reconstruye el
+/// broker desde el registro y los cambios del kill switch guardados, con las velas desde
+/// `from` hasta `to` (las cerradas al arrancar), fija el recorte de las velas y retoma las
+/// pendientes, en orden.
+fn restart(
+    live: &mut PaperBroker,
+    marks: &[KillSwitchMark],
+    full: &BTreeMap<InstrumentId, MarketSetup>,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+    window: TimeDelta,
+) -> PaperBroker {
+    let (cfg, _) = setup(dec!(100));
+    let positions = live.positions(to);
+    let (mut restored, rec) = restore_with_kill_switch(
+        cfg,
+        between(full.clone(), from, to),
+        live.journal(),
+        marks,
+        &positions,
+        to,
+    );
+    assert!(rec.is_clean(), "{rec:?}");
+    restored.anchor_candles_before_first_order(window);
+    for o in live.pending() {
+        restored.restore_pending(o.clone()).unwrap();
+    }
+    restored
+}
+
+/// #479: la sesión que se reinicia con una orden pendiente decide exactamente lo mismo que la
+/// que no se reinició, y la reconstrucción desde el registro final también.
+#[test]
+fn a_restart_with_a_pending_order_decides_the_same_as_without_restart() {
+    let (cfg, full) = setup(dec!(100));
+    let window = TimeDelta::minutes(15 * 15);
+    let mut runner = order("runner", "DE40", dec!(98));
+    runner.created_at = at(20);
+    let mut manual = order("manual", "US100", dec!(98));
+    manual.created_at = at(25) + TimeDelta::minutes(7);
+    let mut later = order("later", "DE40", dec!(97));
+    later.created_at = at(27);
+
+    let run = |restart_after_pending: bool| {
+        let mut live = PaperBroker::new(cfg.clone(), between(full.clone(), at(0), at(25)));
+        live.anchor_candles_before_first_order(window);
+        assert_eq!(live.submit(&runner).status, OrderStatus::Filled);
+        assert_eq!(live.submit(&manual).status, OrderStatus::Pending);
+        if restart_after_pending {
+            live = restart(
+                &mut live,
+                &[],
+                &full,
+                runner.created_at - window,
+                at(25),
+                window,
+            );
+            assert_eq!(live.pending(), [manual.clone()]);
+            // Repetirla después del reinicio no la duplica.
+            assert_eq!(live.submit(&manual).status, OrderStatus::Pending);
+            assert_eq!(live.pending().len(), 1);
+        }
+        for i in 25..28 {
+            for id in ["US100", "DE40"] {
+                live.push_candle(candle_of(&full, id, i)).unwrap();
+            }
+            live.settle_pending();
+        }
+        // Ya en el registro: la orden siguiente se decide sobre el estado con la pendiente.
+        live.submit(&later);
+        live
+    };
+    let mut straight = run(false);
+    let mut restarted = run(true);
+    assert_eq!(restarted.journal(), straight.journal());
+    assert_eq!(straight.journal().len(), 3);
+    assert_eq!(straight.journal()[1].1.status, OrderStatus::Filled);
+    assert_eq!(
+        straight.journal()[2].1.rejection,
+        Some(OrderRejection::InstrumentAlreadyOpen)
+    );
+    let positions = straight.positions(at(28));
+    assert_eq!(restarted.positions(at(28)), positions);
+    assert_eq!(restarted.account(at(28)), straight.account(at(28)));
+
+    // Y la reconstrucción desde el registro final (con todas las velas desde la primera orden).
+    let rebuilt = between(full, runner.created_at - window, at(30));
+    let (_, rec) = restore_and_reconcile(cfg, rebuilt, restarted.journal(), &positions, at(28));
+    assert!(rec.is_clean(), "{rec:?}");
+}
+
+/// #479 con #441: un kill switch que se activa mientras la orden espera su vela la rechaza
+/// igual con o sin reinicio en el medio (el reinicio lo vuelve a activar en su punto del
+/// registro, antes de decidirla), y la reconstrucción lo repite.
+#[test]
+fn the_kill_switch_rejects_a_restored_pending_order_as_strictly() {
+    let (cfg, full) = setup(dec!(100));
+    let window = TimeDelta::minutes(15 * 15);
+    let mut runner = order("runner", "DE40", dec!(98));
+    runner.created_at = at(20);
+    let mut manual = order("manual", "US100", dec!(98));
+    manual.created_at = at(25) + TimeDelta::minutes(7);
+    let reason = "error de datos en US100";
+
+    let run = |restart_after_pending: bool| {
+        let mut live = PaperBroker::new(cfg.clone(), between(full.clone(), at(0), at(25)));
+        live.anchor_candles_before_first_order(window);
+        live.submit(&runner);
+        assert_eq!(live.submit(&manual).status, OrderStatus::Pending);
+        live.activate_kill_switch(reason, at(25) + TimeDelta::minutes(8));
+        let marks = vec![KillSwitchMark {
+            after_orders: live.journal().len(),
+            change: KillSwitchChange::Activated {
+                reason: reason.into(),
+                at: at(25) + TimeDelta::minutes(8),
+            },
+        }];
+        if restart_after_pending {
+            live = restart(
+                &mut live,
+                &marks,
+                &full,
+                runner.created_at - window,
+                at(25),
+                window,
+            );
+            assert!(live.kill_switch_active());
+        }
+        for i in 25..27 {
+            for id in ["US100", "DE40"] {
+                live.push_candle(candle_of(&full, id, i)).unwrap();
+            }
+            live.settle_pending();
+        }
+        (live, marks)
+    };
+    let (straight, _) = run(false);
+    let (mut restarted, marks) = run(true);
+    assert_eq!(restarted.journal(), straight.journal());
+    let last = &restarted.journal()[1];
+    assert_eq!(last.0.order_id.as_str(), "manual");
+    assert_eq!(last.1.rejection, Some(OrderRejection::KillSwitchActive));
+
+    let positions = restarted.positions(at(27));
+    let rebuilt = between(full, runner.created_at - window, at(30));
+    let (again, rec) = restore_with_kill_switch(
+        cfg,
+        rebuilt,
+        restarted.journal(),
+        &marks,
+        &positions,
+        at(27),
+    );
+    assert!(rec.is_clean(), "{rec:?}");
+    assert!(again.kill_switch_active());
+}
+
+/// #479 con #438: sin órdenes en el registro, el gateway carga velas desde la pendiente
+/// guardada más vieja y fija el recorte al arrancar. Si la que entra primero al registro es
+/// otra (su vela del fill llegó antes), las velas se recortan antes de esa, como en la sesión
+/// sin reinicio.
+#[test]
+fn restored_pending_orders_trim_the_candles_like_the_session_without_restart() {
+    let (cfg, full) = setup(dec!(100));
+    let window = TimeDelta::minutes(15 * 20);
+    let mut first = order("first", "US100", dec!(98));
+    first.created_at = at(24) + TimeDelta::minutes(7);
+    let mut second = order("second", "DE40", dec!(98));
+    second.created_at = at(25) + TimeDelta::minutes(3);
+
+    let run = |restart_after_pending: bool| {
+        // US100 sin la vela 25 todavía (llega tarde); DE40 hasta la 24.
+        let mut live = PaperBroker::new(cfg.clone(), between(full.clone(), at(0), at(25)));
+        live.anchor_candles_before_first_order(window);
+        assert_eq!(live.submit(&first).status, OrderStatus::Pending);
+        live.push_candle(candle_of(&full, "DE40", 25)).unwrap();
+        assert_eq!(live.submit(&second).status, OrderStatus::Pending);
+        if restart_after_pending {
+            // Registro vacío: velas desde la pendiente más vieja menos la ventana.
+            let (cfg, _) = setup(dec!(100));
+            let mut markets = between(full.clone(), first.created_at - window, at(25));
+            markets
+                .get_mut(&"DE40".parse::<InstrumentId>().unwrap())
+                .unwrap()
+                .candles
+                .push(candle_of(&full, "DE40", 25));
+            let (mut restored, rec) = restore_with_kill_switch(cfg, markets, &[], &[], &[], at(26));
+            assert!(rec.is_clean(), "{rec:?}");
+            restored.anchor_candles_before_first_order(window);
+            for o in live.pending() {
+                restored.restore_pending(o.clone()).unwrap();
+            }
+            live = restored;
+        }
+        // Llega primero la vela del fill de `second` (DE40, 26) y después la de `first`.
+        live.push_candle(candle_of(&full, "DE40", 26)).unwrap();
+        let settled = live.settle_pending();
+        assert_eq!(settled.len(), 1);
+        assert_eq!(settled[0].0.order_id.as_str(), "second");
+        // La primera vela que empieza desde `second` menos la ventana (at(5) + 3 min), no
+        // desde `first` (at(4) + 7 min), aunque esa llegó antes.
+        for m in live.markets().values() {
+            assert_eq!(m.candles[0].start, at(6));
+        }
+        live.push_candle(candle_of(&full, "US100", 25)).unwrap();
+        live.push_candle(candle_of(&full, "US100", 26)).unwrap();
+        assert_eq!(live.settle_pending().len(), 1);
+        live
+    };
+    let mut straight = run(false);
+    let mut restarted = run(true);
+    assert_eq!(restarted.journal(), straight.journal());
+    let positions = straight.positions(at(27));
+    assert_eq!(positions.len(), 2, "{:?}", straight.journal());
+    assert_eq!(restarted.positions(at(27)), positions);
+    let rebuilt = between(full, second.created_at - window, at(30));
+    let (_, rec) = restore_and_reconcile(cfg, rebuilt, restarted.journal(), &positions, at(27));
+    assert!(rec.is_clean(), "{rec:?}");
+}
