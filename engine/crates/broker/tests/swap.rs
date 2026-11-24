@@ -256,3 +256,48 @@ fn a_missing_rate_is_not_invented_and_activates_the_kill_switch() {
     });
     assert_eq!(r.rejection, Some(OrderRejection::KillSwitchActive));
 }
+
+#[test]
+fn rates_published_after_the_start_are_used_once_read_again() {
+    // #439: al arrancar (miércoles) solo se conocía el 2 %; el jueves a la mañana se publica 4 %.
+    let rate = |day: &str, published: &str, pct: Decimal| ReferenceRate {
+        series: "ESTR".into(),
+        ref_date: day.parse().unwrap(),
+        published_at: t(published),
+        rate_pct: pct,
+    };
+    let known_at_start = vec![rate("2026-11-17", "2026-11-18T08:00:00Z", dec!(2))];
+    let mut later = known_at_start.clone();
+    later.push(rate("2026-11-18", "2026-11-19T08:00:00Z", dec!(4)));
+    let daily = |r: &Vec<ReferenceRate>| FundingRates::Daily(DailyRates::new(r.clone()).unwrap());
+
+    let mut stale = broker(daily(&known_at_start), monday_flat());
+    open(&mut stale, OrderSide::Long);
+    let mut fresh = broker(daily(&known_at_start), monday_flat());
+    open(&mut fresh, OrderSide::Long);
+    // Lo que valuó antes de la publicación nueva no cambia al leerla.
+    let wednesday_night = t("2026-11-19T07:00:00Z");
+    let before = fresh.positions(wednesday_night);
+    fresh
+        .update_funding_rates(&"US100".parse().unwrap(), daily(&later))
+        .unwrap();
+    assert_eq!(fresh.positions(wednesday_night), before);
+
+    // Después, el corte del jueves usa el 4 %, como la reconstrucción con la serie completa.
+    let mut rebuilt = broker(daily(&later), monday_flat());
+    open(&mut rebuilt, OrderSide::Long);
+    let friday = t("2026-11-20T10:00:00Z");
+    let expected = dec!(-3.5) - swap(Side::Long, 1, dec!(2)) - swap(Side::Long, 1, dec!(4));
+    assert_eq!(
+        fresh.positions(friday)[0].unrealized_pl,
+        expected.round_dp(2)
+    );
+    assert_eq!(fresh.positions(friday), rebuilt.positions(friday));
+    // Sin volver a leerlas, el broker sostiene el 2 % y se desvía.
+    assert_ne!(stale.positions(friday), rebuilt.positions(friday));
+    assert!(
+        fresh
+            .update_funding_rates(&"DE40".parse().unwrap(), daily(&later))
+            .is_err()
+    );
+}

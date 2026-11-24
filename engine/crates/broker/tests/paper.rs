@@ -693,3 +693,26 @@ fn a_realized_loss_in_usd_uses_the_rate_of_its_exit() {
     assert_eq!(acc.equity, dec!(986.25));
     assert_eq!(acc.kill_switch, KillSwitch::Inactive);
 }
+
+#[test]
+fn a_rate_published_after_the_start_is_used_once_read_again() {
+    // #439: al arrancar solo se conocía 1,25; a at(24) se publica 2.
+    let start = [(at(0) - TimeDelta::days(1), dec!(1.25))];
+    let later = [(at(0) - TimeDelta::days(1), dec!(1.25)), (at(24), dec!(2))];
+    let mut b = usd_broker(eurusd(&start), flat("XAUUSD"));
+    b.submit(&order("g1", "XAUUSD", OrderSide::Long, dec!(98), 20));
+    let before = b.account(at(23));
+    b.update_account_fx(&"XAUUSD".parse().unwrap(), eurusd(&later))
+        .unwrap();
+    // Lo valuado antes de la publicación no cambia; después, el tipo nuevo, como la
+    // reconstrucción con la serie completa.
+    assert_eq!(b.account(at(23)), before);
+    let mut rebuilt = usd_broker(eurusd(&later), flat("XAUUSD"));
+    rebuilt.submit(&order("g1", "XAUUSD", OrderSide::Long, dec!(98), 20));
+    assert_eq!(b.account(at(25)), rebuilt.account(at(25)));
+    assert_eq!(b.account(at(25)).equity, dec!(997.81));
+    assert!(
+        b.update_account_fx(&"DE40".parse().unwrap(), eurusd(&later))
+            .is_err()
+    );
+}

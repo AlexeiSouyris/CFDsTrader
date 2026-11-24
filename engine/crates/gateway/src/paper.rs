@@ -321,6 +321,12 @@ pub struct PgPaper {
     /// `[paper] candles_days`: las velas del broker empiezan esto antes de la primera orden del
     /// registro (#438).
     candles_window: TimeDelta,
+    /// Instrumentos cuya financiación usa una serie guardada (`reference_rates`), con su serie:
+    /// se vuelve a leer en cada `refresh` (#439).
+    funding_series: BTreeMap<InstrumentId, String>,
+    /// Instrumentos en otra moneda que la cuenta, con su par de `fx_rates` (ADR 0013): también
+    /// se vuelve a leer en cada `refresh` (#439).
+    fx_pairs: BTreeMap<InstrumentId, String>,
 }
 
 /// Desde cuándo carga velas el broker (#438): `window` antes de la **primera** orden del
@@ -355,6 +361,8 @@ impl PgPaper {
         let journal = store.paper_journal().await.map_err(|e| e.to_string())?;
         let candles_window = TimeDelta::days(i64::from(paper.candles_days));
         let from = candles_from(&journal, candles_window, now);
+        let mut funding_series = BTreeMap::new();
+        let mut fx_pairs = BTreeMap::new();
         for id in catalog.instruments.keys() {
             let terms = match market_terms_from_catalog(catalog, id) {
                 Ok(t) => t,
@@ -369,7 +377,10 @@ impl PgPaper {
             if let AccountFx::Missing { pair } = &fx {
                 let saved = store.fx_rates(pair, now).await.map_err(|e| e.to_string())?;
                 match FxRates::new(saved) {
-                    Some(daily) => fx = AccountFx::Daily(daily),
+                    Some(daily) => {
+                        fx_pairs.insert(id.clone(), pair.clone());
+                        fx = AccountFx::Daily(daily);
+                    }
                     None => {
                         skipped.push(format!("{id}: no hay tipos de {pair} guardados"));
                         continue;
@@ -386,6 +397,9 @@ impl PgPaper {
                     .map_err(|e| e.to_string())?;
                 if let Some(daily) = DailyRates::new(saved) {
                     rates = FundingRates::Daily(daily);
+                    // Solo si ya había serie al arrancar: pasar de la constante a la serie
+                    // cambiaría los cortes ya valuados.
+                    funding_series.insert(id.clone(), series.to_owned());
                 }
             }
             let candles = store
@@ -457,6 +471,8 @@ impl PgPaper {
             ))),
             kill_switch_saved: std::sync::atomic::AtomicBool::new(saved),
             candles_window,
+            funding_series,
+            fx_pairs,
         };
         // El kill switch de la reconciliación al arrancar también se guarda.
         {
@@ -598,6 +614,32 @@ impl PgPaper {
                     )
                     .await;
                 }
+            }
+        }
+        // Las tasas de la financiación publicadas desde el arranque (#439), antes de valuar.
+        for (id, series) in &self.funding_series {
+            let saved = self
+                .store
+                .reference_rates(series, now)
+                .await
+                .map_err(|e| e.to_string())?;
+            if let Some(daily) = DailyRates::new(saved) {
+                broker
+                    .update_funding_rates(id, FundingRates::Daily(daily))
+                    .map_err(|e| format!("{id}: {e}"))?;
+            }
+        }
+        // Y los tipos de cambio (ADR 0013), con la misma regla: cada uno desde su publicación.
+        for (id, pair) in &self.fx_pairs {
+            let saved = self
+                .store
+                .fx_rates(pair, now)
+                .await
+                .map_err(|e| e.to_string())?;
+            if let Some(daily) = FxRates::new(saved) {
+                broker
+                    .update_account_fx(id, AccountFx::Daily(daily))
+                    .map_err(|e| format!("{id}: {e}"))?;
             }
         }
         let markets = broker.markets().clone();
