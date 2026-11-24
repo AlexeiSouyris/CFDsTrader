@@ -148,19 +148,34 @@ def run(c: Client, cfg: DatabentoConfig) -> int:
     from cfds_intel.databento.store import insert_chunk, loaded_spans
 
     end = today_utc()
+    failed: list[str] = []
     with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as conn:
         loaded = loaded_spans(conn)
         for e in guarded_estimate(c, cfg, end, loaded):
             if e.skipped:
                 continue
-            for a, b in chunks(e):
-                req_cost = chunk_cost(c, cfg, e.symbol, a, b)
-                f = fetch_bars(c, cfg, e.symbol, a, b)
-                r = insert_chunk(conn, e.symbol, a, b, f.bars, req_cost)
+            try:
+                for a, b in chunks(e):
+                    req_cost = chunk_cost(c, cfg, e.symbol, a, b)
+                    f = fetch_bars(c, cfg, e.symbol, a, b)
+                    r = insert_chunk(conn, e.symbol, a, b, f.bars, req_cost)
+                    print(
+                        f"{e.symbol.symbol} {a} → {b}: {r.inserted} nuevas, {r.unchanged} ya "
+                        f"estaban (USD {req_cost:.2f}); {describe_dropped(f, e.symbol)}"
+                    )
+            except (
+                Exception
+            ) as ex:  # errores del SDK o de los datos: sin la key, que nunca se imprime
+                # Un símbolo que falla no corta los demás (#396). Lo ya guardado queda, y la
+                # próxima corrida retoma desde ahí.
+                failed.append(e.symbol.symbol)
                 print(
-                    f"{e.symbol.symbol} {a} → {b}: {r.inserted} nuevas, {r.unchanged} ya estaban "
-                    f"(USD {req_cost:.2f}); {describe_dropped(f, e.symbol)}"
+                    f"⚠️  {e.symbol.symbol}: {type(ex).__name__}: {ex}; sigo con los demás",
+                    file=sys.stderr,
                 )
+    if failed:
+        print(f"⚠️  tramos con error: {', '.join(failed)}", file=sys.stderr)
+        return 1
     return 0
 
 
