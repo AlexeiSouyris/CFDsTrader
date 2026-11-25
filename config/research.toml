@@ -261,3 +261,28 @@ luck_seed = 20261125
 # Spread del CFD fuera de la sesión de contado, solo para el descriptivo de costos de H5.1
 # (punto 12): la franja más frecuente fuera de la sesión de docs/research/ig-spreads-2026-11.md.
 out_of_session_spread = { US100 = "2.5", US500 = "1.6" }
+
+
+# ── Monte Carlo por bloques (#662) ───────────────────────────────────────────────────────────
+# Distribución de la caída máxima, la racha perdedora, el tiempo bajo el agua, el retorno final y
+# el riesgo de ruina de una serie de retornos (research::montecarlo, ejemplo `montecarlo_report`).
+# Son valores de INGENIERÍA de la simulación, no parámetros de una estrategia: no deciden ninguna
+# operación ni ningún voto. Cambiarlos cambia la precisión o la pregunta, no el resultado medido.
+
+[montecarlo]
+# 10.000 caminos: el error de Monte Carlo de una probabilidad p es √(p(1−p)/10.000) ≤ 0,5 %.
+paths = 10000
+# Bloques circulares de 5 períodos (Politis y Romano, 1992). Regla práctica: ≈ T^(1/3); con 153
+# meses da 5,3. Para otra serie, el ejemplo acepta `--bloque N`.
+block_len = 5
+# Semilla de SplitMix64: misma serie y misma semilla, mismo resultado.
+seed = 20261125
+# Ruina = el capital tocó el 70 % del inicial (−30 %) en algún momento del camino.
+ruin_threshold = "0.30"
+
+[pbo]
+# Probabilidad de sobreajuste por CSCV (Bailey, Borwein, López de Prado y Zhu, 2015;
+# research::pbo, ejemplo `montecarlo_report --pbo`). Valor de INGENIERÍA, no de una estrategia.
+# S = 16 bloques, el del artículo: C(16, 8) = 12.870 combinaciones. Con 153 meses quedan bloques
+# de 9 meses (sobran 9 al final, que no se usan). Tiene que ser par, entre 2 y 20.
+partitions = 16
