@@ -24,6 +24,7 @@
 pub mod context;
 pub mod emotions;
 pub mod fund;
+pub mod ibkr;
 pub mod learning;
 pub mod ml;
 pub mod ops;
@@ -110,6 +111,9 @@ struct RawConfig {
     /// `[ops]`: lo lee [`status::StatusConfig`] (#314).
     #[allow(dead_code)]
     ops: toml::Table,
+    /// `[ibkr]`: lo lee [`ibkr::IbkrViewConfig`] (#551).
+    #[allow(dead_code)]
+    ibkr: toml::Table,
 }
 
 #[derive(Deserialize)]
@@ -604,7 +608,7 @@ pub(crate) fn param<'q>(query: Option<&'q str>, name: &str) -> Option<&'q str> {
 }
 
 /// `before` de la query: RFC 3339 en UTC (`…Z`); los `:` pueden llegar codificados (`%3A`).
-fn parse_before(s: &str) -> Option<DateTime<Utc>> {
+pub(crate) fn parse_before(s: &str) -> Option<DateTime<Utc>> {
     let s = s.replace("%3A", ":").replace("%3a", ":");
     if !s.ends_with('Z') {
         return None;

@@ -54,7 +54,20 @@ persist_queue = 1000
 # Segundos entre reintentos si la base no responde.
 retry_secs = 30
 
+# Velas de IBKR para la terminal de la app (#551): /api/v1/ibkr/bars y /api/v1/ibkr/watchlist,
+# solo lectura de ibkr_bars. El día de sesión de la variación sale de [session] de
+# config/terminal.toml (el mismo criterio que la terminal bolsa).
+[ibkr]
+# Fuente de las velas guardadas: la de [load] source de config/ibkr.toml.
+source = "ibkr"
+# Instrumentos de la watchlist, en orden. Cada uno está en config/ibkr.toml (sin futuros continuos).
+instruments = ["MNQ", "MES", "QQQ"]
+# Velas que devuelve /api/v1/ibkr/bars sin ?limit, y el máximo que acepta ?limit.
+default_bars = 500
+max_bars = 5000
+
 # Contexto de mercado del Panel (#294): /api/v1/sentiment y /api/v1/analogs, solo lectura.
 [context]
 # Valores del índice de sentimiento que devuelve la historia de un instrumento (los últimos).
 sentiment_history = 400
+

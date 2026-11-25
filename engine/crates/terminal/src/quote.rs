@@ -3,6 +3,7 @@
 //! señal.
 
 use cfds_ibkr::RawBar;
+use cfds_market_data::session_day;
 use chrono::{DateTime, NaiveDate, TimeDelta, Utc};
 use rust_decimal::Decimal;
 
@@ -27,25 +28,18 @@ pub struct Quote {
 
 impl Quote {
     pub fn change(&self) -> Option<Decimal> {
-        self.reference.map(|r| self.last - r)
+        self.reference.map(|r| session_day::change(self.last, r))
     }
 
     /// Variación porcentual, redondeada a 2 decimales. `None` sin referencia o con referencia 0.
     pub fn change_pct(&self) -> Option<Decimal> {
-        let r = self.reference?;
-        if r.is_zero() {
-            return None;
-        }
-        Some(((self.last - r) / r * Decimal::ONE_HUNDRED).round_dp(2))
+        session_day::change_pct(self.last, self.reference?)
     }
 }
 
-/// Día de sesión de una vela intradía: la fecha de `start + offset` (el corrimiento sale de
-/// `config/terminal.toml`: -5 h para acciones de EE.UU., +2 h para futuros de CME, que fechan la
-/// sesión por el día en que cierra).
-pub fn session_date(start: DateTime<Utc>, offset: TimeDelta) -> NaiveDate {
-    (start + offset).date_naive()
-}
+/// Día de sesión de una vela intradía: el criterio compartido con el gateway (#551), en
+/// `cfds_market_data::session_day`.
+pub use cfds_market_data::session_day::session_date;
 
 /// Arma el último precio y su referencia.
 ///

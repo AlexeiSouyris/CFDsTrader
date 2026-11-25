@@ -2,11 +2,37 @@
 //! de IG y de Databento. Igual que [`PgStore::insert_candles`]: una vela ya guardada e idéntica
 //! cuenta como `unchanged`; con otros valores es un conflicto (sería repintado) y no se guarda
 //! nada del lote.
+//!
+//! Lecturas para el gateway (#551): solo velas **cerradas** a un instante (`start + tamaño <=
+//! at`), de una sola serie (un contrato, un tamaño y un precio): nunca se mezclan contratos.
 
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 
 use crate::{InsertReport, PgStore, StorageError};
+
+/// Columnas de [`IbkrBarRow`], en orden.
+macro_rules! columns {
+    () => {
+        "source, instrument_id, kind, contract, bar_size, what_to_show, start_at, \
+         open, high, low, close, volume"
+    };
+}
+
+/// Cierre de la vela (inicio + tamaño).
+macro_rules! end_at {
+    () => {
+        "(start_at + CASE bar_size WHEN '1m' THEN interval '1 minute' \
+         WHEN '15m' THEN interval '15 minutes' ELSE interval '1 hour' END)"
+    };
+}
+
+/// Orden de los tamaños, del más chico al más grande.
+macro_rules! size_rank {
+    () => {
+        "CASE bar_size WHEN '1m' THEN 1 WHEN '15m' THEN 2 ELSE 3 END"
+    };
+}
 
 /// Una fila de `ibkr_bars`. Los textos ya validados por quien la arma (la base los vuelve a
 /// revisar con sus CHECK).
@@ -135,5 +161,129 @@ impl PgStore {
         .fetch_one(self.pool())
         .await?;
         Ok(last)
+    }
+
+    /// La última vela **cerrada** a `at` de un instrumento y una fuente, de cualquier contrato y
+    /// precio; con `bar_size`, solo de ese tamaño. Entre velas que cierran a la vez gana la más
+    /// chica y, después, la cargada más tarde (la del contrato vigente).
+    pub async fn latest_closed_ibkr_bar(
+        &self,
+        source: &str,
+        instrument_id: &str,
+        bar_size: Option<&str>,
+        at: DateTime<Utc>,
+    ) -> Result<Option<IbkrBarRow>, StorageError> {
+        let row: Option<Row> = sqlx::query_as(concat!(
+            "SELECT ",
+            columns!(),
+            " FROM ibkr_bars
+             WHERE source = $1 AND instrument_id = $2 AND ($3::text IS NULL OR bar_size = $3)
+               AND ",
+            end_at!(),
+            " <= $4
+             ORDER BY ",
+            end_at!(),
+            " DESC, ",
+            size_rank!(),
+            " ASC, inserted_at DESC
+             LIMIT 1"
+        ))
+        .bind(source)
+        .bind(instrument_id)
+        .bind(bar_size)
+        .bind(at)
+        .fetch_optional(self.pool())
+        .await?;
+        Ok(row.map(into_row))
+    }
+
+    /// Las últimas `limit` velas de la serie **cerradas** a `at`, de la más vieja a la más nueva.
+    pub async fn ibkr_bars_closed_by(
+        &self,
+        s: &IbkrSeries<'_>,
+        at: DateTime<Utc>,
+        limit: u32,
+    ) -> Result<Vec<IbkrBarRow>, StorageError> {
+        let mut rows: Vec<Row> = sqlx::query_as(concat!(
+            "SELECT ",
+            columns!(),
+            " FROM ibkr_bars
+             WHERE source = $1 AND instrument_id = $2 AND contract = $3 AND bar_size = $4
+               AND what_to_show = $5 AND ",
+            end_at!(),
+            " <= $6
+             ORDER BY start_at DESC
+             LIMIT $7"
+        ))
+        .bind(s.source)
+        .bind(s.instrument_id)
+        .bind(s.contract)
+        .bind(s.bar_size)
+        .bind(s.what_to_show)
+        .bind(at)
+        .bind(i64::from(limit))
+        .fetch_all(self.pool())
+        .await?;
+        rows.reverse();
+        Ok(rows.into_iter().map(into_row).collect())
+    }
+
+    /// La última vela de la serie que **empieza** antes de `before` (para el cierre de una sesión
+    /// anterior: `before` es el primer instante de la sesión actual).
+    pub async fn last_ibkr_bar_starting_before(
+        &self,
+        s: &IbkrSeries<'_>,
+        before: DateTime<Utc>,
+    ) -> Result<Option<IbkrBarRow>, StorageError> {
+        let row: Option<Row> = sqlx::query_as(concat!(
+            "SELECT ",
+            columns!(),
+            " FROM ibkr_bars
+             WHERE source = $1 AND instrument_id = $2 AND contract = $3 AND bar_size = $4
+               AND what_to_show = $5 AND start_at < $6
+             ORDER BY start_at DESC
+             LIMIT 1"
+        ))
+        .bind(s.source)
+        .bind(s.instrument_id)
+        .bind(s.contract)
+        .bind(s.bar_size)
+        .bind(s.what_to_show)
+        .bind(before)
+        .fetch_optional(self.pool())
+        .await?;
+        Ok(row.map(into_row))
+    }
+}
+
+type Row = (
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    DateTime<Utc>,
+    Decimal,
+    Decimal,
+    Decimal,
+    Decimal,
+    Option<Decimal>,
+);
+
+fn into_row(r: Row) -> IbkrBarRow {
+    IbkrBarRow {
+        source: r.0,
+        instrument_id: r.1,
+        kind: r.2,
+        contract: r.3,
+        bar_size: r.4,
+        what_to_show: r.5,
+        start: r.6,
+        open: r.7,
+        high: r.8,
+        low: r.9,
+        close: r.10,
+        volume: r.11,
     }
 }

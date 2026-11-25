@@ -29,6 +29,7 @@ use cfds_fund::pg::PgFund;
 use cfds_gateway::context::{ContextConfig, is_context_route, respond_context};
 use cfds_gateway::emotions::{is_emotions_route, respond_emotions};
 use cfds_gateway::fund::{is_fund_route, respond_fund};
+use cfds_gateway::ibkr::{IbkrViewConfig, is_ibkr_route, respond_ibkr};
 use cfds_gateway::learning::{PgLearning, is_learning_route, respond_learning};
 use cfds_gateway::ml::{is_ml_route, respond_ml};
 use cfds_gateway::ops::url_password;
@@ -69,6 +70,7 @@ const VOTES: &str = include_str!("../../../../config/votes.toml");
 const RUNNER: &str = include_str!("../../../../config/runner.toml");
 const ANALYSIS: &str = include_str!("../../../../config/analysis.toml");
 const PATTERNS: &str = include_str!("../../../../config/patterns.toml");
+const TERMINAL: &str = include_str!("../../../../config/terminal.toml");
 
 /// `config/` del repo (sesiones y feriados del calendario se leen de ahí).
 fn config_dir() -> PathBuf {
@@ -95,6 +97,8 @@ struct State {
     walk_forward: cfds_journal::pg::PgJournal,
     /// Informe de aprendizaje y estado de sus propuestas (#331), solo lectura.
     learning: PgLearning,
+    /// Velas de IBKR para la terminal de la app (#551), solo lectura.
+    ibkr_cfg: IbkrViewConfig,
 }
 
 fn header<'a>(req: &'a Request<Incoming>, name: &str) -> Option<&'a str> {
@@ -202,6 +206,16 @@ async fn handle(
             chrono::Utc::now(),
         )
         .await
+    } else if is_ibkr_route(req.uri().path()) {
+        respond_ibkr(
+            &state.source.store,
+            &state.ibkr_cfg,
+            req.method().as_str(),
+            req.uri().path(),
+            req.uri().query(),
+            chrono::Utc::now(),
+        )
+        .await
     } else if is_context_route(req.uri().path()) {
         respond_context(
             &state.source.store,
@@ -267,6 +281,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let catalog = Catalog::from_toml(CATALOG)?;
     let stats = StatsConfig::from_toml(LIQUIDITY)?;
     let paper_cfg = PaperConfig::from_toml(GATEWAY)?;
+    let ibkr_cfg = IbkrViewConfig::from_toml(GATEWAY, TERMINAL)?;
     let alert_cfg = AlertConfig::from_toml(ALERTS)?;
     let runner_cfg = RunnerConfig::from_toml(RUNNER)?;
     // Si el runner está prendido, toda su config se valida antes de abrir nada.
@@ -417,6 +432,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         paper_cfg,
         token,
         context_cfg: ContextConfig::from_toml(GATEWAY)?,
+        ibkr_cfg,
         source: PgSource {
             store,
             config: cfg.clone(),
