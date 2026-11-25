@@ -629,8 +629,9 @@ fn the_risk_module_sizes_and_rejects_and_a_stop_ends_the_event() {
     )
     .unwrap();
     assert_eq!(run.trades.len(), 2);
-    // 1 % de 100 000 sobre 2 puntos de riesgo.
-    assert_eq!(run.trades[0].size, dec!(500));
+    // 1 % de 100 000 sobre 2 puntos de riesgo más el colchón por gaps de config/risk.toml
+    // (0,25 ATR = 0,5 puntos, #689): 1 000 / 2,5.
+    assert_eq!(run.trades[0].size, dec!(400));
     assert_eq!(run.trades[0].exit, StudyExit::Stop);
     assert_eq!(run.trades[1].event, 3);
     // El capital de la segunda ya descuenta la pérdida de la primera.

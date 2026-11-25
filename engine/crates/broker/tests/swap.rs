@@ -16,7 +16,10 @@ use cfds_strategy::Side;
 use chrono::{DateTime, NaiveTime, TimeDelta, Utc};
 use rust_decimal::{Decimal, dec};
 
-const RISK: &str = include_str!("../../../../config/risk.toml");
+// Riesgo neutral (#689): estos tests miden la mecánica del broker (ejecución, swap, tipos de
+// cambio); los tamaños salen del 1 % sin gaps, grupos ni caída gradual. Los que miden esas
+// reglas las prenden en el test.
+const RISK: &str = include_str!("../../risk/tests/neutral_risk.toml");
 const BACKTEST: &str = include_str!("../../../../config/backtest.toml");
 const BROKER: &str = include_str!("fixtures/broker.toml");
 

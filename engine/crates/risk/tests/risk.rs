@@ -8,8 +8,9 @@ use cfds_risk::{
 };
 use rust_decimal::{Decimal, dec};
 
+/// Config neutral (todo lo de #670 y #671 apagado): cada test prende solo lo que mide.
 fn cfg() -> RiskConfig {
-    RiskConfig::from_toml(include_str!("../../../../config/risk.toml")).unwrap()
+    RiskConfig::from_toml(include_str!("neutral_risk.toml")).unwrap()
 }
 
 fn id(s: &str) -> InstrumentId {

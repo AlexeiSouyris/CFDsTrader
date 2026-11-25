@@ -327,6 +327,8 @@ mod tests {
     use rust_decimal::dec;
 
     const REAL: &str = include_str!("../../../../config/risk.toml");
+    /// Todo lo de #670 y #671 apagado: los tests de la mecánica prenden una cosa por vez.
+    const NEUTRAL: &str = include_str!("../tests/neutral_risk.toml");
 
     #[test]
     fn the_repository_config_matches_the_spec() {
@@ -340,14 +342,31 @@ mod tests {
                 max_positions_per_instrument: 1,
                 min_stop_atr: dec!(0.5),
                 max_stop_atr: dec!(3),
-                // #670: apagados hasta que el dueño apruebe valores.
-                gap_atr: dec!(0),
-                groups: vec![],
-                // #671: apagados hasta que el dueño apruebe valores.
+                // #670 y #671: valores aprobados por el dueño el 25-11-2026 (#689).
+                gap_atr: dec!(0.25),
+                groups: vec![CorrelationGroup {
+                    name: "us_equity_index".into(),
+                    max_risk_pct: dec!(1.5),
+                    instruments: ["US100", "US500", "US30", "US2000"]
+                        .iter()
+                        .map(|i| i.parse().unwrap())
+                        .collect(),
+                }],
                 drawdown_scaling: DrawdownScaling {
                     mode: DrawdownMode::Linear,
-                    points: vec![],
+                    points: [
+                        (dec!(5), dec!(1)),
+                        (dec!(10), dec!(0.5)),
+                        (dec!(12.5), dec!(0.25))
+                    ]
+                    .into_iter()
+                    .map(|(drawdown_pct, scale)| DrawdownPoint {
+                        drawdown_pct,
+                        scale,
+                    })
+                    .collect(),
                 },
+                // Sigue apagada: falta la volatilidad realizada de la cuenta.
                 vol_target: VolTarget {
                     target_annual_pct: dec!(0),
                     min_scale: dec!(1),
@@ -355,6 +374,17 @@ mod tests {
                 },
             }
         );
+    }
+
+    #[test]
+    fn the_neutral_config_is_the_repository_one_with_everything_off() {
+        // La config neutral de los tests no se desvía de los límites del repositorio: solo apaga
+        // lo de #670 y #671.
+        let mut real = RiskConfig::from_toml(REAL).unwrap();
+        real.gap_atr = dec!(0);
+        real.groups.clear();
+        real.drawdown_scaling.points.clear();
+        assert_eq!(real, RiskConfig::from_toml(NEUTRAL).unwrap());
     }
 
     const GROUP: &str = r#"
@@ -366,7 +396,7 @@ instruments = ["US100", "US500", "US30", "US2000"]
 
     #[test]
     fn reads_correlation_groups() {
-        let cfg = RiskConfig::from_toml(&format!("{REAL}{GROUP}")).unwrap();
+        let cfg = RiskConfig::from_toml(&format!("{NEUTRAL}{GROUP}")).unwrap();
         assert_eq!(cfg.groups.len(), 1);
         let g = &cfg.groups[0];
         assert_eq!(
@@ -382,18 +412,18 @@ instruments = ["US100", "US500", "US30", "US2000"]
     #[test]
     fn rejects_invalid_groups_and_gaps() {
         for bad in [
-            format!("{REAL}{GROUP}{GROUP}"),
-            format!("{REAL}{}", GROUP.replace(r#""1.5""#, r#""0""#)),
-            format!("{REAL}{}", GROUP.replace(r#""1.5""#, r#""100""#)),
+            format!("{NEUTRAL}{GROUP}{GROUP}"),
+            format!("{NEUTRAL}{}", GROUP.replace(r#""1.5""#, r#""0""#)),
+            format!("{NEUTRAL}{}", GROUP.replace(r#""1.5""#, r#""100""#)),
             format!(
-                "{REAL}{}",
+                "{NEUTRAL}{}",
                 GROUP.replace(r#", "US500", "US30", "US2000""#, "")
             ),
-            format!("{REAL}{}", GROUP.replace(r#""US500""#, r#""US100""#)),
-            format!("{REAL}{}", GROUP.replace(r#""US500""#, r#""us 500""#)),
-            format!("{REAL}{}", GROUP.replace("us_equity_index", " ")),
-            REAL.replace(r#"gap_atr = "0""#, r#"gap_atr = "-0.1""#),
-            REAL.replace(r#"gap_atr = "0""#, r#"gap_atr = "x""#),
+            format!("{NEUTRAL}{}", GROUP.replace(r#""US500""#, r#""US100""#)),
+            format!("{NEUTRAL}{}", GROUP.replace(r#""US500""#, r#""us 500""#)),
+            format!("{NEUTRAL}{}", GROUP.replace("us_equity_index", " ")),
+            NEUTRAL.replace(r#"gap_atr = "0""#, r#"gap_atr = "-0.1""#),
+            NEUTRAL.replace(r#"gap_atr = "0""#, r#"gap_atr = "x""#),
         ] {
             assert!(RiskConfig::from_toml(&bad).is_err(), "{bad}");
         }
@@ -407,11 +437,11 @@ instruments = ["US100", "US500", "US30", "US2000"]
 "#;
 
     fn with_points(mode: &str) -> RiskConfig {
-        let text = REAL.replace(
+        let text = NEUTRAL.replace(
             "[drawdown_scaling]\nmode = \"linear\"\n",
             &format!("[drawdown_scaling]\nmode = \"{mode}\"\n{DD}"),
         );
-        assert_ne!(text, REAL);
+        assert_ne!(text, NEUTRAL);
         RiskConfig::from_toml(&text).unwrap()
     }
 
@@ -432,7 +462,7 @@ instruments = ["US100", "US500", "US30", "US2000"]
             assert_eq!((lin.scale(dd), step.scale(dd)), (l, s), "{dd}");
         }
         // Sin puntos, 1 siempre.
-        let off = RiskConfig::from_toml(REAL).unwrap().drawdown_scaling;
+        let off = RiskConfig::from_toml(NEUTRAL).unwrap().drawdown_scaling;
         assert_eq!(off.scale(dec!(14)), dec!(1));
     }
 
@@ -459,14 +489,14 @@ instruments = ["US100", "US500", "US30", "US2000"]
             ..v
         };
         assert_eq!(tight.scale(None), dec!(0.8));
-        let off = RiskConfig::from_toml(REAL).unwrap().vol_target;
+        let off = RiskConfig::from_toml(NEUTRAL).unwrap().vol_target;
         assert_eq!(off.scale(Some(dec!(99))), dec!(1));
     }
 
     #[test]
     fn rejects_invalid_scaling() {
         let pts = |p: &str| {
-            REAL.replace(
+            NEUTRAL.replace(
                 "[drawdown_scaling]\nmode = \"linear\"\n",
                 &format!("[drawdown_scaling]\nmode = \"linear\"\npoints = [{p}]\n"),
             )
@@ -477,13 +507,14 @@ instruments = ["US100", "US500", "US30", "US2000"]
             pts(r#"{ drawdown_pct = "8", scale = "0.5" }, { drawdown_pct = "5", scale = "0.4" }"#),
             pts(r#"{ drawdown_pct = "15", scale = "0.5" }"#),
             pts(r#"{ drawdown_pct = "5", scale = "0" }"#),
-            REAL.replace(r#"mode = "linear""#, r#"mode = "cubic""#),
-            REAL.replace(r#"min_scale = "1""#, r#"min_scale = "0.5""#),
-            REAL.replace(r#"target_annual_pct = "0""#, r#"target_annual_pct = "-1""#),
-            REAL.replace(r#"target_annual_pct = "0""#, r#"target_annual_pct = "10""#)
+            NEUTRAL.replace(r#"mode = "linear""#, r#"mode = "cubic""#),
+            NEUTRAL.replace(r#"min_scale = "1""#, r#"min_scale = "0.5""#),
+            NEUTRAL.replace(r#"target_annual_pct = "0""#, r#"target_annual_pct = "-1""#),
+            NEUTRAL
+                .replace(r#"target_annual_pct = "0""#, r#"target_annual_pct = "10""#)
                 .replace(r#"min_scale = "1""#, r#"min_scale = "1.2""#),
         ] {
-            assert_ne!(bad, REAL);
+            assert_ne!(bad, NEUTRAL);
             assert!(RiskConfig::from_toml(&bad).is_err(), "{bad}");
         }
     }
@@ -492,8 +523,9 @@ instruments = ["US100", "US500", "US30", "US2000"]
     fn group_instruments_exist_in_the_catalog() {
         // Las dos listas del ejemplo y del repositorio usan ids de config/instruments.toml.
         let catalog = include_str!("../../../../config/instruments.toml");
-        let cfg = RiskConfig::from_toml(&format!("{REAL}{GROUP}")).unwrap();
+        let cfg = RiskConfig::from_toml(&format!("{NEUTRAL}{GROUP}")).unwrap();
         let real = RiskConfig::from_toml(REAL).unwrap();
+        assert!(!real.groups.is_empty());
         for g in cfg.groups.iter().chain(&real.groups) {
             for i in &g.instruments {
                 assert!(catalog.contains(&format!("[instruments.{i}]")), "{i}");
@@ -504,11 +536,11 @@ instruments = ["US100", "US500", "US30", "US2000"]
     #[test]
     fn rejects_invalid_values() {
         for bad in [
-            REAL.replace(r#"risk_per_trade_pct = "1""#, r#"risk_per_trade_pct = "0""#),
-            REAL.replace(r#"max_drawdown_pct = "15""#, r#"max_drawdown_pct = "100""#),
-            REAL.replace("max_open_positions = 5", "max_open_positions = 0"),
-            REAL.replace(r#"min_atr = "0.5""#, r#"min_atr = "3""#),
-            REAL.replace("max_atr", "maximo_atr"),
+            NEUTRAL.replace(r#"risk_per_trade_pct = "1""#, r#"risk_per_trade_pct = "0""#),
+            NEUTRAL.replace(r#"max_drawdown_pct = "15""#, r#"max_drawdown_pct = "100""#),
+            NEUTRAL.replace("max_open_positions = 5", "max_open_positions = 0"),
+            NEUTRAL.replace(r#"min_atr = "0.5""#, r#"min_atr = "3""#),
+            NEUTRAL.replace("max_atr", "maximo_atr"),
         ] {
             assert!(RiskConfig::from_toml(&bad).is_err(), "{bad}");
         }

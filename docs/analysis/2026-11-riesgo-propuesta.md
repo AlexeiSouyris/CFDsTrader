@@ -2,18 +2,18 @@
 
 - **Fecha:** 25-11-2026.
 - **Issues:** #670 (punto 4 del plan, D1) y #671 (punto 9, D2), del autoanálisis `docs/analysis/2026-11-autoanalisis.md` (#658).
-- **Estado:** la mecánica está en el módulo de riesgo (`engine/crates/risk`) con tests, pero **todo sale apagado** en `config/risk.toml`. Un test (`engine/crates/risk/tests/unchanged.rs`) prueba que, con la config del repositorio, `check` da exactamente lo mismo que antes, decimal por decimal. El runner de paper (#382, desde el 27-11) **no cambia** hasta que el dueño apruebe valores.
-- **Los valores de abajo son recomendaciones, no decisiones.** Son parámetros de riesgo: los aprueba el dueño (CLAUDE.md, modo de un solo constructor). Nada de esto es consejo de inversión.
+- **Estado (actualizado el 25-11-2026, #689):** el dueño aprobó los puntos 1 a 4 el 25-11-2026, textual: «1, 2 y 7 apruebo la recomendacion.» (registrado en https://github.com/AlexeiSouyris/CFDsTrader/issues/671#issuecomment-7169989627). Están en `config/risk.toml` desde #689 y el runner de paper (#382, desde el 27-11) los usa. La volatilidad objetivo (punto 5) sigue apagada. Un test (`engine/crates/risk/tests/unchanged.rs`) prueba que, con una config neutral (todo apagado), `check` da exactamente lo mismo que antes, decimal por decimal.
+- **Los valores eran recomendaciones; las decisiones son del dueño** (CLAUDE.md, modo de un solo constructor). Nada de esto es consejo de inversión.
 
 ## Puntos para el dueño
 
-| # | Parámetro (`config/risk.toml`) | Hoy (apagado) | Recomendado | Por qué | Estado |
+| # | Parámetro (`config/risk.toml`) | Antes (apagado) | Recomendado | Por qué | Estado |
 |---|---|---|---|---|---|
-| 1 | `[[correlation.groups]]` `us_equity_index` = US100, US500, US30, US2000 | sin grupos | `max_risk_pct = "1.5"` | Los cuatro índices de EE. UU. se mueven casi igual: hoy 5 posiciones al 1 % en ellos son casi una sola apuesta del 5 %. Con 1,5 % entran una entera y media; la segunda se achica | **PENDIENTE** |
-| 2 | Otros grupos (DE40, XAUUSD) | — | ninguno por ahora | DE40 y el oro no tienen pareja en el catálogo; un grupo de uno es un error de config | **PENDIENTE** |
-| 3 | `[gap] gap_atr` | `"0"` | `"0.25"` (provisional) | Un gap por noticias salta el stop. Con stops de 1 a 3 ATR, 0,25 ATR achica el tamaño entre 8 y 20 %, y `risk` pasa a contar ese salto. Conviene fijarlo con el deslizamiento real más allá del stop que mida el paper | **PENDIENTE** |
-| 4 | `[drawdown_scaling]` | sin puntos | `mode = "linear"`, puntos (5 %, 1), (10 %, 0,5), (12,5 %, 0,25) | Hasta 5 % de caída es ruido normal y no se toca. De 5 a 10 % el riesgo baja en línea recta del 1 % al 0,5 %, y al 12,5 % llega a 0,25 %. El kill switch del 15 % no cambia. Así una mala racha frena antes de tocar el límite, en vez de todo o nada | **PENDIENTE** |
-| 5 | `[vol_target]` | objetivo `"0"` (apagada) | `target_annual_pct = "10"`, `min_scale = "0.5"`, `max_scale = "1"` | Con la cuenta más volátil que el objetivo, el riesgo baja hasta la mitad. `max_scale = 1` hace que **nunca suba** por encima del 1 % por operación. Requiere antes conectar la volatilidad realizada (ver abajo) | **PENDIENTE** |
+| 1 | `[[correlation.groups]]` `us_equity_index` = US100, US500, US30, US2000 | sin grupos | `max_risk_pct = "1.5"` | Los cuatro índices de EE. UU. se mueven casi igual: hoy 5 posiciones al 1 % en ellos son casi una sola apuesta del 5 %. Con 1,5 % entran una entera y media; la segunda se achica | **APROBADO** (dueño, 25-11-2026: «1, 2 y 7 apruebo la recomendacion.»; en `config/risk.toml` desde #689) |
+| 2 | Otros grupos (DE40, XAUUSD) | — | ninguno por ahora | DE40 y el oro no tienen pareja en el catálogo; un grupo de uno es un error de config | **APROBADO** (dueño, 25-11-2026: «1, 2 y 7 apruebo la recomendacion.»; en `config/risk.toml` desde #689) |
+| 3 | `[gap] gap_atr` | `"0"` | `"0.25"` (provisional) | Un gap por noticias salta el stop. Con stops de 1 a 3 ATR, 0,25 ATR achica el tamaño entre 8 y 20 %, y `risk` pasa a contar ese salto. Conviene fijarlo con el deslizamiento real más allá del stop que mida el paper | **APROBADO** (dueño, 25-11-2026: «1, 2 y 7 apruebo la recomendacion.»; en `config/risk.toml` desde #689) |
+| 4 | `[drawdown_scaling]` | sin puntos | `mode = "linear"`, puntos (5 %, 1), (10 %, 0,5), (12,5 %, 0,25) | Hasta 5 % de caída es ruido normal y no se toca. De 5 a 10 % el riesgo baja en línea recta del 1 % al 0,5 %, y al 12,5 % llega a 0,25 %. El kill switch del 15 % no cambia. Así una mala racha frena antes de tocar el límite, en vez de todo o nada | **APROBADO** (dueño, 25-11-2026: «1, 2 y 7 apruebo la recomendacion.»; en `config/risk.toml` desde #689) |
+| 5 | `[vol_target]` | objetivo `"0"` (apagada) | `target_annual_pct = "10"`, `min_scale = "0.5"`, `max_scale = "1"` | Con la cuenta más volátil que el objetivo, el riesgo baja hasta la mitad. `max_scale = 1` hace que **nunca suba** por encima del 1 % por operación. Requiere antes conectar la volatilidad realizada (ver abajo) | **PENDIENTE**: sigue apagada hasta que se calcule la volatilidad realizada de la cuenta (#692) |
 
 ## Qué hace cada cosa
 
@@ -51,6 +51,7 @@
 
 ## Qué sigue después de la aprobación
 
-1. El dueño elige los valores (o los cambia) y lo deja escrito en #670.
-2. Un PR aparte cambia `config/risk.toml`, actualiza el test de la config del repositorio y deja de exigir que el comportamiento sea igual al anterior.
-3. Antes de prenderlo en paper: una corrida del backtest de cartera con y sin los topes, registrada en `docs/analysis/registro-de-resultados.csv`.
+1. ~~El dueño elige los valores~~: aprobados el 25-11-2026 (puntos 1 a 4).
+2. ~~Un PR aparte cambia `config/risk.toml`~~: #689. Los tests de la mecánica usan una config neutral; el de la config del repositorio fija los valores aprobados.
+3. La corrida del backtest de cartera con y sin los topes: `docs/analysis/2026-11-riesgo-con-sin-topes.md`, registrada en `docs/analysis/registro-de-resultados.csv`.
+4. Pendiente: #691 (el broker simulado actualiza el máximo del capital solo al decidir; con la caída gradual, paper y backtest pueden separarse) y #692 (la volatilidad realizada de la cuenta, requisito del punto 5).

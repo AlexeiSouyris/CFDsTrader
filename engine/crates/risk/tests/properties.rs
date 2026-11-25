@@ -20,8 +20,14 @@ use rust_decimal::Decimal;
 
 const CASES: u32 = 256;
 
-fn base_cfg() -> RiskConfig {
-    RiskConfig::from_toml(include_str!("../../../../config/risk.toml")).unwrap()
+/// La base: la config neutral (todo apagado) o la del repositorio (valores aprobados, #689).
+fn base_cfg(repo: bool) -> RiskConfig {
+    let text = if repo {
+        include_str!("../../../../config/risk.toml")
+    } else {
+        include_str!("neutral_risk.toml")
+    };
+    RiskConfig::from_toml(text).unwrap()
 }
 
 fn id(s: &str) -> InstrumentId {
@@ -36,17 +42,18 @@ struct Case {
     cfg: RiskConfig,
 }
 
-/// Configuración: la del repositorio o, al azar, con colchón por gaps, un grupo US500 + US100,
+/// Configuración: la neutral o la del repositorio y, encima, al azar, con colchón por gaps, un grupo US500 + US100,
 /// reducción por caída (lineal o en escalones) y volatilidad objetivo.
 fn cfg() -> impl Strategy<Value = RiskConfig> {
     (
-        prop_oneof![Just(0i64), 1i64..100], // gap_atr (centésimos)
-        prop::option::of(50i64..400),       // tope del grupo, % (centésimos)
+        any::<bool>(),                                           // base: repositorio o neutral
+        prop_oneof![Just(0i64), 1i64..100],                      // gap_atr (centésimos)
+        prop::option::of(50i64..400),                            // tope del grupo, % (centésimos)
         prop::option::of((any::<bool>(), 1i64..20, 10i64..100)), // caída: modo, desde %, factor (centésimos)
         prop::option::of((500i64..3_000, 20i64..100, 100i64..200)), // vol: objetivo, mín, máx (centésimos)
     )
-        .prop_map(|(gap, group, dd, vol)| {
-            let mut c = base_cfg();
+        .prop_map(|(repo, gap, group, dd, vol)| {
+            let mut c = base_cfg(repo);
             c.gap_atr = Decimal::new(gap, 2);
             if let Some(max) = group {
                 c.groups = vec![CorrelationGroup {
@@ -248,7 +255,7 @@ proptest! {
 /// 4824.1492462500000000000000001 con un presupuesto de 4824.14924625.
 #[test]
 fn rounding_never_pushes_the_risk_over_the_budget() {
-    let cfg = base_cfg();
+    let cfg = base_cfg(false);
     let req = Request {
         instrument: id("US500"),
         entry: Decimal::new(1_000, 2),
