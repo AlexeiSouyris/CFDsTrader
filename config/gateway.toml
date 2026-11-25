@@ -70,7 +70,7 @@ max_bars = 5000
 # config/ibkr.toml (client_id 21, mismas guardas: puerto, cuenta paper de .env, kill switch). Si IB
 # Gateway está cerrado, el gateway arranca igual y la ruta informa "disconnected". Con false no se
 # conecta nada y la ruta informa "disabled".
-live = false
+live = true
 # Conexiones SSE abiertas a la vez, como máximo (cada gráfico abierto es una).
 live_max_clients = 16
 # Cada cuánto va un comentario SSE (": ping") para que nada corte una conexión sin mensajes.
