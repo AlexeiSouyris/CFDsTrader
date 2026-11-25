@@ -25,7 +25,9 @@ class FakeEventSource {
   readyState = FakeEventSource.OPEN
   onmessage: ((ev: MessageEvent<string>) => void) | null = null
   onerror: (() => void) | null = null
-  constructor(public url: string) {
+  url: string
+  constructor(url: string) {
+    this.url = url
     FakeEventSource.all.push(this)
   }
   close() {
@@ -135,7 +137,14 @@ describe('vela en formación de IBKR: conexión SSE (#558)', () => {
   it('abre la ruta del instrumento y timeframe, y la cierra al cambiar', () => {
     const { result, rerender, unmount } = renderHook(
       ({ sel }: { sel: { instrument: string; timeframe: string } | null }) => useIbkrLive(sel),
-      { initialProps: { sel: { instrument: 'MNQ', timeframe: '1m' } } },
+      {
+        initialProps: {
+          sel: { instrument: 'MNQ', timeframe: '1m' } as {
+            instrument: string
+            timeframe: string
+          } | null,
+        },
+      },
     )
     expect(open().map((s) => s.url)).toEqual(['/api/v1/ibkr/live?instrument=MNQ&timeframe=1m'])
     act(() => open()[0].emit(message({ timeframe: '1m' })))
