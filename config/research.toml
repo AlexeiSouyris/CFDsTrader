@@ -286,3 +286,34 @@ ruin_threshold = "0.30"
 # S = 16 bloques, el del artículo: C(16, 8) = 12.870 combinaciones. Con 153 meses quedan bloques
 # de 9 meses (sobran 9 al final, que no se usan). Tiene que ser par, entre 2 y 20.
 partitions = 16
+
+
+# ── Presupuesto global de error (#660, aprobado por el dueño el 25-11-2026; adopción #690) ───
+# Regla de docs/analysis/2026-11-regla-presupuesto-global.md (los 16 puntos de §6 en su valor
+# recomendado): alfa-inversión de Foster y Stine (2008) para TODO el proyecto, investigación y
+# pruebas confirmatorias de ML. Reemplaza al "5 % nuevo por programa". El libro con el estado de
+# W está en docs/analysis/registro-de-resultados.md ("Presupuesto global"); el CI
+# (tools/research/check_dsr_trials.py) verifica su aritmética contra estos valores.
+# Cambiar cualquiera de estos números (o abrir una época nueva) pide una decisión registrada del
+# dueño en un Issue, con el motivo (punto 6).
+
+[alpha_budget]
+# α del proyecto (punto 2).
+alpha = "0.05"
+# W(0) = α × η con η = 1 − α (punto 3).
+initial_wealth = "0.0475"
+# Desde cuándo rige la época (fecha de la aprobación). Lo gastado antes no se arrastra (punto 4).
+start = "2026-11-25"
+# Apuesta por hipótesis: α_j = mín(max_bet, W/(1 + W)); el pre-registro puede apostar menos,
+# nunca más. Paga α_j/(1 − α_j), pase o no, al congelarse (puntos 5 y 7).
+max_bet = "0.0125"
+# Premio ω, pagado solo si el fuera de muestra confirma la hipótesis (punto 5).
+payout = "0.05"
+# Filtro de borde bruto: E_bruto ≥ k × C antes de congelar (puntos 12 a 14).
+edge_cost_factor = "2"
+# IC previo cuando no hay cita: E_bruto ≈ IC × σ_h (punto 15).
+default_ic = "0.05"
+# Pruebas de antes del registro (pre-registro de la ronda 1 §2.5), base del N del Sharpe
+# deflactado del chequeo del CI (punto 10). No se llama `dsr_trials` a propósito: el chequeo
+# toma cada `dsr_trials` como el N de una regla.
+dsr_trials_base = 344

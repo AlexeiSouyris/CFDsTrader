@@ -63,6 +63,7 @@ Señales separadas del backtest y de la ejecución. Funciones puras. Un test por
 ## Fase 5 — Evaluación y anti-sobreajuste
 Retorno, drawdown máximo, Sharpe y Sortino, win rate, profit factor, número de operaciones y exposición. Walk-forward. Sensibilidad de parámetros. Benchmark de comprar y mantener el índice. Resultado fuera de muestra reportado aparte y sin retocar.
 **Aprobación:** se sostiene fuera de muestra y con costos realistas.
+**Presupuesto global de error (investigación y ML confirmatorio):** regla de `docs/analysis/2026-11-regla-presupuesto-global.md`, aprobada por el dueño el 25-11-2026 en #660 (cita: «1, 2 y 7 apruebo la recomendacion.»), adoptada en #690. Alfa-inversión con α = 5 % para todo el proyecto, sin "5 % nuevo" por programa: cada pre-registro nuevo saca su nivel del libro de `docs/analysis/registro-de-resultados.md` ("Presupuesto global"), con `α_j = mín(1,25 %, W/(1 + W))` y pagando `α_j/(1 − α_j)` al congelarse; premio de 5 % solo con confirmación fuera de muestra. Antes de congelar, el filtro de borde bruto (`E_bruto ≥ 2 × C`). Números en `config/research.toml` `[alpha_budget]`; el CI verifica el libro y el N del Sharpe deflactado.
 
 ## Fase 6 — Gestión de riesgo
 Límites duros que la estrategia no puede saltear: tamaño máximo, apalancamiento máximo por instrumento, pérdida diaria máxima, drawdown máximo y posiciones abiertas máximas. Kill switch. Validación de cada orden (precio razonable, tamaño dentro de límites, no duplicada).

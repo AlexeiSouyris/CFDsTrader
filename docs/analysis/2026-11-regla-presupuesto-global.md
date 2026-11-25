@@ -1,6 +1,6 @@
 # Propuesta: presupuesto de error global, filtro de borde bruto y chequeo del N del Sharpe deflactado
 
-Issue #660 · punto 2 del plan de `2026-11-autoanalisis.md` (#658) · 25-11-2026 · **propuesta: nada de esto rige hasta que el dueño lo apruebe** (tabla de §6).
+Issue #660 · punto 2 del plan de `2026-11-autoanalisis.md` (#658) · 25-11-2026 · **APROBADA por el dueño el 25-11-2026** (los 16 puntos de §6 en su valor recomendado; ver §6). Adoptada en #690: números en `config/research.toml` `[alpha_budget]`, libro de `W` en `registro-de-resultados.md` ("Presupuesto global").
 
 Hecho por un agente de IA (Claude Code). No cambia ningún pre-registro congelado ni ningún valor de `config/`. Nada de esto es una recomendación de inversión.
 
@@ -91,7 +91,7 @@ Bailey, D. H. y López de Prado, M. (2014). *The deflated Sharpe ratio*. Journal
 
 Antes de congelar una hipótesis que gaste presupuesto, su pre-registro tiene que traer una **estimación previa** de la ventaja bruta esperada por operación, `E_bruto`, y el **costo total por operación**, `C`, en las mismas unidades (puntos del instrumento, o R si la estrategia tiene stop). La hipótesis entra solo si:
 
-**E_bruto ≥ k × C**, con **k = 2** (PENDIENTE).
+**E_bruto ≥ k × C**, con **k = 2** (aprobado el 25-11-2026; `edge_cost_factor` de `[alpha_budget]`).
 
 - Por qué 2: las anomalías publicadas pierden en promedio un 26 % fuera de la muestra del artículo y un 58 % después de publicadas (McLean, R. D. y Pontiff, J. (2016). *Does academic research destroy stock return predictability?* Journal of Finance, 71(1), 5–32). Con k = 2, aun si el borde se reduce a la mitad, cubre los costos. Con menos que eso, lo esperable es perder.
 - El filtro **no gasta presupuesto** y **no es una prueba**: si no se cumple, la hipótesis no se congela y queda anotada en el pre-registro o en el Issue como "descartada por el filtro", con sus números.
@@ -173,28 +173,30 @@ N esperado = 344
 
 - Una sección nueva en `registro-de-resultados.md`, "Presupuesto global", con una línea por hipótesis congelada: fecha, hipótesis, `α_j`, costo `α_j/(1 − α_j)`, premio (si hubo) y `W` después. Sin cambiar las filas viejas del CSV.
 - El pre-registro de cada hipótesis cita `W` antes y después, su filtro de borde bruto (§3) y el N al congelar.
-- Una vez aprobado, el chequeo del CI puede sumar que `W` nunca quede negativo (otro PR).
+- Una vez aprobado, el chequeo del CI puede sumar que `W` nunca quede negativo (otro PR). **Hecho en #690:** el chequeo lee la base 344 de `[alpha_budget]` y verifica la cuenta del libro.
 
 ## 6. Puntos para el dueño
 
+**Aprobación:** el dueño, 25-11-2026, en el chat con su agente, textual: «1, 2 y 7 apruebo la recomendacion.» (registrada en #660, [comentario](https://github.com/AlexeiSouyris/CFDsTrader/issues/660#issuecomment-7169990064)). El punto 2 del plan del autoanálisis es esta regla: se aprueba la recomendación con **los 16 puntos en su valor recomendado**. Adopción: #690.
+
 | # | Punto | Recomendación | Estado |
 |---|---|---|---|
-| 1 | Reemplazar "5 % nuevo por programa" por un presupuesto único del proyecto | Sí | PENDIENTE |
-| 2 | Método | Alfa-inversión de Foster y Stine (2008), α = 5 % | PENDIENTE |
-| 3 | Riqueza inicial | `W(0) = 4,75 %` (α × η, η = 0,95), desde la fecha de aprobación | PENDIENTE |
-| 4 | Lo ya gastado (18,75 % en investigación, 10 % en ML; 19,05 % con el costo de alfa-inversión) | No se arrastra como deuda; queda registrado en este archivo y sigue contando en el N del Sharpe deflactado | PENDIENTE |
-| 5 | Apuesta por hipótesis y premio | `α_j = mín(1,25 %, W/(1 + W))`; premio `ω = 5 %` solo si el fuera de muestra confirma | PENDIENTE |
-| 6 | Épocas nuevas | Ninguna más sin una decisión registrada del dueño en un Issue, con el motivo | PENDIENTE |
-| 7 | Alcance | Investigación **y** pruebas confirmatorias de ML salen de la misma `W`; los descriptivos sin voto no gastan; una hipótesis congelada paga aunque no se corra | PENDIENTE |
-| 8 | Reserva del programa 4 (1,25 %) y 5 % del borrador del programa 3 | Dejan de existir; todo sale de `W` | PENDIENTE |
-| 9 | Auditoría FDR | BH y BY sobre todo el registro en cada informe, **sin voto** | PENDIENTE |
-| 10 | Regla de conteo del N (§4.1) con base 344 | Sí, y el chequeo del CI de este PR la hace cumplir | PENDIENTE |
-| 11 | Filas futuras de la estrategia en uso (cambios de parámetros, walk-forwards nuevos) | Que sumen 1 al N cada una desde la aprobación (cambio del script en otro PR) | PENDIENTE |
-| 12 | Filtro de borde bruto obligatorio antes de congelar | Sí | PENDIENTE |
-| 13 | Factor k | **2** | PENDIENTE |
-| 14 | Costo por operación | Fórmula de §3.2, solo con valores de `config/`; spread de la franja horaria; financiación de largos; lo que se cobra por estar corto no cuenta | PENDIENTE |
-| 15 | Estimación previa válida | Literatura con cita, o `IC × σ_h` con IC de la literatura o 0,05 si no hay cita (§3.3) | PENDIENTE |
-| 16 | Dónde se lleva `W` | Sección "Presupuesto global" en `registro-de-resultados.md` (§5) | PENDIENTE |
+| 1 | Reemplazar "5 % nuevo por programa" por un presupuesto único del proyecto | Sí | **APROBADO** (25-11-2026) |
+| 2 | Método | Alfa-inversión de Foster y Stine (2008), α = 5 % | **APROBADO** (25-11-2026) |
+| 3 | Riqueza inicial | `W(0) = 4,75 %` (α × η, η = 0,95), desde la fecha de aprobación | **APROBADO** (25-11-2026) |
+| 4 | Lo ya gastado (18,75 % en investigación, 10 % en ML; 19,05 % con el costo de alfa-inversión) | No se arrastra como deuda; queda registrado en este archivo y sigue contando en el N del Sharpe deflactado | **APROBADO** (25-11-2026) |
+| 5 | Apuesta por hipótesis y premio | `α_j = mín(1,25 %, W/(1 + W))`; premio `ω = 5 %` solo si el fuera de muestra confirma | **APROBADO** (25-11-2026) |
+| 6 | Épocas nuevas | Ninguna más sin una decisión registrada del dueño en un Issue, con el motivo | **APROBADO** (25-11-2026) |
+| 7 | Alcance | Investigación **y** pruebas confirmatorias de ML salen de la misma `W`; los descriptivos sin voto no gastan; una hipótesis congelada paga aunque no se corra | **APROBADO** (25-11-2026) |
+| 8 | Reserva del programa 4 (1,25 %) y 5 % del borrador del programa 3 | Dejan de existir; todo sale de `W` | **APROBADO** (25-11-2026) |
+| 9 | Auditoría FDR | BH y BY sobre todo el registro en cada informe, **sin voto** | **APROBADO** (25-11-2026) |
+| 10 | Regla de conteo del N (§4.1) con base 344 | Sí, y el chequeo del CI de este PR la hace cumplir | **APROBADO** (25-11-2026) |
+| 11 | Filas futuras de la estrategia en uso (cambios de parámetros, walk-forwards nuevos) | Que sumen 1 al N cada una desde la aprobación (cambio del script en otro PR) | **APROBADO** (25-11-2026) |
+| 12 | Filtro de borde bruto obligatorio antes de congelar | Sí | **APROBADO** (25-11-2026) |
+| 13 | Factor k | **2** | **APROBADO** (25-11-2026) |
+| 14 | Costo por operación | Fórmula de §3.2, solo con valores de `config/`; spread de la franja horaria; financiación de largos; lo que se cobra por estar corto no cuenta | **APROBADO** (25-11-2026) |
+| 15 | Estimación previa válida | Literatura con cita, o `IC × σ_h` con IC de la literatura o 0,05 si no hay cita (§3.3) | **APROBADO** (25-11-2026) |
+| 16 | Dónde se lleva `W` | Sección "Presupuesto global" en `registro-de-resultados.md` (§5) | **APROBADO** (25-11-2026) |
 
 ## 7. Supuestos y riesgos
 

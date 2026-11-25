@@ -159,6 +159,77 @@ fn the_research_config_loads_and_rejects_bad_values() {
     assert!(ResearchConfig::from_toml(&extra).is_err());
 }
 
+// ── presupuesto global de error (#660, #690) ─────────────────────────────────────────────────
+
+#[test]
+fn the_alpha_budget_loads_with_the_approved_values() {
+    let b = research().alpha_budget;
+    assert_eq!(b.alpha, dec!(0.05));
+    assert_eq!(b.initial_wealth, dec!(0.0475));
+    assert_eq!(b.start, day("2026-11-25"));
+    assert_eq!(b.max_bet, dec!(0.0125));
+    assert_eq!(b.payout, dec!(0.05));
+    assert_eq!(b.edge_cost_factor, dec!(2));
+    assert_eq!(b.default_ic, dec!(0.05));
+    assert_eq!(b.dsr_trials_base, 344);
+}
+
+#[test]
+fn the_alpha_budget_rejects_values_outside_the_rule() {
+    for (from, to) in [
+        // W(0) > α × (1 − α) = 0,0475
+        ("initial_wealth = \"0.0475\"", "initial_wealth = \"0.05\""),
+        // ω > α
+        ("payout = \"0.05\"", "payout = \"0.06\""),
+        // apuesta máxima > α
+        ("max_bet = \"0.0125\"", "max_bet = \"0.06\""),
+        // k < 1
+        ("edge_cost_factor = \"2\"", "edge_cost_factor = \"0.5\""),
+        ("start = \"2026-11-25\"", "start = \"25-11-2026\""),
+        ("dsr_trials_base = 344", "dsr_trials_base = 0"),
+    ] {
+        let bad = cfg!("research.toml").replace(from, to);
+        assert_ne!(bad, cfg!("research.toml"), "{from}");
+        assert!(ResearchConfig::from_toml(&bad).is_err(), "{to}");
+    }
+}
+
+#[test]
+fn alpha_investing_without_discoveries_allows_about_four_bets_and_never_goes_negative() {
+    // §2.2 de la regla: 4,75 % → 3,48 % → 2,22 % → 0,95 % → la 4.ª apuesta queda en W/(1 + W)
+    // (0,94 %) y deja W en 0.
+    let b = research().alpha_budget;
+    let mut w = b.initial_wealth;
+    let mut seen = Vec::new();
+    for _ in 0..3 {
+        let bet = b.max_bet_for(w);
+        assert_eq!(bet, dec!(0.0125));
+        w = b.wealth_after(w, bet, Decimal::ZERO).unwrap();
+        seen.push(w.round_dp(4));
+    }
+    assert_eq!(seen, vec![dec!(0.0348), dec!(0.0222), dec!(0.0095)]);
+    let last = b.max_bet_for(w);
+    assert!(last < dec!(0.0125));
+    assert_eq!(last.round_dp(4), dec!(0.0094));
+    w = b.wealth_after(w, last, Decimal::ZERO).unwrap();
+    assert!(w >= Decimal::ZERO && w < dec!(0.0000000001));
+    assert_eq!(b.max_bet_for(w).round_dp(10), Decimal::ZERO);
+    // Una apuesta mayor que la regla, o un premio mayor que ω, no se aceptan.
+    assert!(
+        b.wealth_after(dec!(0.0475), dec!(0.02), Decimal::ZERO)
+            .is_err()
+    );
+    assert!(
+        b.wealth_after(dec!(0.0475), dec!(0.0125), dec!(0.06))
+            .is_err()
+    );
+    // Un descubrimiento confirmado fuera de muestra devuelve ω.
+    let after = b
+        .wealth_after(dec!(0.0475), dec!(0.0125), dec!(0.05))
+        .unwrap();
+    assert_eq!(after.round_dp(6), dec!(0.084842));
+}
+
 // ── familia C ──────────────────────────────────────────────────────────────────────────────
 
 #[test]

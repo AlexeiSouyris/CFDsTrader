@@ -23,6 +23,32 @@ Los datos están en [`registro-de-resultados.csv`](registro-de-resultados.csv), 
 3. Un cambio de parámetro en la estrategia en uso también agrega una fila, que compara contra la última fila de la estrategia en uso del mismo instrumento.
 4. "Mejor" quiere decir mejor en la métrica de la fila, no que la idea pase. Una idea puede mejorar y seguir sin pasar.
 5. Los chequeos **descriptivos** (que no votan) también van, marcados como "descriptivo" en `programa`.
+6. **Toda hipótesis que vota paga su nivel del presupuesto global** (sección siguiente) en el mismo PR que la congela. No hay "5 % nuevo" por programa.
+
+## Presupuesto global
+
+Regla aprobada por el dueño el 25-11-2026 en #660 (cita: «1, 2 y 7 apruebo la recomendacion.», [comentario](https://github.com/AlexeiSouyris/CFDsTrader/issues/660#issuecomment-7169990064)); detalle en [`2026-11-regla-presupuesto-global.md`](2026-11-regla-presupuesto-global.md) y adopción en #690. Los números están en `config/research.toml`, `[alpha_budget]`.
+
+- **Un solo presupuesto para todo el proyecto**, con alfa-inversión (Foster y Stine, 2008) y α = 5 %: investigación **y** pruebas confirmatorias de ML salen de la misma riqueza `W`. Arranca en **W(0) = 4,75 %** el 25-11-2026. Lo gastado antes (18,75 % en investigación, 10 % en ML) no se arrastra como deuda, pero sigue contando en el N del Sharpe deflactado.
+- **Apuesta:** `α_j = mín(1,25 %, W/(1 + W))`. El pre-registro puede apostar menos, nunca más. Cada hipótesis **paga `α_j/(1 − α_j)` al congelarse**, pase o no, y aunque después no se corra.
+- **Premio:** `ω = 5 %`, que se suma a `W` **solo si el fuera de muestra confirma** la hipótesis (una fila nueva en el libro, con el enlace a la confirmación).
+- **Lo que no vota** (descriptivos, controles sin voto) no gasta.
+- **Antes de congelar, el filtro de borde bruto:** `E_bruto ≥ k × C` con k = 2, costo `C` con la fórmula de §3.2 de la regla y solo valores de `config/`; estimación previa de la literatura (con cita) o `IC × σ_h` con IC de la literatura o 0,05 sin cita (§3.3). Si no lo cumple, la hipótesis no se congela ni paga, y queda anotada como "descartada por el filtro".
+- **Auditoría BH/BY** sobre todo el registro en cada informe, **sin voto**.
+- **Sin épocas nuevas** sin una decisión registrada del dueño en un Issue, con el motivo.
+- **N del Sharpe deflactado:** base 344 (`dsr_trials_base`) + filas de ML + hipótesis que votan (§4.1 de la regla).
+
+**Qué tiene que traer cada pre-registro nuevo:** `W` antes y después (de este libro), su `α_j`, el filtro de borde bruto con sus números y el N al congelar. El PR que lo congela agrega su fila acá. El CI (`tools/research/check_dsr_trials.py`, job `registro (dsr_trials)`) verifica la cuenta: `W` nunca negativo, cada apuesta dentro de la regla, el costo y el `W` de cada fila, y que la cadena no se corte.
+
+Formato: porcentajes con 4 decimales; "Premio" es "—" salvo una confirmación fuera de muestra. Las filas no se editan ni se borran.
+
+<!-- libro-alfa:inicio -->
+| Fecha | Hipótesis | Pre-registro / Issue | α_j | Costo α_j/(1 − α_j) | Premio | W antes | W después |
+|---|---|---|---|---|---|---|---|
+| 2026-11-25 | W(0): inicio de la época (α = 5 %, η = 0,95) | #660, #690 | — | — | — | — | 4,7500 % |
+<!-- libro-alfa:fin -->
+
+Sin descubrimientos, alcanza para unas 4 hipótesis a 1,25 % (4,75 % → 3,48 % → 2,22 % → 0,95 % → la 4.ª apuesta 0,94 % y deja 0).
 
 ## Resumen al 24-11-2026
 

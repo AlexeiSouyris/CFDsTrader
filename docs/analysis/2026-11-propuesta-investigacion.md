@@ -206,3 +206,7 @@ Se fija **ahora**, antes de correr nada. Cambiarla después de ver un resultado 
 - Para medir las volatilidades se miraron los rangos de los futuros en el período de investigación. **No se miró el resultado de ninguna regla**, para que el pre-registro siga limpio.
 - Las citas son de artículos publicados. Los dos libros de practicantes (Crabel; Connors y Alvarez) se marcan como tales. Los efectos publicados suelen achicarse después de publicarse (McLean y Pontiff, 2016).
 - Ver también `docs/research/por-que-fallan-los-algoritmos.md` para el contexto general.
+
+---
+
+**Nota del 25-11-2026 (#690), agregada después; el texto de arriba no se tocó:** el "presupuesto de error total de 5 % para todo el programa" de §4.2 quedó reemplazado por el presupuesto global del proyecto (aprobada por el dueño el 25-11-2026 en #660 (cita: «1, 2 y 7 apruebo la recomendacion.»), adoptada en #690): alfa-inversión con α = 5 %, libro único en `registro-de-resultados.md` ("Presupuesto global").
