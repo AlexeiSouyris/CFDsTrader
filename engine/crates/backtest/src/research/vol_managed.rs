@@ -132,9 +132,30 @@ pub fn managed_returns(
     session: &Session,
     rolls: &[DateTime<Utc>],
     setup: &Setup,
+    range: (DateTime<Utc>, DateTime<Utc>),
+    schedule: &[(usize, Decimal)],
+    stress: Decimal,
+) -> Result<Vec<MonthReturn>, RunError> {
+    managed_returns_with_spreads(m15, session, rolls, setup, range, schedule, stress, &[])
+}
+
+/// Lo mismo que [`managed_returns`], con otro spread (en puntos) para las ejecuciones en la
+/// apertura de algunas velas: `spreads` = `(índice de la vela de la ejecución, spread)`. El
+/// slippage de esa ejecución se calcula con ese spread (`fill_price`). Lo usa H2 del programa
+/// Nasdaq (pre-registro §4.2): la entrada de las 08:00 ET cae fuera de la sesión de contado.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "la misma firma que managed_returns más los spreads"
+)]
+pub fn managed_returns_with_spreads(
+    m15: &[Candle],
+    session: &Session,
+    rolls: &[DateTime<Utc>],
+    setup: &Setup,
     (from, to): (DateTime<Utc>, DateTime<Utc>),
     schedule: &[(usize, Decimal)],
     stress: Decimal,
+    spreads: &[(usize, Decimal)],
 ) -> Result<Vec<MonthReturn>, RunError> {
     let lo = m15.partition_point(|c| c.start < from);
     let Some(entry) = (lo..m15.len()).find(|&i| m15[i].end() <= to && in_session(session, &m15[i]))
@@ -162,20 +183,24 @@ pub fn managed_returns(
         .map(|&(i, w)| (i + 1, w))
         .collect();
     let cfg = &setup.backtest.costs;
-    // Costo de ejecutar `delta` unidades (con signo) al precio medio `mid`.
-    let trade_cost = |delta: Decimal, mid: Decimal| -> Decimal {
+    // Costo de ejecutar `delta` unidades (con signo) al precio medio `mid`, en la vela `k`.
+    let trade_cost = |delta: Decimal, mid: Decimal, k: usize| -> Decimal {
         let size = delta.abs();
         if size.is_zero() {
             return Decimal::ZERO;
         }
+        let mut costs = setup.costs;
+        if let Some(&(_, s)) = spreads.iter().find(|(at, _)| *at == k) {
+            costs.spread = s;
+        }
         let (exec, slip) = if delta > Decimal::ZERO {
-            let p = fill_price(Side::Long, Execution::Entry, mid, &setup.costs, cfg);
+            let p = fill_price(Side::Long, Execution::Entry, mid, &costs, cfg);
             (p, p - mid)
         } else {
-            let p = fill_price(Side::Long, Execution::Exit, mid, &setup.costs, cfg);
+            let p = fill_price(Side::Long, Execution::Exit, mid, &costs, cfg);
             (p, mid - p)
         };
-        stress * (slip * size + commission(&setup.costs, size, exec))
+        stress * (slip * size + commission(&costs, size, exec))
     };
     let capital = m15[entry].open;
     let cutoffs = funding_cutoffs(
@@ -188,7 +213,7 @@ pub fn managed_returns(
     let mut events: Vec<(DateTime<Utc>, Decimal)> = Vec::new();
     let mut value = capital;
     let mut units = w0 * capital / m15[entry].open;
-    let c = trade_cost(units, m15[entry].open);
+    let c = trade_cost(units, m15[entry].open, entry);
     events.push((m15[entry].end(), -c));
     value -= c;
     let mut next_cutoff = 0usize;
@@ -245,12 +270,12 @@ pub fn managed_returns(
         if let Some(&(_, w)) = rebalances.get(next_rebalance).filter(|(at, _)| *at == k) {
             next_rebalance += 1;
             let target = w * (value + pnl) / candle.open;
-            cost = trade_cost(target - units, candle.open);
+            cost = trade_cost(target - units, candle.open, k);
             units = target;
         }
         pnl += units * (candle.close - candle.open);
         if k == exit {
-            cost += trade_cost(-units, candle.close);
+            cost += trade_cost(-units, candle.close, usize::MAX); // al cierre: spread de siempre
         }
         value += pnl - cost;
         events.push((candle.end(), pnl - cost));

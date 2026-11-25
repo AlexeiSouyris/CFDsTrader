@@ -9,7 +9,7 @@
 //!   de la deriva nocturna;
 //! - chequeos descriptivos de la revisión externa (#512, sin voto): `review_checks`;
 //! - programa Nasdaq (#526, `docs/analysis/2026-11-programa-nasdaq-preregistro.md`): H1, deriva
-//!   antes del comunicado del FOMC (`pre_fomc`);
+//!   antes del comunicado del FOMC (`pre_fomc`), y H2, días de CPI y empleo (`macro_day`);
 //! - programa 4 (#561, `docs/analysis/2026-11-programa-4-preregistro.md`): estrategia A de
 //!   Bruni, literal (H4.1) y normalizada (H4.2), con objetivo en R (`program4`).
 //!
@@ -29,6 +29,7 @@
 pub mod buy_and_hold;
 pub mod config;
 pub mod intraday_momentum;
+pub mod macro_day;
 pub mod orb;
 pub mod overnight;
 pub mod pre_fomc;
@@ -53,6 +54,7 @@ pub use config::{
     TurnOfMonthConfig, VolManagedConfig,
 };
 pub use intraday_momentum::intraday_momentum_plans;
+pub use macro_day::{MacroDayRule, macro_day_windows};
 pub use orb::orb_plans;
 pub use overnight::window_returns;
 pub use pre_fomc::{
@@ -70,7 +72,8 @@ pub use run::{
 pub use trend::{monthly_reviews, trend_plans};
 pub use turn_of_month::{SessionBar, session_bars, turn_of_month_plans};
 pub use vol_managed::{
-    managed_returns, review_variances, session_close_indices, vol_constant, vol_weights,
+    managed_returns, managed_returns_with_spreads, review_variances, session_close_indices,
+    vol_constant, vol_weights,
 };
 
 /// Una operación que una familia quiere abrir, decidida al **cierre** de `signal_index`. Se

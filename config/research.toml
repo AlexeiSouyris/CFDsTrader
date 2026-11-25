@@ -131,10 +131,14 @@ exit_minutes_before = 30
 # H2 (pre-registro §4.2), congelada; se corre cuando esté cargado el BLS: entrada en la apertura
 # de la vela de las 08:00 ET del día del dato (fuera de la sesión de contado: spread de IG de
 # 2,5 puntos, docs/research/ig-spreads-2026-11.md); salida en la apertura de la última vela de la
-# sesión de contado.
+# sesión de contado. Solo datos de las 08:30 ET (§4.2).
 timezone = "America/New_York"
 entry_time = "08:00"
+release_time = "08:30"
 out_of_session_spread_points = "2.5"
+# Solo para el descriptivo en US500 y US30 (§3.5, sin voto): spread de IG fuera de la sesión de
+# contado en la franja 08–13 UTC (docs/research/ig-spreads-2026-11.md, mediana por hora).
+descriptive_out_of_session_spread_points = { US500 = "1.6", US30 = "5.0" }
 
 # ── Chequeos de la revisión externa (#512) ─────────────────────────────────────────────────────
 # Descriptivos, sin voto y sin presupuesto: docs/analysis/2026-11-chequeos-revision-externa.md.

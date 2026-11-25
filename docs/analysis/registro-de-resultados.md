@@ -29,7 +29,7 @@ Los datos están en [`registro-de-resultados.csv`](registro-de-resultados.csv), 
 - **Estrategia en uso (15 minutos):** pierde en US500, US100, US30, US2000 y DE40. Antes de costos queda cerca de cero; los costos hacen la pérdida (R001–R009).
 - **ML:** ningún modelo supera a la tabla base B1 (R010–R013).
 - **Investigación:** 6 ideas probadas con reglas fijadas antes, y ninguna pasa (R014–R017, R019–R020).
-- **Programa Nasdaq (#526):** H1, deriva antes del comunicado del FOMC en US100, no pasa (R027; R028 descriptivo en US500 y US30). H2 espera el calendario del BLS.
+- **Programa Nasdaq (#526):** H1, deriva antes del comunicado del FOMC en US100, no pasa (R027; R028 descriptivo en US500 y US30). H2, días de CPI y empleo en US100, no pasa (R031; R032 descriptivo en US500 y US30). El programa no tiene hipótesis vivas.
 - **Programa 4 (#561):** estrategia A de Gianluca Bruni en US100, literal (H4.1, 15 puntos) y normalizada (H4.2, 0,35 × ATR): ninguna pasa (R029, R030). H4.3 espera el calendario del BLS.
 - **Referencia:** comprar y mantener los tres índices con los costos del CFD dio +1,10 % por mes (R018). Ninguna idea lo superó.
 - **Ejemplo de comparación:** con 8 ventanas, US100 parecía estar en cero (R006). Con la historia completa, pierde −6,1 % por ventana (R007, **peor**): las 8 ventanas eran un tramo favorable.

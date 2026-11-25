@@ -88,6 +88,12 @@ pub enum Skip {
     ExitBeforeEntry,
     /// Se superpone con la ventana del comunicado anterior operado.
     Overlap,
+    /// H2: el día del dato no tiene sesión de contado (feriado o fin de semana).
+    NoCashSession,
+    /// H2: el dato no es a la hora fijada (08:30 ET).
+    OtherTime,
+    /// H2: ese día ya se opera por otro dato (CPI y empleo el mismo día: una sola vez).
+    SameDay,
 }
 
 /// Ventana operable: decisiones (al cierre) de la entrada y de la salida.
@@ -118,14 +124,14 @@ pub struct EventOutcome {
 
 /// La vela de la decisión que ejecuta en la apertura de `start`: tienen que existir las dos y
 /// ser consecutivas.
-fn decision_before(m15: &[Candle], start: DateTime<Utc>) -> Option<usize> {
+pub(crate) fn decision_before(m15: &[Candle], start: DateTime<Utc>) -> Option<usize> {
     let i = index_at(m15, start)?;
     let d = i.checked_sub(1)?;
     (m15[d].end() == start).then_some(d)
 }
 
 /// Inicio en UTC de la hora local `t` del día `day` en `tz`.
-fn local(tz: Tz, day: chrono::NaiveDate, t: NaiveTime) -> Option<DateTime<Utc>> {
+pub(crate) fn local(tz: Tz, day: chrono::NaiveDate, t: NaiveTime) -> Option<DateTime<Utc>> {
     tz.from_local_datetime(&day.and_time(t))
         .single()
         .map(|d| d.with_timezone(&Utc))

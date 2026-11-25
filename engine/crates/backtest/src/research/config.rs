@@ -110,13 +110,28 @@ pub struct ReviewChecksConfig {
 
 /// H2 del programa Nasdaq (#526, pre-registro §4.2): días de CPI y empleo. Congelada; se corre
 /// cuando esté cargado el BLS.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MacroDayConfig {
     pub timezone: chrono_tz::Tz,
     /// Hora local de la vela de la entrada el día del dato.
     pub entry_time: NaiveTime,
+    /// Hora local de los datos que se operan (08:30 ET); los de otra hora no se operan.
+    pub release_time: NaiveTime,
     /// Spread de la entrada (fuera de la sesión de contado), en puntos.
     pub out_of_session_spread: Decimal,
+    /// Lo mismo para los índices del descriptivo (sin voto), por instrumento.
+    pub descriptive_out_of_session_spread: std::collections::BTreeMap<String, Decimal>,
+}
+
+impl MacroDayConfig {
+    /// La regla pura de H2 (`macro_day_windows`).
+    pub fn rule(&self) -> super::macro_day::MacroDayRule {
+        super::macro_day::MacroDayRule {
+            timezone: self.timezone,
+            entry_time: self.entry_time,
+            release_time: self.release_time,
+        }
+    }
 }
 
 /// Programa 4 (#561, `docs/analysis/2026-11-programa-4-preregistro.md`): estrategia A de
@@ -293,7 +308,9 @@ impl ResearchConfig {
         struct MacroDay {
             timezone: String,
             entry_time: String,
+            release_time: String,
             out_of_session_spread_points: String,
+            descriptive_out_of_session_spread_points: std::collections::BTreeMap<String, String>,
         }
         let raw: Raw = toml::from_str(text).map_err(|e| e.to_string())?;
         let dec = |s: &str, name: &str| -> Result<Decimal, String> {
@@ -417,14 +434,35 @@ impl ResearchConfig {
         let macro_day = MacroDayConfig {
             timezone: tz(&md.timezone, "macro_day.timezone")?,
             entry_time: time(&md.entry_time, "macro_day.entry_time")?,
+            release_time: time(&md.release_time, "macro_day.release_time")?,
             out_of_session_spread: dec(
                 &md.out_of_session_spread_points,
                 "macro_day.out_of_session_spread_points",
             )?,
+            descriptive_out_of_session_spread: md
+                .descriptive_out_of_session_spread_points
+                .iter()
+                .map(|(k, v)| {
+                    dec(v, "macro_day.descriptive_out_of_session_spread_points")
+                        .map(|d| (k.clone(), d))
+                })
+                .collect::<Result<_, _>>()?,
         };
+        if macro_day.release_time <= macro_day.entry_time {
+            return Err("macro_day: la entrada tiene que ser antes de la hora del dato".into());
+        }
+        if macro_day.out_of_session_spread <= Decimal::ZERO
+            || macro_day
+                .descriptive_out_of_session_spread
+                .values()
+                .any(|d| *d <= Decimal::ZERO)
+        {
+            return Err("macro_day: los spreads tienen que ser mayores que 0".into());
+        }
         for (t, name) in [
             (pre_fomc.entry_time, "pre_fomc.entry_time"),
             (macro_day.entry_time, "macro_day.entry_time"),
+            (macro_day.release_time, "macro_day.release_time"),
         ] {
             if !t.minute().is_multiple_of(15) || t.second() != 0 {
                 return Err(format!("{name} tiene que caer en una vela de 15 minutos"));
