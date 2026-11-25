@@ -1,8 +1,8 @@
-# Programa 4: pre-registro (borrador). Reglas de Gianluca Bruni en el CFD US100
+# Programa 4: pre-registro. Reglas de Gianluca Bruni en el CFD US100
 
-> **Estado: borrador, no congelado.** Issue #561 · 25-11-2026 · escrito por un agente de IA (Claude Code) para que lo revise el dueño.
+> **Estado: CONGELADO el 25-11-2026 03:59 UTC** (Issue #561). Escrito por un agente de IA (Claude Code); decisiones del dueño en §13. Su SHA-256 está en `2026-11-programa-4-preregistro.md.sha256` y en el PR que lo congela.
 >
-> Mientras sea borrador **no se corre nada** con estas reglas y **no se mira ningún resultado**. Se congela recién cuando el dueño cierre los "Puntos abiertos antes de congelar" (§12): congelar es commitear este archivo con su fecha y hora y su SHA-256 (en un `.sha256` al lado y en el PR), antes de que corra ningún código con estas reglas. Cambiar algo después de correr invalida la hipótesis y cuenta como una prueba nueva.
+> Antes de congelar solo se corrió lo que el dueño autorizó y **ningún resultado de la estrategia**: la calibración de k (§5.1, imprime solo q y k) y el conteo de señales por año (decisión 14, sin P/L). Cambiar algo de acá después de correr invalida la hipótesis y cuenta como una prueba nueva.
 >
 > Base: el informe `docs/research/2026-11-gianluca-bruni.md` y el análisis del video `docs/research/videos/2026-11-25-emre-vs-gianluca.md`. Método y formato: el pre-registro del programa Nasdaq (`2026-11-programa-nasdaq-preregistro.md`) y el de la ronda 2 (`2026-11-ronda2-preregistro.md`).
 
@@ -21,7 +21,7 @@ Nada de esto es una recomendación de operar. Los resultados pasados no prometen
 | Reserva | Candidata: "saltear la operación que sigue a una pérdida" (§8) | 1,25 %, sin gastar |
 
 - **La reserva no se gasta en variantes** de H4.1–H4.3 (otros umbrales, otros objetivos, otros horarios). Solo se puede usar con un pre-registro nuevo y fechado, como se hizo con la reserva del programa 2.
-- **Cantidad de pruebas para el Sharpe deflactado:** el N del registro **al congelar**. Hoy es **356** (`config/research.toml`, `[rule_nasdaq]`). Si se congelan H4.1–H4.3 y nada más se congela antes, **N = 359** (360 si el programa 3 se congela primero, 360 o 361 si además se asigna la reserva). Referencia con N = 100 y N = 1000, sin voto.
+- **Cantidad de pruebas para el Sharpe deflactado:** el N del registro **al congelar**. Antes era **356** (`config/research.toml`, `[rule_nasdaq]`). Al congelar se suman H4.1, H4.2 y H4.3 (el programa 3 no se congeló y la reserva no se asignó): **N = 359** (`[rule_program4]`). Referencia con N = 100 y N = 1000, sin voto.
 - **Ojo con el total del proyecto:** el programa 3 (#513, borrador) también pide un 5 % propio. Si los dos siguen vivos, la tasa total de falsos positivos del proyecto sube (punto abierto 1).
 - Para escribir este borrador **no se leyó ningún precio ni ninguna fila de la base.**
 
@@ -136,7 +136,7 @@ Corto: espejo exacto (velas bajistas, estructura bajista, stop en el máximo de 
 
 Todo lo demás (estructura, entrada, stop, 1,5 R, gestión, riesgo) es idéntico a H4.1.
 
-### 5.1 Cómo se fija k sin mirar resultados (propuesta)
+### 5.1 Cómo se fija k sin mirar resultados
 
 **Propuesta principal: k "equivalente" a los 15 puntos en la época en que Bruni los eligió.**
 
@@ -152,7 +152,9 @@ Todo lo demás (estructura, entrada, stop, 1,5 R, gestión, riesgo) es idéntico
 
 **Alternativa (si el dueño prefiere no mirar nada):** k = **0,5** fijado a priori (un cuerpo de al menos medio ATR, un umbral redondo y habitual para "vela de impulso"). Es más simple y totalmente ciego, pero no está atado a lo que dijo Bruni.
 
-La elección es el punto abierto 2.
+La elección era el punto abierto 2: el dueño eligió la propuesta principal (§13, decisión 2).
+
+**k fijado: k = 0,35.** Calculado con `programa_4_k` (`engine/crates/backtest/examples/programa_4_k.rs`, commiteado antes de correr) el 25-11-2026 a las 03:58 UTC, con la definición de §13.2: 6.360 velas de la sesión de contado de 01-11-2024 → 31-10-2025; **q = 0,574057** (el 57,4 % de las velas tiene cuerpo ≥ 15 puntos); el cuantil 1 − q de cuerpo / ATR, redondeado al 0,05 más cercano, da **0,35**. La salida completa va en el PR del congelado. Ningún otro número se miró.
 
 ## 6. H4.3 Estrategia C ("de campeonato")
 
@@ -356,3 +358,26 @@ Se escriben **antes** de correr nada y no cambian ninguna regla de arriba; solo 
 - **Calibración de k (§5.1):** velas de la sesión de contado (empiezan en o después de la apertura y terminan en o antes del cierre) que empiezan en 01-11-2024 → 31-10-2025; para cada vela, cuerpo / ATR de la vela **anterior** (contigua, del mismo tramo de contrato; es el ATR que §5 usa para la primera vela del impulso). q = proporción con cuerpo ≥ 15 puntos; k = el cuantil (1 − q) de los cocientes con la definición de la inversa de la distribución empírica (el valor ordenado número ⌈(1 − q)·n⌉, mínimo 1); redondeo al múltiplo de 0,05 más cercano (las mitades, hacia arriba).
 - **Señales para el conteo (decisión 14):** cada vela `t` que cumple todas las condiciones de la señal, con la decisión dentro de la validación concatenada (01-02-2013 → 01-11-2025), antes de la regla de una posición a la vez y antes del módulo de riesgo.
 - **Test de suerte (§7.2):** generador **SplitMix64** (Steele, Lea y Flood, 2014) con semilla 20261125, un solo flujo para las 1.000 simulaciones en orden. Índice uniforme en [0, n) = (x · n) >> 64 con x de 64 bits; número en [0, 1) = (x >> 11) / 2⁵³. Por simulación y por sesión con `n` operaciones reales: se sortean `n` velas de ejecución distintas entre las permitidas de esa sesión (las mismas condiciones de la vela de ejecución de arriba, con la decisión permitida en la vela anterior), se ordenan y se simulan en orden; una vela que cae antes de la salida de la operación anterior de la misma simulación se descarta (esa simulación tiene una operación menos). Cada operación sorteada usa, en orden, la distancia de stop en puntos (|E − S|) de la operación real con que se empareja, la dirección larga si el número en [0, 1) es menor que la proporción de largos de la estrategia, 1,5 R, la gestión de §2.4 (`simulate_leg`) y los costos de `fill_price`. Se compara el **R neto medio** y el **retorno total** con 1 % de riesgo por operación (∏(1 + 0,01 · R neto) − 1) de la estrategia, medidos igual, contra los de las simulaciones (percentil = porcentaje de simulaciones con un valor menor). No vota.
+
+### 13.3 Conteo de señales antes de congelar (decisión 14)
+
+Corrido con `programa_4_conteo` el 25-11-2026 a las 03:58 UTC (US100, velas hasta el 01-11-2025, el fuera de muestra no se cargó), con k = 0,35. Señales según §13.2: antes de la regla de una posición a la vez y del módulo de riesgo. **Sin P/L ni ningún resultado.** Días sin señales: 59 de roll y 118 con comunicado programado del FOMC.
+
+| Año | H4.1 (15 puntos) | H4.2 (0,35 × ATR) |
+|---|---|---|
+| 2013 | 0 | 158 |
+| 2014 | 0 | 197 |
+| 2015 | 0 | 214 |
+| 2016 | 2 | 181 |
+| 2017 | 4 | 185 |
+| 2018 | 63 | 225 |
+| 2019 | 23 | 175 |
+| 2020 | 126 | 219 |
+| 2021 | 115 | 187 |
+| 2022 | 220 | 224 |
+| 2023 | 139 | 208 |
+| 2024 | 177 | 212 |
+| 2025 (hasta octubre) | 139 | 149 |
+| **Total** | **1.008** | **2.534** |
+
+Las dos superan las 100 señales: se congela. Como avisaba §4, H4.1 casi no tiene señales antes de 2018 (15 puntos fijos eran mucho cuando el NQ valía 3.000), así que su primera mitad (02-2013 → 12-2020) va a tener pocas operaciones; el criterio de las mitades queda igual (decisión 3).

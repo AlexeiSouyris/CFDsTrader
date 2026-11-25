@@ -5,13 +5,17 @@
 //!
 //! ```text
 //! DATABASE_URL=...?options=-c%20default_transaction_read_only%3Don \
-//! cargo run --release -p cfds-backtest --example programa_4_k [-- US100]
+//! cargo run --release -p cfds-backtest --example programa_4_k -- \
+//!     US100 --escenario-financiacion EUR=<archivo.csv>
 //! ```
+//! El escenario de financiación solo lo pide la preparación común; k no lo usa.
 
 #[path = "common/news_filter.rs"]
 mod news_filter;
 #[path = "common/prepare.rs"]
 mod prepare;
+#[path = "common/study.rs"]
+mod study;
 
 use cfds_backtest::research::ResearchConfig;
 use cfds_backtest::research::program4::{body_atr_sample, equivalent_k, segment_atr};
@@ -28,9 +32,10 @@ macro_rules! cfg {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let id: InstrumentId = std::env::args()
-        .nth(1)
-        .unwrap_or_else(|| "US100".to_owned())
+    let (study, positional) = study::parse(std::env::args().skip(1).collect())?;
+    let id: InstrumentId = positional
+        .first()
+        .ok_or("uso: US100 --escenario-financiacion <ETIQUETA>=<csv>")?
         .parse()?;
     let cfg = ResearchConfig::from_toml(cfg!("research.toml"))?.program4;
     let utc = |d: chrono::NaiveDate| -> Result<DateTime<Utc>, String> {
@@ -48,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Decimal::from(100_000),
         None,
         true,
-        None,
+        study,
     )
     .await?;
     if p.m15.last().is_some_and(|c| c.start >= to) {

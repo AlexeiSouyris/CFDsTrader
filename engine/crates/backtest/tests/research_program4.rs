@@ -452,6 +452,7 @@ fn the_program_4_rule_is_read_from_config() {
     let p = c.program4;
     assert_eq!((p.atr_period, p.min_valid_in_zone), (14, 3));
     assert_eq!((p.body_points, p.target_r), (dec!(15), dec!(1.5)));
+    assert_eq!(p.body_atr_k, Some(dec!(0.35)));
     assert_eq!(
         (
             p.last_entry_minutes_before_close,

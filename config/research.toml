@@ -171,6 +171,10 @@ atr_period = 14
 min_valid_in_zone = 3
 # H4.1: cuerpo mínimo de las dos velas del impulso, en puntos (60 ticks del NQ).
 body_points = "15"
+# H4.2: cuerpo mínimo = k × ATR(14) de 15m de la vela anterior al impulso. k calibrado (§5.1) con
+# `programa_4_k` el 25-11-2026 03:58 UTC: 6360 velas de sesión en 11-2024 → 10-2025, q = 0,574057
+# (cuerpo ≥ 15 puntos), cuantil 1 − q de cuerpo / ATR redondeado a 0,05.
+body_atr_k = "0.35"
 # Objetivo: 1,5 R.
 target_r = "1.5"
 # La vela de ejecución empieza antes del cierre de la sesión menos 30 minutos.
