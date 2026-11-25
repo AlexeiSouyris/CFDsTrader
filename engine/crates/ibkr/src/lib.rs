@@ -19,11 +19,13 @@
 //! guardas. Nada del motor que decide usa esas velas.
 //!
 //! Como fuente de datos (#536), [`load`] planea la carga incremental de velas cerradas; el
-//! ejemplo `ibkr_load` las guarda en `ibkr_bars` (`ibkr_bar.v1`).
+//! ejemplo `ibkr_load` las guarda en `ibkr_bars` (`ibkr_bar.v1`). [`health`] cuenta las corridas
+//! en que IBKR no responde y avisa una vez cuando la carga se traba y otra cuando vuelve (#607).
 
 pub mod account;
 pub mod client;
 pub mod config;
+pub mod health;
 pub mod live;
 pub mod live_feed;
 pub mod load;

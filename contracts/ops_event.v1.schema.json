@@ -19,7 +19,7 @@
       "pattern": "^[a-z_]{1,32}$"
     },
     "event": {
-      "description": "Nombre del evento, por ejemplo order_report, kill_switch, alert, startup_reconcile.",
+      "description": "Nombre del evento, por ejemplo order_report, kill_switch, alert, startup_reconcile, o los de la carga de IBKR (#607): ibkr_stalled (target alert, nivel error: IBKR no responde hace demasiado) e ibkr_recovered (target ibkr_load, nivel info: volvió a responder), con el texto para la persona en fields.message.",
       "type": "string",
       "minLength": 1,
       "maxLength": 64

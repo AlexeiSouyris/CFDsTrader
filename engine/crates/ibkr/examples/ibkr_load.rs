@@ -28,16 +28,23 @@
 //!
 //! Salida: 0 bien; 1 error; 2 kill switch; 3 IBKR avisó violación de ritmo (pacing): se paró;
 //! 4 una vela no coincide con sus velas de 1m guardadas: no se guardó.
+//!
+//! **Aviso de carga trabada (#607):** con `--run`, cada corrida anota si IBKR respondió (con o sin
+//! velas) o no (tiempo agotado, conexión) en el archivo de `[load_health].state_file`. Cuando una
+//! serie lleva demasiado sin respuesta (`[load_health]`), guarda **una vez** un evento en
+//! `ops_events` (lo muestra la app en Operación) y manda una notificación de macOS; cuando IBKR
+//! vuelve a responder, otra vez cada uno. Los errores de la base o de la configuración no cuentan.
 
 use std::process::ExitCode;
 
 use cfds_core::InstrumentId;
+use cfds_ibkr::health::{self, RunOutcome, Transition};
 use cfds_ibkr::load::{
     Coherence, Compare, Ohlc, OnError, check_against_minutes, check_storable, classify,
     closed_until, complete_prefix, resume_from, windows,
 };
 use cfds_ibkr::{BarSize, ContractChoice, IbkrConfig, RawBar, SessionError, WhatToShow, connect};
-use cfds_storage::{IbkrBarRow, IbkrSeries, PgStore, StorageError};
+use cfds_storage::{IbkrBarRow, IbkrSeries, OpsEventRecord, PgStore, StorageError};
 use chrono::{DateTime, Utc};
 
 const CONFIG: &str = include_str!("../../../../config/ibkr.toml");
@@ -104,13 +111,138 @@ fn arg(args: &[String], flag: &str) -> Option<String> {
     args.get(i + 1).cloned()
 }
 
+/// Raíz del repo (el ejemplo se compila adentro del repo; el cron corre desde `engine/`).
+const REPO_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../..");
+
 #[tokio::main]
 async fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let run = args.iter().any(|a| a == "--run");
+    let (code, outcome) = load(&args, run).await;
+    if let (true, Some(outcome), Some(series)) = (run, outcome, series_name(&args)) {
+        record_health(&series, &outcome).await;
+    }
+    code
+}
+
+/// "MNQ 1m": el nombre de la serie para la racha.
+fn series_name(args: &[String]) -> Option<String> {
+    let id = args.first()?.parse::<InstrumentId>().ok()?;
+    let size = args.get(1)?.parse::<BarSize>().ok()?;
+    Some(format!("{id} {}", size.as_str()))
+}
+
+/// Suma la corrida a la racha y, si empezó o terminó un corte, avisa una vez (#607). Nunca cambia
+/// la salida de la carga: si algo de esto falla, lo dice y sigue.
+async fn record_health(series: &str, outcome: &RunOutcome) {
+    let Ok(Some(cfg)) = IbkrConfig::from_toml(CONFIG).map(|c| c.load_health) else {
+        return;
+    };
+    let path = std::path::Path::new(REPO_ROOT).join(&cfg.state_file);
+    let (state, problem) = health::read_state(&path);
+    if let Some(p) = problem {
+        eprintln!(
+            "aviso de carga trabada: no se leyó {} ({p}); la racha empieza de nuevo",
+            path.display()
+        );
+    }
+    let now = Utc::now();
+    let (next, transition) = health::step(&state, series, outcome, now, &cfg);
+    if let Err(e) = health::write_state(&path, &next) {
+        eprintln!(
+            "aviso de carga trabada: no se guardó {}: {e}",
+            path.display()
+        );
+    }
+    let mut fields = serde_json::Map::new();
+    let (level, target, event, message) = match transition {
+        Transition::None => return,
+        Transition::Stalled {
+            since,
+            series,
+            failures,
+            error,
+        } => {
+            fields.insert("since".into(), since.to_rfc3339().into());
+            fields.insert("series".into(), series.join(", ").into());
+            fields.insert("failures".into(), failures.into());
+            fields.insert("error".into(), error.into());
+            (
+                "error",
+                "alert",
+                "ibkr_stalled",
+                health::stalled_message(since, now),
+            )
+        }
+        Transition::Recovered { since } => {
+            fields.insert("since".into(), since.to_rfc3339().into());
+            (
+                "info",
+                "ibkr_load",
+                "ibkr_recovered",
+                health::recovered_message(since, now),
+            )
+        }
+    };
+    // `message` primero: es lo que muestra la app.
+    let mut ordered = serde_json::Map::new();
+    ordered.insert("message".into(), message.clone().into());
+    ordered.extend(fields);
+    eprintln!("AVISO {event}: {message}");
+    if cfg.notify_macos {
+        notify_macos("CFDsTrader", &message);
+    }
+    let record = OpsEventRecord {
+        ts: now,
+        level: level.into(),
+        target: target.into(),
+        event: event.into(),
+        fields: ordered,
+    };
+    let saved = match std::env::var("DATABASE_URL") {
+        Err(_) => Err("falta DATABASE_URL".to_owned()),
+        Ok(url) => match PgStore::connect(&url).await {
+            Err(e) => Err(e.to_string()),
+            Ok(store) => store
+                .insert_ops_events(&[record])
+                .await
+                .map(|_| ())
+                .map_err(|e| e.to_string()),
+        },
+    };
+    if let Err(e) = saved {
+        eprintln!("aviso de carga trabada: no se guardó el evento en ops_events: {e}");
+    }
+}
+
+/// Notificación de macOS con `osascript`. El texto va como argumento (no dentro del script), así
+/// ninguna comilla lo rompe. Fuera de macOS no hace nada.
+fn notify_macos(title: &str, message: &str) {
+    if !cfg!(target_os = "macos") {
+        return;
+    }
+    let status = std::process::Command::new("/usr/bin/osascript")
+        .args([
+            "-e",
+            "on run argv",
+            "-e",
+            "display notification (item 1 of argv) with title (item 2 of argv)",
+            "-e",
+            "end run",
+            message,
+            title,
+        ])
+        .status();
+    if !matches!(status, Ok(s) if s.success()) {
+        eprintln!("aviso de carga trabada: no salió la notificación de macOS ({status:?})");
+    }
+}
+
+/// La carga. Devuelve la salida y, si se llegó a hablar con IBKR, si respondió o no (#607).
+async fn load(args: &[String], run: bool) -> (ExitCode, Option<RunOutcome>) {
     let mut cfg = match IbkrConfig::from_toml(CONFIG) {
         Ok(c) => c,
-        Err(e) => return fail(e),
+        Err(e) => return (fail(e), None),
     };
     if let Some(id) = std::env::var("IBKR_CLIENT_ID")
         .ok()
@@ -122,19 +254,22 @@ async fn main() -> ExitCode {
         args.first().and_then(|s| s.parse::<InstrumentId>().ok()),
         args.get(1).and_then(|s| s.parse::<BarSize>().ok()),
     ) else {
-        return fail("uso: ibkr_load ID TAMAÑO [--month AAAAMM] [--from RFC3339] [--run]");
+        return (
+            fail("uso: ibkr_load ID TAMAÑO [--month AAAAMM] [--from RFC3339] [--run]"),
+            None,
+        );
     };
     let Some(spec) = cfg.instrument(&id).cloned() else {
-        return fail(format!("{id} no está en config/ibkr.toml"));
+        return (fail(format!("{id} no está en config/ibkr.toml")), None);
     };
     if let Err(e) = check_storable(spec.kind, size) {
-        return fail(format!("{id} {}: {e}", size.as_str()));
+        return (fail(format!("{id} {}: {e}", size.as_str())), None);
     }
-    let choice = arg(&args, "--month").map_or(ContractChoice::Front, ContractChoice::Month);
-    let from_arg = match arg(&args, "--from").map(|s| s.parse::<DateTime<Utc>>()) {
+    let choice = arg(args, "--month").map_or(ContractChoice::Front, ContractChoice::Month);
+    let from_arg = match arg(args, "--from").map(|s| s.parse::<DateTime<Utc>>()) {
         None => None,
         Some(Ok(t)) => Some(t),
-        Some(Err(e)) => return fail(format!("--from: {e}")),
+        Some(Err(e)) => return (fail(format!("--from: {e}")), None),
     };
     let what = match spec.what_to_show.unwrap_or(cfg.what_to_show) {
         WhatToShow::Trades => "TRADES",
@@ -142,31 +277,33 @@ async fn main() -> ExitCode {
     };
     let load = cfg.load.clone();
     let Some(window) = load.window(size) else {
-        return fail("tamaño sin ventana de carga");
+        return (fail("tamaño sin ventana de carga"), None);
     };
     let Ok(url) = std::env::var("DATABASE_URL") else {
-        return fail("falta DATABASE_URL");
+        return (fail("falta DATABASE_URL"), None);
     };
     let store = match PgStore::connect(&url).await {
         Ok(s) => s,
-        Err(e) => return fail(e),
+        Err(e) => return (fail(e), None),
     };
 
     let session = match connect(cfg, |k| std::env::var(k).ok()).await {
         Ok(s) => s,
-        Err(e) => return fail(e),
+        Err(e) => return (fail(&e), health::connect_outcome(&e)),
     };
     let now = Utc::now();
     // Qué contrato es y desde cuándo tiene datos IBKR.
     let (contract, head) = match session.head_timestamp(&id, choice.clone(), now).await {
         Ok(h) => h,
-        Err(SessionError::KillSwitch(t)) => {
-            eprintln!("KILL SWITCH ({}): {}", t.kind.as_str(), t.reason);
-            return ExitCode::from(2);
+        Err(e @ SessionError::KillSwitch(_)) => {
+            if let SessionError::KillSwitch(t) = &e {
+                eprintln!("KILL SWITCH ({}): {}", t.kind.as_str(), t.reason);
+            }
+            return (ExitCode::from(2), health::session_outcome(&e));
         }
         Err(e) => {
             session.close().await;
-            return fail(format!("{id}: {e}"));
+            return (fail(format!("{id}: {e}")), health::session_outcome(&e));
         }
     };
     let series = IbkrSeries {
@@ -180,7 +317,7 @@ async fn main() -> ExitCode {
         Ok(l) => l,
         Err(e) => {
             session.close().await;
-            return fail(e);
+            return (fail(e), Some(RunOutcome::Answered));
         }
     };
     let from = resume_from(
@@ -204,11 +341,13 @@ async fn main() -> ExitCode {
     if !run {
         println!("sin --run: no se pide ni se guarda nada");
         session.close().await;
-        return ExitCode::SUCCESS;
+        return (ExitCode::SUCCESS, Some(RunOutcome::Answered));
     }
 
     let (mut inserted, mut unchanged) = (0, 0);
     let mut code = ExitCode::SUCCESS;
+    // IBKR ya respondió el primer pedido (head_timestamp); un pedido de velas puede cambiarlo.
+    let mut outcome = RunOutcome::Answered;
     for (i, (a, b)) in plan.iter().enumerate() {
         if i > 0 {
             tokio::time::sleep(load.pause).await;
@@ -218,9 +357,11 @@ async fn main() -> ExitCode {
             .await
         {
             Ok(g) => g,
-            Err(SessionError::KillSwitch(t)) => {
-                eprintln!("KILL SWITCH ({}): {}", t.kind.as_str(), t.reason);
-                return ExitCode::from(2);
+            Err(e @ SessionError::KillSwitch(_)) => {
+                if let SessionError::KillSwitch(t) = &e {
+                    eprintln!("KILL SWITCH ({}): {}", t.kind.as_str(), t.reason);
+                }
+                return (ExitCode::from(2), health::session_outcome(&e));
             }
             Err(e) => match classify(&e) {
                 OnError::Empty => {
@@ -234,6 +375,9 @@ async fn main() -> ExitCode {
                 }
                 OnError::Stop => {
                     eprintln!("{id}: {e}");
+                    if let Some(o) = health::session_outcome(&e) {
+                        outcome = o;
+                    }
                     code = ExitCode::from(1);
                     break;
                 }
@@ -330,5 +474,5 @@ async fn main() -> ExitCode {
     }
     println!("total: {inserted} nuevas, {unchanged} ya estaban");
     session.close().await;
-    code
+    (code, Some(outcome))
 }

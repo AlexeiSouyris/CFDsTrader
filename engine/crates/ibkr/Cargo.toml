@@ -10,12 +10,14 @@ publish.workspace = true
 cfds-core = { version = "0.1.0", path = "../core" }
 cfds-market-data = { version = "0.1.0", path = "../market-data" }
 cfds-obs = { version = "0.1.0", path = "../obs" }
-chrono = { version = "0.4.45", default-features = false, features = ["std", "clock"] }
+chrono = { version = "0.4.45", default-features = false, features = ["std", "clock", "serde"] }
 # Crate de la comunidad (MIT), no oficial de IBKR. Versión exacta: revisar su código antes de subirla
 # (ADR 0017 §3). Solo el cliente async; el módulo de órdenes no se usa en ningún lado (ver tests).
 ibapi = { version = "=5.7.0", default-features = false, features = ["async"] }
 rust_decimal = "1.43.0"
 serde = { version = "1.0.229", features = ["derive"] }
+# Solo para el archivo de la racha del aviso de carga trabada (#607).
+serde_json = "1.0.154"
 thiserror = "2.0.21"
 time = "0.3.47"
 tokio = { version = "1.54.1", features = ["rt", "time", "sync", "macros"] }

@@ -314,6 +314,7 @@ Algunas cargas de datos corren solas en el Mac mini, a horario, con `cron` (el p
 | COT (posiciones de los grandes operadores en futuros) | sábados, 10:07 |
 | Análogos históricos con las velas de los futuros (lo que muestra el Panel) | días hábiles, 22:40 |
 | Estados emocionales del mercado (lo que muestra el Panel) | días hábiles, 22:50 |
+| Velas de IBKR (`ibkr_load`: MNQ, MES y QQQ en 1m, 15m y 1h). **Si IBKR deja de responder** durante 30 minutos o más (por ejemplo, después del reinicio nocturno de IB Gateway), avisa **una vez** con una notificación del Mac y una alerta en el Panel: "IBKR no responde hace 35 min: reiniciá IB Gateway". Cuando vuelve a responder, avisa otra vez. Mercado cerrado no es un corte: una respuesta sin velas es normal. Umbrales en `[load_health]` de `config/ibkr.toml` (#607) | cada 5 minutos |
 | Limpieza de los eventos de operación viejos (`ops_events`): borra los de más de 30 días (`[ops] retention_days` en `config/gateway.toml`) | todos los días, 03:15 |
 
 **Falta agregar:**
