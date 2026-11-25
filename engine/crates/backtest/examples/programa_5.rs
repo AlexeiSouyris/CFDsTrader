@@ -86,7 +86,21 @@ async fn period(
         )
         .await?
         .ok_or("sin velas de futuros")?;
-    let split = cfds_market_data::plan(load_from(), last, split_cfg)?;
+    // Como `research_round::load`: la separación parte de la primera vela cargada (no del
+    // pedido), así las ventanas son las mismas que en H5.2 y en los programas anteriores.
+    let first = store
+        .futures_candles(
+            &sources.futures_source,
+            id,
+            Timeframe::M15,
+            load_from(),
+            load_from() + chrono::TimeDelta::days(31),
+        )
+        .await?
+        .first()
+        .map(|c| c.start)
+        .ok_or("sin velas al inicio")?;
+    let split = cfds_market_data::plan(first, last, split_cfg)?;
     Ok((split.windows[0].validation.start, split.out_of_sample.start))
 }
 
