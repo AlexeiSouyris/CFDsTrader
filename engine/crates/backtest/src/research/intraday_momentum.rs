@@ -99,5 +99,6 @@ fn momentum_day(
         risk_atr: a,
         exit_index,
         target_r: None,
+        target_cap: None,
     })
 }
