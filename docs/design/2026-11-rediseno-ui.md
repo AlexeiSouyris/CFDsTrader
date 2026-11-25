@@ -95,6 +95,27 @@ sus hashes de siempre, para no romper enlaces ni tests); `#noticias` suma el con
 **Trofeos**. Las pestañas principales (`MAIN_TABS`) pasan a ser Inicio · Terminal · Gráficos ·
 Investigación, y el gesto del trackpad sigue funcionando entre ellas.
 
+**Qué va en cada barra (#618, decisión de ingeniería reversible).** Regla: **toda vista a dos
+toques como máximo**, en escritorio y en el celular, y ninguna barra que se desplace de costado.
+
+| Lugar | Qué muestra | Cómo se llega a lo demás |
+|---|---|---|
+| Barra lateral (escritorio, ≥ 768 px) | las 8 secciones del mapa (`NAV_SECTIONS`) y «Más vistas» | «Más vistas» → la vista |
+| Barra de abajo (celular) | las 4 pestañas principales (`BAR_VIEWS` = `MAIN_TABS`) y «Más» | «Más» → la vista |
+| «Todas las vistas» (`views-menu.tsx`) | cada sección con sus vistas de adentro: Panel bajo Inicio, Multigráfico bajo Gráficos, Performance, Propuestas, Liquidez y Glosario bajo Investigación (`MENU_GROUPS`) | — |
+| Paleta ⌘K | vistas, instrumentos, timeframe, capas, tema | también desde «Todas las vistas» → «Buscar» |
+
+- **Por qué no todas en la barra de abajo:** 8 secciones no entran en 375 px con su nombre. Con
+  desplazamiento, la mitad quedaba escondida sin aviso, y axe las marcaba como `skip-link`.
+- **Por qué «Más» no abre la paleta:** en el teléfono la paleta sube el teclado y tapa la lista.
+  «Todas las vistas» es una lista sin campo de texto, y desde ahí se puede ir a buscar.
+- **Si la vista abierta no está en la barra** (por ejemplo, Noticias en el celular), «Más» queda
+  marcado.
+- **Atajos de una sola vista**, que siguen igual: el índice de Investigación, el enlace
+  Multigráfico en Gráficos y las puertas del Inicio.
+- **Para volver atrás:** las secciones y la barra de abajo son listas en `views/nav.ts`. Cambiar
+  `BAR_VIEWS` o `NAV_SECTIONS` no toca nada más.
+
 ### 2.2 Cada sección y su porqué
 
 **Inicio (hub) — vidrio.** Es la única pantalla "de vidrio" completa, porque es la que el dueño

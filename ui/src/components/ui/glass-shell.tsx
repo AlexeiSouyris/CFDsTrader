@@ -41,6 +41,7 @@ import { useDismiss } from '@/lib/floating'
 import { focusInstrument, focusTimeframe, OPEN_SEARCH_EVENT } from '@/lib/terminal-focus'
 import { useChartTools } from '@/lib/use-chart-tools'
 import { cn } from '@/lib/utils'
+import { ViewsMenu, type MenuGroup } from '@/components/ui/views-menu'
 
 export type ShellView = {
   id: string
@@ -57,6 +58,8 @@ export function GlassShell({
   brand = 'CFDsTrader',
   views,
   nav = views,
+  bar = nav,
+  menu,
   home = views[0].id,
   tabs = [],
   active,
@@ -76,6 +79,10 @@ export function GlassShell({
   views: ShellView[]
   /** las secciones de la barra lateral y la del celular (las demás vistas, en la paleta) */
   nav?: ShellView[]
+  /** las de la barra de abajo del celular (#618): pocas, para que entren sin desplazarse */
+  bar?: ShellView[]
+  /** "Todas las vistas" (#618): cada sección con las vistas de adentro; lo abre "Más" */
+  menu?: MenuGroup[]
   /** la sección de la vista abierta: la que se marca en la navegación */
   section?: string
   /** la vista de inicio: a la que lleva el logo */
@@ -98,6 +105,9 @@ export function GlassShell({
 }) {
   const [popover, setPopover] = useState<Popover>(null)
   const [searching, setSearching] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  // sin menú, "Más" abre la paleta (que también lista las vistas)
+  const openMore = () => (menu ? setMenuOpen(true) : setSearching(true))
   const [seen, setSeen] = useState(false)
   const current = heading ?? views.find((v) => v.id === active) ?? views[0]
   const homeLabel = views.find((v) => v.id === home)?.label ?? home
@@ -277,7 +287,14 @@ export function GlassShell({
       </header>
 
       <div className="relative mt-3 flex flex-1 gap-3">
-        <Dock views={nav} active={active} section={section} onSelect={onSelect} side />
+        <Dock
+          views={nav}
+          active={active}
+          section={section}
+          onSelect={onSelect}
+          onMore={menu ? openMore : undefined}
+          side
+        />
         <main
           id="contenido"
           tabIndex={-1}
@@ -306,13 +323,25 @@ export function GlassShell({
           </p>
         </main>
       </div>
-      <Dock
-        views={nav}
-        active={active}
-        section={section}
-        onSelect={onSelect}
-        onMore={() => setSearching(true)}
-      />
+      <Dock views={bar} active={active} section={section} onSelect={onSelect} onMore={openMore} />
+
+      {menuOpen && menu && (
+        <ViewsMenu
+          groups={menu}
+          active={active}
+          section={section}
+          onClose={() => setMenuOpen(false)}
+          onSelect={(id) => {
+            setMenuOpen(false)
+            onSelect(id)
+          }}
+          onSearch={() => {
+            setMenuOpen(false)
+            // después de que el menú devuelve el foco a "Más": la paleta lo toma desde ahí
+            window.setTimeout(() => setSearching(true), 0)
+          }}
+        />
+      )}
 
       {searching && (
         <CommandPalette
@@ -506,54 +535,40 @@ function Dock({
   /** la sección de la vista abierta: se marca aunque la vista sea una de adentro */
   section?: string
   onSelect: (id: string) => void
-  /** en el celular: abre la lista completa de vistas (el buscador) */
+  /** abre "Todas las vistas" (#618) */
   onMore?: () => void
   side?: boolean
 }) {
-  // En el teléfono la barra se desplaza en horizontal: la vista activa se trae a la vista, si no
-  // al llegar por el buscador o el deslizamiento quedaba fuera de la barra (#415).
-  const bar = useRef<HTMLElement>(null)
-  // hay más vistas a un costado: ese borde se desvanece (#579), así se nota que la barra se desliza
-  const [more, setMore] = useState({ left: false, right: false })
-  useEffect(() => {
-    const nav = bar.current
-    const on = nav?.querySelector<HTMLElement>('[aria-current]')
-    if (side || !nav || !on || nav.scrollWidth <= nav.clientWidth) return
-    const left = on.offsetLeft - (nav.clientWidth - on.offsetWidth) / 2
-    nav.scrollTo?.({ left: Math.max(0, left) })
-  }, [section, side])
-  useEffect(() => {
-    const nav = bar.current
-    if (side || !nav) return
-    const update = () => {
-      const left = nav.scrollLeft > 1
-      const right = nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 1
-      setMore((p) => (p.left === left && p.right === right ? p : { left, right }))
-    }
-    update()
-    nav.addEventListener('scroll', update, { passive: true })
-    window.addEventListener('resize', update)
-    return () => {
-      nav.removeEventListener('scroll', update)
-      window.removeEventListener('resize', update)
-    }
-  }, [side])
-  const mask =
-    more.left || more.right
-      ? `linear-gradient(to right, ${more.left ? 'transparent' : '#000'}, #000 24px, #000 calc(100% - 24px), ${more.right ? 'transparent' : '#000'})`
-      : undefined
+  // la vista abierta no está en esta barra (por ejemplo Noticias en la de abajo): se marca "Más"
+  const elsewhere = !views.some((v) => v.id === section)
+  const more = onMore && (
+    <button
+      type="button"
+      aria-label={elsewhere ? 'Más vistas (la abierta está ahí)' : 'Más vistas'}
+      title="Todas las vistas"
+      onClick={onMore}
+      className={cn(
+        'flex min-h-11 shrink-0 items-center justify-center gap-1 rounded-full text-[10px] font-bold transition-colors',
+        side ? 'size-11' : 'min-w-[56px] flex-col px-2 py-1',
+        elsewhere
+          ? 'bg-primary text-primary-foreground'
+          : 'hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]',
+      )}
+    >
+      <Ellipsis className="size-[17px]" aria-hidden="true" />
+      {!side && <span>Más</span>}
+    </button>
+  )
 
   const links = (
     <nav
-      ref={bar}
       aria-label={side ? 'Accesos' : 'Vistas'}
       className={cn(
         'flex gap-1',
         side
           ? 'glass sticky top-6 z-20 hidden h-fit flex-col self-start rounded-full p-1.5 md:flex'
-          : 'min-w-0 flex-1 justify-between overflow-x-auto [scrollbar-width:none]',
+          : 'min-w-0 flex-1 justify-between',
       )}
-      style={side ? undefined : { maskImage: mask, WebkitMaskImage: mask }}
     >
       {views.map(({ id, label, short, icon: Icon }) => {
         const on = id === section
@@ -571,9 +586,7 @@ function Dock({
             }}
             className={cn(
               'flex min-h-11 items-center justify-center gap-1 rounded-full text-[10px] font-bold transition-colors',
-              side
-                ? 'size-11'
-                : 'min-w-[60px] flex-[1_0_auto] flex-col px-2 py-1 whitespace-nowrap',
+              side ? 'size-11' : 'min-w-0 flex-1 flex-col px-1 py-1 whitespace-nowrap',
               on
                 ? 'bg-primary text-primary-foreground'
                 : 'hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]',
@@ -584,22 +597,16 @@ function Dock({
           </a>
         )
       })}
+      {side && more && <span aria-hidden className="mx-2.5 h-px bg-border" />}
+      {side && more}
     </nav>
   )
   if (side) return links
+  // en el celular: las pestañas principales y "Más", sin desplazarse (#618)
   return (
     <div className="glass fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-20 flex items-stretch gap-1 rounded-full p-1.5 md:hidden">
       {links}
-      <button
-        type="button"
-        aria-label="Más vistas"
-        title="Todas las vistas"
-        onClick={onMore}
-        className="flex min-h-11 min-w-[52px] shrink-0 flex-col items-center justify-center gap-1 rounded-full border-l border-border px-2 py-1 text-[10px] font-bold hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
-      >
-        <Ellipsis className="size-[17px]" aria-hidden="true" />
-        <span>Más</span>
-      </button>
+      {more}
     </div>
   )
 }
