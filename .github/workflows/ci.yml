@@ -214,7 +214,6 @@ jobs:
           path: |
             ui/e2e/__screenshots__/
             ui/playwright-report/
-            ui/test-results/
           retention-days: 7
 
   # Las tablas generadas (registro de módulos y índice de contratos) tienen que estar al día (#669).

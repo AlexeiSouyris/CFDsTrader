@@ -20,7 +20,8 @@ export default defineConfig({
     timezoneId: 'UTC',
     reducedMotion: 'reduce',
     serviceWorkers: 'block',
-    trace: 'retain-on-failure',
+    // en el CI sin trazas: el artefacto queda chico (las diferencias de las capturas van en el informe)
+    trace: process.env.CI ? 'off' : 'retain-on-failure',
   },
   projects: [{ name: 'chromium' }],
   webServer: {
