@@ -6,6 +6,7 @@
  * vista de `GET /api/v1/liquidity` (`contracts/liquidity_view.v1`), que se vuelve a pedir cada
  * minuto. Sin velas guardadas muestra "sin datos todavía".
  */
+import { StaleNote } from '@/components/ui/data-honesty'
 import { createContext, useContext, useState, type ReactNode } from 'react'
 
 import { LiquidityChart } from '@/components/ui/liquidity-chart'
@@ -197,7 +198,8 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
     <div className="grid gap-3">
       <p className="text-[11.5px] text-muted-foreground">
         Datos del motor al {dateTimeUtc(data.as_of)} · {data.candles.length}{' '}
-        {TF_TEXT[tf][data.candles.length === 1 ? 0 : 1]} · fuente: <strong>{source}</strong>
+        {TF_TEXT[tf][data.candles.length === 1 ? 0 : 1]} · fuente: <strong>{source}</strong>{' '}
+        <StaleNote at={data.as_of} />
       </p>
       {futures && (
         <p role="note" className="text-[12px] text-muted-foreground">

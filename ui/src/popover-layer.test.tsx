@@ -5,6 +5,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { exampleChart } from '@/test/example-chart'
 import { FLOATING_Z, placeFloating } from '@/lib/floating'
 import { MultichartView } from '@/views/multichart'
 
@@ -22,9 +23,10 @@ describe('capa de popovers (#570)', () => {
   afterEach(() => localStorage.clear())
 
   for (const layout of ['1', '2', '2v', '4'] as const) {
-    it(`el menú Herramientas se dibuja en la capa superior, fuera de las tarjetas (distribución ${layout})`, () => {
+    it(`el menú Herramientas se dibuja en la capa superior, fuera de las tarjetas (distribución ${layout})`, async () => {
       localStorage.setItem(KEY, JSON.stringify({ layout, active: 0 }))
       render(<MultichartView />)
+      await exampleChart()
       const menu = openTools()
       // en un portal a body: ninguna tarjeta `.glass` (con su contexto de apilamiento) lo contiene
       expect(menu.parentElement).toBe(document.body)
@@ -35,8 +37,9 @@ describe('capa de popovers (#570)', () => {
     })
   }
 
-  it('se cierra con un clic afuera y con Esc (el foco vuelve al botón)', () => {
+  it('se cierra con un clic afuera y con Esc (el foco vuelve al botón)', async () => {
     render(<MultichartView />)
+    await exampleChart()
     openTools()
     fireEvent.pointerDown(slots()[0])
     expect(screen.queryByRole('dialog', { name: 'Herramientas de análisis' })).toBeNull()
@@ -50,8 +53,9 @@ describe('capa de popovers (#570)', () => {
     expect(within(bar()).getByRole('button', { name: /Herramientas/ })).toHaveFocus()
   })
 
-  it('la definición de un término también va en la capa, y tocarla no cierra el menú', () => {
+  it('la definición de un término también va en la capa, y tocarla no cierra el menú', async () => {
     render(<MultichartView />)
+    await exampleChart()
     const menu = openTools()
     fireEvent.click(within(menu).getByRole('button', { name: 'Precio de fondo' }))
     const def = screen.getByRole('dialog', { name: 'Precio de fondo' })

@@ -6,6 +6,7 @@
  * motor no manda niveles ni FVG para ellas y no se inventan.
  */
 import type { ChartMode } from '@/components/ui/chart-measure'
+import { ExampleNotice } from '@/components/ui/data-honesty'
 import type { DrawTool } from '@/lib/chart-drawings'
 import type { CursorSync } from '@/lib/cursor-sync'
 import { LiquidityChart } from '@/components/ui/liquidity-chart'
@@ -53,12 +54,14 @@ export function SlotChart({
       >
         {slot.loading
           ? `Pidiendo ${sel.instrument} (${sel.timeframe}) ${ibkrSel ? 'de IBKR' : 'al motor'}…`
-          : ibkrSel
-            ? `Sin velas de IBKR de ${sel.instrument} en ${sel.timeframe}: el gateway no respondió o todavía no las tiene.`
-            : `Sin velas de ${sel.instrument} en ${sel.timeframe}: el gateway no respondió o todavía no las tiene.`}
+          : slot.offline
+            ? `Sin velas de ${sel.instrument} en ${sel.timeframe}: el gateway no respondió.`
+            : ibkrSel
+              ? `IBKR todavía no tiene velas de ${sel.instrument} en ${sel.timeframe}.`
+              : `El motor todavía no tiene velas de ${sel.instrument} en ${sel.timeframe}.`}
       </p>
     )
-  return (
+  const chart = (
     <LiquidityChart
       key={`${sel.feed ?? ''}|${sel.instrument}|${sel.timeframe}`}
       instrument={ibkr?.instrument_id ?? view?.instrument_id ?? sel.instrument}
@@ -84,5 +87,13 @@ export function SlotChart({
       onDrawToolChange={onDraw}
       syncCursor={syncCursor}
     />
+  )
+  if (slot.source !== 'ejemplo') return chart
+  // ejemplo solo sin gateway (#577): con el sello a la vista, nunca como si fuera del motor
+  return (
+    <div className="grid gap-2" data-example>
+      <ExampleNotice>Velas inventadas: el gateway no respondió.</ExampleNotice>
+      {chart}
+    </div>
   )
 }

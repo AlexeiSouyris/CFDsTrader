@@ -267,9 +267,9 @@ export function GlassShell({
             className="mt-8 rounded-xl border border-border px-3 py-2 text-[11px] text-muted-foreground"
           >
             Prototipo en <strong className="text-foreground">simulación (paper)</strong>: muestra lo
-            que guardó el motor y, donde el gateway no responde, datos de ejemplo. La interfaz no
-            calcula nada ni envía órdenes reales. Nada de lo que se ve acá es una señal real ni una
-            promesa de ganancia.
+            que guardó el motor. Lo que todavía no tiene datos del motor lleva el sello EJEMPLO. La
+            interfaz no calcula nada ni envía órdenes reales. Nada de lo que se ve acá es una señal
+            real ni una promesa de ganancia.
           </p>
         </main>
       </div>

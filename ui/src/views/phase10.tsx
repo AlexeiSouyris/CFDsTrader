@@ -1,12 +1,14 @@
 /**
  * Vistas del adelanto de la fase 10 (#171): propuestas, fondo y glosario.
  * Datos de ejemplo de `mocks/` y definiciones de `docs/GLOSARIO.md`; el fondo llega del motor por el
- * gateway (#312) y, sin gateway, es el de ejemplo. Nada se calcula acá.
+ * gateway (#312) y, sin gateway, es el de ejemplo. Nada se calcula acá. Lo que es de ejemplo lleva
+ * el sello "EJEMPLO" (#577).
  */
 import { ScrollRegion } from '@/components/ui/scroll-region'
 import { Search } from 'lucide-react'
 import { useDeferredValue, useState, type ReactNode } from 'react'
 
+import { ExampleBadge, ExampleNotice } from '@/components/ui/data-honesty'
 import { ProposalCard } from '@/components/ui/proposal-card'
 import { Term } from '@/components/ui/term'
 import { dateTimeUtc, decimal, isNegative, signed } from '@/lib/format'
@@ -23,12 +25,17 @@ export function ProposalsView({ member }: { member: Member }) {
         El motor propone; el responsable aprueba o rechaza antes de que venza (10 minutos). Cada
         propuesta ya pasó por el módulo de riesgo.
       </p>
+      <ExampleNotice className="max-w-2xl">
+        Propuestas de ejemplo: el motor todavía no las publica acá, así que no se pueden aprobar.
+      </ExampleNotice>
       {PROPOSALS.length === 0 ? (
         <p className="glass rounded-[20px] p-6 text-center text-[13px] text-muted-foreground">
           No hay propuestas esperando.
         </p>
       ) : (
-        PROPOSALS.map((p) => <ProposalCard key={p.proposal.id} item={p} canApprove={canApprove} />)
+        PROPOSALS.map((p) => (
+          <ProposalCard key={p.proposal.id} item={p} canApprove={canApprove} example />
+        ))
       )}
     </div>
   )
@@ -45,6 +52,12 @@ export function FundView() {
   const { summary: f, movements, live, loading } = useFund()
   const cur = currencySign(f.currency)
   const origin = live ? 'del motor' : loading ? 'pidiendo al motor…' : '(ejemplo)'
+  const originMark =
+    live || loading ? (
+      <span className="text-[11px] font-semibold text-muted-foreground">{origin}</span>
+    ) : (
+      <ExampleBadge />
+    )
   const stat = (label: ReactNode, value: string, detail: string) => (
     <div className="glass relative flex min-h-28 min-w-0 flex-col justify-between gap-2 rounded-[20px] p-4">
       <span className="text-[11px] leading-tight font-bold text-muted-foreground">{label}</span>
@@ -83,9 +96,9 @@ export function FundView() {
       </div>
 
       <section className="glass relative min-w-0 rounded-[20px] p-4">
-        <h2 className="mb-3 flex flex-wrap items-baseline gap-x-2 text-[14px] font-bold">
+        <h2 className="mb-3 flex flex-wrap items-center gap-x-2 text-[14px] font-bold">
           Cada miembro: <Term id="unidades">unidades</Term> y <Term id="pl">P&amp;L</Term>{' '}
-          <span className="text-[11px] font-semibold text-muted-foreground">{origin}</span>
+          {originMark}
         </h2>
         {f.members.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border px-3 py-2.5 text-[12.5px] text-muted-foreground">
@@ -131,9 +144,8 @@ export function FundView() {
       </section>
 
       <section className="glass min-w-0 rounded-[20px] p-4">
-        <h2 className="text-[14px] font-bold">
-          Historial{' '}
-          <span className="text-[11px] font-semibold text-muted-foreground">{origin}</span>
+        <h2 className="flex flex-wrap items-center gap-2 text-[14px] font-bold">
+          Historial {originMark}
         </h2>
         <p className="mb-3 text-[11px] text-muted-foreground">
           Movimientos ya liquidados. Las cuentas de cada miembro salen de este registro, que no se
@@ -179,34 +191,40 @@ export function FundView() {
         )}
       </section>
 
-      <section className="glass rounded-[20px] p-4">
-        <h2 className="text-[14px] font-bold">
-          Movimientos pendientes{' '}
-          <span className="text-[11px] font-semibold text-muted-foreground">(ejemplo)</span>
-        </h2>
-        <p className="mb-3 text-[11px] text-muted-foreground">
-          Se hacen el lunes, antes de la apertura europea, al valor de la unidad del cierre del
-          viernes. El motor todavía no publica los pedidos pendientes: esto es de ejemplo.
+      {live ? (
+        <p className="px-1 text-[11.5px] text-muted-foreground">
+          Movimientos pendientes: el motor todavía no publica los pedidos del lunes, así que no se
+          muestran.
         </p>
-        <ul className="grid gap-2">
-          {FUND.moves.map((mv) => (
-            <li
-              key={mv.id}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-border px-3 py-2 text-[12px]"
-            >
-              <span className="font-semibold">{mv.member.name}</span>
-              <span className={mv.kind === 'aporte' ? 'text-up' : 'text-down'}>{mv.kind}</span>
-              <span className="tabular-nums">{decimal(mv.amount)} €</span>
-              <span className="text-muted-foreground tabular-nums">
-                {decimal(mv.units)} unidades a {decimal(mv.nav)} €
-              </span>
-              <span className="text-muted-foreground tabular-nums sm:ml-auto">
-                {dateTimeUtc(mv.at)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      ) : (
+        <section className="glass rounded-[20px] p-4" data-example>
+          <h2 className="flex flex-wrap items-center gap-2 text-[14px] font-bold">
+            Movimientos pendientes <ExampleBadge />
+          </h2>
+          <p className="mb-3 text-[11px] text-muted-foreground">
+            Se hacen el lunes, antes de la apertura europea, al valor de la unidad del cierre del
+            viernes. El motor todavía no publica los pedidos pendientes: esto es de ejemplo.
+          </p>
+          <ul className="grid gap-2">
+            {FUND.moves.map((mv) => (
+              <li
+                key={mv.id}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-border px-3 py-2 text-[12px]"
+              >
+                <span className="font-semibold">{mv.member.name}</span>
+                <span className={mv.kind === 'aporte' ? 'text-up' : 'text-down'}>{mv.kind}</span>
+                <span className="tabular-nums">{decimal(mv.amount)} €</span>
+                <span className="text-muted-foreground tabular-nums">
+                  {decimal(mv.units)} unidades a {decimal(mv.nav)} €
+                </span>
+                <span className="text-muted-foreground tabular-nums sm:ml-auto">
+                  {dateTimeUtc(mv.at)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   )
 }

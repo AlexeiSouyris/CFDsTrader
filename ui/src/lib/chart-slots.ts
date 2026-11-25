@@ -81,6 +81,8 @@ export type SlotData = {
   loading: boolean
   /** de dónde salen las velas que se ven; `null` si no hay */
   source: 'motor' | 'ejemplo' | 'ibkr' | null
+  /** el gateway no respondió (distinto de responder sin velas, #577) */
+  offline: boolean
   /** la vista de liquidez (velas, niveles, FVG, `analysis`); `null` con IBKR o sin velas */
   view: LiquidityViewData | null
   /** la respuesta de IBKR, con su serie (contrato); `null` si el lugar no es de IBKR o no hay */
@@ -97,9 +99,10 @@ export type SlotData = {
 }
 
 /**
- * Las velas de un lugar: las del motor o, sin gateway, las de ejemplo de US100 en 15 m; con IBKR,
- * las de IBKR (sin ejemplo). Con `enabled` en falso (un lugar que la distribución no muestra) no se
- * pide nada.
+ * Las velas de un lugar: las del motor o, solo si el gateway no respondió, las de ejemplo de US100
+ * en 15 m; con IBKR, las de IBKR (sin ejemplo). Si el gateway responde sin velas, el lugar queda
+ * vacío: nunca se muestra el ejemplo como si fuera del motor (#577). Con `enabled` en falso (un
+ * lugar que la distribución no muestra) no se pide nada.
  */
 export function useChartSlot(sel: ChartSel, enabled = true): SlotData {
   const ibkrSel = sel.feed === 'ibkr'
@@ -133,6 +136,7 @@ export function useChartSlot(sel: ChartSel, enabled = true): SlotData {
       sel,
       loading: remoteIbkr.status === 'loading',
       source: data ? 'ibkr' : null,
+      offline: remoteIbkr.status === 'error',
       view: null,
       ibkr: data,
       bars: merged.bars,
@@ -143,8 +147,9 @@ export function useChartSlot(sel: ChartSel, enabled = true): SlotData {
           : undefined,
     }
   }
+  const offline = remote.status === 'error'
   const example =
-    sel.instrument === LIQUIDITY_US100.instrument_id && sel.timeframe === '15m'
+    offline && sel.instrument === LIQUIDITY_US100.instrument_id && sel.timeframe === '15m'
       ? LIQUIDITY_US100
       : null
   const live: LiquidityViewData | null =
@@ -154,6 +159,7 @@ export function useChartSlot(sel: ChartSel, enabled = true): SlotData {
     sel,
     loading: remote.status === 'loading',
     source: live ? 'motor' : example ? 'ejemplo' : null,
+    offline,
     view: data,
     ibkr: null,
     bars: data ? chartBars(data) : [],

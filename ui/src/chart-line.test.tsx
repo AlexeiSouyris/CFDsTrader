@@ -2,12 +2,11 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { closeAt, rangeTrend } from '@/components/ui/chart-measure'
-import { DepthChart } from '@/components/ui/depth-chart'
 import { LiquidityChart } from '@/components/ui/liquidity-chart'
 import { TradingChart } from '@/components/ui/trading-chart'
 import { dateTimeUtc, decimal } from '@/lib/format'
 import { chartBars } from '@/lib/liquidity-bars'
-import { LIQUIDITY_US100 as DATA, US100_1H, US100_BOOK, type PriceBar } from '@/mocks'
+import { LIQUIDITY_US100 as DATA, US100_1H, type PriceBar } from '@/mocks'
 
 // jsdom no tiene layout: el SVG mide lo que dibuja (720 de ancho, 1:1), como en el navegador.
 const box = (height: number) =>
@@ -282,34 +281,5 @@ describe('gráficos más fluidos y modo línea (#377)', () => {
     const to = container.querySelector('[data-measure-point="to"]')!
     expect(Number(to.getAttribute('cx'))).toBeCloseTo(xOf(30), 6)
     expect(frames).toHaveLength(0)
-  })
-})
-
-describe('profundidad: la sonda se mueve sin volver a dibujar el gráfico (#377)', () => {
-  afterEach(() => vi.restoreAllMocks())
-
-  it('sigue al cursor, marca compras o ventas y se va al salir', () => {
-    vi.spyOn(SVGElement.prototype, 'getBoundingClientRect').mockReturnValue({
-      left: 0,
-      top: 0,
-      x: 0,
-      y: 0,
-      width: 560,
-      height: 260,
-      right: 560,
-      bottom: 260,
-      toJSON: () => ({}),
-    } as DOMRect)
-    const { container } = render(<DepthChart instrument="US100" book={US100_BOOK} />)
-    const svg = screen.getByRole('img', { name: /Profundidad de US100/ })
-    const probe = () => container.querySelector('[data-depth-probe]')
-    expect(probe()).toBeNull()
-    fireEvent.pointerMove(svg, { clientX: 120, clientY: 100 })
-    expect(probe()).toHaveAttribute('data-depth-probe', 'bid')
-    fireEvent.pointerMove(svg, { clientX: 440, clientY: 100 })
-    expect(probe()).toHaveAttribute('data-depth-probe', 'ask')
-    expect(Number(probe()!.getAttribute('data-x'))).toBe(440)
-    fireEvent.pointerLeave(svg)
-    expect(probe()).toBeNull()
   })
 })

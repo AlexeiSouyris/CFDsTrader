@@ -89,14 +89,30 @@ describe('propuestas', () => {
   })
 
   it('solo el responsable aprueba, y es una maqueta', () => {
-    const { unmount } = render(<ProposalsView member={MEMBERS[1]} />)
+    const fresh = {
+      ...PROPOSALS[0],
+      extras: { ...PROPOSALS[0].extras, expiresAt: new Date(Date.now() + 600_000).toISOString() },
+    }
+    const { unmount } = render(<ProposalCard item={fresh} canApprove={false} />)
     expect(screen.queryByRole('button', { name: /Aprobar/ })).not.toBeInTheDocument()
-    expect(screen.getAllByText(/Solo el responsable/).length).toBe(PROPOSALS.length)
+    expect(screen.getByText(/Solo el responsable/)).toBeInTheDocument()
     unmount()
+    render(<ProposalCard item={fresh} canApprove />)
+    const card = screen.getByRole('article', { name: 'Propuesta US100 largo' })
+    fireEvent.click(within(card).getByRole('button', { name: /Aprobar/ }))
+    expect(within(card).getByRole('status')).toHaveTextContent('no se envió nada')
+  })
+
+  it('las de ejemplo llevan el sello EJEMPLO, sin vencimiento ni botones (#577)', () => {
     render(<ProposalsView member={MEMBERS[0]} />)
-    const first = screen.getByRole('article', { name: 'Propuesta US100 largo' })
-    fireEvent.click(within(first).getByRole('button', { name: /Aprobar/ }))
-    expect(within(first).getByRole('status')).toHaveTextContent('no se envió nada')
+    const cards = screen.getAllByRole('article')
+    expect(cards).toHaveLength(PROPOSALS.length)
+    for (const card of cards) {
+      expect(within(card).getByText('EJEMPLO')).toBeInTheDocument()
+      expect(within(card).queryByText(/vence en/)).toBeNull()
+      expect(within(card).getByText(/no se puede aprobar ni rechazar/)).toBeInTheDocument()
+    }
+    expect(screen.queryByRole('button', { name: /Aprobar|Rechazar/ })).toBeNull()
   })
 
   it('una propuesta vencida no se puede aprobar', () => {
