@@ -1,10 +1,11 @@
-"""Calendario histórico oficial (ADR 0016, #520): comunicados del FOMC de federalreserve.gov.
+"""Calendario histórico oficial (ADR 0016): comunicados del FOMC de federalreserve.gov (#520) y
+CPI y empleo del BLS desde las páginas que el dueño guardó a mano (#608).
 
 Aparte de Forex Factory (`cfds_intel.calendar`, ADR 0010): otra fuente, otro contrato
-(`official_release.v1`) y otra tabla (`official_releases`). El CPI y el empleo del BLS se suman
-acá, en la misma tabla, cuando el dueño elija la forma de acceso (ADR 0016 §1.3).
+(`official_release.v1`) y otra tabla (`official_releases`).
 """
 
+from cfds_intel.calendar.official.bls import BlsResult, build_bls, load_bls
 from cfds_intel.calendar.official.fed import FedResult, load_fed
 from cfds_intel.calendar.official.model import (
     OfficialCalendarConfig,
@@ -14,10 +15,13 @@ from cfds_intel.calendar.official.model import (
 )
 
 __all__ = [
+    "BlsResult",
     "FedResult",
     "OfficialCalendarConfig",
     "OfficialCalendarError",
     "OfficialRelease",
+    "build_bls",
+    "load_bls",
     "load_config",
     "load_fed",
 ]

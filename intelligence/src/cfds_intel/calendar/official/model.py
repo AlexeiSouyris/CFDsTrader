@@ -1,6 +1,6 @@
 """Fila de `contracts/official_release.v1` y configuración del calendario oficial (ADR 0016).
 
-La fila es genérica (FOMC hoy; CPI y empleo del BLS después) y se valida al crearse con las
+La fila es genérica (FOMC, CPI y empleo del BLS) y se valida al crearse con las
 mismas reglas que el contrato y la tabla `official_releases`: así un error se ve antes de
 pedir la base.
 """
@@ -133,11 +133,43 @@ class FedConfig:
 
 
 @dataclass(frozen=True)
+class Lapse:
+    """Corte de fondos (lapse in appropriations): días sin publicaciones del BLS."""
+
+    start: date  # primer día sin fondos
+    end: date  # último día sin fondos
+
+
+@dataclass(frozen=True)
+class BlsNotice:
+    """Página del BLS con las fechas revisadas por un corte de fondos (guardada a mano)."""
+
+    url: str
+
+
+@dataclass(frozen=True)
+class BlsConfig:
+    """CPI y empleo del BLS desde las páginas que el dueño guardó a mano (ADR 0016 §1.3)."""
+
+    raw_dir: str
+    first_year: int
+    last_year: int
+    year_url: str
+    release_time: time
+    time_rule: str
+    notice_time_rule: str
+    tz: ZoneInfo
+    notices: tuple[BlsNotice, ...]
+    lapses: tuple[Lapse, ...]
+
+
+@dataclass(frozen=True)
 class OfficialCalendarConfig:
     user_agent: str
     timeout_secs: int
     pause_secs: float
     fed: FedConfig
+    bls: BlsConfig | None = None
 
 
 def _int(raw: dict[str, Any], key: str, where: str) -> int:
@@ -196,10 +228,89 @@ def _announcement(raw: Any, i: int, prefix: str) -> Announcement:
     return Announcement(url, tuple(years))
 
 
+def _bls(raw: Any) -> BlsConfig:
+    if not isinstance(raw, dict):
+        raise OfficialCalendarError("[bls] no es una tabla")
+    keys = {
+        "raw_dir",
+        "first_year",
+        "last_year",
+        "year_url",
+        "release_time",
+        "time_rule",
+        "notice_time_rule",
+        "timezone",
+        "notices",
+        "lapses",
+    }
+    unknown = set(raw) - keys
+    if unknown:
+        raise OfficialCalendarError(f"bls: claves desconocidas {sorted(unknown)}")
+    raw_dir = raw.get("raw_dir")
+    if not (isinstance(raw_dir, str) and raw_dir.strip()):
+        raise OfficialCalendarError("bls.raw_dir tiene que ser una carpeta")
+    first, last = _int(raw, "first_year", "bls"), _int(raw, "last_year", "bls")
+    if not 2000 <= first <= last:
+        raise OfficialCalendarError("bls: años inválidos")
+    year_url = _https(raw, "year_url", "bls")
+    if "{year}" not in year_url:
+        raise OfficialCalendarError("bls.year_url tiene que llevar {year}")
+    at = raw.get("release_time")
+    if not (isinstance(at, str) and _HHMM.match(at)):
+        raise OfficialCalendarError(f"bls.release_time tiene que ser HH:MM: {at!r}")
+    rules: list[str] = []
+    for key in ("time_rule", "notice_time_rule"):
+        r = raw.get(key)
+        if not (isinstance(r, str) and _RULE_NAME.match(r)) or r == RELEASE_PAGE:
+            raise OfficialCalendarError(f"bls.{key}: nombre de regla inválido {r!r}")
+        rules.append(r)
+    try:
+        tz = ZoneInfo(str(raw.get("timezone")))
+    except (ZoneInfoNotFoundError, ValueError) as e:
+        raise OfficialCalendarError(f"bls.timezone desconocida: {raw.get('timezone')!r}") from e
+    notices, lapses = raw.get("notices"), raw.get("lapses")
+    if not isinstance(notices, list) or not notices:
+        raise OfficialCalendarError("faltan [[bls.notices]]")
+    if not isinstance(lapses, list) or not lapses:
+        raise OfficialCalendarError("faltan [[bls.lapses]]")
+    parsed_notices = []
+    for i, n in enumerate(notices):
+        if not isinstance(n, dict) or set(n) != {"url"}:
+            raise OfficialCalendarError(f"bls.notices[{i}]: tiene que tener solo url")
+        parsed_notices.append(BlsNotice(_https(n, "url", f"bls.notices[{i}]")))
+    parsed_lapses = []
+    for i, lp in enumerate(lapses):
+        where = f"bls.lapses[{i}]"
+        if not isinstance(lp, dict) or set(lp) != {"start", "end", "source"}:
+            raise OfficialCalendarError(f"{where}: tiene que tener start, end y source")
+        if not (isinstance(lp["source"], str) and lp["source"].strip()):
+            raise OfficialCalendarError(f"{where}.source: todo corte cita su fuente")
+        try:
+            start, end = date.fromisoformat(lp["start"]), date.fromisoformat(lp["end"])
+        except (TypeError, ValueError) as e:
+            raise OfficialCalendarError(f"{where}: start y end tienen que ser AAAA-MM-DD") from e
+        if start > end:
+            raise OfficialCalendarError(f"{where}: start posterior a end")
+        parsed_lapses.append(Lapse(start, end))
+    parsed_lapses.sort(key=lambda lp: lp.start)
+    return BlsConfig(
+        raw_dir=raw_dir,
+        first_year=first,
+        last_year=last,
+        year_url=year_url,
+        release_time=time.fromisoformat(at),
+        time_rule=rules[0],
+        notice_time_rule=rules[1],
+        tz=tz,
+        notices=tuple(parsed_notices),
+        lapses=tuple(parsed_lapses),
+    )
+
+
 def load_config(text: str) -> OfficialCalendarConfig:
     """Lee `config/official_calendar.toml` y lo valida."""
     raw = tomllib.loads(text)
-    unknown = set(raw) - {"client", "fed"}
+    unknown = set(raw) - {"client", "fed", "bls"}
     if unknown:
         raise OfficialCalendarError(f"secciones desconocidas: {sorted(unknown)}")
     client, fed = raw.get("client", {}), raw.get("fed", {})
@@ -252,4 +363,5 @@ def load_config(text: str) -> OfficialCalendarConfig:
             time_rules=tuple(_rule(r, i) for i, r in enumerate(rules)),
             announcements=tuple(_announcement(a, i, prefix) for i, a in enumerate(anns)),
         ),
+        bls=_bls(raw["bls"]) if "bls" in raw else None,
     )
