@@ -198,6 +198,43 @@ describe('estado de la operación (#314)', () => {
     expect(items[1]).not.toHaveTextContent('×')
   })
 
+  it('la carga de IBKR trabada se ve como alerta, en palabras simples (#607)', async () => {
+    gateway(READY, [
+      {
+        ts: '2026-11-25T10:40:00Z',
+        level: 'info',
+        target: 'ibkr_load',
+        event: 'ibkr_recovered',
+        fields: {
+          message: 'IBKR volvió a responder después de 5 h 5 min sin datos.',
+          since: '2026-11-25T05:35:00Z',
+        },
+      },
+      {
+        ts: '2026-11-25T06:10:00Z',
+        level: 'error',
+        target: 'alert',
+        event: 'ibkr_stalled',
+        fields: {
+          message: 'IBKR no responde hace 35 min: reiniciá IB Gateway.',
+          since: '2026-11-25T05:35:00Z',
+          series: 'MNQ 1m',
+          failures: 7,
+          error: 'IBKR rechazó el pedido: timed out before the request ended',
+        },
+      },
+    ])
+    render(<OperationView />)
+    const list = await screen.findByRole('list', { name: 'Eventos y alertas' })
+    const items = within(list).getAllByRole('listitem')
+    expect(items[0]).toHaveTextContent('IBKR responde de nuevo')
+    expect(items[0]).toHaveTextContent('volvió a responder después de 5 h 5 min')
+    expect(items[1]).toHaveTextContent('IBKR sin respuesta')
+    expect(items[1]).toHaveTextContent('IBKR no responde hace 35 min: reiniciá IB Gateway.')
+    expect(items[1]).toHaveAttribute('data-level', 'error')
+    expect(items[1]).toHaveClass('bg-down/5')
+  })
+
   it('sin eventos o sin gateway lo dice', async () => {
     gateway(READY, [])
     const { unmount } = render(<OperationView />)

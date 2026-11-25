@@ -59,6 +59,23 @@ window_1h_hours = 720
 # (#563). Entre 60 y 7200.
 data_delay_secs = 900
 
+[load_health]
+# Aviso de carga trabada (#607). Cuenta solo los pedidos que FALLAN porque IBKR no responde (tiempo
+# agotado, conexión cortada, IB Gateway apagado). Una respuesta sin velas (mercado cerrado, pausa
+# diaria de CME, fin de semana) es una respuesta: no suma. Por serie (instrumento + tamaño).
+# Se avisa una vez cuando una serie lleva al menos min_failures corridas fallidas seguidas Y
+# stall_minutes desde el primer fallo, y una vez cuando IBKR vuelve a responder. Con el cron cada
+# 5 minutos: aviso entre 30 y 35 minutos después del primer fallo.
+min_failures = 6
+stall_minutes = 30
+# Una racha sin corridas nuevas durante esto se olvida (una serie que se sacó del cron no deja el
+# aviso prendido). Más que stall_minutes y como mucho 168.
+forget_after_hours = 6
+# Notificación de macOS (osascript) al empezar y al terminar un corte. Fuera de macOS no hace nada.
+notify_macos = true
+# Dónde se guarda la racha entre corridas, relativo a la raíz del repo (logs/ no se commitea).
+state_file = "logs/ibkr_load_health.json"
+
 [live]
 # Precios por streaming para la vela en formación de la terminal de la app (#558). SOLO VISUAL: ningún
 # indicador, patrón, señal ni estrategia usa esa vela. La conexión la abre el gateway solo con

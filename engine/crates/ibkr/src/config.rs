@@ -82,6 +82,8 @@ pub struct IbkrConfig {
     pub source: String,
     pub instruments: Vec<FutureSpec>,
     pub load: crate::load::LoadConfig,
+    /// `[load_health]`: cuándo avisar que la carga se trabó (#607). `None` si no está.
+    pub load_health: Option<crate::health::HealthConfig>,
     /// `[live]`: precios por streaming para la vela en formación (#558). `None` si no está.
     pub live: Option<LiveConfig>,
 }
@@ -112,6 +114,8 @@ struct Raw {
     history: RawHistory,
     load: RawLoad,
     #[serde(default)]
+    load_health: Option<RawHealth>,
+    #[serde(default)]
     live: Option<RawLive>,
     instruments: Vec<RawInstrument>,
 }
@@ -139,6 +143,60 @@ struct RawLoad {
     window_15m_hours: u32,
     window_1h_hours: u32,
     data_delay_secs: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawHealth {
+    min_failures: u32,
+    stall_minutes: u32,
+    forget_after_hours: u32,
+    notify_macos: bool,
+    state_file: String,
+}
+
+/// Valida `[load_health]` (#607).
+fn parse_health(h: RawHealth) -> Result<crate::health::HealthConfig, IbkrConfigError> {
+    if !(2..=100).contains(&h.min_failures) {
+        return Err(invalid(
+            "load_health.min_failures",
+            "tiene que estar entre 2 y 100",
+        ));
+    }
+    if !(5..=1440).contains(&h.stall_minutes) {
+        return Err(invalid(
+            "load_health.stall_minutes",
+            "tiene que estar entre 5 y 1440",
+        ));
+    }
+    let stall = chrono::TimeDelta::minutes(i64::from(h.stall_minutes));
+    let forget_after = chrono::TimeDelta::hours(i64::from(h.forget_after_hours));
+    if h.forget_after_hours > 168 || forget_after <= stall {
+        return Err(invalid(
+            "load_health.forget_after_hours",
+            "tiene que ser más que stall_minutes y como mucho 168",
+        ));
+    }
+    let path = std::path::Path::new(&h.state_file);
+    if h.state_file.is_empty()
+        || path.is_absolute()
+        || path
+            .components()
+            .any(|c| !matches!(c, std::path::Component::Normal(_)))
+        || path.extension().is_none_or(|e| e != "json")
+    {
+        return Err(invalid(
+            "load_health.state_file",
+            "ruta relativa a la raíz del repo, sin '..', terminada en .json",
+        ));
+    }
+    Ok(crate::health::HealthConfig {
+        min_failures: h.min_failures,
+        stall,
+        forget_after,
+        notify_macos: h.notify_macos,
+        state_file: h.state_file,
+    })
 }
 
 #[derive(Deserialize)]
@@ -462,8 +520,10 @@ impl IbkrConfig {
             None => None,
             Some(l) => Some(parse_live(l, g.client_id, &instruments)?),
         };
+        let load_health = r.load_health.map(parse_health).transpose()?;
         Ok(Self {
             load,
+            load_health,
             live,
             host: g.host,
             port: g.port,

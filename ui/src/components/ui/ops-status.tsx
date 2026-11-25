@@ -189,6 +189,8 @@ const EVENT_LABEL: Record<string, string> = {
   shutdown: 'Parada',
   instrument_skipped: 'Instrumento omitido',
   connection_error: 'Error de conexión',
+  ibkr_stalled: 'IBKR sin respuesta',
+  ibkr_recovered: 'IBKR responde de nuevo',
 }
 
 /**

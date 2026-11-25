@@ -570,3 +570,61 @@ fn live_config_is_validated() {
     let without = format!("{}{}", &CONFIG[..start], &CONFIG[end..]);
     assert_eq!(IbkrConfig::from_toml(&without).unwrap().live, None);
 }
+
+// ---- [load_health]: aviso de carga trabada (#607) ----
+
+#[test]
+fn load_health_config_is_validated() {
+    let h = cfg()
+        .load_health
+        .expect("config/ibkr.toml tiene [load_health]");
+    assert_eq!(h.min_failures, 6);
+    assert_eq!(h.stall, chrono::TimeDelta::minutes(30));
+    assert_eq!(h.state_file, "logs/ibkr_load_health.json");
+    let bad = |from: &str, to: &str| {
+        let text = CONFIG.replace(from, to);
+        assert_ne!(text, CONFIG, "{from:?} no está en config/ibkr.toml");
+        IbkrConfig::from_toml(&text).unwrap_err()
+    };
+    let field = |e: IbkrConfigError| match e {
+        IbkrConfigError::Invalid { field, .. } => field,
+        other => panic!("se esperaba Invalid: {other:?}"),
+    };
+    assert_eq!(
+        field(bad("min_failures = 6", "min_failures = 1")),
+        "load_health.min_failures"
+    );
+    assert_eq!(
+        field(bad("stall_minutes = 30", "stall_minutes = 0")),
+        "load_health.stall_minutes"
+    );
+    // Olvidar una racha antes de que pueda avisar no se acepta.
+    assert_eq!(
+        field(bad("stall_minutes = 30", "stall_minutes = 600")),
+        "load_health.forget_after_hours"
+    );
+    for to in [
+        r#"state_file = "/tmp/h.json""#,
+        r#"state_file = "../h.json""#,
+        r#"state_file = "logs/h.txt""#,
+        r#"state_file = """#,
+    ] {
+        assert_eq!(
+            field(bad(r#"state_file = "logs/ibkr_load_health.json""#, to)),
+            "load_health.state_file"
+        );
+    }
+    // Un campo inventado tampoco.
+    assert!(matches!(
+        bad(
+            "notify_macos = true",
+            "notify_macos = true\nnotify_sms = true"
+        ),
+        IbkrConfigError::Parse(_)
+    ));
+    // Sin [load_health], la carga sigue andando sin aviso.
+    let start = CONFIG.find("[load_health]").unwrap();
+    let end = start + CONFIG[start..].find("[live]").unwrap();
+    let without = format!("{}{}", &CONFIG[..start], &CONFIG[end..]);
+    assert_eq!(IbkrConfig::from_toml(&without).unwrap().load_health, None);
+}
