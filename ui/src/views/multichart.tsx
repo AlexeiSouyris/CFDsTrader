@@ -16,8 +16,22 @@
  * encabezado mínimo (instrumento, timeframe y último cierre tal cual llega del motor), y los
  * controles del gráfico activo (niveles, rango y herramientas) pasan a la barra de arriba. Con un
  * solo gráfico hay lugar de sobra: se ve completo, con su cabecera, controles y leyenda.
+ *
+ * Dibujos (#543): la barra de dibujo suma línea horizontal, línea de tendencia y rectángulo sobre
+ * el gráfico activo, y un botón para borrar todos los dibujos de su instrumento. Se guardan en el
+ * navegador por instrumento y son solo visuales: no generan señales ni órdenes.
  */
-import { CandlestickChart, LineChart, MousePointer2, Ruler, type LucideIcon } from 'lucide-react'
+import {
+  CandlestickChart,
+  LineChart,
+  Minus,
+  MousePointer2,
+  RectangleHorizontal,
+  Ruler,
+  Slash,
+  Trash2,
+  type LucideIcon,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import type { ChartMode } from '@/components/ui/chart-measure'
@@ -33,6 +47,7 @@ import { SlotChart } from '@/components/ui/chart-slot'
 import { ChartToolsMenu } from '@/components/ui/chart-tools'
 import { Segmented } from '@/components/ui/segmented'
 import { chartBars } from '@/lib/liquidity-bars'
+import { DRAW_LABEL, drawingStore, useDrawings, type DrawTool } from '@/lib/chart-drawings'
 import type { ViewTimeframe } from '@/lib/liquidity-contracts'
 import { dateTimeUtc, decimal } from '@/lib/format'
 import { useChartTools } from '@/lib/use-chart-tools'
@@ -79,8 +94,8 @@ function save(saved: Saved) {
   }
 }
 
-type Tools = { ruler: boolean; mode: ChartMode }
-const NO_TOOLS: Tools = { ruler: false, mode: 'Velas' }
+type Tools = { ruler: boolean; draw: DrawTool; mode: ChartMode }
+const NO_TOOLS: Tools = { ruler: false, draw: 'none', mode: 'Velas' }
 
 const DRAW: {
   id: string
@@ -89,8 +104,33 @@ const DRAW: {
   on: (t: Tools) => boolean
   set: Partial<Tools>
 }[] = [
-  { id: 'nav', label: 'Navegar', icon: MousePointer2, on: (t) => !t.ruler, set: { ruler: false } },
-  { id: 'ruler', label: 'Medir', icon: Ruler, on: (t) => t.ruler, set: { ruler: true } },
+  {
+    id: 'nav',
+    label: 'Navegar',
+    icon: MousePointer2,
+    on: (t) => !t.ruler && t.draw === 'none',
+    set: { ruler: false, draw: 'none' },
+  },
+  {
+    id: 'ruler',
+    label: 'Medir',
+    icon: Ruler,
+    on: (t) => t.ruler,
+    set: { ruler: true, draw: 'none' },
+  },
+  ...(
+    [
+      ['hline', Minus],
+      ['trend', Slash],
+      ['rect', RectangleHorizontal],
+    ] as const
+  ).map(([kind, icon]) => ({
+    id: kind,
+    label: DRAW_LABEL[kind],
+    icon,
+    on: (t: Tools) => !t.ruler && t.draw === kind,
+    set: { ruler: false, draw: kind },
+  })),
   {
     id: 'candles',
     label: 'Velas',
@@ -130,6 +170,8 @@ export function MultichartView() {
   const slots = [s0, s1, s2, s3]
   const current = slots[active]
   const sel = saved.slots[active]
+  const drawingsOf = current.data?.instrument_id ?? sel.instrument
+  const activeDrawings = useDrawings(drawingsOf)
   // en modo compacto, el gráfico activo dibuja sus controles acá, en la barra de arriba (#545)
   const [controlsEl, setControlsEl] = useState<HTMLElement | null>(null)
 
@@ -215,7 +257,7 @@ export function MultichartView() {
           role="toolbar"
           aria-label={`Herramientas de dibujo del gráfico ${active + 1}`}
           aria-orientation="vertical"
-          className="glass flex gap-1 self-start rounded-[20px] p-1.5 lg:sticky lg:top-4 lg:flex-col"
+          className="glass flex flex-wrap gap-1 self-start rounded-[20px] p-1.5 lg:sticky lg:top-4 lg:flex-col"
         >
           {DRAW.map((d, i) => {
             const on = d.on(tools[active])
@@ -231,13 +273,23 @@ export function MultichartView() {
                 className={cn(
                   'grid size-11 place-items-center rounded-xl text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring',
                   on && 'bg-primary text-primary-foreground hover:text-primary-foreground',
-                  i === 2 && 'max-lg:ml-2 lg:mt-2',
+                  (i === 2 || i === 5) && 'max-lg:ml-2 lg:mt-2',
                 )}
               >
                 <Icon className="size-4" aria-hidden />
               </button>
             )
           })}
+          <button
+            type="button"
+            aria-label={`Borrar todos los dibujos de ${drawingsOf}`}
+            title={`Borrar todos los dibujos de ${drawingsOf}`}
+            disabled={activeDrawings.length === 0}
+            onClick={() => drawingStore.clear(drawingsOf)}
+            className="grid size-11 place-items-center rounded-xl text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40 disabled:hover:text-muted-foreground max-lg:ml-2 lg:mt-2"
+          >
+            <Trash2 className="size-4" aria-hidden />
+          </button>
         </div>
 
         <div data-chart-layout={saved.layout} className={cn('grid min-w-0 gap-3', layout.grid)}>
@@ -287,7 +339,9 @@ export function MultichartView() {
                 slot={slot}
                 height={layout.height}
                 ruler={tools[i].ruler}
-                onRuler={(ruler) => patchTools(i, { ruler })}
+                onRuler={(ruler) => patchTools(i, ruler ? { ruler, draw: 'none' } : { ruler })}
+                draw={tools[i].draw}
+                onDraw={(draw) => patchTools(i, { draw })}
                 mode={tools[i].mode}
                 onMode={(mode) => patchTools(i, { mode })}
                 compact={layout.compact}
