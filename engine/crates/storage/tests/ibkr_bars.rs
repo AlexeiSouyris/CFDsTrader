@@ -97,3 +97,53 @@ async fn ibkr_bars_are_idempotent_per_contract_and_refuse_to_repaint() {
         assert!(r.is_err(), "{sql}");
     }
 }
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn ibkr_bars_between_and_series_list_one_series_in_order() {
+    let s = store().await;
+    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
+    let id = format!("ITIW{nanos}");
+    let batch = vec![
+        row(&id, "MNQZ6", "1m", "2026-11-24T10:02:00Z", dec!(26002)),
+        row(&id, "MNQZ6", "1m", "2026-11-24T10:00:00Z", dec!(26000)),
+        row(&id, "MNQZ6", "1m", "2026-11-24T10:15:00Z", dec!(26015)),
+        row(&id, "MNQH7", "1m", "2026-11-24T10:01:00Z", dec!(26201)),
+        row(&id, "MNQZ6", "15m", "2026-11-24T10:00:00Z", dec!(26002)),
+    ];
+    s.insert_ibkr_bars(&batch).await.unwrap();
+    let series = IbkrSeries {
+        source: "ibkr",
+        instrument_id: &id,
+        contract: "MNQZ6",
+        bar_size: "1m",
+        what_to_show: "TRADES",
+    };
+    let got = s
+        .ibkr_bars_between(
+            &series,
+            "2026-11-24T10:00:00Z".parse().unwrap(),
+            "2026-11-24T10:15:00Z".parse().unwrap(),
+        )
+        .await
+        .unwrap();
+    // Solo ese contrato y tamaño, `[desde, hasta)`, en orden.
+    assert_eq!(got, vec![batch[1].clone(), batch[0].clone()]);
+
+    let mine: Vec<_> = s
+        .ibkr_series()
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|k| k.instrument_id == id)
+        .map(|k| (k.contract, k.bar_size))
+        .collect();
+    assert_eq!(
+        mine,
+        vec![
+            ("MNQH7".to_owned(), "1m".to_owned()),
+            ("MNQZ6".to_owned(), "15m".to_owned()),
+            ("MNQZ6".to_owned(), "1m".to_owned()),
+        ]
+    );
+}

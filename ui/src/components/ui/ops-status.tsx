@@ -96,7 +96,7 @@ export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
     <section
       aria-label="Estado de la operación"
       data-ops-status={status.gate}
-      className="glass relative grid gap-3 rounded-[20px] px-4 py-3 has-[[role=dialog]]:z-30 sm:px-5"
+      className="glass relative grid gap-3 rounded-[20px] px-4 py-3 sm:px-5"
     >
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -213,7 +213,10 @@ const LEVEL: Record<OpsEvent['level'], string> = {
   error: 'border-down/50 text-down',
 }
 
-/** Los últimos eventos del broker y alertas, el más nuevo primero. */
+/**
+ * Los últimos eventos del broker y alertas, el más nuevo primero. Los repetidos llegan agrupados
+ * del motor (#576): se muestra la última vez, cuántas veces y desde cuándo, tal cual.
+ */
 export function OpsEventFeed({ events }: { events: OpsEvent[] }) {
   if (events.length === 0) return <p className="text-[12.5px]">Todavía no hay eventos guardados.</p>
   return (
@@ -235,7 +238,9 @@ export function OpsEventFeed({ events }: { events: OpsEvent[] }) {
                 : 'border-border',
             )}
           >
-            <span className="text-muted-foreground tabular-nums">{dateTimeUtc(e.ts)}</span>
+            <span className="text-muted-foreground tabular-nums">
+              {dateTimeUtc(e.last_seen ?? e.ts)}
+            </span>
             <span
               className={cn(
                 'rounded-full border px-2 text-[10px] font-bold uppercase',
@@ -246,6 +251,14 @@ export function OpsEventFeed({ events }: { events: OpsEvent[] }) {
             </span>
             <span className="font-semibold">{EVENT_LABEL[e.event] ?? e.event}</span>
             <span className="text-muted-foreground">{e.target}</span>
+            {(e.count ?? 1) > 1 && (
+              <span
+                className="rounded-full border border-border px-2 text-[10px] font-bold tabular-nums"
+                title={`Primera vez: ${dateTimeUtc(e.ts)}`}
+              >
+                ×{e.count} · desde {dateTimeUtc(e.ts)}
+              </span>
+            )}
             <span className="min-w-0 basis-full break-words sm:basis-auto">{summary(e)}</span>
           </motion.li>
         ))}

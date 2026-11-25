@@ -45,6 +45,11 @@ runs_limit = 50
 [ops]
 # Eventos del broker y alertas que se guardan en memoria (los últimos) para la UI.
 feed_size = 50
+# Eventos iguales (mismo nivel, origen, nombre y campos) se agrupan en una fila con `count` y
+# `last_seen` (#576). Cuántos grupos devuelve GET /api/v1/ops/events sin ?limit= (1..=feed_size).
+events_limit = 20
+# Cuántas filas de ops_events se leen para agruparlas (feed_size..=100000).
+group_scan = 2000
 # Días de eventos que conserva la base (#337). Los borra el job de retención:
 #   DATABASE_URL=... cargo run -p cfds-gateway --example ops_events_retention
 retention_days = 30

@@ -18,14 +18,26 @@
 //! la guardada (repintado) para la corrida. El futuro continuo y las diarias no se guardan.
 //! `IBKR_CLIENT_ID` cambia el `client_id` de la configuración.
 //!
-//! Salida: 0 bien; 1 error; 2 kill switch; 3 IBKR avisó violación de ritmo (pacing): se paró.
+//! Solo velas **completas** (#563): los datos de IBKR sin suscripción llegan con unos 10 minutos de
+//! atraso, así que la última vela de cada respuesta se guarda solo si cerró hace al menos
+//! `[load].data_delay_secs` (las anteriores sí, porque IBKR ya devolvió una después). Si queda una
+//! esperando, la corrida para ahí (sin huecos) y la sigue la próxima. Antes de guardar una de 15m o
+//! 1h se compara con el agregado de las de 1m guardadas de ese período (si las hay; máximo, mínimo y
+//! cierre, o solo el cierre en acciones: ver `Compare::before_storing`): si no coincide, no se guarda
+//! esa ni las siguientes, se avisa y la salida es 4.
+//!
+//! Salida: 0 bien; 1 error; 2 kill switch; 3 IBKR avisó violación de ritmo (pacing): se paró;
+//! 4 una vela no coincide con sus velas de 1m guardadas: no se guardó.
 
 use std::process::ExitCode;
 
 use cfds_core::InstrumentId;
-use cfds_ibkr::load::{OnError, check_storable, classify, closed_until, resume_from, windows};
-use cfds_ibkr::{BarSize, ContractChoice, IbkrConfig, SessionError, WhatToShow, connect};
-use cfds_storage::{IbkrBarRow, IbkrSeries, PgStore};
+use cfds_ibkr::load::{
+    Coherence, Compare, Ohlc, OnError, check_against_minutes, check_storable, classify,
+    closed_until, complete_prefix, resume_from, windows,
+};
+use cfds_ibkr::{BarSize, ContractChoice, IbkrConfig, RawBar, SessionError, WhatToShow, connect};
+use cfds_storage::{IbkrBarRow, IbkrSeries, PgStore, StorageError};
 use chrono::{DateTime, Utc};
 
 const CONFIG: &str = include_str!("../../../../config/ibkr.toml");
@@ -33,6 +45,58 @@ const CONFIG: &str = include_str!("../../../../config/ibkr.toml");
 fn fail(msg: impl std::fmt::Display) -> ExitCode {
     eprintln!("{msg}");
     ExitCode::from(1)
+}
+
+fn ohlc(
+    open: rust_decimal::Decimal,
+    high: rust_decimal::Decimal,
+    low: rust_decimal::Decimal,
+    close: rust_decimal::Decimal,
+) -> Ohlc {
+    Ohlc {
+        open,
+        high,
+        low,
+        close,
+    }
+}
+
+/// Cuántas de `bars` (de 15m o 1h) coinciden con sus velas de 1m guardadas, desde el principio; la
+/// primera que no coincide, con el agregado esperado. Sin velas de 1m que cubran un período, esa
+/// vela no se revisa.
+async fn coherent_prefix(
+    store: &PgStore,
+    series: &IbkrSeries<'_>,
+    size: BarSize,
+    compare: Compare,
+    bars: &[RawBar],
+) -> Result<(usize, Option<(DateTime<Utc>, Ohlc, Ohlc)>), StorageError> {
+    let (Some(first), Some(last)) = (bars.first(), bars.last()) else {
+        return Ok((0, None));
+    };
+    if size == BarSize::M1 {
+        return Ok((bars.len(), None));
+    }
+    let minute_series = IbkrSeries {
+        bar_size: BarSize::M1.as_str(),
+        ..series.clone()
+    };
+    let last_minute = store.last_ibkr_bar_start(&minute_series).await?;
+    let minutes: Vec<(DateTime<Utc>, Ohlc)> = store
+        .ibkr_bars_between(&minute_series, first.start, last.start + size.duration())
+        .await?
+        .into_iter()
+        .map(|m| (m.start, ohlc(m.open, m.high, m.low, m.close)))
+        .collect();
+    for (i, b) in bars.iter().enumerate() {
+        let got = ohlc(b.open, b.high, b.low, b.close);
+        if let Coherence::Differs { expected } =
+            check_against_minutes(b.start, size, got, &minutes, last_minute, compare)
+        {
+            return Ok((i, Some((b.start, got, expected))));
+        }
+    }
+    Ok((bars.len(), None))
 }
 
 fn arg(args: &[String], flag: &str) -> Option<String> {
@@ -183,8 +247,26 @@ async fn main() -> ExitCode {
             code = ExitCode::from(1);
             break;
         }
-        let rows: Vec<IbkrBarRow> = got
-            .bars
+        // Solo las completas (#563): la última puede tener datos a medias por el atraso de IBKR.
+        let complete = complete_prefix(&got.bars, size, Utc::now(), load.data_delay);
+        let waiting = got.bars.get(complete).map(|b| b.start);
+        let (keep, differs) = match coherent_prefix(
+            &store,
+            &series,
+            size,
+            Compare::before_storing(spec.kind),
+            &got.bars[..complete],
+        )
+        .await
+        {
+            Ok((n, d)) => (&got.bars[..n], d),
+            Err(e) => {
+                eprintln!("no se pudieron leer las velas de 1m guardadas: {e}");
+                code = ExitCode::from(1);
+                break;
+            }
+        };
+        let rows: Vec<IbkrBarRow> = keep
             .iter()
             .map(|b| IbkrBarRow {
                 source: load.source.clone(),
@@ -218,6 +300,32 @@ async fn main() -> ExitCode {
                 code = ExitCode::from(1);
                 break;
             }
+        }
+        if let Some((start, got, expected)) = differs {
+            eprintln!(
+                "{id} ({contract}) {} {}: IBKR dio O {} H {} L {} C {}, pero sus velas de 1m \
+                 guardadas dan O {} H {} L {} C {}: no se guarda esa ni las siguientes (#563)",
+                size.as_str(),
+                start.to_rfc3339(),
+                got.open,
+                got.high,
+                got.low,
+                got.close,
+                expected.open,
+                expected.high,
+                expected.low,
+                expected.close
+            );
+            code = ExitCode::from(4);
+            break;
+        }
+        if let Some(start) = waiting {
+            println!(
+                "  la vela de {} espera: puede tener datos a medias (atraso de IBKR); sigue la \
+                 próxima corrida",
+                start.to_rfc3339()
+            );
+            break;
         }
     }
     println!("total: {inserted} nuevas, {unchanged} ya estaban");

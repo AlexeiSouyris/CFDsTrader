@@ -54,6 +54,10 @@ backfill_days = 7
 window_1m_hours = 24
 window_15m_hours = 168
 window_1h_hours = 720
+# Atraso de los datos de IBKR sin suscripción (unos 10 minutos, #541). La última vela que devuelve
+# IBKR se guarda solo si cerró hace al menos esto; las anteriores, porque ya hay una vela después
+# (#563). Entre 60 y 7200.
+data_delay_secs = 900
 
 [live]
 # Precios por streaming para la vela en formación de la terminal de la app (#558). SOLO VISUAL: ningún

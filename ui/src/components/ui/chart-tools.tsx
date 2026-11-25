@@ -4,14 +4,13 @@
  * mirar: no son señales ni recomendaciones.
  */
 import { Layers } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 
+import { Floating } from '@/components/ui/floating'
 import { Term } from '@/components/ui/term'
 import { TOOLS, type AnalysisTool, type ToolState } from '@/lib/analysis-layers'
+import { useDismiss } from '@/lib/floating'
 import { cn } from '@/lib/utils'
-
-/** ancho del panel (`w-72`), para saber hacia dónde abrirlo */
-const PANEL_W = 288
 
 export function ChartToolsMenu({
   tools,
@@ -24,38 +23,21 @@ export function ChartToolsMenu({
   available: boolean
 }) {
   const [open, setOpen] = useState(false)
-  /** el panel se abre hacia la izquierda del botón (como en escritorio) o, si ahí no entra, hacia la derecha */
-  const [alignRight, setAlignRight] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const ref = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const panelId = useId()
   const on = TOOLS.filter((t) => tools[t.id]).length
-
-  useEffect(() => {
-    if (!open) return
-    const close = (e: Event) => {
-      if (e instanceof KeyboardEvent) {
-        if (e.key === 'Escape') setOpen(false)
-      } else if (!ref.current?.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('pointerdown', close)
-    document.addEventListener('keydown', close)
-    return () => {
-      document.removeEventListener('pointerdown', close)
-      document.removeEventListener('keydown', close)
-    }
-  }, [open])
+  // el panel va en una capa sobre todo (#570): si no, el gráfico de abajo lo tapa
+  useDismiss(open, () => setOpen(false), [ref, panelRef], ref)
 
   return (
-    <div ref={ref} className="relative">
+    <>
       <button
+        ref={ref}
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
-        onClick={() => {
-          const box = ref.current?.getBoundingClientRect()
-          setAlignRight(box ? box.right - PANEL_W >= 8 : true)
-          setOpen((o) => !o)
-        }}
+        onClick={() => setOpen((o) => !o)}
         className={cn(
           'inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-background/60 px-3 text-[12px] font-bold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring',
           open && 'text-foreground',
@@ -70,14 +52,14 @@ export function ChartToolsMenu({
         )}
       </button>
       {open && (
-        <div
+        <Floating
+          anchor={ref}
+          panelRef={panelRef}
+          align="end"
           id={panelId}
           role="dialog"
           aria-label="Herramientas de análisis"
-          className={cn(
-            'absolute top-full z-40 mt-2 w-72 max-w-[calc(100vw-2.5rem)] rounded-2xl border border-[var(--glass-rim)] bg-[var(--card)] p-3 text-left shadow-[0_18px_40px_-12px_rgba(0,0,0,0.6)]',
-            alignRight ? 'right-0' : 'left-0',
-          )}
+          className="w-72 max-w-[calc(100vw-1rem)] rounded-2xl border border-[var(--glass-rim)] bg-[var(--card)] p-3 text-left shadow-[0_18px_40px_-12px_rgba(0,0,0,0.6)]"
         >
           <p className="mb-2 text-[11.5px] leading-snug text-muted-foreground">
             Capas para mirar el precio, calculadas por el motor. No son señales ni recomendaciones.
@@ -107,8 +89,8 @@ export function ChartToolsMenu({
               </li>
             ))}
           </ul>
-        </div>
+        </Floating>
       )}
-    </div>
+    </>
   )
 }
