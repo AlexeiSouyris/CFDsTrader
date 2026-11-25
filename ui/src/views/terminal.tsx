@@ -21,6 +21,11 @@
  *
  * Si el gateway no responde, se ven los datos de ejemplo de `mocks/terminal.ts` y no se envía
  * nada. La disposición de los gráficos queda en `localStorage`.
+ *
+ * El ticket (#578) arranca vacío y sigue al gráfico activo cuando su instrumento es operable: lo
+ * conoce el motor (catálogo `/api/v1/instruments`) y tiene velas. Ofrece solo esos instrumentos; los
+ * del catálogo sin velas se ven deshabilitados. "Simulación" queda fijo arriba en una franja angosta
+ * y opaca que no tapa el contenido al quedar quieta.
  */
 import { useEffect, useState, type ReactNode } from 'react'
 
@@ -69,7 +74,6 @@ import {
   TERMINAL_INSTRUMENTS,
   TICKET_EXAMPLES,
   type Member,
-  type TicketDraft,
 } from '@/mocks'
 
 function Panel({
@@ -323,13 +327,32 @@ export function TerminalView({ member }: { member: Member }) {
   const [tab, setTab] = useState<Tab>('Posiciones')
   const [sent, setSent] = useState<SentOrder[]>([])
 
-  // el ticket arranca con el ejemplo; elegir un mercado lo abre en ese instrumento, sin stop
-  const [ticketDraft, setTicketDraft] = useState<TicketDraft>(TICKET_EXAMPLES[0].draft)
+  // Los del ticket (#578): con gateway, solo los que conoce el motor; los que no tienen velas se
+  // ven pero no se eligen (el broker simulado no tiene precio para ellos).
+  const ticketInstruments = live
+    ? catalog.status === 'ok'
+      ? catalog.data.instruments.map((i) => i.id)
+      : []
+    : TERMINAL_INSTRUMENTS
+  const noCandles =
+    live && summaries.status === 'ok'
+      ? summaries.rows.filter((r) => r.at === null).map((r) => r.instrument_id)
+      : []
+  const tradable = ticketInstruments.filter((i) => !noCandles.includes(i))
+  // el instrumento del gráfico activo, si es operable; si no (IBKR, sin velas), el ticket sigue
+  // con el que tenía o con el primero operable
+  const fromChart =
+    activeSel.feed !== 'ibkr' && tradable.includes(activeSel.instrument)
+      ? activeSel.instrument
+      : null
+  const [ticketInstrument, setTicketInstrument] = useState(fromChart ?? tradable[0] ?? '')
+  const wanted =
+    fromChart ?? (tradable.includes(ticketInstrument) ? ticketInstrument : (tradable[0] ?? ''))
+  // ajuste durante el render (sin efecto): el ticket sigue al gráfico activo
+  if (wanted !== ticketInstrument) setTicketInstrument(wanted)
   // los de IBKR (#556) son solo datos: abren el gráfico, el ticket queda como estaba
   const pickMarket = (id: string, feed?: 'ibkr') => {
     setSaved((prev) => withInstrument(prev, id, current, feed))
-    if (!feed && id !== ticketDraft.instrument_id)
-      setTicketDraft({ instrument_id: id, side: 'long', stop: '', tp1: '' })
     setPane('Gráfico')
   }
   const patchTools = (i: number, patch: Partial<ChartTools>) =>
@@ -395,7 +418,6 @@ export function TerminalView({ member }: { member: Member }) {
     </div>
   )
 
-  const ticketInstruments = live ? instruments : TERMINAL_INSTRUMENTS
   const ticket = (
     <Panel title="Ticket" aside={live ? 'simulación · broker simulado' : 'simulación · ejemplo'}>
       {activeSel.feed === 'ibkr' && (
@@ -413,21 +435,28 @@ export function TerminalView({ member }: { member: Member }) {
           </span>
         </p>
       )}
-      <OrderTicket
-        key={`${live ? 'live' : 'mock'}|${ticketDraft.instrument_id}`}
-        instruments={
-          ticketInstruments.includes(ticketDraft.instrument_id)
-            ? ticketInstruments
-            : [ticketDraft.instrument_id, ...ticketInstruments]
-        }
-        initial={ticketDraft}
-        examples={live ? [] : TICKET_EXAMPLES}
-        preview={live ? previewOrder : mockPreview}
-        submit={live ? submitOrder : undefined}
-        onFilled={() => setRefresh((n) => n + 1)}
-        onReport={(order, report) => setSent((all) => [{ order, report }, ...all])}
-        locked={locked}
-      />
+      {ticketInstrument ? (
+        // arranca vacío (#578): ni stop ni TP1 de ejemplo
+        <OrderTicket
+          key={`${live ? 'live' : 'mock'}|${ticketInstrument}`}
+          instruments={ticketInstruments}
+          names={names}
+          unavailable={noCandles}
+          initial={{ instrument_id: ticketInstrument, side: 'long', stop: '', tp1: '' }}
+          examples={live ? [] : TICKET_EXAMPLES}
+          preview={live ? previewOrder : mockPreview}
+          submit={live ? submitOrder : undefined}
+          onFilled={() => setRefresh((n) => n + 1)}
+          onReport={(order, report) => setSent((all) => [{ order, report }, ...all])}
+          locked={locked}
+        />
+      ) : (
+        <p role="status" className="py-4 text-center text-[12.5px] text-muted-foreground">
+          {live && catalog.status !== 'error'
+            ? 'Pidiendo al motor los instrumentos que se pueden operar…'
+            : 'El motor no tiene instrumentos con velas para operar ahora.'}
+        </p>
+      )}
     </Panel>
   )
 
@@ -462,17 +491,24 @@ export function TerminalView({ member }: { member: Member }) {
 
   return (
     <div className="grid min-w-0 gap-3" data-terminal>
-      {/* en el celular la cuenta no queda fija (ocupa media pantalla): queda fijo este aviso */}
+      {/*
+       * Lo único fijo arriba (#578): una franja angosta y opaca con "simulación". Ocupa su propio
+       * lugar (no flota encima de la cuenta ni del gráfico) y, al bajar, el contenido pasa por
+       * debajo sin transparencias. La cuenta ya no queda fija: tapaba el gráfico.
+       */}
       <div
         aria-hidden="true"
         data-sim-pill
-        className="pointer-events-none sticky top-2 z-20 -mb-3 flex h-0 justify-end lg:hidden"
+        className="pointer-events-none sticky top-2 z-20 flex justify-center"
       >
-        <span className="mt-1 mr-1 h-fit rounded-full border border-[var(--chart-signal)]/50 bg-background/90 px-2.5 py-1 text-[10px] font-extrabold tracking-[0.1em] text-[var(--chart-signal)] shadow-sm backdrop-blur">
-          SIMULACIÓN
+        <span className="rounded-full border border-[var(--chart-signal)]/50 bg-background px-3 py-1 text-[10.5px] font-extrabold tracking-[0.1em] text-[var(--chart-signal)] shadow-sm">
+          SIMULACIÓN{' '}
+          <span className="font-semibold tracking-normal text-muted-foreground">
+            · paper: no se envía ninguna orden real
+          </span>
         </span>
       </div>
-      <div className="grid gap-2 lg:sticky lg:top-2 lg:z-20">
+      <div className="grid gap-2">
         <AccountStrip
           account={account}
           aside={
@@ -516,12 +552,15 @@ export function TerminalView({ member }: { member: Member }) {
               onChange={(v) => setPane(v as Pane)}
             />
           </div>
-          <Segmented
-            label="Gráficos en pantalla"
-            options={LAYOUTS}
-            value={saved.layout}
-            onChange={(v) => setSaved((prev) => ({ ...prev, layout: v as Layout }))}
-          />
+          {/* 1, 2 o 4 gráficos: en el celular, solo en la pantalla del gráfico (#578) */}
+          <div className={cn(pane !== 'Gráfico' && 'max-lg:hidden')} data-layout-picker>
+            <Segmented
+              label="Gráficos en pantalla"
+              options={LAYOUTS}
+              value={saved.layout}
+              onChange={(v) => setSaved((prev) => ({ ...prev, layout: v as Layout }))}
+            />
+          </div>
         </div>
       </div>
 
@@ -529,7 +568,7 @@ export function TerminalView({ member }: { member: Member }) {
         data-terminal-desk
         className="grid min-w-0 items-start gap-3 lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[12.5rem_minmax(0,1fr)_20rem]"
       >
-        <div className={cn('min-w-0 lg:sticky lg:top-28', pane !== 'Mercados' && 'max-lg:hidden')}>
+        <div className={cn('min-w-0 lg:sticky lg:top-12', pane !== 'Mercados' && 'max-lg:hidden')}>
           <Watchlist
             groups={[
               {
@@ -565,7 +604,7 @@ export function TerminalView({ member }: { member: Member }) {
         <div className={cn('min-w-0', pane !== 'Gráfico' && 'max-lg:hidden')}>{charts}</div>
         <div
           className={cn(
-            'min-w-0 lg:col-span-2 xl:sticky xl:top-28 xl:col-span-1',
+            'min-w-0 lg:col-span-2 xl:sticky xl:top-12 xl:col-span-1',
             pane !== 'Ticket' && 'max-lg:hidden',
           )}
         >

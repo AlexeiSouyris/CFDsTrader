@@ -11,9 +11,9 @@ import { useId, useState, type FormEvent, type ReactNode } from 'react'
 
 import { AnimatedNumber } from '@/components/ui/animated-number'
 import { Term } from '@/components/ui/term'
-import { dateTimeUtc, decimal, isNegative, signed } from '@/lib/format'
+import { dateTimeUtc, decimal, isNegative, parseDecimalInput, signed } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { newOrder } from '@/lib/paper-api'
+import { GatewayError, newOrder } from '@/lib/paper-api'
 import {
   REJECTION_LABEL,
   type Order,
@@ -193,9 +193,34 @@ export function KillSwitchBanner({ account }: { account: PaperAccount }) {
 }
 
 const SIDE = { long: 'Comprar', short: 'Vender' } as const
-/** Lo que se escribe con coma se manda con punto: el decimal viaja como texto (contratos). */
-const asDecimal = (s: string) => s.trim().replace(',', '.')
-const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
+/**
+ * Un error del gateway en palabras propias (#578): nunca el texto crudo del contrato. El código
+ * HTTP queda a la vista para quien tenga que revisarlo.
+ */
+function failureOf(e: unknown): { title: string; text: string } {
+  if (!(e instanceof GatewayError))
+    return {
+      title: 'No se pudo hablar con el motor.',
+      text: 'El gateway no responde. No se envió nada.',
+    }
+  const title = 'El motor no pudo procesar la orden.'
+  if (e.status === 400)
+    return {
+      title,
+      text: 'Algún dato de la orden no tiene el formato esperado. Revisá los precios.',
+    }
+  if (e.status === 403)
+    return {
+      title,
+      text: 'El gateway no deja enviar órdenes desde acá (403): falta el token local de escritura.',
+    }
+  if (e.status === 503)
+    return {
+      title,
+      text: 'El motor no acepta órdenes en este momento (arranque, reconciliación o apagado). Probá en un rato.',
+    }
+  return { title, text: `El gateway respondió con un error (${e.status}). No se envió nada.` }
+}
 /** Pantalla táctil (celular, tablet): ahí enviar pide una confirmación más (#307). */
 const coarsePointer = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches === true
@@ -214,6 +239,8 @@ const coarsePointer = () =>
  */
 export function OrderTicket({
   instruments,
+  names = {},
+  unavailable = [],
   initial,
   examples = [],
   preview,
@@ -223,6 +250,10 @@ export function OrderTicket({
   locked,
 }: {
   instruments: string[]
+  /** nombre de cada instrumento, del catálogo del motor */
+  names?: Record<string, string>
+  /** los que el motor conoce pero no tienen velas: se ven, no se eligen */
+  unavailable?: string[]
   initial: TicketDraft
   /** tickets de ejemplo para la maqueta sin gateway */
   examples?: { label: string; draft: TicketDraft }[]
@@ -239,11 +270,11 @@ export function OrderTicket({
 }) {
   const id = useId()
   const [draft, setDraft] = useState<TicketDraft>(initial)
-  const [missing, setMissing] = useState<string | null>(null)
+  const [invalid, setInvalid] = useState<{ field: 'stop' | 'tp1'; text: string } | null>(null)
   const [verdict, setVerdict] = useState<TicketVerdict | null | undefined>(undefined)
   const [report, setReport] = useState<OrderReport | 'mock' | null>(null)
   const [busy, setBusy] = useState<'preview' | 'submit' | null>(null)
-  const [failure, setFailure] = useState<string | null>(null)
+  const [failure, setFailure] = useState<{ title: string; text: string } | null>(null)
   const [order, setOrder] = useState<Order | null>(null)
   const [confirming, setConfirming] = useState(false)
 
@@ -253,30 +284,42 @@ export function OrderTicket({
     setConfirming(false)
     setVerdict(undefined)
     setReport(null)
-    setMissing(null)
+    setInvalid(null)
     setFailure(null)
   }
 
   const validate = async (e: FormEvent) => {
     e.preventDefault()
     if (busy) return
-    if (!draft.stop.trim()) return setMissing('El stop es obligatorio: sin stop no se abre nada.')
-    setMissing(null)
+    // mensajes propios, antes de llamar al motor (#578): el formulario no usa los del navegador
+    if (!draft.stop.trim())
+      return setInvalid({
+        field: 'stop',
+        text: 'El stop es obligatorio: sin stop no se abre nada.',
+      })
+    const stop = parseDecimalInput(draft.stop)
+    if (stop === null)
+      return setInvalid({
+        field: 'stop',
+        text: 'El stop tiene que ser un precio positivo, por ejemplo 24800,5.',
+      })
+    const tp1 = draft.tp1.trim() ? parseDecimalInput(draft.tp1) : null
+    if (draft.tp1.trim() && tp1 === null)
+      return setInvalid({
+        field: 'tp1',
+        text: 'El TP1 tiene que ser un precio positivo, por ejemplo 24900, o quedar vacío.',
+      })
+    setInvalid(null)
     setFailure(null)
     setReport(null)
-    const o = newOrder({
-      instrument_id: draft.instrument_id,
-      side: draft.side,
-      stop: asDecimal(draft.stop),
-      tp1: draft.tp1.trim() ? asDecimal(draft.tp1) : null,
-    })
+    const o = newOrder({ instrument_id: draft.instrument_id, side: draft.side, stop, tp1 })
     setOrder(o)
     setBusy('preview')
     try {
       setVerdict(await preview(o))
     } catch (err) {
       setVerdict(undefined)
-      setFailure(errorText(err))
+      setFailure(failureOf(err))
     } finally {
       setBusy(null)
     }
@@ -296,7 +339,7 @@ export function OrderTicket({
       onReport?.(sent, r)
       if (r.status === 'filled') onFilled?.(r)
     } catch (err) {
-      setFailure(errorText(err))
+      setFailure(failureOf(err))
     } finally {
       setBusy(null)
     }
@@ -310,6 +353,7 @@ export function OrderTicket({
   return (
     <form
       onSubmit={validate}
+      noValidate
       aria-label="Ticket de orden"
       aria-busy={busy !== null}
       className="@container grid gap-4"
@@ -352,8 +396,9 @@ export function OrderTicket({
           onChange={(e) => change({ instrument_id: e.target.value })}
         >
           {instruments.map((i) => (
-            <option key={i} value={i}>
-              {i}
+            <option key={i} value={i} disabled={unavailable.includes(i)}>
+              {[i, names[i]].filter(Boolean).join(' · ')}
+              {unavailable.includes(i) ? ' (sin velas)' : ''}
             </option>
           ))}
         </select>
@@ -366,10 +411,9 @@ export function OrderTicket({
             id={`${id}-stop`}
             aria-label="Stop (obligatorio)"
             inputMode="decimal"
-            required
             aria-required="true"
-            aria-invalid={missing ? true : undefined}
-            aria-describedby={missing ? `${id}-missing` : undefined}
+            aria-invalid={invalid?.field === 'stop' ? true : undefined}
+            aria-describedby={invalid?.field === 'stop' ? `${id}-invalid` : undefined}
             className={field}
             value={draft.stop}
             onChange={(e) => change({ stop: e.target.value })}
@@ -381,6 +425,8 @@ export function OrderTicket({
             id={`${id}-tp1`}
             aria-label="TP1 (opcional)"
             inputMode="decimal"
+            aria-invalid={invalid?.field === 'tp1' ? true : undefined}
+            aria-describedby={invalid?.field === 'tp1' ? `${id}-invalid` : undefined}
             className={field}
             value={draft.tp1}
             onChange={(e) => change({ tp1: e.target.value })}
@@ -392,9 +438,9 @@ export function OrderTicket({
         motor.
       </p>
 
-      {missing && (
-        <p id={`${id}-missing`} role="alert" className="text-[12.5px] font-semibold text-down">
-          {missing}
+      {invalid && (
+        <p id={`${id}-invalid`} role="alert" className="text-[12.5px] font-semibold text-down">
+          {invalid.text}
         </p>
       )}
 
@@ -410,8 +456,8 @@ export function OrderTicket({
 
       {failure && (
         <p role="alert" className="rounded-2xl border border-down/40 p-3 text-[12.5px]">
-          <strong className="block font-bold text-down">No se pudo hablar con el motor.</strong>
-          {failure}
+          <strong className="block font-bold text-down">{failure.title}</strong>
+          {failure.text}
         </p>
       )}
 
@@ -618,10 +664,13 @@ function Verdict({ verdict: v }: { verdict: TicketVerdict }) {
           <dt className="text-muted-foreground">Precio de referencia</dt>
           <dd className="font-bold tabular-nums">{or(v.reference, (t) => decimal(t))}</dd>
         </div>
-        <div>
-          <dt className="text-muted-foreground">Vela usada</dt>
-          <dd className="font-bold tabular-nums">{dateTimeUtc(v.as_of)}</dd>
-        </div>
+        {/* sin precio de referencia el motor no usó ninguna vela: no se muestra una hora (#578) */}
+        {v.reference !== null && (
+          <div>
+            <dt className="text-muted-foreground">Vela usada</dt>
+            <dd className="font-bold tabular-nums">{dateTimeUtc(v.as_of)}</dd>
+          </div>
+        )}
       </dl>
       {v.leverage_capped && (
         <p className="mt-2 flex items-start gap-2 text-[12px]">
