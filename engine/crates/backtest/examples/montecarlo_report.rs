@@ -13,6 +13,10 @@
 //! mes es el promedio de los instrumentos de ese mes (cartera de igual peso). `--fraccion` es la
 //! parte del retorno que se aplica al capital: 1 con retornos mensuales sobre el capital, el
 //! riesgo por operación (0.01) con una serie en R.
+//!
+//! Con `--pbo` (#664), en vez del Monte Carlo muestra la probabilidad de sobreajuste por CSCV
+//! (`[pbo]` de `config/research.toml`): cada par (serie, instrumento) del CSV es una variante y
+//! cada mes en que están todas, una fila. `montecarlo_report <archivo.csv> --pbo [--columna X]`.
 #![allow(
     clippy::float_arithmetic,
     reason = "solo estadísticos y porcentajes para mostrar; no es dinero"
@@ -20,7 +24,7 @@
 
 use std::collections::BTreeMap;
 
-use cfds_backtest::research::{ResearchConfig, monte_carlo};
+use cfds_backtest::research::{ResearchConfig, monte_carlo, pbo_cscv};
 
 fn take(args: &mut Vec<String>, name: &str) -> Option<String> {
     let i = args.iter().position(|a| a == name)?;
@@ -66,8 +70,76 @@ fn monthly(
         .collect())
 }
 
+/// Matriz meses × variantes: cada (serie, instrumento) es una columna; solo los meses en que
+/// están todas.
+fn variant_matrix(text: &str, column: &str) -> Result<(Vec<String>, Vec<Vec<f64>>), String> {
+    let mut lines = text.lines();
+    let header: Vec<&str> = lines.next().ok_or("CSV vacío")?.split(',').collect();
+    let col = |name: &str| {
+        header
+            .iter()
+            .position(|h| *h == name)
+            .ok_or(format!("falta la columna {name}"))
+    };
+    let (i_inst, i_month, i_val) = (col("instrumento")?, col("mes")?, col(column)?);
+    let mut cells: BTreeMap<String, BTreeMap<String, f64>> = BTreeMap::new();
+    for line in lines.filter(|l| !l.trim().is_empty()) {
+        let f: Vec<&str> = line.split(',').collect();
+        let get = |i: usize| f.get(i).copied().ok_or(format!("fila corta: {line}"));
+        let v: f64 = get(i_val)?
+            .parse()
+            .map_err(|_| format!("valor inválido en: {line}"))?;
+        let variant = format!("{}/{}", get(0)?, get(i_inst)?);
+        cells
+            .entry(get(i_month)?.to_owned())
+            .or_default()
+            .insert(variant, v);
+    }
+    let names: Vec<String> = cells
+        .values()
+        .flat_map(|m| m.keys().cloned())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let rows = cells
+        .values()
+        .filter(|m| m.len() == names.len())
+        .map(|m| m.values().copied().collect())
+        .collect();
+    Ok((names, rows))
+}
+
+fn pbo_report(path: &str, column: &str, partitions: usize) -> Result<(), String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
+    let (names, rows) = variant_matrix(&text, column)?;
+    let r = pbo_cscv(&rows, partitions)
+        .ok_or("PBO: hacen falta 2 variantes o más y 2 meses o más por partición")?;
+    println!(
+        "PBO por CSCV de {} variantes ({}), {} meses comunes ({} usados), S = {partitions}, {} combinaciones",
+        names.len(),
+        names.join(", "),
+        rows.len(),
+        r.rows_used,
+        r.combinations
+    );
+    println!(
+        "PBO = {:.3}; logit λ: media {:.3}, p5 {:.3}, p50 {:.3}, p95 {:.3}; Sharpe fuera de muestra < 0 en el {:.1} %",
+        r.pbo,
+        r.logits.mean,
+        r.logits.p5,
+        r.logits.p50,
+        r.logits.p95,
+        r.oos_loss * 100.0
+    );
+    Ok(())
+}
+
 fn main() -> Result<(), String> {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
+    let pbo = args
+        .iter()
+        .position(|a| a == "--pbo")
+        .map(|i| args.remove(i));
     let instrument = take(&mut args, "--instrumento");
     let column = take(&mut args, "--columna").unwrap_or_else(|| "retorno".into());
     let fraction: f64 = take(&mut args, "--fraccion")
@@ -77,6 +149,13 @@ fn main() -> Result<(), String> {
         .map(|v| v.parse::<usize>())
         .transpose()
         .map_err(|e| format!("--bloque: {e}"))?;
+    if pbo.is_some() {
+        let [path] = args.as_slice() else {
+            return Err("uso: montecarlo_report <archivo.csv> --pbo [--columna retorno]".into());
+        };
+        let research = ResearchConfig::from_toml(include_str!("../../../../config/research.toml"))?;
+        return pbo_report(path, &column, research.pbo_partitions);
+    }
     let [path, label] = args.as_slice() else {
         return Err("uso: montecarlo_report <archivo.csv> <serie> [--instrumento X] [--columna retorno] [--fraccion 1] [--bloque N]".into());
     };
