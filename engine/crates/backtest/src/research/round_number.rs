@@ -89,6 +89,7 @@ pub fn round_number_plans(
             },
             risk_atr: a,
             exit_index,
+            target_r: None,
         });
     }
     plans

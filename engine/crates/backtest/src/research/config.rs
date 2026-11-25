@@ -119,6 +119,36 @@ pub struct MacroDayConfig {
     pub out_of_session_spread: Decimal,
 }
 
+/// Programa 4 (#561, `docs/analysis/2026-11-programa-4-preregistro.md`): estrategia A de
+/// Bruni, literal (H4.1) y normalizada (H4.2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Program4Config {
+    /// ATR de Wilder de 15m (umbral de H4.2 y riesgo), reiniciado en cada vencimiento.
+    pub atr_period: usize,
+    /// Velas válidas del color contrario que necesita una zona para romperse (§3).
+    pub min_valid_in_zone: usize,
+    /// Cuerpo mínimo de H4.1, en puntos.
+    pub body_points: Decimal,
+    /// k de H4.2 (cuerpo ≥ k × ATR). `None` mientras no se calibró (§5.1): sin k no corre.
+    pub body_atr_k: Option<Decimal>,
+    /// Objetivo en múltiplos de R.
+    pub target_r: Decimal,
+    /// La vela de ejecución empieza antes del cierre de la sesión menos estos minutos.
+    pub last_entry_minutes_before_close: u32,
+    /// Salida al cierre de la última vela que termina antes del cierre menos estos minutos.
+    pub exit_minutes_before_close: u32,
+    /// Período de la calibración de k: `[desde, hasta)`.
+    pub k_reference: (NaiveDate, NaiveDate),
+    /// Redondeo de k.
+    pub k_step: Decimal,
+    /// Comunicados que excluyen el día entero (`fuente/serie` de `official_releases`).
+    pub strong_releases: Vec<(String, String)>,
+    /// Mínimo de operaciones para pasar.
+    pub min_trades: usize,
+    pub luck_simulations: usize,
+    pub luck_seed: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResearchConfig {
     pub orb: OrbConfig,
@@ -140,6 +170,9 @@ pub struct ResearchConfig {
     /// H1 del programa Nasdaq: horas de la ventana antes del FOMC.
     pub pre_fomc: PreFomcConfig,
     pub macro_day: MacroDayConfig,
+    /// Regla del programa 4 (#561).
+    pub rule_program4: RuleConfig,
+    pub program4: Program4Config,
 }
 
 impl ResearchConfig {
@@ -227,6 +260,26 @@ impl ResearchConfig {
             rule_nasdaq: Rule,
             pre_fomc: PreFomc,
             macro_day: MacroDay,
+            rule_program4: Rule,
+            program4: Program4,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Program4 {
+            atr_period: usize,
+            min_valid_in_zone: usize,
+            body_points: String,
+            body_atr_k: Option<String>,
+            target_r: String,
+            last_entry_minutes_before_close: u32,
+            exit_minutes_before_close: u32,
+            k_reference_from: String,
+            k_reference_to: String,
+            k_step: String,
+            strong_releases: Vec<String>,
+            min_trades: usize,
+            luck_simulations: usize,
+            luck_seed: u64,
         }
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
@@ -384,6 +437,58 @@ impl ResearchConfig {
             drop_quantile,
             blend_hold_weight,
         };
+        let p4 = &raw.program4;
+        let date = |s: &str, name: &str| {
+            NaiveDate::parse_from_str(s, "%Y-%m-%d").map_err(|_| format!("{name} no es AAAA-MM-DD"))
+        };
+        let k_reference = (
+            date(&p4.k_reference_from, "program4.k_reference_from")?,
+            date(&p4.k_reference_to, "program4.k_reference_to")?,
+        );
+        if p4.atr_period == 0
+            || p4.min_valid_in_zone == 0
+            || p4.min_trades == 0
+            || p4.luck_simulations == 0
+            || k_reference.1 <= k_reference.0
+            || !p4.last_entry_minutes_before_close.is_multiple_of(15)
+            || !p4.exit_minutes_before_close.is_multiple_of(15)
+            || p4.exit_minutes_before_close >= p4.last_entry_minutes_before_close
+        {
+            return Err(
+                "program4: períodos y mínimos mayores que 0, minutos múltiplos de 15 con la \
+                 salida después de la última entrada, y k_reference_from < k_reference_to"
+                    .into(),
+            );
+        }
+        let strong_releases = p4
+            .strong_releases
+            .iter()
+            .map(|s| {
+                s.split_once('/')
+                    .filter(|(a, b)| !a.is_empty() && !b.is_empty())
+                    .map(|(a, b)| (a.to_owned(), b.to_owned()))
+                    .ok_or_else(|| format!("program4.strong_releases: \"{s}\" no es fuente/serie"))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let program4 = Program4Config {
+            atr_period: p4.atr_period,
+            min_valid_in_zone: p4.min_valid_in_zone,
+            body_points: dec(&p4.body_points, "program4.body_points")?,
+            body_atr_k: p4
+                .body_atr_k
+                .as_deref()
+                .map(|k| dec(k, "program4.body_atr_k"))
+                .transpose()?,
+            target_r: dec(&p4.target_r, "program4.target_r")?,
+            last_entry_minutes_before_close: p4.last_entry_minutes_before_close,
+            exit_minutes_before_close: p4.exit_minutes_before_close,
+            k_reference,
+            k_step: dec(&p4.k_step, "program4.k_step")?,
+            strong_releases,
+            min_trades: p4.min_trades,
+            luck_simulations: p4.luck_simulations,
+            luck_seed: p4.luck_seed,
+        };
         Ok(Self {
             orb: OrbConfig {
                 range_candles: raw.orb.range_candles,
@@ -427,6 +532,8 @@ impl ResearchConfig {
             rule_nasdaq: rule(&raw.rule_nasdaq, "rule_nasdaq")?,
             pre_fomc,
             macro_day,
+            rule_program4: rule(&raw.rule_program4, "rule_program4")?,
+            program4,
         })
     }
 }
