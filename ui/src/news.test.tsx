@@ -85,6 +85,12 @@ describe('Noticias y contexto (#581, etapa 7)', () => {
     expect(row).toHaveTextContent('-0.15')
     expect(row).toHaveTextContent('0.95')
     expect(article).toHaveTextContent(/Puede equivocarse: no es un pronóstico/)
+    // nota al margen, no una caja (#639)
+    const note = within(article).getByRole('heading', {
+      name: 'Interpretación automática',
+    }).parentElement!
+    expect(note.className).toMatch(/border-l-2/)
+    expect(note.className).not.toMatch(/rounded/)
     // la otra todavía no se interpretó
     fireEvent.click(within(list).getByRole('button', { name: /BCE/ }))
     expect(screen.getByRole('article')).toHaveTextContent('Todavía sin interpretación automática.')
