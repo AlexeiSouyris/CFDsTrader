@@ -141,6 +141,19 @@ describe('estado de la operación (#314)', () => {
     expect(bar()).not.toHaveTextContent('Acepta órdenes')
   })
 
+  it('sin posiciones: apalancamiento "—" y la reconciliación lo dice en palabras (#612)', async () => {
+    gateway({
+      ...READY,
+      account: { ...READY.account!, leverage: '0', open_positions: 0 },
+      last_reconcile: { ...READY.last_reconcile!, kind: 'periodic', matched: 0 },
+    })
+    render(<OperationView />)
+    await waitFor(() => expect(bar()).toHaveAttribute('data-ops-status', 'ready'))
+    expect(bar()).toHaveTextContent('Apalancamiento — · 0 de 5 posiciones')
+    expect(bar()).not.toHaveTextContent('0:1')
+    expect(bar()).toHaveTextContent('Reconciliación periódica: limpia, sin posiciones que comparar')
+  })
+
   it('arrancando y con reconciliación sucia, lo muestra en la barra', async () => {
     gateway({
       ...READY,

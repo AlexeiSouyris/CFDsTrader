@@ -115,15 +115,18 @@ function HorizonRows({ group }: { group: AnalogGroup }) {
             <td className="py-1.5">{h.horizon}</td>
             {[10, 50, 90].map((p) => {
               const v = pick(h, p)
+              const text = v === null ? null : signedPercent(v)
               return (
                 <td
                   key={p}
                   className={cn(
                     'py-1.5 pl-2.5 text-right whitespace-nowrap tabular-nums',
-                    v && (v.startsWith('-') ? 'text-down' : 'text-up'),
+                    // el color sigue al signo que se ve: "0,0 %" va sin color (#612)
+                    text?.startsWith('−') && 'text-down',
+                    text?.startsWith('+') && 'text-up',
                   )}
                 >
-                  {v === null ? '—' : `${signedPercent(v)} %`}
+                  {text === null ? '—' : `${text} %`}
                 </td>
               )
             })}

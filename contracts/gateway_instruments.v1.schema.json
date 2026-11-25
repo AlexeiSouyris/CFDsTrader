@@ -47,11 +47,11 @@
       }
     },
     "sources": {
-      "description": "Opcional (agregado sin romper v1, #259): las fuentes de velas de la vista, con su etiqueta. La primera es la que se usa sin ?source=.",
+      "description": "Opcional (agregado sin romper v1, #259): las fuentes de velas de la vista, con su etiqueta. La primera es la que la UI abre por omisión. 'auto' (agregado sin romper v1, #628) = IG y, si IG no tiene velas suficientes, la primera fuente de reemplazo con velas (config/gateway.toml [view.auto]). Sin ?source=, el gateway usa 'ig'.",
       "type": "array",
       "minItems": 1,
       "items": {
-        "description": "Una fuente: id ('ig' o 'futures') y la etiqueta que muestra la UI.",
+        "description": "Una fuente: id ('ig', 'futures' o 'auto') y la etiqueta que muestra la UI.",
         "type": "object",
         "additionalProperties": false,
         "required": [
@@ -62,7 +62,8 @@
           "id": {
             "enum": [
               "ig",
-              "futures"
+              "futures",
+              "auto"
             ]
           },
           "label": {

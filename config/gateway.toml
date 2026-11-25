@@ -11,6 +11,23 @@ default_timeframe = "1d"
 # Niveles con exists_from en estos días hacia atrás desde as_of (alcanza para PDH/PDL y PWH/PWL).
 levels_days = 14
 
+# Fuente automática de la vista de liquidez (#628; decisión del dueño del 25-11-2026, «1 sí»).
+# Con ?source=auto (lo que abre la UI), el gateway usa las velas del CFD de IG; si en la ventana
+# del timeframe hay menos de `min_candles` velas cerradas, prueba en orden las fuentes de
+# `fallback` y usa la primera que tenga alguna vela, y la respuesta dice cuál usó y por qué
+# (`fallback` de liquidity_view.v1). Si ninguna tiene velas, la vista de IG vacía ("sin datos").
+# Con ?source=ig o ?source=futures, esa fuente y nada más (la elección manual de la UI).
+[view.auto]
+label = "automática (IG; sin velas de IG, futuros)"
+# Menos de esto en la ventana cuenta como "IG todavía no tiene velas": con una o dos velas sueltas
+# no hay niveles ni FVG que mostrar. Un valor para ajustar con el uso.
+min_candles = 20
+fallback = ["futures"]
+
+# El motivo que muestra la UI tal cual, por fuente de reemplazo (1 a 300 caracteres).
+[view.auto.notes]
+futures = "IG todavía no tiene velas de este instrumento y timeframe: se muestran futuros de CME/Eurex (Databento). Base distinta al CFD: los niveles no son precios del CFD."
+
 # Ventana de cada timeframe, en días hacia atrás desde as_of (el cierre de la última vela):
 # velas (y desequilibrio) que se mandan, y FVG creados en ese lapso.
 [windows.15m]
