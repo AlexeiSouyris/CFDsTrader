@@ -52,3 +52,37 @@ id = "MES"
 symbol = "MES"
 exchange = "CME"
 currency = "USD"
+
+# Para medir la historia que da IBKR como fuente de datos (#536). Sin el permiso de futuros, solo
+# historia: nada de esto se opera.
+# Futuro continuo de IBKR (CONTFUT): una serie que empalma los vencimientos.
+[[instruments]]
+id = "MNQ.C"
+kind = "continuous_future"
+symbol = "MNQ"
+exchange = "CME"
+currency = "USD"
+
+[[instruments]]
+id = "MES.C"
+kind = "continuous_future"
+symbol = "MES"
+exchange = "CME"
+currency = "USD"
+
+# ETF del Nasdaq 100, como referencia de contado.
+[[instruments]]
+id = "QQQ"
+kind = "stock"
+symbol = "QQQ"
+exchange = "SMART"
+currency = "USD"
+
+# EUR/USD en IDEALPRO: no tiene operaciones (TRADES), solo el medio entre compra y venta.
+[[instruments]]
+id = "EURUSD"
+kind = "forex"
+symbol = "EUR"
+exchange = "IDEALPRO"
+currency = "USD"
+what_to_show = "MIDPOINT"
