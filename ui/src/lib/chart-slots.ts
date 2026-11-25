@@ -8,6 +8,7 @@
  * datos: no se operan.
  */
 import { fetchOlderIbkrBars, ibkrChartBars, useIbkrBars } from '@/lib/ibkr-api'
+import { liveLabel, useIbkrLive, withLiveBars } from '@/lib/ibkr-live'
 import { IBKR_TIMEFRAMES, type GatewayIbkrBars, type IbkrTimeframe } from '@/lib/ibkr-contracts'
 import { fetchOlderBars, useInstruments, useLiquidityView } from '@/lib/liquidity-api'
 import type { OlderPage } from '@/lib/liquidity-api'
@@ -88,6 +89,11 @@ export type SlotData = {
   bars: ChartBar[]
   /** velas más viejas (`before`), si la fuente las da */
   loadOlder?: (before: string) => Promise<ChartBar[] | OlderPage>
+  /**
+   * La última vela es la que está en formación (IBKR por streaming, #558): su inicio y la
+   * etiqueta del tipo de dato ("en vivo" o "IBKR · delayed ~10 min"); `null` si no hay.
+   */
+  forming?: { start: string; label: string; partial: boolean } | null
 }
 
 /**
@@ -102,24 +108,35 @@ export function useChartSlot(sel: ChartSel, enabled = true): SlotData {
       ? { instrument: sel.instrument, timeframe: sel.timeframe as ViewTimeframe }
       : null,
   )
-  const remoteIbkr = useIbkrBars(
+  const ibkrPick =
     enabled && ibkrSel
       ? { instrument: sel.instrument, timeframe: sel.timeframe as IbkrTimeframe }
-      : null,
-  )
+      : null
+  const remoteIbkr = useIbkrBars(ibkrPick)
+  // Vela en formación (#558): la manda el motor por SSE; la UI solo la ubica al final.
+  const liveIbkr = useIbkrLive(ibkrPick)
   if (ibkrSel) {
     const data =
       remoteIbkr.status === 'ok' && remoteIbkr.data.series && remoteIbkr.data.bars.length > 0
         ? remoteIbkr.data
         : null
     const contract = data?.series?.contract
+    const merged = withLiveBars(data ? ibkrChartBars(data.bars) : [], contract, liveIbkr)
+    const forming = merged.forming?.bar
+      ? {
+          start: merged.forming.bar.start,
+          label: liveLabel(merged.forming),
+          partial: merged.forming.bar.partial,
+        }
+      : null
     return {
       sel,
       loading: remoteIbkr.status === 'loading',
       source: data ? 'ibkr' : null,
       view: null,
       ibkr: data,
-      bars: data ? ibkrChartBars(data.bars) : [],
+      bars: merged.bars,
+      forming,
       loadOlder:
         data && contract
           ? (before) => fetchOlderIbkrBars(data.instrument_id, data.timeframe, contract, before)

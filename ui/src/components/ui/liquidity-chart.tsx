@@ -153,6 +153,7 @@ export function LiquidityChart({
   caption = 'liquidez',
   liquidity = true,
   bars,
+  forming,
   levels,
   fvgs,
   imbalance,
@@ -183,6 +184,12 @@ export function LiquidityChart({
   liquidity?: boolean
   /** velas con su inicio y su cierre (`end`), tal como llegan */
   bars: ChartBar[]
+  /**
+   * La vela en formación de IBKR (#558, solo visual): su inicio (la última de `bars`) y la
+   * etiqueta del tipo de dato. Se dibuja marcada y con la etiqueta "en formación"; no es una vela
+   * cerrada.
+   */
+  forming?: { start: string; label: string; partial: boolean }
   levels: LiquidityLevel[]
   fvgs: FvgEvent[]
   /** `imbalance.v1` por vela: la marca de desplazamiento la trae el motor */
@@ -364,7 +371,10 @@ export function LiquidityChart({
   }
   /** borde derecho de las velas que cerraron a esa hora, en lo dibujado */
   const xAt = (iso: string | null) => (idxAt(iso) - base.start) * slot
-  const lastClose = n ? new Date(ends[n - 1]) : null
+  // La vela en formación (#558) no cerró: la última cerrada es la anterior.
+  const formingLast = forming !== undefined && n > 0 && all[n - 1].start === forming.start
+  const closedN = formingLast ? n - 1 : n
+  const lastClose = closedN ? new Date(ends[closedN - 1]) : null
 
   // Dibujos del usuario (#543): cada punto es una hora UTC y un precio; se ubican en el eje de
   // índices con las velas que hay (también los de otro timeframe del mismo instrumento).
@@ -462,8 +472,14 @@ export function LiquidityChart({
       const yo = yP(Number(bar.open))
       const yc = yP(Number(bar.close))
       const x = baseMap.x(i)
+      const isForming = forming?.start === bar.start
       out.push(
-        <g key={bar.start} data-candle={bar.start}>
+        <g
+          key={bar.start}
+          data-candle={bar.start}
+          data-forming={isForming || undefined}
+          opacity={isForming ? 0.7 : undefined}
+        >
           <line
             x1={x}
             x2={x}
@@ -478,12 +494,15 @@ export function LiquidityChart({
             width={body}
             height={Math.max(1, Math.abs(yc - yo))}
             fill={color}
+            stroke={isForming ? 'var(--foreground)' : undefined}
+            strokeDasharray={isForming ? '2 2' : undefined}
+            vectorEffect={isForming ? THIN : undefined}
           />
         </g>,
       )
     }
     return out
-  }, [mode, all, a, b, baseMap, yP, body])
+  }, [mode, all, a, b, baseMap, yP, body, forming])
   const linePoints = useMemo(() => {
     const out: ([number, number] | null)[] = []
     for (let i = a; i < b; i++)
@@ -568,6 +587,20 @@ export function LiquidityChart({
       )}
 
       <div ref={boxRef} className="chart-enter relative w-full">
+        {forming && (
+          <span
+            data-forming-label
+            title={
+              forming.partial
+                ? 'La vela empezó a armarse a mitad de su período: apertura, máximo y mínimo pueden ser parciales.'
+                : 'Vela en curso, solo visual: cambia hasta que cierra su período.'
+            }
+            className="pointer-events-none absolute top-1 left-1 z-10 inline-flex h-5 items-center rounded-full border border-border bg-background/85 px-2 text-[10.5px] font-bold text-muted-foreground"
+          >
+            En formación · {forming.label}
+            {forming.partial ? ' · parcial' : ''}
+          </span>
+        )}
         <svg
           ref={svgRef}
           width={width}

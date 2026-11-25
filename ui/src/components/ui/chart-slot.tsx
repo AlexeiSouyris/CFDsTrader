@@ -66,6 +66,7 @@ export function SlotChart({
       caption={ibkr?.series ? `IBKR · ${ibkr.series.contract} · solo datos` : undefined}
       liquidity={!ibkrSel}
       bars={slot.bars}
+      forming={slot.forming ?? undefined}
       levels={view?.levels ?? []}
       fvgs={view?.fvgs ?? []}
       imbalance={view?.imbalance ?? []}
