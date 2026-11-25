@@ -310,6 +310,8 @@ pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioErr
                     })
                 })
                 .collect::<Result<Vec<_>, PortfolioError>>()?,
+            // Volatilidad objetivo apagada en la config (#671): se conecta cuando se apruebe.
+            realized_vol_pct: None,
         };
         let request = Request {
             instrument: setup.instrument.clone(),
