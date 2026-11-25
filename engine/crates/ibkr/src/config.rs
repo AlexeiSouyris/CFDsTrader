@@ -138,6 +138,7 @@ struct RawLoad {
     window_1m_hours: u32,
     window_15m_hours: u32,
     window_1h_hours: u32,
+    data_delay_secs: u64,
 }
 
 #[derive(Deserialize)]
@@ -440,7 +441,15 @@ impl IbkrConfig {
                 ))
             }
         };
+        // Atraso de los datos de IBKR sin suscripción (~10 min, #541/#563): cota para la última vela.
+        if !(60..=7200).contains(&l.data_delay_secs) {
+            return Err(invalid(
+                "load.data_delay_secs",
+                "tiene que estar entre 60 y 7200",
+            ));
+        }
         let load = crate::load::LoadConfig {
+            data_delay: chrono::TimeDelta::seconds(l.data_delay_secs as i64),
             pause: Duration::from_secs(l.pause_secs),
             max_requests: l.max_requests,
             backfill: chrono::TimeDelta::days(i64::from(l.backfill_days)),

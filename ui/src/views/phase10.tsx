@@ -45,7 +45,7 @@ export function FundView() {
   const cur = currencySign(f.currency)
   const origin = live ? 'del motor' : loading ? 'pidiendo al motor…' : '(ejemplo)'
   const stat = (label: ReactNode, value: string, detail: string) => (
-    <div className="glass relative flex min-h-28 min-w-0 flex-col justify-between gap-2 rounded-[20px] p-4 has-[[role=dialog]]:z-30">
+    <div className="glass relative flex min-h-28 min-w-0 flex-col justify-between gap-2 rounded-[20px] p-4">
       <span className="text-[11px] leading-tight font-bold text-muted-foreground">{label}</span>
       <strong className="text-[clamp(22px,2.4vw,30px)] leading-none font-extrabold tracking-[-0.04em] [overflow-wrap:anywhere] tabular-nums">
         {value}
@@ -81,7 +81,7 @@ export function FundView() {
         )}
       </div>
 
-      <section className="glass relative min-w-0 rounded-[20px] p-4 has-[[role=dialog]]:z-30">
+      <section className="glass relative min-w-0 rounded-[20px] p-4">
         <h2 className="mb-3 flex flex-wrap items-baseline gap-x-2 text-[14px] font-bold">
           Cada miembro: <Term id="unidades">unidades</Term> y <Term id="pl">P&amp;L</Term>{' '}
           <span className="text-[11px] font-semibold text-muted-foreground">{origin}</span>

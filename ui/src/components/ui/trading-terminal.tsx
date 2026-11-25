@@ -110,7 +110,7 @@ export function AccountStrip({ account, aside }: { account: PaperAccount; aside?
   return (
     <section
       aria-label="Cuenta de simulación"
-      className="glass relative flex min-w-0 flex-wrap items-center gap-x-6 gap-y-3 rounded-[20px] px-4 py-3 has-[[role=dialog]]:z-30"
+      className="glass relative flex min-w-0 flex-wrap items-center gap-x-6 gap-y-3 rounded-[20px] px-4 py-3"
     >
       <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
         <PaperBadge compact />
