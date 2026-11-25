@@ -2,7 +2,7 @@
 
 > **Estado: BORRADOR, sin congelar** (Issue #672). Escrito por un agente de IA (Claude Code) el 25-11-2026, por el punto 3 del plan del autoanálisis (`2026-11-autoanalisis.md` §9 y §10, #658). Pedido del dueño, 25-11-2026: «Daleeee arrancaaa con todo».
 >
-> **No hay `.sha256` ni cambios de configuración.** Mientras sea borrador **no se corre nada** con estas reglas. Todas las elecciones están en la tabla de §15, en **PENDIENTE**, con el valor recomendado y por qué. Congelar pide la aprobación explícita del dueño, citada con sus palabras y la fecha.
+> **No hay `.sha256` ni parámetros del programa en la configuración.** El único archivo de configuración nuevo, `config/futures_contracts.toml` (#672), tiene solo datos verificados de los contratos (tick, multiplicador, horario, comisión de IBKR), no elecciones. Mientras sea borrador **no se corre nada** con estas reglas. Todas las elecciones están en la tabla de §15, en **PENDIENTE**, con el valor recomendado y por qué. Congelar pide la aprobación explícita del dueño, citada con sus palabras y la fecha.
 >
 > Antes de escribir esto solo se **contaron** velas, vencimientos y huecos (§3.2), con una conexión de solo lectura. **No se calculó ningún retorno, ninguna señal, ningún P/L ni ningún resultado** de estos 16 mercados.
 >
@@ -153,7 +153,19 @@ suavizado    = EMA de span N/4 = 20 días del bruto
 pronóstico   = suavizado × escalar_ruptura(80)
 ```
 
-**Escalares de pronóstico** (los que llevan el valor absoluto medio del pronóstico a 10): se usan los **publicados**, no se estiman. Los que recuerda el agente son 3,75 (16/64), 2,65 (32/128) y 1,87 (64/256) para EWMAC (Carver, *Systematic Trading*, 2015) y del orden de 0,7 para la ruptura de 80 días (configuración de ejemplo de `pysystemtrade`). **No están verificados:** al congelar se copian textuales de la fuente, con la cita exacta (punto abierto 11; `CLAUDE.md` §5b, «No inventar»).
+**Escalares de pronóstico** (los que llevan el valor absoluto medio del pronóstico a 10): se usan los **publicados**, no se estiman. Verificados el 25-11-2026 (#672) contra fuentes primarias; **cuál se usa lo elige el dueño** (punto abierto 11):
+
+| Regla | Valor de `futuresconfig.yaml` (réplica del libro *Systematic Trading*, cap. 15) | Valor de `rob_system/config.yaml` (sistema actual de Carver, estimado y agrupado) | Blog de Carver (2016) |
+|---|---|---|---|
+| EWMAC 16/64 | **3,75** | 4,104 (`momentum16`) | — |
+| EWMAC 32/128 | **2,65** | 2,787 (`momentum32`) | — |
+| EWMAC 64/256 | **1,87** | 1,909 (`momentum64`) | — |
+| Ruptura 80 | — (el capítulo 15 no tiene ruptura) | **0,726** (`breakout80`) | **0,837** (agrupado; 0,891 promedio por mercado) |
+
+- Fuente de las dos primeras columnas: `pysystemtrade` (GPL-3.0; solo se copian los números), commit [`a62269d`](https://github.com/pst-group/pysystemtrade/blob/a62269d27707806ba61f516791b71a9cd14cf268) del 29-09-2026: [`systems/provided/futures_chapter15/futuresconfig.yaml`](https://github.com/pst-group/pysystemtrade/blob/a62269d27707806ba61f516791b71a9cd14cf268/systems/provided/futures_chapter15/futuresconfig.yaml#L37-L63) y [`systems/provided/rob_system/config.yaml`](https://github.com/pst-group/pysystemtrade/blob/a62269d27707806ba61f516791b71a9cd14cf268/systems/provided/rob_system/config.yaml#L344-L367). En los dos, EWMAC = `(EMA_r − EMA_l) / σ_p` (`systems/provided/rules/ewmac.py`) y la ruptura = `40 × (P − medio) / (máx − mín)` suavizada con *span* N/4 (`systems/provided/rules/breakout.py`), igual que arriba.
+- Fuente de la tercera: [«A simple breakout trading rule»](https://qoppac.blogspot.com/2016/05/a-simple-breakout-trading-rule.html), Carver, mayo de 2016 (misma fórmula ×40).
+- **No coinciden** los de la ruptura (0,837 en 2016 contra 0,726 en la configuración actual): los dos son estimaciones de Carver con datos distintos. Los de EWMAC del libro (3,75 / 2,65 / 1,87) coinciden con lo que recordaba el borrador; no se pudo leer el libro mismo, solo su réplica en `pysystemtrade`.
+- El tope de ±20 está en las dos configuraciones (`forecast_cap: 20.0`) y en [`sysdata/config/defaults.yaml`](https://github.com/pst-group/pysystemtrade/blob/a62269d27707806ba61f516791b71a9cd14cf268/sysdata/config/defaults.yaml).
 
 **Tope:** cada pronóstico se recorta a **[−20, +20]**.
 
@@ -221,9 +233,9 @@ contratos_i = nocional_i / (P_i × multiplicador_i × tipo de cambio a USD)
 
 | Costo | Regla | Fuente |
 |---|---|---|
-| Spread | ½ tick por ejecución (spread de 1 tick) | Tick y multiplicador de cada contrato: especificaciones de CME, leídas y citadas al congelar |
+| Spread | ½ tick por ejecución (spread de 1 tick) | Tick, multiplicador y valor del tick de cada contrato en `config/futures_contracts.toml`: de IBKR (`reqContractDetails`) y comparados con la página de CME de cada uno el 25-11-2026, todos coinciden (#672). Ojo: el tick de 6A era el doble (0,0001 = USD 10) hasta el 23-11-2020 (CME SER-8648) |
 | Slippage | 1 tick por ejecución (como la spec: «0,1 × spread + 1 tick») | spec §11 |
-| Comisión | Por contrato y por lado, la de IBKR para el contrato estándar más tasas de bolsa | **PENDIENTE:** en el repo solo está la de los micro (0,25 USD por lado, ADR 0017). El dueño la lee en IBKR |
+| Comisión | Por contrato y por lado, la de IBKR para el contrato estándar más tasas de bolsa | IBKR, página pública leída el 25-11-2026: **USD 0,85** por contrato en el plan fijo y en el escalonado hasta 1.000 contratos al mes (0,65 / 0,45 / 0,25 en los escalones siguientes). Las tasas de bolsa, clearing y regulatorias van **aparte** en los dos planes y la página no da un monto: **PENDIENTE** (punto abierto 22) |
 | Vencimiento | Se cierra el viejo y se abre el nuevo: 2 ejecuciones (spread, slippage y comisión) | — |
 | Financiación | Ninguna: el futuro lleva el costo de tener la posición en su precio | — |
 | Estrés | Todo × 1,5 (vota) y × 2 (se informa) | — |
@@ -363,8 +375,8 @@ Todos **PENDIENTES**. Ningún agente los decide. Cada respuesta queda en #672 co
 | 8 | Fechas de vencimiento | Las de la serie de Databento (`contract_id`), no las de IG | No hay calendario de IG desde 2011. Para el escenario de futuros es lo real | PENDIENTE |
 | 9 | Pesos de las reglas | **¼ cada una** (3 EWMAC + ruptura 80) | Lo más simple y sin elegir; 50/50 EWMAC/ruptura daría más peso a una sola regla de ruptura | PENDIENTE |
 | 10 | Volatilidad | EWMA *span* 35, **sin piso** | Es la de Carver en sus libros; el piso con la volatilidad larga es una mejora posterior que agrega un parámetro | PENDIENTE |
-| 11 | Escalares de pronóstico | Los **publicados**, copiados con cita al congelar (no estimados) | Estimarlos con estos datos sería ajustar; los valores de §4.2 los escribió el agente de memoria y hay que verificarlos | PENDIENTE |
-| 12 | FDM e IDM | **Fijos: FDM 1,1 e IDM 2,0** | Solo escalan la cartera (no cambian el Sharpe salvo por los topes); fijos evitan estimar nada | PENDIENTE |
+| 11 | Escalares de pronóstico | Los **publicados**, copiados con cita (no estimados). Verificados (§4.2): EWMAC 3,75 / 2,65 / 1,87 (libro, cap. 15) o 4,104 / 2,787 / 1,909 (`rob_system` actual); ruptura 80: 0,726 (`rob_system`) o 0,837 (blog 2016) | Estimarlos con estos datos sería ajustar. Hay dos fuentes primarias que no coinciden (sobre todo en la ruptura): el dueño elige cuál; el agente no elige | PENDIENTE |
+| 12 | FDM e IDM | **Fijos: FDM 1,1 e IDM 2,0** | Solo escalan la cartera (no cambian el Sharpe salvo por los topes); fijos evitan estimar nada. Lo publicado (#672): en `pysystemtrade` el valor por defecto es 1,0 con estimación apagada (`defaults.yaml`); la réplica del capítulo 15 usa FDM 1,31 e IDM 1,89, pero son de su ejemplo (4 reglas con carry y 6 mercados) y no aplican acá; `rob_system` estima el IDM. Las tablas de FDM/IDM del libro **no se pudieron verificar** (no hay copia accesible) | PENDIENTE |
 | 13 | Volatilidad objetivo τ | **20 % anual** | No cambia el Sharpe; 20 % es un valor medio de los que publica Carver y deja lejos los topes de apalancamiento | PENDIENTE |
 | 14 | Capital | **100.000 USD fijo, sin reinvertir** | Retornos comparables en todo el período; con contratos fraccionarios el tamaño no cambia el resultado | PENDIENTE |
 | 15 | Zona sin operar | **10 %** de la posición media, ir al borde | Es la regla de Carver; baja el costo sin cambiar la señal | PENDIENTE |
@@ -374,8 +386,8 @@ Todos **PENDIENTES**. Ningún agente los decide. Cada respuesta queda en #672 co
 | 19 | Escenario de CFD | **Se informa, no vota**, hasta tener los costos de IG de los 15 mercados | Hoy solo hay costos de IG de 4 mercados; votar con eso mediría otra cartera | PENDIENTE |
 | 20 | Criterio principal | **Opción A (alfa contra ES)** con los 7 criterios de §7.2 | Pide ventaja propia y equivale a que alguna mezcla con la bolsa mejore; B pasaría con beta disfrazada y C casi no tiene poder | PENDIENTE |
 | 21 | Crisis y amplitud | **Votan** (criterios 6 y 7), sin prueba de significancia | Son la razón económica del programa: si la cartera se hunde con la bolsa o vive de una sola clase, no sirve para lo que se quiere | PENDIENTE |
-| 22 | Comisión de futuros estándar | La que el dueño lea en IBKR, con fecha | En el repo solo está la de los micro (ADR 0017); no se inventa | PENDIENTE |
-| 23 | Especificaciones de los contratos | Tick, multiplicador y moneda de las páginas de CME, citadas | Hacen falta para el P/L y los costos; no se inventan | PENDIENTE |
+| 22 | Comisión de futuros estándar | IBKR plan **fijo USD 0,85** por contrato y lado (igual al primer escalón del plan escalonado), leída el 25-11-2026 en la página pública de IBKR (`config/futures_contracts.toml`). Falta elegir plan y el monto de las tasas de bolsa y regulatorias, que van aparte | Las tasas no están publicadas como un número único en esa página; no se inventan | PENDIENTE |
+| 23 | Especificaciones de los contratos | **Verificadas** (#672): `config/futures_contracts.toml`, de IBKR `reqContractDetails` y cotejadas con la página de CME de cada contrato; las 15 coinciden. Queda para el dueño solo confirmar que se usan esas | Hacen falta para el P/L y los costos. Detalles: con el símbolo SI, IBKR devuelve también la plata de 1.000 onzas (clase SIL), se usa la clase SI; el tick de 6A cambió en 2020 | PENDIENTE |
 | 24 | Choque con la spec (programa 3 §D.3) | El programa queda **solo de investigación**; operarlo pide un cambio de spec aparte | La spec es de 15 minutos, 5 posiciones, índices y oro | PENDIENTE |
 | 25 | Riesgo total (programa 3 §D.10) | Lo controla la volatilidad objetivo, no un 1 % por posición | Con 15 posiciones, la regla de 1 % por operación no aplica a este tipo de sistema; se informa la pérdida en el peor día | PENDIENTE |
 | 26 | Consulta a IG (programa 3 §C, consulta 5) | Mandarla (solo el dueño) si se quiere que el escenario de CFD vote algún día | Sin los spreads y la financiación de los 15 mercados, el escenario de CFD queda incompleto | PENDIENTE |
@@ -383,4 +395,4 @@ Todos **PENDIENTES**. Ningún agente los decide. Cada respuesta queda en #672 co
 ## Fuentes
 
 - Interno: `docs/analysis/2026-11-autoanalisis.md` (§3, §4, §9 y §10), `docs/analysis/2026-11-programa-3-borrador.md` (anexos A a D), `docs/analysis/2026-11-programa-4-preregistro.md` (§7), `docs/analysis/2026-11-programa-5-fvg-preregistro.md`, `config/databento_daily.toml`, `config/databento.toml`, `config/data_split.toml`, `config/research.toml`, `config/instruments.toml`, `config/risk.toml`, `docs/decisions/0013-materias-primas-oro.md`, `docs/decisions/0015-tasas-usd-nyfed-y-base-de-futuros.md`, `docs/decisions/0017-ibkr-paper-futuros-micro.md`, `docs/analysis/registro-de-resultados.csv` (R016, R018 y R019), `engine/crates/backtest/src/research/` (`mod.rs`, `stats.rs`, `buy_and_hold.rs`, `trend.rs`).
-- [Moskowitz, Ooi y Pedersen 2012, *Time series momentum*](https://doi.org/10.1016/j.jfineco.2011.11.003) · [Hurst, Ooi y Pedersen, AQR, *A Century of Evidence on Trend-Following Investing*](https://www.aqr.com/Insights/Research/Journal-Article/A-Century-of-Evidence-on-Trend-Following-Investing) · Robert Carver, *Systematic Trading* (2015) y *Leveraged Trading* (2019) · [pysystemtrade](https://github.com/pst-group/pysystemtrade) · Jobson y Korkie (1981) con la corrección de Memmel (2003), prueba de diferencia de Sharpe.
+- [Moskowitz, Ooi y Pedersen 2012, *Time series momentum*](https://doi.org/10.1016/j.jfineco.2011.11.003) · [Hurst, Ooi y Pedersen, AQR, *A Century of Evidence on Trend-Following Investing*](https://www.aqr.com/Insights/Research/Journal-Article/A-Century-of-Evidence-on-Trend-Following-Investing) · Robert Carver, *Systematic Trading* (2015) y *Leveraged Trading* (2019) · [pysystemtrade, commit a62269d](https://github.com/pst-group/pysystemtrade/blob/a62269d27707806ba61f516791b71a9cd14cf268) · [Carver, «A simple breakout trading rule» (2016)](https://qoppac.blogspot.com/2016/05/a-simple-breakout-trading-rule.html) · páginas de especificaciones de CME (una por contrato, en `config/futures_contracts.toml`) · [IBKR, comisiones de futuros](https://www.interactivebrokers.com/en/pricing/commissions-futures.php?region=americas) · [CME SER-8648 (tick de 6A)](https://www.cmegroup.com/content/dam/cmegroup/notices/ser/2020/09/SER-8648.pdf) · Jobson y Korkie (1981) con la corrección de Memmel (2003), prueba de diferencia de Sharpe.

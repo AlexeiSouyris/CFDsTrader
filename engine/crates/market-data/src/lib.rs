@@ -16,6 +16,7 @@ pub mod candle_source;
 pub mod config;
 pub mod daily;
 pub mod futures;
+pub mod futures_contracts;
 pub mod futures_feeds;
 pub mod instruments;
 pub mod news_filter;
@@ -38,6 +39,9 @@ pub use daily::{DailyIssue, DailyIssueKind, daily_bounds, local_day_bounds, vali
 pub use futures::{
     ContractBasis, DailyComparison, DayPair, FuturesCandles, compare_daily, futures_candles,
     futures_daily,
+};
+pub use futures_contracts::{
+    AssetClass, CommissionTier, FuturesContract, FuturesContracts, IbkrCommission,
 };
 pub use futures_feeds::{FuturesFeed, FuturesFeeds};
 pub use instruments::{

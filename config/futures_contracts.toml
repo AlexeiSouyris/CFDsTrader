@@ -1,0 +1,325 @@
+# Especificaciones de los 15 futuros estándar del programa 6 (borrador, #672). SOLO DATOS DE
+# REFERENCIA, verificados: no hay elecciones del dueño acá (los parámetros del programa van en
+# config/research.toml al congelar). Lo lee y lo valida `cfds_market_data::FuturesContracts`
+# (engine/crates/market-data/src/futures_contracts.rs); un test lee este archivo.
+#
+# FUENTES (por campo; consultadas el 25-11-2026):
+# - ibkr_symbol, trading_class, exchange, currency, multiplier, tick_size, timezone, session_open,
+#   session_close, listed_months, next_contract, next_last_trade: IBKR `reqContractDetails` de
+#   solo lectura (IB Gateway paper, 127.0.0.1:4002, client_id 18), con
+#   `cargo run -p cfds-ibkr --example ibkr_probe -- --details SÍMBOLO BOLSA MONEDA`.
+#   session_open/close: el horario de IBKR de la semana del 24-11-2026 (domingo a viernes, hora de
+#   `timezone`; la sesión abre el día anterior y cierra con una pausa diaria entre close y open).
+#   listed_months: los meses de los vencimientos que IBKR tenía listados ese día (letras de CME:
+#   F ene, G feb, H mar, J abr, K may, M jun, N jul, Q ago, U sep, V oct, X nov, Z dic).
+# - multiplier, tick_size, tick_value, currency y horario: comparados uno por uno con la página
+#   oficial de CME de cada contrato (`spec_url`), leída el 25-11-2026. Todos coinciden.
+# - tick_value = tick_size × multiplier (lo verifica el validador) y es el que publica CME.
+#
+# FDAX (Eurex) no está: queda fuera del universo según el punto abierto 5 del programa 6.
+# Este archivo NO dice qué vencimiento operar ni cuándo cambiar: eso es del programa.
+
+checked_on = "2026-11-25"
+
+# Comisión de IBKR para futuros estándar de EE. UU. (no micro), USD por contrato y por lado.
+# Fuente: https://www.interactivebrokers.com/en/pricing/commissions-futures.php?region=americas
+# (página pública, leída el 25-11-2026, sin login). Las tasas de bolsa, de clearing y regulatorias
+# se cobran APARTE en los dos planes (la página las lista por separado y no da un monto único);
+# no están en este archivo y no se inventan.
+[commission_ibkr_us]
+source_url = "https://www.interactivebrokers.com/en/pricing/commissions-futures.php?region=americas"
+fixed_usd = "0.85"
+exchange_fees_included = false
+# Plan escalonado (tiered): por volumen mensual de contratos, marginal dentro del mes.
+[[commission_ibkr_us.tiered]]
+up_to_contracts = 1000
+usd = "0.85"
+[[commission_ibkr_us.tiered]]
+up_to_contracts = 10000
+usd = "0.65"
+[[commission_ibkr_us.tiered]]
+up_to_contracts = 20000
+usd = "0.45"
+[[commission_ibkr_us.tiered]]
+# Sin tope: más de 20.000 contratos.
+usd = "0.25"
+
+[[contracts]]
+id = "ES"
+asset_class = "equity"
+ibkr_symbol = "ES"
+trading_class = "ES"
+exchange = "CME"
+currency = "USD"
+multiplier = "50"
+tick_size = "0.25"
+tick_value = "12.50"
+timezone = "US/Central"
+session_open = "17:00"
+session_close = "16:00"
+listed_months = "HMUZ"
+next_contract = "ESZ6"
+next_last_trade = "2026-12-18 08:30"
+spec_url = "https://www.cmegroup.com/markets/equities/sp/e-mini-sandp500.contractSpecs.html"
+
+[[contracts]]
+id = "NQ"
+asset_class = "equity"
+ibkr_symbol = "NQ"
+trading_class = "NQ"
+exchange = "CME"
+currency = "USD"
+multiplier = "20"
+tick_size = "0.25"
+tick_value = "5.00"
+timezone = "US/Central"
+session_open = "17:00"
+session_close = "16:00"
+listed_months = "HMUZ"
+next_contract = "NQZ6"
+next_last_trade = "2026-12-18 08:30"
+spec_url = "https://www.cmegroup.com/markets/equities/nasdaq/e-mini-nasdaq-100.contractSpecs.html"
+
+[[contracts]]
+id = "YM"
+asset_class = "equity"
+ibkr_symbol = "YM"
+trading_class = "YM"
+exchange = "CBOT"
+currency = "USD"
+multiplier = "5"
+tick_size = "1"
+tick_value = "5.00"
+timezone = "US/Central"
+session_open = "17:00"
+session_close = "16:00"
+listed_months = "HMUZ"
+next_contract = "YMZ6"
+next_last_trade = "2026-12-18 08:30"
+spec_url = "https://www.cmegroup.com/markets/equities/dow-jones/e-mini-dow.contractSpecs.html"
+
+[[contracts]]
+id = "RTY"
+asset_class = "equity"
+ibkr_symbol = "RTY"
+trading_class = "RTY"
+exchange = "CME"
+currency = "USD"
+multiplier = "50"
+tick_size = "0.1"
+tick_value = "5.00"
+timezone = "US/Central"
+session_open = "17:00"
+session_close = "16:00"
+listed_months = "HMUZ"
+next_contract = "RTYZ6"
+next_last_trade = "2026-12-18 08:30"
+spec_url = "https://www.cmegroup.com/markets/equities/russell/e-mini-russell-2000.contractSpecs.html"
+
+[[contracts]]
+id = "NKD"
+asset_class = "equity"
+ibkr_symbol = "NKD"
+trading_class = "NKD"
+exchange = "CME"
+currency = "USD"
+multiplier = "5"
+tick_size = "5"
+tick_value = "25.00"
+timezone = "US/Central"
+session_open = "17:00"
+session_close = "16:00"
+listed_months = "HMUZ"
+next_contract = "NKDZ6"
+next_last_trade = "2026-12-10 16:00"
+spec_url = "https://www.cmegroup.com/markets/equities/international-indices/nikkei-225-dollar.contractSpecs.html"
+
+# IBKR lista 3 vencimientos (Z6, H7, M7): CME lista 3 trimestres seguidos; el ciclo es HMUZ.
+[[contracts]]
+id = "ZN"
+asset_class = "bond"
+ibkr_symbol = "ZN"
+trading_class = "ZN"
+exchange = "CBOT"
+currency = "USD"
+multiplier = "1000"
+tick_size = "0.015625"
+tick_value = "15.625"
+timezone = "US/Central"
+session_open = "17:00"
+session_close = "16:00"
+listed_months = "HMUZ"
+next_contract = "ZNZ6"
+next_last_trade = "2026-12-21 12:01"
+spec_url = "https://www.cmegroup.com/markets/interest-rates/us-treasury/10-year-us-treasury-note.contractSpecs.html"
+
+# Igual que ZN: 3 trimestres seguidos listados.
+[[contracts]]
+id = "ZB"
+asset_class = "bond"
+ibkr_symbol = "ZB"
+trading_class = "ZB"
+exchange = "CBOT"
+currency = "USD"
+multiplier = "1000"
+tick_size = "0.03125"
+tick_value = "31.25"
+timezone = "US/Central"
+session_open = "17:00"
+session_close = "16:00"
+listed_months = "HMUZ"
+next_contract = "ZBZ6"
+next_last_trade = "2026-12-21 12:01"
+spec_url = "https://www.cmegroup.com/markets/interest-rates/us-treasury/30-year-us-treasury-bond.contractSpecs.html"
+
+[[contracts]]
+id = "6E"
+asset_class = "fx"
+ibkr_symbol = "EUR"
+trading_class = "6E"
+exchange = "CME"
+currency = "USD"
+multiplier = "125000"
+tick_size = "0.00005"
+tick_value = "6.25"
+timezone = "US/Central"
+session_open = "17:00"
+session_close = "16:00"
+listed_months = "FGHJKMNQUVXZ"
+next_contract = "6EZ6"
+next_last_trade = "2026-12-14 09:16"
+spec_url = "https://www.cmegroup.com/markets/fx/g10/euro-fx.contractSpecs.html"
+
+[[contracts]]
+id = "6J"
+asset_class = "fx"
+ibkr_symbol = "JPY"
+trading_class = "6J"
+exchange = "CME"
+currency = "USD"
+multiplier = "12500000"
+tick_size = "0.0000005"
+tick_value = "6.25"
+timezone = "US/Central"
+session_open = "17:00"
+session_close = "16:00"
+listed_months = "FGHJKMNQUVXZ"
+next_contract = "6JZ6"
+next_last_trade = "2026-12-14 09:16"
+spec_url = "https://www.cmegroup.com/markets/fx/g10/japanese-yen.contractSpecs.html"
+
+[[contracts]]
+id = "6B"
+asset_class = "fx"
+ibkr_symbol = "GBP"
+trading_class = "6B"
+exchange = "CME"
+currency = "USD"
+multiplier = "62500"
+tick_size = "0.0001"
+tick_value = "6.25"
+timezone = "US/Central"
+session_open = "17:00"
+session_close = "16:00"
+listed_months = "FGHJKMNQUVXZ"
+next_contract = "6BZ6"
+next_last_trade = "2026-12-14 09:16"
+spec_url = "https://www.cmegroup.com/markets/fx/g10/british-pound.contractSpecs.html"
+
+# El tick bajó de 0.0001 (USD 10) a 0.00005 (USD 5) el 23-11-2020 (CME SER-8648). Antes de esa
+# fecha el tick era el doble: importa para el costo de spread en 2011-2020.
+[[contracts]]
+id = "6A"
+asset_class = "fx"
+ibkr_symbol = "AUD"
+trading_class = "6A"
+exchange = "CME"
+currency = "USD"
+multiplier = "100000"
+tick_size = "0.00005"
+tick_value = "5.00"
+timezone = "US/Central"
+session_open = "17:00"
+session_close = "16:00"
+listed_months = "FGHJKMNQUVXZ"
+next_contract = "6AZ6"
+next_last_trade = "2026-12-14 09:16"
+spec_url = "https://www.cmegroup.com/markets/fx/g10/australian-dollar.contractSpecs.html"
+
+# Meses listados por IBKR: los 12. CME: 26 meses seguidos + jun/dic hasta 72 meses. Cuál se usa
+# (el de más volumen) lo define la serie de Databento (punto abierto 8 del programa 6), no este archivo.
+[[contracts]]
+id = "GC"
+asset_class = "commodity"
+ibkr_symbol = "GC"
+trading_class = "GC"
+exchange = "COMEX"
+currency = "USD"
+multiplier = "100"
+tick_size = "0.1"
+tick_value = "10.00"
+timezone = "US/Eastern"
+session_open = "18:00"
+session_close = "17:00"
+listed_months = "FGHJKMNQUVXZ"
+next_contract = "GCX6"
+next_last_trade = "2026-11-25 13:30"
+spec_url = "https://www.cmegroup.com/markets/metals/precious/gold.contractSpecs.html"
+
+# Con el símbolo SI, IBKR devuelve también la clase SIL (plata de 1.000 onzas, multiplicador 1000).
+# Esta fila es solo la clase SI (5.000 onzas).
+[[contracts]]
+id = "SI"
+asset_class = "commodity"
+ibkr_symbol = "SI"
+trading_class = "SI"
+exchange = "COMEX"
+currency = "USD"
+multiplier = "5000"
+tick_size = "0.005"
+tick_value = "25.00"
+timezone = "US/Eastern"
+session_open = "18:00"
+session_close = "17:00"
+listed_months = "FGHJKMNQUVXZ"
+next_contract = "SIX6"
+next_last_trade = "2026-11-25 13:25"
+spec_url = "https://www.cmegroup.com/markets/metals/precious/silver.contractSpecs.html"
+
+[[contracts]]
+id = "HG"
+asset_class = "commodity"
+ibkr_symbol = "HG"
+trading_class = "HG"
+exchange = "COMEX"
+currency = "USD"
+multiplier = "25000"
+tick_size = "0.0005"
+tick_value = "12.50"
+timezone = "US/Eastern"
+session_open = "18:00"
+session_close = "17:00"
+listed_months = "FGHJKMNQUVXZ"
+next_contract = "HGX6"
+next_last_trade = "2026-11-25 13:00"
+spec_url = "https://www.cmegroup.com/markets/metals/base/copper.contractSpecs.html"
+
+# Hora de IBKR en US/Eastern (14:30 ET = 13:30 CT). CME: termina 3 días hábiles antes del 25 del mes
+# previo al del contrato (4 si el 25 no es hábil).
+[[contracts]]
+id = "CL"
+asset_class = "commodity"
+ibkr_symbol = "CL"
+trading_class = "CL"
+exchange = "NYMEX"
+currency = "USD"
+multiplier = "1000"
+tick_size = "0.01"
+tick_value = "10.00"
+timezone = "US/Eastern"
+session_open = "18:00"
+session_close = "17:00"
+listed_months = "FGHJKMNQUVXZ"
+next_contract = "CLF7"
+next_last_trade = "2026-12-21 14:30"
+spec_url = "https://www.cmegroup.com/markets/energy/crude-oil/light-sweet-crude.contractSpecs.html"
