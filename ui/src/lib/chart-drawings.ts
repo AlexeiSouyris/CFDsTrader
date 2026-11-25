@@ -11,11 +11,16 @@
  */
 import { useSyncExternalStore } from 'react'
 
+import type { ChartMode } from '@/components/ui/chart-measure'
 import { decimal } from '@/lib/format'
 
 export type DrawKind = 'hline' | 'trend' | 'rect'
 /** La herramienta de dibujo elegida: `none` = navegar (y seleccionar dibujos). */
 export type DrawTool = 'none' | DrawKind
+
+/** Las herramientas de un gráfico (barra de dibujo, #540 y #552): medición, dibujo y tipo. */
+export type ChartTools = { ruler: boolean; draw: DrawTool; mode: ChartMode }
+export const NO_TOOLS: ChartTools = { ruler: false, draw: 'none', mode: 'Velas' }
 
 /** Un punto del dibujo: hora UTC (ISO 8601 con `Z`) y precio. */
 export type Anchor = { t: string; p: number }

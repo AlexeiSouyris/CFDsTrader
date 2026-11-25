@@ -24,21 +24,11 @@
  * Cursor sincronizado (#544): opción de la barra de arriba, apagada por defecto. Al mover el
  * cursor en un panel, los otros marcan la vela que contiene esa hora UTC. No sincroniza el zoom.
  */
-import {
-  CandlestickChart,
-  Crosshair,
-  LineChart,
-  Minus,
-  MousePointer2,
-  RectangleHorizontal,
-  Ruler,
-  Slash,
-  Trash2,
-  type LucideIcon,
-} from 'lucide-react'
+import { Crosshair } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-import type { ChartMode } from '@/components/ui/chart-measure'
+import { ChartDrawBar } from '@/components/ui/chart-draw-bar'
+import { NO_TOOLS, type ChartTools } from '@/lib/chart-drawings'
 import {
   DEFAULT_SLOTS,
   parseSlots,
@@ -51,7 +41,6 @@ import { SlotChart } from '@/components/ui/chart-slot'
 import { ChartToolsMenu } from '@/components/ui/chart-tools'
 import { Segmented } from '@/components/ui/segmented'
 import { chartBars } from '@/lib/liquidity-bars'
-import { DRAW_LABEL, drawingStore, useDrawings, type DrawTool } from '@/lib/chart-drawings'
 import { CursorSync } from '@/lib/cursor-sync'
 import type { ViewTimeframe } from '@/lib/liquidity-contracts'
 import { dateTimeUtc, decimal } from '@/lib/format'
@@ -101,59 +90,6 @@ function save(saved: Saved) {
   }
 }
 
-type Tools = { ruler: boolean; draw: DrawTool; mode: ChartMode }
-const NO_TOOLS: Tools = { ruler: false, draw: 'none', mode: 'Velas' }
-
-const DRAW: {
-  id: string
-  label: string
-  icon: LucideIcon
-  on: (t: Tools) => boolean
-  set: Partial<Tools>
-}[] = [
-  {
-    id: 'nav',
-    label: 'Navegar',
-    icon: MousePointer2,
-    on: (t) => !t.ruler && t.draw === 'none',
-    set: { ruler: false, draw: 'none' },
-  },
-  {
-    id: 'ruler',
-    label: 'Medir',
-    icon: Ruler,
-    on: (t) => t.ruler,
-    set: { ruler: true, draw: 'none' },
-  },
-  ...(
-    [
-      ['hline', Minus],
-      ['trend', Slash],
-      ['rect', RectangleHorizontal],
-    ] as const
-  ).map(([kind, icon]) => ({
-    id: kind,
-    label: DRAW_LABEL[kind],
-    icon,
-    on: (t: Tools) => !t.ruler && t.draw === kind,
-    set: { ruler: false, draw: kind },
-  })),
-  {
-    id: 'candles',
-    label: 'Velas',
-    icon: CandlestickChart,
-    on: (t) => t.mode === 'Velas',
-    set: { mode: 'Velas' },
-  },
-  {
-    id: 'line',
-    label: 'Línea',
-    icon: LineChart,
-    on: (t) => t.mode === 'Línea',
-    set: { mode: 'Línea' },
-  },
-]
-
 const SOURCE: Record<NonNullable<SlotData['source']>, string> = {
   motor: 'velas del motor',
   ejemplo: 'datos de ejemplo',
@@ -162,7 +98,9 @@ const SOURCE: Record<NonNullable<SlotData['source']>, string> = {
 export function MultichartView() {
   const [saved, setSaved] = useState(loadSaved)
   useEffect(() => save(saved), [saved])
-  const [tools, setTools] = useState<Tools[]>(() => Array.from({ length: MAX }, () => NO_TOOLS))
+  const [tools, setTools] = useState<ChartTools[]>(() =>
+    Array.from({ length: MAX }, () => NO_TOOLS),
+  )
   const [chartTools, toggleChartTool] = useChartTools()
   const { instruments, timeframes } = useChartCatalog()
   const [cursorHub] = useState(() => new CursorSync())
@@ -179,7 +117,6 @@ export function MultichartView() {
   const current = slots[active]
   const sel = saved.slots[active]
   const drawingsOf = current.data?.instrument_id ?? sel.instrument
-  const activeDrawings = useDrawings(drawingsOf)
   // en modo compacto, el gráfico activo dibuja sus controles acá, en la barra de arriba (#545)
   const [controlsEl, setControlsEl] = useState<HTMLElement | null>(null)
 
@@ -189,7 +126,7 @@ export function MultichartView() {
       ...p,
       slots: p.slots.map((s, k) => (k === active ? { ...s, ...patch } : s)),
     }))
-  const patchTools = (i: number, patch: Partial<Tools>) =>
+  const patchTools = (i: number, patch: Partial<ChartTools>) =>
     setTools((all) => all.map((t, k) => (k === i ? { ...t, ...patch } : t)))
 
   return (
@@ -277,44 +214,12 @@ export function MultichartView() {
       )}
 
       <div className="grid min-w-0 gap-3 lg:grid-cols-[auto_minmax(0,1fr)] xl:grid-cols-[auto_minmax(0,1fr)_260px]">
-        <div
-          role="toolbar"
-          aria-label={`Herramientas de dibujo del gráfico ${active + 1}`}
-          aria-orientation="vertical"
-          className="glass flex flex-wrap gap-1 self-start rounded-[20px] p-1.5 lg:sticky lg:top-4 lg:flex-col"
-        >
-          {DRAW.map((d, i) => {
-            const on = d.on(tools[active])
-            const Icon = d.icon
-            return (
-              <button
-                key={d.id}
-                type="button"
-                aria-pressed={on}
-                aria-label={d.label}
-                title={d.label}
-                onClick={() => patchTools(active, d.set)}
-                className={cn(
-                  'grid size-11 place-items-center rounded-xl text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring',
-                  on && 'bg-primary text-primary-foreground hover:text-primary-foreground',
-                  (i === 2 || i === 5) && 'max-lg:ml-2 lg:mt-2',
-                )}
-              >
-                <Icon className="size-4" aria-hidden />
-              </button>
-            )
-          })}
-          <button
-            type="button"
-            aria-label={`Borrar todos los dibujos de ${drawingsOf}`}
-            title={`Borrar todos los dibujos de ${drawingsOf}`}
-            disabled={activeDrawings.length === 0}
-            onClick={() => drawingStore.clear(drawingsOf)}
-            className="grid size-11 place-items-center rounded-xl text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40 disabled:hover:text-muted-foreground max-lg:ml-2 lg:mt-2"
-          >
-            <Trash2 className="size-4" aria-hidden />
-          </button>
-        </div>
+        <ChartDrawBar
+          label={`Herramientas de dibujo del gráfico ${active + 1}`}
+          tools={tools[active]}
+          onChange={(patch) => patchTools(active, patch)}
+          instrument={drawingsOf}
+        />
 
         <div data-chart-layout={saved.layout} className={cn('grid min-w-0 gap-3', layout.grid)}>
           {slots.slice(0, count).map((slot, i) => (
