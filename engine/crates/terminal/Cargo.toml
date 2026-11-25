@@ -13,6 +13,7 @@ path = "src/bin/bolsa.rs"
 [dependencies]
 cfds-core = { version = "0.1.0", path = "../core" }
 cfds-ibkr = { version = "0.1.0", path = "../ibkr" }
+cfds-market-data = { version = "0.1.0", path = "../market-data" }
 cfds-obs = { version = "0.1.0", path = "../obs" }
 chrono = { version = "0.4.45", default-features = false, features = ["std", "clock"] }
 # Terminal (MIT): pantalla alternativa, modo crudo, teclas y colores en macOS Terminal. Alcanza sin un

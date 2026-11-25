@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use cfds_core::InstrumentId;
 use cfds_ibkr::{BarSize, ContractKind, IbkrConfig};
+use cfds_market_data::SessionOffsets;
 use chrono::TimeDelta;
 use serde::Deserialize;
 
@@ -194,14 +195,12 @@ impl TerminalConfig {
                 "tiene que estar entre 100 y 60000",
             ));
         }
-        for (field, h) in [
-            ("session.stock_offset_hours", raw.session.stock_offset_hours),
-            ("session.other_offset_hours", raw.session.other_offset_hours),
-        ] {
-            if !(-12..=12).contains(&h) {
-                return Err(invalid(field, "tiene que estar entre -12 y 12"));
-            }
-        }
+        // Mismo criterio y validación que el gateway (#551).
+        let session = SessionOffsets::from_hours(
+            raw.session.stock_offset_hours,
+            raw.session.other_offset_hours,
+        )
+        .map_err(|(field, problem)| invalid(field, problem))?;
         let l = raw.lookback;
         if l.chart_1d_days == 0 || l.chart_1d_days > 365 {
             return Err(invalid(
@@ -231,8 +230,8 @@ impl TerminalConfig {
             chart_1h: window("lookback.chart_1h_hours", l.chart_1h_hours, BarSize::H1)?,
             chart_1d: TimeDelta::days(i64::from(l.chart_1d_days)),
             daily_lookback: TimeDelta::days(i64::from(l.daily_days)),
-            stock_session_offset: TimeDelta::hours(raw.session.stock_offset_hours),
-            other_session_offset: TimeDelta::hours(raw.session.other_offset_hours),
+            stock_session_offset: session.stock,
+            other_session_offset: session.other,
         })
     }
 

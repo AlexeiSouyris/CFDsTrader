@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/gateway_ibkr_watchlist.v1.schema.json",
+  "title": "Gateway IBKR watchlist v1",
+  "description": "Respuesta de GET /api/v1/ibkr/watchlist del gateway (#551): por instrumento de [ibkr] instruments de config/gateway.toml, en ese orden, el último cierre de las velas CERRADAS de IBKR guardadas en ibkr_bars, cuándo cerró esa vela, el atraso respecto de ahora y el cierre de una sesión anterior con la variación. Es presentación de dos precios (último y cierre de referencia), no un indicador ni una señal. El día de sesión es el de cfds_market_data::session_day (el mismo de la terminal bolsa): la fecha de start + corrimiento de [session] de config/terminal.toml (acciones -5 h, el resto +2 h). Los datos de IBKR sin suscripción llegan con unos 10 minutos de atraso: delay_seconds lo muestra.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["generated_at", "source", "instruments"],
+  "properties": {
+    "generated_at": { "description": "Ahora, en UTC: contra esto se mide delay_seconds.", "$ref": "#/$defs/utc" },
+    "source": { "description": "Fuente de las velas ([ibkr] source de config/gateway.toml).", "type": "string", "pattern": "^[a-z][a-z0-9_]{0,31}$" },
+    "instruments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["instrument_id", "quote"],
+        "properties": {
+          "instrument_id": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" },
+          "quote": {
+            "description": "null si no hay ninguna vela cerrada guardada (sin datos todavía).",
+            "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/quote" }]
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" },
+    "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "price": { "description": "Decimal exacto como string, nunca número JSON.", "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "signed": { "description": "Decimal exacto con signo, como string.", "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" },
+    "quote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract", "kind", "what_to_show", "timeframe", "last", "bar_start", "bar_end", "delay_seconds", "session", "previous_session", "previous_close", "change", "change_pct"],
+      "properties": {
+        "contract": { "description": "Contrato de la última vela (por ejemplo MNQZ6). La referencia sale del mismo contrato.", "type": "string", "pattern": "^[A-Z0-9][A-Z0-9. ]{0,31}$" },
+        "kind": { "enum": ["future", "stock", "forex"] },
+        "what_to_show": { "enum": ["TRADES", "MIDPOINT"] },
+        "timeframe": { "description": "Tamaño de la vela del último precio: la que cerró más tarde y, si cierran a la vez, la más chica.", "enum": ["1m", "15m", "1h"] },
+        "last": { "description": "Cierre de esa vela.", "$ref": "#/$defs/price" },
+        "bar_start": { "description": "Inicio de esa vela, UTC.", "$ref": "#/$defs/utc" },
+        "bar_end": { "description": "Cierre de esa vela (start + tamaño), UTC: la hora del último precio.", "$ref": "#/$defs/utc" },
+        "delay_seconds": { "description": "generated_at menos bar_end, en segundos (0 o más).", "type": "integer", "minimum": 0 },
+        "session": { "description": "Día de sesión de esa vela.", "$ref": "#/$defs/date" },
+        "previous_session": { "description": "Día de sesión de la vela de referencia: la última de la misma serie con un día de sesión anterior (puede ser más de un día antes, por ejemplo un lunes). null sin esa vela.", "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/date" }] },
+        "previous_close": { "description": "Cierre de la vela de referencia; null sin ella.", "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/price" }] },
+        "change": { "description": "last menos previous_close; null sin referencia.", "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/signed" }] },
+        "change_pct": { "description": "change sobre previous_close por 100, redondeado a 2 decimales; null sin referencia.", "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/signed" }] }
+      }
+    }
+  }
+}

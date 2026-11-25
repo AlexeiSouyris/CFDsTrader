@@ -4,7 +4,8 @@
 //! - separación de datos sin fugas (#16);
 //! - catálogo de instrumentos con sus costos (#7);
 //! - trait de proveedores de datos (#28);
-//! - barras de 1 minuto de futuros: agrupación y verificación contra IG (#248).
+//! - barras de 1 minuto de futuros: agrupación y verificación contra IG (#248);
+//! - día de sesión de una vela intradía y variación contra la sesión anterior (#551).
 //!
 //! Ninguna vela entra al sistema sin pasar por [`validation::validate_series`].
 
@@ -18,6 +19,7 @@ pub mod futures_feeds;
 pub mod instruments;
 pub mod news_filter;
 pub mod provider;
+pub mod session_day;
 pub mod split;
 pub mod spread_filter;
 pub mod trading_window;
@@ -41,6 +43,7 @@ pub use instruments::{
 };
 pub use news_filter::{NewsFilter, NewsFilterConfig, calendar_coverage, news_flags};
 pub use provider::{MarketDataProvider, ProviderError, StaticProvider};
+pub use session_day::{SessionOffsets, session_date, session_start};
 pub use split::{DataSplit, Period, SplitConfig, SplitError, Window, plan};
 pub use spread_filter::{SpreadFilterConfig, spread_flags};
 pub use trading_window::{
