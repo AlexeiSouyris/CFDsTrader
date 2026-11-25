@@ -152,6 +152,46 @@ describe('contraste AA en claro y oscuro', () => {
   })
 })
 
+/** `fg` al `alpha` sobre `bg` (lo que hace `bg-x/10` de Tailwind), como hex. */
+const over = (fg: string, alpha: number, bg: string) =>
+  '#' +
+  [1, 3, 5]
+    .map((i) => {
+      const f = parseInt(fg.slice(i, i + 2), 16)
+      const b = parseInt(bg.slice(i, i + 2), 16)
+      return Math.round(f * alpha + b * (1 - alpha))
+        .toString(16)
+        .padStart(2, '0')
+    })
+    .join('')
+
+describe('contraste AA de los sellos (#605)', () => {
+  for (const s of SECTIONS)
+    for (const theme of ['dark', 'light'] as const) {
+      it(`sello EJEMPLO en ${s.name}, tema ${theme}`, () => {
+        const t = s[theme]
+        const signal = t['--chart-signal']
+        // la ficha del sello es el mismo color al 10 % sobre el fondo de la sección o la tarjeta
+        for (const bg of [t['--section-bg'], t['--background'], t['--card'], t['--surface']]) {
+          const chip = over(signal, 0.1, bg)
+          expect(ratio(signal, chip), `${signal} sobre ${chip}`).toBeGreaterThanOrEqual(4.5)
+        }
+      })
+    }
+
+  for (const theme of ['dark', 'light'] as const) {
+    it(`dorado de Trofeos sobre un trofeo ganado, tema ${theme}`, () => {
+      const t = SECTIONS.find((x) => x.name === 'trophies')![theme]
+      const gold = t['--accent']
+      // tarjeta ganada: acento al 7 % sobre la sección; la ficha "Ganado", acento al 15 % encima
+      const card = over(gold, 0.07, t['--section-bg'])
+      const chip = over(gold, 0.15, card)
+      for (const bg of [card, chip])
+        expect(ratio(gold, bg), `${gold} sobre ${bg}`).toBeGreaterThanOrEqual(4.5)
+    })
+  }
+})
+
 describe('vidrio opt-in', () => {
   it('fuera de data-glass="on" es una superficie lisa; adentro, el vidrio', () => {
     const glass = css.slice(css.indexOf('@utility glass {'), css.indexOf('@utility glass-strong'))

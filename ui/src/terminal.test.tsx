@@ -44,6 +44,20 @@ describe('terminal de trading (fase 10, #275)', () => {
     expect(lists[1]).toHaveTextContent('P/L abierto')
   })
 
+  it('las listas de la cuenta son `dl` válidas: solo grupos de `dt` y `dd` (#605)', () => {
+    render(<TerminalView member={CURRENT_MEMBER} />)
+    const account = screen.getByRole('region', { name: 'Cuenta de simulación' })
+    for (const dl of account.querySelectorAll('dl')) {
+      for (const group of dl.children) {
+        expect(group.tagName).toBe('DIV')
+        const tags = [...group.children].map((c) => c.tagName)
+        expect(tags[0]).toBe('DT')
+        expect(tags.slice(1).length).toBeGreaterThan(0)
+        expect(tags.slice(1).every((t) => t === 'DD')).toBe(true)
+      }
+    }
+  })
+
   it('en el celular cada celda de una posición lleva su nombre (#356)', () => {
     render(<TerminalView member={CURRENT_MEMBER} />)
     const table = screen.getByRole('table', { name: 'Posiciones abiertas' })

@@ -89,9 +89,8 @@ function Stat({
       >
         {children}
       </dd>
-      {hint && (
-        <p className="mt-1 truncate text-[10.5px] leading-snug text-muted-foreground">{hint}</p>
-      )}
+      {/* dentro de un `dl` solo van `dt` y `dd` (#605): la aclaración es otro `dd` del mismo término */}
+      {hint && <dd className="mt-1 text-[10.5px] leading-snug text-muted-foreground">{hint}</dd>}
     </div>
   )
 }

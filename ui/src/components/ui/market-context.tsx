@@ -101,11 +101,12 @@ function HorizonRows({ group }: { group: AnalogGroup }) {
     <table className="w-full text-[12.5px]">
       <thead>
         <tr className="border-b border-border text-left text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
+          {/* sin aire entre columnas los porcentajes se pegaban (#605) */}
           <th className="py-1.5 font-bold">Sesiones después</th>
-          <th className="py-1.5 text-right font-bold">p10</th>
-          <th className="py-1.5 text-right font-bold">p50</th>
-          <th className="py-1.5 text-right font-bold">p90</th>
-          <th className="py-1.5 text-right font-bold">Positivos</th>
+          <th className="py-1.5 pl-2.5 text-right font-bold">p10</th>
+          <th className="py-1.5 pl-2.5 text-right font-bold">p50</th>
+          <th className="py-1.5 pl-2.5 text-right font-bold">p90</th>
+          <th className="py-1.5 pl-2.5 text-right font-bold">Positivos</th>
         </tr>
       </thead>
       <tbody>
@@ -118,7 +119,7 @@ function HorizonRows({ group }: { group: AnalogGroup }) {
                 <td
                   key={p}
                   className={cn(
-                    'py-1.5 text-right whitespace-nowrap tabular-nums',
+                    'py-1.5 pl-2.5 text-right whitespace-nowrap tabular-nums',
                     v && (v.startsWith('-') ? 'text-down' : 'text-up'),
                   )}
                 >
@@ -126,7 +127,7 @@ function HorizonRows({ group }: { group: AnalogGroup }) {
                 </td>
               )
             })}
-            <td className="py-1.5 text-right whitespace-nowrap tabular-nums">
+            <td className="py-1.5 pl-2.5 text-right whitespace-nowrap tabular-nums">
               {decimal(h.positive_pct, 0)} %
             </td>
           </tr>

@@ -106,6 +106,42 @@ describe('Noticias y contexto (#581, etapa 7)', () => {
     await screen.findByText(/Sin eventos guardados entre/)
     expect(container.querySelector('[data-example-badge]')).toBeNull()
   })
+
+  it('"Cargar más" pide la página siguiente con next_before y la suma abajo (#605)', async () => {
+    const [first, second] = NEWS.items
+    const page1: GatewayNews = { ...NEWS, items: [first], next_before: '2026-11-24T19:00:00Z' }
+    const page2: GatewayNews = { ...NEWS, items: [second], next_before: null }
+    const fetchMock = vi.fn(async (url: string) => {
+      const body = url.startsWith('/api/v1/news?before=')
+        ? page2
+        : url.startsWith('/api/v1/news')
+          ? page1
+          : url.startsWith('/api/v1/calendar')
+            ? CALENDAR
+            : []
+      return new Response(JSON.stringify(body), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<NewsView />)
+    const list = await screen.findByRole('navigation', { name: 'Noticias' })
+    await within(list).findByRole('button', { name: /FOMC statement/ })
+    fireEvent.click(within(list).getByRole('button', { name: 'Cargar más' }))
+    await within(list).findByRole('button', { name: /ECB speech/ })
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/v1/news?before=${encodeURIComponent('2026-11-24T19:00:00Z')}`,
+      expect.anything(),
+    )
+    // sin `next_before`, no hay más páginas
+    expect(within(list).queryByRole('button', { name: 'Cargar más' })).toBeNull()
+  })
+
+  it('sin next_before no se ofrece "Cargar más"', async () => {
+    vi.stubGlobal('fetch', online())
+    render(<NewsView />)
+    const list = await screen.findByRole('navigation', { name: 'Noticias' })
+    await within(list).findByRole('button', { name: /FOMC statement/ })
+    expect(within(list).queryByRole('button', { name: 'Cargar más' })).toBeNull()
+  })
 })
 
 const NEWS: GatewayNews = {
