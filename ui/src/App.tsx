@@ -142,9 +142,17 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
     stage === 'app' && tab >= 0,
   )
 
+  // Vidrio y fondo animado son opt-in (#581): `data-glass="on"` activa el vidrio en esa zona y
+  // el fondo semitono se monta solo donde hay vidrio. Por ahora, en toda la app (etapa 1).
+  const ambient = true
+
   return (
-    <div data-theme={theme} className="relative isolate min-h-svh text-foreground">
-      <HalftoneWallpaper light={theme === 'light'} />
+    <div
+      data-theme={theme}
+      data-glass={ambient ? 'on' : undefined}
+      className="relative isolate min-h-svh text-foreground"
+    >
+      {ambient && <HalftoneWallpaper light={theme === 'light'} />}
       <div className="relative z-10">
         {stage === 'loading' && <LoadingScreen />}
         {stage === 'signin' && (

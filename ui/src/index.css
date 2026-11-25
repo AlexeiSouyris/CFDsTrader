@@ -1,15 +1,20 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/manrope';
+/* #581: mono para números y tablas, serif para títulos editoriales. Autoalojadas (OFL-1.1). */
+@import '@fontsource-variable/jetbrains-mono';
+@import '@fontsource-variable/source-serif-4';
 
 /*
  * Tema del prototipo (#164): grafito metalizado con plata.
  * Un solo juego de tokens para toda la app: los componentes no definen colores propios,
  * leen estas variables. Oscuro por defecto; el claro se activa con data-theme="light".
  */
-@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *, [data-section='terminal'], [data-section='terminal'] *));
 
+/* La terminal es siempre oscura (#581): toma los tokens del tema oscuro aunque el resto sea claro. */
 :root,
-[data-theme='dark'] {
+[data-theme='dark'],
+[data-section='terminal'] {
   --background: #101113;
   --foreground: #eceef1;
   --muted-foreground: #a3a8b0;
@@ -19,6 +24,9 @@
   --ring: #c9ced6;
   --primary: #d9dde3;
   --primary-foreground: #121316;
+  /* acento de la sección (solo cromo: foco, pestaña activa, títulos; nunca datos) */
+  --accent: #d9dde3;
+  --section-bg: #101113;
   /* vidrio */
   --glass-opacity: 0.7;
   --glass-strong: rgb(38 41 46 / 78%);
@@ -51,6 +59,8 @@
   --ring: #3a4048;
   --primary: #23262b;
   --primary-foreground: #f4f5f7;
+  --accent: #23262b;
+  --section-bg: #e7e9ec;
   --glass-opacity: 0.55;
   --glass-strong: rgb(252 253 254 / 82%);
   --glass-rim: rgb(255 255 255 / 70%);
@@ -70,8 +80,107 @@
   color-scheme: light;
 }
 
+/*
+ * Secciones (#581, ver docs/design/2026-11-rediseno-ui.md §2.3). Una sola app: mismas fuentes,
+ * escala, curva de movimiento y colores de gráficos (`--chart-*`, la dirección del precio es igual
+ * en todas partes). Cada sección cambia solo superficie (`--section-bg`), densidad (`--density`),
+ * forma (`--radius`) y acento (`--accent`), con `data-section` en el contenedor de la vista.
+ * Ninguna sección redefine un `--chart-*`. Contraste AA verificado en `tokens.test.ts`.
+ */
+:root {
+  /* espaciado con base de 4 px (a 16 px de fuente raíz; en rem para respetar el zoom de texto) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --density: var(--space-4);
+  --radius: 20px;
+}
+
+/* Inicio y Fondo: resumen con vidrio, tarjetas con aire */
+[data-section='hub'],
+[data-section='fund'] {
+  --density: var(--space-4);
+  --radius: 20px;
+}
+
+/* Terminal: densa, siempre oscura (toma los tokens oscuros de arriba), acento ámbar */
+[data-section='terminal'] {
+  --density: var(--space-2);
+  --radius: 4px;
+  --section-bg: #0b0c0e;
+  --accent: #f0b429;
+}
+
+/* Gráficos: lienzo, acento azul de análisis */
+[data-section='charts'] {
+  --density: var(--space-2);
+  --radius: 4px;
+  --section-bg: #0b0c0e;
+  --accent: #9fb4ff;
+}
+[data-theme='light'] [data-section='charts'],
+[data-theme='light'][data-section='charts'] {
+  --section-bg: #f3f4f6;
+  --accent: #3a55c9;
+}
+
+/* Investigación y Diario: editorial, papel, acento violeta */
+[data-section='research'],
+[data-section='journal'] {
+  --density: var(--space-6);
+  --radius: 8px;
+  --section-bg: #151619;
+  --accent: #b7a6ff;
+}
+[data-theme='light'] [data-section='research'],
+[data-theme='light'][data-section='research'],
+[data-theme='light'] [data-section='journal'],
+[data-theme='light'][data-section='journal'] {
+  --section-bg: #faf8f4;
+  --accent: #5b3fb0;
+}
+
+/* Noticias y contexto: lector, acento verde azulado */
+[data-section='news'] {
+  --density: var(--space-6);
+  --radius: 8px;
+  --section-bg: #121314;
+  --accent: #6cc9b5;
+}
+[data-theme='light'] [data-section='news'],
+[data-theme='light'][data-section='news'] {
+  --section-bg: #f6f2ea;
+  --accent: #0d6e5f;
+}
+
+/* Trofeos: sobrio, acento dorado contenido */
+[data-section='trophies'] {
+  --density: var(--space-4);
+  --radius: 8px;
+  --accent: #e6c35c;
+}
+[data-theme='light'] [data-section='trophies'],
+[data-theme='light'][data-section='trophies'] {
+  --accent: #7a5b00;
+}
+
 @theme inline {
   --font-sans: 'Manrope Variable', Manrope, system-ui, sans-serif;
+  --font-mono:
+    'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-serif: 'Source Serif 4 Variable', 'Source Serif 4', Georgia, serif;
+  --color-accent: var(--accent);
+  --color-section: var(--section-bg);
+  --color-chart-line: var(--chart-line);
+  --color-chart-accent: var(--chart-accent);
+  --color-chart-signal: var(--chart-signal);
+  --color-chart-grid: var(--chart-grid);
+  --radius-section: var(--radius);
+  --spacing-density: var(--density);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-muted-foreground: var(--muted-foreground);
@@ -95,35 +204,47 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* Panel de vidrio: el mismo material en toda la app (shell, tarjetas, menús). */
+/*
+ * Vidrio (#581): opt-in. Fuera de una zona con `data-glass="on"`, `.glass` es una superficie lisa
+ * (sin desenfoque); dentro, el material translúcido de siempre. La app decide dónde va el vidrio.
+ */
 @utility glass {
-  background:
-    linear-gradient(150deg, var(--glass-edge) -60%, transparent 38%),
-    color-mix(in srgb, var(--card) calc(var(--glass-opacity) * 100%), transparent);
-  border: 1px solid var(--glass-rim);
-  box-shadow:
-    inset 0 1px 0 var(--glass-edge),
-    0 18px 50px -24px var(--glass-shade);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+  background: var(--card);
+  border: 1px solid var(--border);
+  &:where([data-glass='on'] *, [data-glass='on']) {
+    background:
+      linear-gradient(150deg, var(--glass-edge) -60%, transparent 38%),
+      color-mix(in srgb, var(--card) calc(var(--glass-opacity) * 100%), transparent);
+    border-color: var(--glass-rim);
+    box-shadow:
+      inset 0 1px 0 var(--glass-edge),
+      0 18px 50px -24px var(--glass-shade);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+  }
 }
 
 @utility glass-strong {
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-rim);
-  box-shadow:
-    inset 0 1px 0 var(--glass-edge),
-    0 24px 60px -24px var(--glass-shade);
-  backdrop-filter: blur(calc(var(--glass-blur) + 8px)) saturate(1.2);
-  -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 8px)) saturate(1.2);
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 60px -24px var(--glass-shade);
+  &:where([data-glass='on'] *, [data-glass='on']) {
+    background: var(--glass-strong);
+    border-color: var(--glass-rim);
+    box-shadow:
+      inset 0 1px 0 var(--glass-edge),
+      0 24px 60px -24px var(--glass-shade);
+    -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 8px)) saturate(1.2);
+    backdrop-filter: blur(calc(var(--glass-blur) + 8px)) saturate(1.2);
+  }
 }
 
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .glass,
   .glass-strong {
     background: var(--surface);
-    backdrop-filter: none;
     -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 }
 
