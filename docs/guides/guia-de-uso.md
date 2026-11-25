@@ -81,8 +81,11 @@ Donde se opera **en simulación**.
   - el [apalancamiento](../GLOSARIO.md#apalancamiento) y las posiciones abiertas (máximo 5);
   - la última reconciliación.
 - **Aviso del kill switch:** si se activa, aparece un aviso rojo, "Kill switch activo: no se opera". Desde ahí no se abre nada. Reactivarlo pide la votación de la spec (§1.2): no se hace desde la pantalla. **Apagar y volver a prender el sistema no lo libera:** queda guardado en la base. Cómo se libera está en la sección 5.
-- **Tarjetas de cuenta:** capital, P/L abierto, P/L del día, [margen](../GLOSARIO.md#margen), apalancamiento y pérdida del día usada.
-- **Gráficos:** con los botones **1, 2 y 4** se ven uno, dos o cuatro gráficos a la vez. En cada uno se elige el instrumento y el timeframe. Se mueven, se acercan y se miden como se explica en la sección 3.
+- **Barra de la cuenta** (arriba, queda fija al bajar): "MODO SIMULACIÓN", capital, P/L abierto, P/L del día, [margen](../GLOSARIO.md#margen), apalancamiento y pérdida del día usada. En el celular queda fijo un aviso chico de "SIMULACIÓN".
+- **Mercados** (izquierda): cada instrumento con su último cierre y la hora de esa vela. Tocar uno lo abre en el gráfico activo y en el ticket (con el stop vacío). La variación y el atraso aparecen cuando el gateway los mande (#551).
+- **Gráficos** (centro): con los botones **1, 2 y 4** se ven uno, dos o cuatro gráficos a la vez. En cada uno se elige el instrumento y el timeframe. La barra de dibujo de la izquierda (la misma del Multigráfico) actúa sobre el gráfico activo. Se mueven, se acercan y se miden como se explica en la sección 3.
+- **Pestañas de abajo:** Posiciones; Órdenes (las que mandaste desde esta pestaña, con la respuesta del broker simulado: se pierden al recargar porque el gateway todavía no las lista); Historial (por ahora solo el P/L realizado del día: no hay ruta de historial); Actividad (eventos del broker y alertas); Propuestas (de ejemplo).
+- **En el celular:** arriba se elige qué ver: Gráfico, Mercados o Ticket.
 - **Ticket** (para mandar una orden simulada):
   1. Elegí **Comprar** ([largo](../GLOSARIO.md#largo--corto)) o **Vender** (corto) y el instrumento.
   2. Escribí el **stop**, que es obligatorio ([stop loss](../GLOSARIO.md#stop-loss-sl)). El **TP1** es opcional ([take profit](../GLOSARIO.md#take-profit-tp)).

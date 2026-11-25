@@ -24,26 +24,40 @@ import {
 } from '@/lib/paper-contracts'
 import type { TicketDraft } from '@/mocks'
 
-/** El indicador grande de que todo es simulación. */
-export function PaperBadge() {
+/**
+ * El indicador de que todo es simulación. En la barra de la Terminal (#552) va en su versión
+ * compacta, siempre a la vista.
+ */
+export function PaperBadge({ compact = false }: { compact?: boolean }) {
   return (
     <div
       role="status"
       aria-label="Modo simulación: no se envían órdenes reales"
-      className="flex items-center gap-3 rounded-[18px] border border-[var(--chart-signal)]/50 bg-[var(--chart-signal)]/10 px-4 py-3"
+      title="Paper: las órdenes van al broker simulado. No se envía ninguna orden real."
+      className={cn(
+        'flex shrink-0 items-center gap-3 border border-[var(--chart-signal)]/50 bg-[var(--chart-signal)]/10',
+        compact ? 'gap-2 rounded-full px-3 py-1.5' : 'rounded-[18px] px-4 py-3',
+      )}
     >
       <span className="relative flex size-2.5" aria-hidden="true">
         <span className="absolute inline-flex size-full animate-ping rounded-full bg-[var(--chart-signal)] opacity-60 motion-reduce:animate-none" />
         <span className="relative inline-flex size-2.5 rounded-full bg-[var(--chart-signal)]" />
       </span>
       <span>
-        <strong className="block text-[15px] leading-none font-extrabold tracking-[0.12em] text-[var(--chart-signal)]">
+        <strong
+          className={cn(
+            'block leading-none font-extrabold text-[var(--chart-signal)]',
+            compact ? 'text-[11.5px] tracking-[0.1em]' : 'text-[15px] tracking-[0.12em]',
+          )}
+        >
           MODO SIMULACIÓN
         </strong>
-        <span className="mt-1 block text-[11px] text-muted-foreground">
-          <Term id="paper-trading">Paper</Term>: las órdenes van al broker simulado. No se envía
-          ninguna orden real.
-        </span>
+        {!compact && (
+          <span className="mt-1 block text-[11px] text-muted-foreground">
+            <Term id="paper-trading">Paper</Term>: las órdenes van al broker simulado. No se envía
+            ninguna orden real.
+          </span>
+        )}
       </span>
     </div>
   )
@@ -63,27 +77,20 @@ function Stat({
   className?: string
 }) {
   return (
-    <div className={cn('min-w-0', className)}>
-      <dt className="text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
+    <div className={cn('min-w-0', className)} title={typeof hint === 'string' ? hint : undefined}>
+      <dt className="text-[10px] font-bold tracking-[0.1em] whitespace-nowrap text-muted-foreground uppercase">
         {label}
       </dt>
       <dd
         className={cn(
-          'mt-1.5 leading-none font-extrabold tracking-[-0.03em] whitespace-nowrap tabular-nums',
-          big ? 'text-[clamp(30px,3.2vw,42px)]' : 'text-[20px]',
+          'mt-1 leading-none font-extrabold tracking-[-0.02em] whitespace-nowrap tabular-nums',
+          big ? 'text-[22px]' : 'text-[15px]',
         )}
       >
         {children}
       </dd>
       {hint && (
-        <p
-          className={cn(
-            'text-[11px] leading-snug text-muted-foreground',
-            big ? 'mt-2.5' : 'mt-1.5',
-          )}
-        >
-          {hint}
-        </p>
+        <p className="mt-1 truncate text-[10.5px] leading-snug text-muted-foreground">{hint}</p>
       )}
     </div>
   )
@@ -92,27 +99,28 @@ function Stat({
 const tone = (v: string) => (isNegative(v) ? 'text-down' : 'text-up')
 
 /**
- * Capital, P/L, margen y apalancamiento de la cuenta de simulación, tal como llegan.
+ * La barra de la cuenta de simulación (#552): el modo simulación, el capital, el P/L, el margen,
+ * el apalancamiento y la pérdida del día, tal como llegan del motor, en una sola franja.
  *
- * El capital va en su propia columna (#356): con la cifra grande en la misma grilla que el resto
- * se pisaba con el P/L abierto. El resto de las cifras se acomoda solo (`auto-fit`) según el ancho.
+ * El capital va en su propia lista (#356): así no se pisa con el P/L abierto. El resto se acomoda
+ * solo según el ancho; en el celular, en dos columnas.
  */
-export function AccountStrip({ account }: { account: PaperAccount }) {
+export function AccountStrip({ account, aside }: { account: PaperAccount; aside?: ReactNode }) {
   const used = Number(account.daily_loss_used_pct)
   return (
     <section
       aria-label="Cuenta de simulación"
-      className="glass relative grid gap-5 rounded-[20px] p-5 has-[[role=dialog]]:z-30 xl:grid-cols-[minmax(17rem,21rem)_minmax(0,1fr)] xl:gap-8"
+      className="glass relative flex min-w-0 flex-wrap items-center gap-x-6 gap-y-3 rounded-[20px] px-4 py-3 has-[[role=dialog]]:z-30"
     >
-      <div className="grid content-start gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-center xl:grid-cols-1">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+        <PaperBadge compact />
         <dl>
           <Stat label="Capital" big hint={`${account.currency}, al ${dateTimeUtc(account.as_of)}`}>
             <AnimatedNumber value={account.equity} format={(t) => decimal(t, 2)} />
           </Stat>
         </dl>
-        <PaperBadge />
       </div>
-      <dl className="grid grid-cols-2 content-center gap-x-6 gap-y-5 border-t border-border pt-5 sm:grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] xl:border-t-0 xl:border-l xl:pt-0 xl:pl-8">
+      <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))]">
         <Stat label={<Term id="pl">P/L abierto</Term>} hint="posiciones abiertas">
           <span className={tone(account.unrealized_pl)}>
             <AnimatedNumber value={account.unrealized_pl} format={(t) => signed(t, 2)} />
@@ -130,19 +138,15 @@ export function AccountStrip({ account }: { account: PaperAccount }) {
           <AnimatedNumber value={account.margin_used} format={(t) => decimal(t, 2)} />
         </Stat>
         <Stat
-          label={<Term id="apalancamiento">Apalancamiento</Term>}
+          label={<Term id="apalancamiento">Apalanc.</Term>}
           hint={`${account.open_positions} de ${account.max_positions} posiciones`}
         >
           {decimal(account.leverage)}:1
         </Stat>
-        <Stat
-          label="Pérdida del día"
-          hint="usada del máximo diario (§10)"
-          className="max-sm:col-span-2"
-        >
+        <Stat label="Pérdida del día" hint="usada del máximo diario (§10)">
           {decimal(account.daily_loss_used_pct)} %
           <span
-            className="mt-2.5 block h-1.5 overflow-hidden rounded-full bg-border"
+            className="mt-1.5 block h-1 overflow-hidden rounded-full bg-border"
             role="meter"
             aria-label="Pérdida del día usada"
             aria-valuemin={0}
@@ -160,6 +164,7 @@ export function AccountStrip({ account }: { account: PaperAccount }) {
           </span>
         </Stat>
       </dl>
+      {aside}
     </section>
   )
 }
@@ -214,6 +219,7 @@ export function OrderTicket({
   preview,
   submit,
   onFilled,
+  onReport,
   locked,
 }: {
   instruments: string[]
@@ -226,6 +232,8 @@ export function OrderTicket({
   submit?: (order: Order) => Promise<OrderReport>
   /** después de una orden ejecutada, para volver a pedir la cuenta y las posiciones */
   onFilled?: (report: OrderReport) => void
+  /** cada informe del broker simulado, con la orden enviada (la lista de órdenes de la sesión) */
+  onReport?: (order: Order, report: OrderReport) => void
   /** motivo por el que no se puede operar (por ejemplo, kill switch) */
   locked?: string
 }) {
@@ -282,8 +290,10 @@ export function OrderTicket({
     setFailure(null)
     try {
       // la hora de la orden es la del envío: el gateway rechaza órdenes viejas
-      const r = await submit({ ...order, created_at: new Date().toISOString() })
+      const sent = { ...order, created_at: new Date().toISOString() }
+      const r = await submit(sent)
       setReport(r)
+      onReport?.(sent, r)
       if (r.status === 'filled') onFilled?.(r)
     } catch (err) {
       setFailure(errorText(err))
