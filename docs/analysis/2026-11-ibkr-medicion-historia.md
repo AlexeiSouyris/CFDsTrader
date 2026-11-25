@@ -92,3 +92,23 @@ guarda velas cerradas en `ibkr_bars` (`contracts/ibkr_bar.v1.schema.json`, migra
 
 Verificación del 25-11-2026: una carga de MNQ (MNQZ6) 1h de 7 días a una base de pruebas propia
 (`cfds_test_ibkr2`, no la real): 115 velas nuevas; la segunda corrida no pidió nada (ya estaba al día).
+
+## Precios en vivo y frescura (#541)
+
+Medición del 25-11-2026 a las 01:36 UTC (CME abierto, QQQ cerrado), `client_id` 19, contra MNQZ6, con
+4 pedidos en total y una prueba que no quedó en el repo:
+
+| Pedido | Resultado |
+|---|---|
+| Velas de 1m de los últimos 10 minutos (historia) | 0 velas: la historia llega con demora |
+| Snapshot de precios en vivo (`reqMktData`, tipo 1) | error 354: datos no suscriptos |
+| Snapshot con datos demorados (tipo 3) | aviso 10167 "Displaying delayed market data"; último, compra, venta, máximo, mínimo, apertura y cierre anterior. Hora del último: 01:26:39 UTC, **unos 10 minutos de demora** |
+| Velas de 5 s en vivo (`reqRealTimeBars`) | error 420 "No market data permissions for CME FUT" |
+
+Con la cuenta tal como está, **no hay precios en vivo**: lo más fresco son unos 10 minutos de demora,
+igual en la historia de 1 minuto que en los precios demorados. Por eso la terminal `bolsa` usa la
+historia de 1 minuto (ya andaba, sin código nuevo en `cfds-ibkr`) y muestra la demora. El cierre
+anterior que da el snapshot demorado (26275.75) coincide con la diaria cerrada que usa la terminal
+como referencia de la variación del día. Precios en vivo requieren una suscripción de datos de IBKR
+(con costo: **a decidir por el dueño**, no se contrató nada).
+

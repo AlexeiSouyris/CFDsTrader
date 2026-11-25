@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/backtest", "crates/broker", "crates/obs","crates/core", "crates/ibkr", "crates/ig", "crates/indicators", "crates/ingest", "crates/fund", "crates/gateway", "crates/journal", "crates/liquidity", "crates/market-data", "crates/patterns", "crates/regime", "crates/risk", "crates/runner", "crates/storage", "crates/strategy", "crates/tiingo"]
+members = ["crates/backtest", "crates/broker", "crates/obs","crates/core", "crates/ibkr", "crates/ig", "crates/indicators", "crates/ingest", "crates/fund", "crates/gateway", "crates/journal", "crates/liquidity", "crates/market-data", "crates/patterns", "crates/regime", "crates/risk", "crates/runner", "crates/storage", "crates/strategy", "crates/terminal", "crates/tiingo"]
 
 [workspace.package]
 edition = "2024"

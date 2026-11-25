@@ -1,0 +1,32 @@
+[package]
+name = "cfds-terminal"
+description = "Ver la bolsa desde la terminal: precios y mini gráfico de velas de IBKR paper, solo lectura y solo presentación (#541)."
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "bolsa"
+path = "src/bin/bolsa.rs"
+
+[dependencies]
+cfds-core = { version = "0.1.0", path = "../core" }
+cfds-ibkr = { version = "0.1.0", path = "../ibkr" }
+cfds-obs = { version = "0.1.0", path = "../obs" }
+chrono = { version = "0.4.45", default-features = false, features = ["std", "clock"] }
+# Terminal (MIT): pantalla alternativa, modo crudo, teclas y colores en macOS Terminal. Alcanza sin un
+# framework de TUI (ratatui): la pantalla se arma como texto con funciones puras (ver `view`). Versión
+# exacta para que no cambie sola. Solo "events" (teclas); sin pegado ni las extras de Windows.
+crossterm = { version = "=0.29.0", default-features = false, features = ["events"] }
+rust_decimal = "1.43.0"
+serde = { version = "1.0.229", features = ["derive"] }
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["macros", "rt", "rt-multi-thread", "time", "sync"] }
+toml = "0.9"
+
+[dev-dependencies]
+rust_decimal = { version = "1.43.0", features = ["macros"] }
+
+[lints]
+workspace = true
