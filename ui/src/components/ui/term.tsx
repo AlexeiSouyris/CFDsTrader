@@ -2,9 +2,11 @@
  * Un término técnico que se puede tocar para ver su definición y su ejemplo (fase 10, #171).
  * El texto sale de `docs/GLOSARIO.md` (ver `lib/glossary.ts`). Si el id no existe, queda texto plano.
  */
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 
+import { Floating } from '@/components/ui/floating'
 import { GLOSSARY_BY_ID } from '@/lib/glossary'
+import { useDismiss } from '@/lib/floating'
 import { cn } from '@/lib/utils'
 
 export function Term({
@@ -19,28 +21,16 @@ export function Term({
   const entry = GLOSSARY_BY_ID.get(id)
   const [open, setOpen] = useState(false)
   const popId = useId()
-  const ref = useRef<HTMLSpanElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const close = (e: Event) => {
-      if (
-        e instanceof KeyboardEvent ? e.key === 'Escape' : !ref.current?.contains(e.target as Node)
-      )
-        setOpen(false)
-    }
-    document.addEventListener('pointerdown', close)
-    document.addEventListener('keydown', close)
-    return () => {
-      document.removeEventListener('pointerdown', close)
-      document.removeEventListener('keydown', close)
-    }
-  }, [open])
+  const ref = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLSpanElement>(null)
+  // la definición va en una capa sobre todo (#570): dentro de una tarjeta, la de abajo la tapaba
+  useDismiss(open, () => setOpen(false), [ref, panelRef], ref)
 
   if (!entry) return <span className={className}>{children}</span>
   return (
-    <span ref={ref} className="relative inline-block">
+    <span className="relative inline-block">
       <button
+        ref={ref}
         type="button"
         data-inline-hit
         aria-expanded={open}
@@ -54,11 +44,14 @@ export function Term({
         {children ?? entry.title}
       </button>
       {open && (
-        <span
+        <Floating
+          as="span"
+          anchor={ref}
+          panelRef={panelRef}
           id={popId}
           role="dialog"
           aria-label={entry.title}
-          className="absolute top-full left-0 z-40 mt-2 block w-72 border border-[var(--glass-rim)] bg-[var(--card)] shadow-[0_18px_40px_-12px_rgba(0,0,0,0.6)] max-w-[80vw] rounded-2xl p-3.5 text-left text-[12px] leading-relaxed font-normal tracking-normal normal-case"
+          className="block w-72 border border-[var(--glass-rim)] bg-[var(--card)] shadow-[0_18px_40px_-12px_rgba(0,0,0,0.6)] max-w-[80vw] rounded-2xl p-3.5 text-left text-[12px] leading-relaxed font-normal tracking-normal normal-case"
         >
           <strong className="block text-[13px] font-bold">{entry.title}</strong>
           <span className="mt-1 block whitespace-pre-line text-foreground/90">{entry.body}</span>
@@ -68,7 +61,7 @@ export function Term({
               {entry.example}
             </span>
           )}
-        </span>
+        </Floating>
       )}
     </span>
   )

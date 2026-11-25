@@ -69,7 +69,9 @@ describe('multigráfico (#540)', () => {
   it('el panel activo se resalta y la barra de dibujo actúa solo sobre él', () => {
     render(<MultichartView />)
     expect(slots()[0]).toHaveAttribute('data-active', 'true')
-    expect(slots()[0]).toHaveClass('ring-primary')
+    // marca sutil (#570): punto en el encabezado y aria-current, sin anillo alrededor del panel
+    expect(slots()[0]).toHaveAttribute('aria-current', 'true')
+    expect(slots()[0].className).not.toMatch(/\bring-/)
 
     // US100 15 m tiene datos de ejemplo: medir y línea se aplican al gráfico 1
     const bar = drawBar()
