@@ -68,7 +68,14 @@ import { ibkrSummaries, useMarketSummaries, type MarketSummary } from '@/lib/mar
 import { useOpsEvents, useOpsStatus } from '@/lib/ops-api'
 import { previewOrder, submitOrder, usePaperAccount, usePaperPositions } from '@/lib/paper-api'
 import type { PaperAccount } from '@/lib/paper-contracts'
-import { clearFocusedInstrument, FOCUS_EVENT, focusedInstrument } from '@/lib/terminal-focus'
+import {
+  clearFocusedInstrument,
+  clearFocusedTimeframe,
+  FOCUS_EVENT,
+  focusedInstrument,
+  focusedTimeframe,
+  TIMEFRAME_EVENT,
+} from '@/lib/terminal-focus'
 import { cn } from '@/lib/utils'
 import {
   mockPreview,
@@ -353,6 +360,17 @@ export function TerminalView({ member }: { member: Member }) {
     window.addEventListener(FOCUS_EVENT, onFocus)
     return () => window.removeEventListener(FOCUS_EVENT, onFocus)
   }, [])
+  // el timeframe que pide la paleta de comandos (#581), para el gráfico activo
+  const [wantTf, setWantTf] = useState(focusedTimeframe)
+  useEffect(() => {
+    clearFocusedTimeframe()
+    const onTf = (e: Event) => {
+      clearFocusedTimeframe()
+      setWantTf((e as CustomEvent<string>).detail)
+    }
+    window.addEventListener(TIMEFRAME_EVENT, onTf)
+    return () => window.removeEventListener(TIMEFRAME_EVENT, onTf)
+  }, [])
   const { instruments, timeframes } = useChartCatalog()
   const catalog = useInstruments()
   const names: Record<string, string> =
@@ -367,6 +385,17 @@ export function TerminalView({ member }: { member: Member }) {
   const count = Number(saved.layout)
   const current = Math.min(active, count - 1)
   const activeSel = saved.slots[current]
+  // ajuste durante el render (sin efecto): solo si ese gráfico ofrece el timeframe pedido
+  if (wantTf !== null) {
+    setWantTf(null)
+    if ((slotTimeframes(activeSel, timeframes) as readonly string[]).includes(wantTf))
+      setSaved((prev) => ({
+        ...prev,
+        slots: prev.slots.map((s, k) =>
+          k === current ? { ...s, timeframe: wantTf as ChartTimeframe } : s,
+        ),
+      }))
+  }
   const [pane, setPane] = useState<Pane>('Gráfico')
   const [tab, setTab] = useState<Tab>('Posiciones')
   const [sent, setSent] = useState<SentOrder[]>([])

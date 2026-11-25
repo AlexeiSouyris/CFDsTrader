@@ -1,6 +1,6 @@
 /**
  * Armazón de la app: barra superior, navegación (lateral en escritorio, inferior en el celular),
- * escenario de vidrio, búsqueda de vistas, avisos y ajuste del vidrio.
+ * escenario de vidrio, paleta de comandos (⌘K), avisos y ajuste del vidrio.
  *
  * Une dos componentes de referencia que hacían lo mismo (#164): "Glassy Dashboard" (barra,
  * docks y búsqueda) y "Adjustable Glass Dashboard" (panel para ajustar el vidrio). Queda un solo
@@ -8,7 +8,10 @@
  */
 import {
   Bell,
+  Clock3,
   Ellipsis,
+  House,
+  Layers,
   LineChart,
   Moon,
   Search,
@@ -30,10 +33,12 @@ import {
 
 import { CandlestickIcon } from '@/components/ui/animated-icons'
 import { PRESETS, type GlassSettings } from '@/components/ui/glass-settings'
+import { TOOLS } from '@/lib/analysis-layers'
 import { useInstruments } from '@/lib/liquidity-api'
 import type { InstrumentInfo } from '@/lib/liquidity-contracts'
 import { useDismiss } from '@/lib/floating'
-import { focusInstrument, OPEN_SEARCH_EVENT } from '@/lib/terminal-focus'
+import { focusInstrument, focusTimeframe, OPEN_SEARCH_EVENT } from '@/lib/terminal-focus'
+import { useChartTools } from '@/lib/use-chart-tools'
 import { cn } from '@/lib/utils'
 
 export type ShellView = {
@@ -152,9 +157,9 @@ export function GlassShell({
           className="col-span-2 row-start-2 flex min-h-10 items-center gap-2.5 rounded-full border border-border bg-[color-mix(in_srgb,var(--card)_40%,transparent)] px-3 text-left text-[12px] font-semibold text-muted-foreground hover:text-foreground md:col-span-1 md:row-start-auto"
         >
           <Search className="size-4" aria-hidden="true" />
-          <span className="truncate">Buscar una vista o un instrumento</span>
+          <span className="truncate">Buscar o elegir un comando</span>
           <kbd className="ml-auto hidden rounded border border-border px-1.5 text-[10px] sm:inline">
-            Ctrl K
+            {SHORTCUT}
           </kbd>
         </button>
 
@@ -276,8 +281,10 @@ export function GlassShell({
       <Dock views={views} active={active} onSelect={onSelect} onMore={() => setSearching(true)} />
 
       {searching && (
-        <ViewSearch
+        <CommandPalette
           views={views}
+          theme={theme}
+          onThemeChange={onThemeChange}
           onClose={() => setSearching(false)}
           onSelect={(id) => {
             setSearching(false)
@@ -552,24 +559,62 @@ function Dock({
   )
 }
 
-/** El último catálogo que llegó: la próxima vez que se abre el buscador se ve al instante. */
-let lastInstruments: InstrumentInfo[] = []
-
-type SearchItem = {
-  key: string
-  kind: 'view' | 'instrument'
-  id: string
-  label: string
-  detail: string
-  icon: LucideIcon
+/** El último catálogo que llegó: la próxima vez que se abre la paleta se ve al instante. */
+let lastCatalog: { instruments: InstrumentInfo[]; timeframes: readonly string[] } = {
+  instruments: [],
+  timeframes: [],
 }
 
+/** Las partes del Inicio a las que se puede saltar (ids de `views/home.tsx`). */
+const HOME_PARTS = [
+  { id: 'inicio-cuenta', label: 'Cuenta' },
+  { id: 'inicio-secciones', label: 'Secciones' },
+  { id: 'inicio-resultados', label: 'Resultados recientes' },
+] as const
+
 /**
- * El buscador del encabezado (#362): vistas e instrumentos del catálogo
- * (`GET /api/v1/instruments`). Elegir un instrumento abre el Terminal con ese gráfico.
+ * Después de abrir el Inicio, lleva la vista a una de sus partes y le pasa el foco. Espera hasta
+ * 2 s a que la vista esté montada; si no aparece, no hace nada.
+ */
+function jumpTo(id: string, tries = 40) {
+  const el = document.getElementById(id)
+  if (!el) {
+    if (tries > 0) window.setTimeout(() => jumpTo(id, tries - 1), 50)
+    return
+  }
+  if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1')
+  el.scrollIntoView?.({ block: 'start' })
+  el.focus({ preventScroll: true })
+}
+
+const GROUPS = ['Vistas', 'Instrumentos', 'Timeframe', 'Capas', 'Tema', 'Inicio'] as const
+type Group = (typeof GROUPS)[number]
+
+type Command = {
+  key: string
+  group: Group
+  label: string
+  detail: string
+  /** el texto con el que se busca */
+  text: string
+  icon: LucideIcon
+  run: () => void
+}
+
+/** "⌘ K" en Mac y en el iPad o el iPhone; "Ctrl K" en lo demás. */
+const SHORTCUT =
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘ K' : 'Ctrl K'
+
+/**
+ * Paleta de comandos (⌘K / Ctrl K, #581; antes el buscador de #362). En un solo campo: ir a una
+ * vista, abrir un instrumento del catálogo (`GET /api/v1/instruments`) en el gráfico del Terminal,
+ * cambiar el timeframe del gráfico activo del Terminal, prender o apagar capas de análisis,
+ * cambiar el tema y saltar a una parte del Inicio. Solo navegación y preferencias de pantalla:
+ * no calcula nada ni envía órdenes.
  *
- * - Es un `combobox` con su `listbox`: ↑/↓ marcan (con `aria-activedescendant`, el foco queda en
- *   el campo), Enter elige la marcada (o la primera) y Esc cierra.
+ * - Es un `combobox` con su `listbox`, con los resultados en grupos (`role="group"`): ↑/↓ marcan
+ *   (con `aria-activedescendant`, el foco queda en el campo), Enter elige la marcada (o la
+ *   primera) y Esc cierra.
  * - Con el puntero se elige en `pointerup` sobre la misma opción donde empezó (`pointerdown`), con
  *   `click` de respaldo: si el navegador o una extensión se come el `click`, igual navega. No se
  *   navega en `pointerdown` porque el diálogo desaparecería bajo el dedo y el `pointerup`/`click`
@@ -577,17 +622,21 @@ type SearchItem = {
  * - Se cierra por el fondo solo si el clic cae fuera del rectángulo del diálogo: un clic en su
  *   borde o en su relleno (que también tiene al diálogo como `target`) no lo cierra.
  */
-function ViewSearch({
+function CommandPalette({
   views,
+  theme,
+  onThemeChange,
   onClose,
   onSelect,
 }: {
   views: ShellView[]
+  theme: 'dark' | 'light'
+  onThemeChange: (t: 'dark' | 'light') => void
   onClose: () => void
   onSelect: (id: string) => void
 }) {
   const ref = useRef<HTMLDialogElement>(null)
-  // al cerrar, el foco vuelve a donde estaba (el botón del buscador o "Más vistas"). Se toma al
+  // al cerrar, el foco vuelve a donde estaba (el botón de la paleta o "Más vistas"). Se toma al
   // renderizar, antes de que `autoFocus` lo pase al campo.
   const [back] = useState(() =>
     document.activeElement instanceof HTMLElement ? document.activeElement : null,
@@ -596,14 +645,20 @@ function ViewSearch({
   const listId = `${base}-list`
   const optionId = (i: number) => `${base}-opt-${i}`
   const [q, setQ] = useState('')
-  const [mark, setMark] = useState(0)
+  // la opción marcada; `null`: la que mejor coincide con lo escrito
+  const [mark, setMark] = useState<number | null>(null)
   const pressed = useRef<string | null>(null)
   const chosen = useRef(false)
   const catalog = useInstruments()
-  const instruments = catalog.status === 'ok' ? catalog.data.instruments : lastInstruments
+  const { instruments, timeframes } =
+    catalog.status === 'ok'
+      ? { instruments: catalog.data.instruments, timeframes: catalog.data.timeframes }
+      : lastCatalog
   useEffect(() => {
-    if (catalog.status === 'ok') lastInstruments = catalog.data.instruments
+    if (catalog.status === 'ok')
+      lastCatalog = { instruments: catalog.data.instruments, timeframes: catalog.data.timeframes }
   }, [catalog])
+  const [layers, toggleLayer] = useChartTools()
   // Enter antes de que llegue el catálogo: se elige apenas llega (o falla)
   const waiting = useRef(false)
 
@@ -637,31 +692,96 @@ function ViewSearch({
     }
   }
 
+  const other = theme === 'dark' ? 'light' : 'dark'
+  const all: Command[] = [
+    ...views.map((v) => ({
+      key: `view:${v.id}`,
+      group: 'Vistas' as const,
+      label: v.label,
+      detail: v.description,
+      text: `${v.label} ${v.description}`,
+      icon: v.icon,
+      run: () => onSelect(v.id),
+    })),
+    ...instruments.map((i) => ({
+      key: `instrument:${i.id}`,
+      group: 'Instrumentos' as const,
+      label: `${i.id} · ${i.name}`,
+      detail: `Instrumento (${i.currency}): abre el Terminal con su gráfico.`,
+      text: `${i.id} ${i.name} ${i.asset_class}`,
+      icon: LineChart,
+      run: () => {
+        focusInstrument(i.id)
+        onSelect('terminal')
+      },
+    })),
+    ...timeframes.map((tf) => ({
+      key: `timeframe:${tf}`,
+      group: 'Timeframe' as const,
+      label: `Timeframe ${tf}`,
+      detail: 'Cambia el gráfico activo del Terminal.',
+      text: `timeframe ${tf} temporalidad intervalo`,
+      icon: Clock3,
+      run: () => {
+        focusTimeframe(tf)
+        onSelect('terminal')
+      },
+    })),
+    ...TOOLS.map((t) => ({
+      key: `layer:${t.id}`,
+      group: 'Capas' as const,
+      label: `${layers[t.id] ? 'Apagar' : 'Prender'} ${t.label}`,
+      detail: `Capa de análisis de los gráficos: ahora ${layers[t.id] ? 'prendida' : 'apagada'}.`,
+      text: `capa herramienta ${layers[t.id] ? 'apagar' : 'prender'} ${t.label}`,
+      icon: Layers,
+      run: () => {
+        toggleLayer(t.id, !layers[t.id])
+        onClose()
+      },
+    })),
+    {
+      key: 'theme',
+      group: 'Tema',
+      label: `Tema ${other === 'light' ? 'claro' : 'oscuro'}`,
+      detail: 'Cambia el tema de la app. La Terminal es siempre oscura.',
+      text: `tema modo ${other === 'light' ? 'claro' : 'oscuro'}`,
+      icon: other === 'light' ? Sun : Moon,
+      run: () => {
+        onThemeChange(other)
+        onClose()
+      },
+    },
+    ...HOME_PARTS.map((p) => ({
+      key: `home:${p.id}`,
+      group: 'Inicio' as const,
+      label: `Inicio: ${p.label}`,
+      detail: 'Salta a esa parte del Inicio.',
+      text: `inicio ${p.label}`,
+      icon: House,
+      run: () => {
+        onSelect('inicio')
+        // después de que se cierra la paleta (que devuelve el foco) y se monta el Inicio
+        window.setTimeout(() => jumpTo(p.id), 50)
+      },
+    })),
+  ]
   const words = q.toLowerCase().split(/\s+/).filter(Boolean)
   const matches = (text: string) => words.every((w) => text.toLowerCase().includes(w))
-  const items: SearchItem[] = [
-    ...views
-      .filter((v) => matches(`${v.label} ${v.description}`))
-      .map((v) => ({
-        key: `view:${v.id}`,
-        kind: 'view' as const,
-        id: v.id,
-        label: v.label,
-        detail: v.description,
-        icon: v.icon,
-      })),
-    ...instruments
-      .filter((i) => matches(`${i.id} ${i.name} ${i.asset_class}`))
-      .map((i) => ({
-        key: `instrument:${i.id}`,
-        kind: 'instrument' as const,
-        id: i.id,
-        label: `${i.id} · ${i.name}`,
-        detail: `Instrumento (${i.currency}): abre el Terminal con su gráfico.`,
-        icon: LineChart,
-      })),
-  ]
-  const active = items.length ? Math.min(mark, items.length - 1) : -1
+  // en el orden de los grupos: el índice de cada opción es el de esta lista
+  const items = GROUPS.flatMap((g) => all.filter((c) => c.group === g && matches(c.text)))
+  // sin elegir con las flechas se marca la primera, salvo que no tenga la frase escrita tal cual
+  // y otra la tenga en su nombre: "inicio resultados" → "Inicio: Resultados recientes"
+  const plain = (t: string) =>
+    t
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .trim()
+  const phrase = plain(q)
+  const best =
+    phrase && items.length && !plain(items[0].text).includes(phrase)
+      ? items.findIndex((c) => plain(c.label).includes(phrase))
+      : -1
+  const active = items.length ? Math.min(mark ?? Math.max(best, 0), items.length - 1) : -1
 
   useEffect(() => {
     if (active >= 0)
@@ -670,13 +790,10 @@ function ViewSearch({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active])
 
-  const choose = (item: SearchItem | undefined) => {
+  const choose = (item: Command | undefined) => {
     if (!item || chosen.current) return
     chosen.current = true
-    if (item.kind === 'instrument') {
-      focusInstrument(item.id)
-      onSelect('terminal')
-    } else onSelect(item.id)
+    item.run()
   }
 
   useEffect(() => {
@@ -703,12 +820,45 @@ function ViewSearch({
     }
   }
 
+  const option = (item: Command, i: number) => (
+    <div
+      key={item.key}
+      id={optionId(i)}
+      role="option"
+      aria-selected={i === active}
+      data-kind={item.group}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return
+        pressed.current = item.key
+        // el foco queda en el campo (sin blur ni re-render entre el down y el up)
+        e.preventDefault()
+      }}
+      onPointerUp={(e) => {
+        if (e.button === 0 && pressed.current === item.key) choose(item)
+        pressed.current = null
+      }}
+      onPointerCancel={() => (pressed.current = null)}
+      onClick={() => choose(item)}
+      onMouseMove={() => i !== active && setMark(i)}
+      className={cn(
+        'flex cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2 text-left select-none',
+        i === active && 'bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]',
+      )}
+    >
+      <item.icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <span className="min-w-0">
+        <strong className="block text-[13px]">{item.label}</strong>
+        <small className="block truncate text-[11px] text-muted-foreground">{item.detail}</small>
+      </span>
+    </div>
+  )
+
   return (
     <dialog
       ref={ref}
       role="dialog"
       aria-modal="true"
-      aria-label="Buscar una vista o un instrumento"
+      aria-label="Paleta de comandos"
       onKeyDown={trapTab}
       onClose={onClose}
       onCancel={(e) => {
@@ -722,7 +872,7 @@ function ViewSearch({
           e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom
         if (outside) onClose()
       }}
-      className="glass-strong m-auto w-[min(480px,calc(100%-24px))] rounded-3xl p-4 text-foreground backdrop:bg-black/40 backdrop:backdrop-blur-sm"
+      className="glass-strong m-auto w-[min(520px,calc(100%-24px))] rounded-3xl p-4 text-foreground backdrop:bg-black/40 backdrop:backdrop-blur-sm"
     >
       <div className="flex items-center gap-2">
         <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-border px-3">
@@ -735,11 +885,11 @@ function ViewSearch({
             aria-controls={listId}
             aria-autocomplete="list"
             aria-activedescendant={active >= 0 ? optionId(active) : undefined}
-            placeholder="Vista o instrumento: US100, noticias…"
+            placeholder="Vista, instrumento o comando: US100, 1h, tema…"
             value={q}
             onChange={(e) => {
               setQ(e.target.value)
-              setMark(0)
+              setMark(null)
               waiting.current = false
             }}
             onKeyDown={onKeyDown}
@@ -748,55 +898,40 @@ function ViewSearch({
         </label>
         <button
           type="button"
-          aria-label="Cerrar el buscador"
+          aria-label="Cerrar la paleta"
           onClick={onClose}
           className="grid size-11 shrink-0 place-items-center rounded-full border border-border hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
         >
           <X className="size-4" aria-hidden="true" />
         </button>
       </div>
-      <ul
+      <div
         id={listId}
         role="listbox"
         aria-label="Resultados"
-        className="mt-3 grid max-h-[min(60svh,420px)] gap-1.5 overflow-y-auto"
+        className="mt-3 grid max-h-[min(60svh,440px)] grid-cols-[minmax(0,1fr)] gap-2 overflow-y-auto"
       >
-        {items.map((item, i) => (
-          <li
-            key={item.key}
-            id={optionId(i)}
-            role="option"
-            aria-selected={i === active}
-            data-kind={item.kind}
-            onPointerDown={(e) => {
-              if (e.button !== 0) return
-              pressed.current = item.key
-              // el foco queda en el campo (sin blur ni re-render entre el down y el up)
-              e.preventDefault()
-            }}
-            onPointerUp={(e) => {
-              if (e.button === 0 && pressed.current === item.key) choose(item)
-              pressed.current = null
-            }}
-            onPointerCancel={() => (pressed.current = null)}
-            onClick={() => choose(item)}
-            onMouseMove={() => i !== active && setMark(i)}
-            className={cn(
-              'flex cursor-pointer items-center gap-3 rounded-xl border border-border p-2.5 text-left select-none',
-              i === active && 'bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]',
-            )}
-          >
-            <item.icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span className="min-w-0">
-              <strong className="block text-[13px]">{item.label}</strong>
-              <small className="text-[11px] text-muted-foreground">{item.detail}</small>
-            </span>
-          </li>
-        ))}
-      </ul>
+        {GROUPS.map((g) => {
+          const inGroup = items.filter((c) => c.group === g)
+          if (inGroup.length === 0) return null
+          const headId = `${base}-group-${g}`
+          return (
+            <div key={g} role="group" aria-labelledby={headId} data-group={g}>
+              <div
+                id={headId}
+                role="presentation"
+                className="px-2.5 pb-1 text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground uppercase"
+              >
+                {g}
+              </div>
+              {inGroup.map((item) => option(item, items.indexOf(item)))}
+            </div>
+          )
+        })}
+      </div>
       {items.length === 0 && (
         <p className="p-2 text-[12px] text-muted-foreground">
-          No hay vistas ni instrumentos con ese nombre.
+          No hay vistas, instrumentos ni comandos con ese nombre.
         </p>
       )}
       {catalog.status === 'loading' && instruments.length === 0 && (
@@ -804,9 +939,13 @@ function ViewSearch({
       )}
       {catalog.status === 'error' && (
         <p className="px-2 pt-2 text-[11px] text-muted-foreground">
-          Sin instrumentos: el gateway no respondió. Las vistas se pueden buscar igual.
+          Sin instrumentos: el gateway no respondió. Las vistas y los comandos andan igual.
         </p>
       )}
+      <p className="hidden px-2 pt-2 text-[10.5px] text-muted-foreground sm:block">
+        <kbd>↑</kbd> <kbd>↓</kbd> para moverse, <kbd>Enter</kbd> para elegir, <kbd>Esc</kbd> para
+        cerrar.
+      </p>
     </dialog>
   )
 }

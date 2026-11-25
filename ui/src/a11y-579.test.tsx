@@ -60,7 +60,7 @@ describe('armazón', () => {
     expect(within(nav).getByText('Operaciones')).toBeInTheDocument()
     expect(within(nav).getByText('Competencia')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Más vistas' }))
-    const dialog = screen.getByRole('dialog', { name: 'Buscar una vista o un instrumento' })
+    const dialog = screen.getByRole('dialog', { name: 'Paleta de comandos' })
     // con el campo vacío lista todas las vistas
     expect(within(dialog).getAllByRole('option').length).toBeGreaterThanOrEqual(VIEWS.length)
   })
@@ -78,13 +78,13 @@ describe('armazón', () => {
 describe('buscador', () => {
   it('es un diálogo modal con trampa de foco y devuelve el foco al cerrar', () => {
     render(<App initialStage="app" />)
-    const opener = screen.getByRole('button', { name: /Buscar una vista o un instrumento/ })
+    const opener = screen.getByRole('button', { name: /Buscar o elegir un comando/ })
     opener.focus()
     fireEvent.click(opener)
-    const dialog = screen.getByRole('dialog', { name: 'Buscar una vista o un instrumento' })
+    const dialog = screen.getByRole('dialog', { name: 'Paleta de comandos' })
     expect(dialog).toHaveAttribute('aria-modal', 'true')
     const field = screen.getByRole('combobox', { name: 'Buscar' })
-    const close = within(dialog).getByRole('button', { name: 'Cerrar el buscador' })
+    const close = within(dialog).getByRole('button', { name: 'Cerrar la paleta' })
     close.focus()
     fireEvent.keyDown(close, { key: 'Tab' })
     expect(document.activeElement).toBe(field)

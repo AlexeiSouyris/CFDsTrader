@@ -57,7 +57,11 @@ export function HomeView({ onOpen }: { onOpen: (view: string) => void }) {
 
   return (
     <div data-section="hub" className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-8">
-      <section aria-label="Cuenta" className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2">
+      <section
+        id="inicio-cuenta"
+        aria-label="Cuenta"
+        className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2"
+      >
         {!live && (
           <ExampleNotice>
             Sin conexión con el motor: la cuenta es de ejemplo. Con el gateway, sale del broker
