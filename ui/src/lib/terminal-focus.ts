@@ -29,7 +29,8 @@ export const openSearch = () => window.dispatchEvent(new Event(OPEN_SEARCH_EVENT
 
 /**
  * El timeframe que la paleta de comandos (#581) pide para el gráfico activo del Terminal: mismo
- * patrón que el instrumento (pendiente al montar o evento si ya está abierto).
+ * patrón que el instrumento (pendiente al montar o evento si ya está abierto). Gráficos y
+ * Multigráfico escuchan el mismo evento para su gráfico activo (etapa 5).
  */
 export const TIMEFRAME_EVENT = 'cfdstrader:focus-timeframe'
 

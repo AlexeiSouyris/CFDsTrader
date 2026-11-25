@@ -61,7 +61,8 @@ export const VIEWS: ShellView[] = [
     label: 'Gráficos',
     short: 'Gráficos',
     icon: BarChart3,
-    description: 'Precio con volumen, RSI y MACD, y la profundidad del mercado.',
+    description:
+      'Un gráfico a pantalla completa con las velas del motor. Solo para mirar: sin órdenes.',
   },
   {
     id: 'multigrafico',
