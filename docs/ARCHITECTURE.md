@@ -74,6 +74,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | [calendar](modules/calendar.md) | `intelligence/cfds_intel/calendar` | Python | Calendario económico de Forex Factory, solo por su feed JSON oficial (ADR 0010). | hecho |
 | [calendar.official](modules/calendar.official.md) | `intelligence/cfds_intel/calendar/official` | Python | Calendario histórico oficial (ADR 0016): comunicados del FOMC y publicaciones del BLS. | hecho |
 | [databento](modules/databento.md) | `intelligence/cfds_intel/databento` | Python | Importador del histórico de 1 minuto de futuros desde Databento (ADR 0011). | hecho |
+| [fomc_novelty](modules/fomc_novelty.md) | `intelligence/cfds_intel/fomc_novelty` | Python | Novedad de cada comunicado del FOMC respecto del anterior (diff de palabras y embeddings locales), descriptiva. | en curso (#668) |
 | [learning](modules/learning.md) | `intelligence/cfds_intel/learning` | Python | Reentrenamiento walk-forward de los modelos con el diario e informe de propuestas de cambio. | planeado (#13) |
 | [models](modules/models.md) | `intelligence/cfds_intel/models` | Python | Modelos PyTorch de predicción y su entrenamiento (ML v1, solo informativo). | en curso (#399) |
 | [news](modules/news.md) | `intelligence/cfds_intel/news` | Python | Ingesta de noticias en tiempo real, resumen e interpretación (positivo/negativo, impacto). | hecho |
