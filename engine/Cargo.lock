@@ -484,6 +484,7 @@ version = "0.1.0"
 dependencies = [
  "cfds-core",
  "cfds-market-data",
+ "proptest",
  "rust_decimal",
  "serde",
  "toml",
