@@ -51,7 +51,7 @@
       "type": "array",
       "minItems": 1,
       "items": {
-        "description": "Una fuente: id ('ig', 'futures' o 'auto') y la etiqueta que muestra la UI.",
+        "description": "Una fuente: id ('ig', 'futures', 'ibkr' (#630) o 'auto') y la etiqueta que muestra la UI.",
         "type": "object",
         "additionalProperties": false,
         "required": [
@@ -63,6 +63,7 @@
             "enum": [
               "ig",
               "futures",
+              "ibkr",
               "auto"
             ]
           },
