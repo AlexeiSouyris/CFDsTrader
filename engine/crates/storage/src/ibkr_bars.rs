@@ -62,6 +62,28 @@ pub struct IbkrSeries<'a> {
     pub what_to_show: &'a str,
 }
 
+/// Una serie con sus textos propios (para listar las series guardadas).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IbkrSeriesKey {
+    pub source: String,
+    pub instrument_id: String,
+    pub contract: String,
+    pub bar_size: String,
+    pub what_to_show: String,
+}
+
+impl IbkrSeriesKey {
+    pub fn as_series(&self) -> IbkrSeries<'_> {
+        IbkrSeries {
+            source: &self.source,
+            instrument_id: &self.instrument_id,
+            contract: &self.contract,
+            bar_size: &self.bar_size,
+            what_to_show: &self.what_to_show,
+        }
+    }
+}
+
 type Stored = (
     String,
     DateTime<Utc>,
@@ -226,6 +248,56 @@ impl PgStore {
         .await?;
         rows.reverse();
         Ok(rows.into_iter().map(into_row).collect())
+    }
+
+    /// Las velas de la serie que empiezan en `[from, to)`, en orden (#563: revisar una vela de 15m
+    /// o 1h contra sus velas de 1m). Solo lectura.
+    pub async fn ibkr_bars_between(
+        &self,
+        s: &IbkrSeries<'_>,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<IbkrBarRow>, StorageError> {
+        let rows: Vec<Row> = sqlx::query_as(concat!(
+            "SELECT ",
+            columns!(),
+            " FROM ibkr_bars
+             WHERE source = $1 AND instrument_id = $2 AND contract = $3 AND bar_size = $4
+               AND what_to_show = $5 AND start_at >= $6 AND start_at < $7
+             ORDER BY start_at"
+        ))
+        .bind(s.source)
+        .bind(s.instrument_id)
+        .bind(s.contract)
+        .bind(s.bar_size)
+        .bind(s.what_to_show)
+        .bind(from)
+        .bind(to)
+        .fetch_all(self.pool())
+        .await?;
+        Ok(rows.into_iter().map(into_row).collect())
+    }
+
+    /// Todas las series guardadas, ordenadas. Solo lectura.
+    pub async fn ibkr_series(&self) -> Result<Vec<IbkrSeriesKey>, StorageError> {
+        let rows: Vec<(String, String, String, String, String)> = sqlx::query_as(
+            "SELECT DISTINCT source, instrument_id, contract, bar_size, what_to_show
+             FROM ibkr_bars ORDER BY 1, 2, 3, 4, 5",
+        )
+        .fetch_all(self.pool())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(
+                |(source, instrument_id, contract, bar_size, what_to_show)| IbkrSeriesKey {
+                    source,
+                    instrument_id,
+                    contract,
+                    bar_size,
+                    what_to_show,
+                },
+            )
+            .collect())
     }
 
     /// La última vela de la serie que **empieza** antes de `before` (para el cierre de una sesión
