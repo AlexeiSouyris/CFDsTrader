@@ -232,6 +232,19 @@ pub fn check(
     if leverage_capped {
         size = max_size;
     }
+    // Las divisiones de `Decimal` redondean en la cifra 28, a veces hacia arriba: el riesgo, el
+    // del grupo o el apalancamiento quedaban 1e-25 por encima de su límite. Sobre el tamaño final
+    // (después de la escala, el colchón por gaps y los topes) se baja la última cifra hasta que
+    // los tres entran. Nunca se sube (#677).
+    let budget = pct(risk_pct) * equity;
+    let group_budget = room.map(|room| room * fx);
+    while size > Decimal::ZERO
+        && (size * per_unit > budget
+            || group_budget.is_some_and(|g| size * per_unit > g)
+            || size * req.entry / equity > limits.max_leverage)
+    {
+        size -= Decimal::new(1, size.scale());
+    }
     let notional = size * req.entry;
     let margin = notional * pct(limits.margin_pct);
     if margin > account.free_margin * fx {
