@@ -58,7 +58,15 @@ describe('paleta de comandos (#581)', () => {
     const groups = within(list)
       .getAllByRole('group')
       .map((g) => g.getAttribute('data-group'))
-    expect(groups).toEqual(['Vistas', 'Instrumentos', 'Timeframe', 'Capas', 'Tema', 'Inicio'])
+    expect(groups).toEqual([
+      'Vistas',
+      'Instrumentos',
+      'Timeframe',
+      'Capas',
+      'Tema',
+      'Ajustes',
+      'Inicio',
+    ])
     expect(within(list).getByRole('group', { name: 'Timeframe' })).toContainElement(
       screen.getByRole('option', { name: /^Timeframe 1h/ }),
     )

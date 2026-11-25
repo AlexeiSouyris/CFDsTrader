@@ -6,7 +6,7 @@
  * en el historial, así atrás/adelante del navegador cambia de pestaña. El deslizamiento horizontal
  * del trackpad y los atajos de teclado pasan a la pestaña anterior o siguiente.
  */
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 
 import { LoadingScreen } from '@/components/ui/dot-loader'
 import { DEFAULT_GLASS } from '@/components/ui/glass-settings'
@@ -17,6 +17,7 @@ import { PortalTransition } from '@/components/ui/portal-transition'
 import { SignIn } from '@/components/ui/sign-in'
 import { CURRENT_MEMBER, NOTICES } from '@/mocks'
 import { ChartsView, CompetitionView, JournalView, NewsView } from '@/views'
+import { introOnStart, introPreview, markIntroSeen } from '@/lib/intro-pref'
 import { useTabSwipe } from '@/lib/use-tab-swipe'
 import { LiquidityView } from '@/views/liquidity'
 import { MultichartView } from '@/views/multichart'
@@ -27,6 +28,9 @@ import { TerminalView } from '@/views/terminal'
 import { HomeView } from '@/views/home'
 import { GLASS_VIEWS, HOME_VIEW, MAIN_TABS, VIEWS } from '@/views/nav'
 import { FundView, GlossaryView, ProposalsView } from '@/views/phase10'
+
+/** La intro (#581, etapa 9) se carga aparte: no pesa en las visitas siguientes. */
+const Intro = lazy(() => import('@/components/ui/intro'))
 
 const NOT_FOUND = 'no-encontrada'
 const viewFromHash = () => {
@@ -80,6 +84,15 @@ const PORTAL_ON_START = import.meta.env.DEV && import.meta.env.VITE_PORTAL_PREVI
 export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Stage }) {
   const [stage, setStage] = useState<Stage>(initialStage)
   const [portal, setPortal] = useState(PORTAL_ON_START && initialStage === 'app')
+  // la intro va antes del ingreso, solo la primera vez (y se puede volver a ver desde la paleta)
+  const [intro, setIntro] = useState(
+    () => (initialStage === 'loading' || introPreview()) && introOnStart(),
+  )
+  const endIntro = () => {
+    markIntroSeen()
+    setIntro(false)
+    setStage((s) => (s === 'loading' ? 'signin' : s))
+  }
   const [{ view, dir }, setNav] = useState(() => ({ view: viewFromHash(), dir: 0 }))
   const [theme, setThemeState] = useState<Theme>(() => savedTheme() ?? systemTheme())
   const setTheme = (t: Theme) => {
@@ -118,10 +131,10 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
   }, [view])
 
   useEffect(() => {
-    if (stage !== 'loading') return
+    if (stage !== 'loading' || intro) return
     const t = window.setTimeout(() => setStage('signin'), 900)
     return () => window.clearTimeout(t)
-  }, [stage])
+  }, [stage, intro])
 
   useEffect(() => {
     const onHash = () => setNav(navTo(viewFromHash()))
@@ -146,7 +159,8 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
 
   // Vidrio y fondo animado son opt-in (#581): `data-glass="on"` activa el vidrio en esa zona y
   // el fondo semitono se monta solo donde hay vidrio: el ingreso y el Inicio.
-  const ambient = stage !== 'app' || GLASS_VIEWS.includes(view)
+  // Mientras corre la intro, el fondo semitono no se monta.
+  const ambient = !intro && (stage !== 'app' || GLASS_VIEWS.includes(view))
 
   return (
     <div
@@ -156,7 +170,7 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
     >
       {ambient && <HalftoneWallpaper light={theme === 'light'} />}
       <div className="relative z-10">
-        {stage === 'loading' && <LoadingScreen />}
+        {stage === 'loading' && !intro && <LoadingScreen />}
         {stage === 'signin' && (
           <SignIn
             onSignIn={() => {
@@ -180,6 +194,7 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
                 : undefined
             }
             onSelect={select}
+            onReplayIntro={() => setIntro(true)}
             theme={theme}
             onThemeChange={setTheme}
             glass={glass}
@@ -208,6 +223,11 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
         )}
       </div>
       {portal && <PortalTransition onDone={() => setPortal(false)} />}
+      {intro && (
+        <Suspense fallback={<div className="fixed inset-0 z-[100] bg-[#0a0a0b]" />}>
+          <Intro onDone={endIntro} />
+        </Suspense>
+      )}
     </div>
   )
 }
