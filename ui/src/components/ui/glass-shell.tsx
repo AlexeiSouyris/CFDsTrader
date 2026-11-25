@@ -14,6 +14,7 @@ import {
   Layers,
   LineChart,
   Moon,
+  Play,
   Search,
   SlidersHorizontal,
   Sun,
@@ -59,6 +60,7 @@ export function GlassShell({
   tabs = [],
   active,
   onSelect,
+  onReplayIntro,
   theme,
   onThemeChange,
   glass,
@@ -76,6 +78,8 @@ export function GlassShell({
   tabs?: ShellView[]
   active: string
   onSelect: (id: string) => void
+  /** vuelve a mostrar la intro "El mercado espera" (#581) */
+  onReplayIntro?: () => void
   theme: 'dark' | 'light'
   onThemeChange: (t: 'dark' | 'light') => void
   glass: GlassSettings
@@ -286,6 +290,7 @@ export function GlassShell({
           active={active}
           theme={theme}
           onThemeChange={onThemeChange}
+          onReplayIntro={onReplayIntro}
           onClose={() => setSearching(false)}
           onSelect={(id) => {
             setSearching(false)
@@ -588,7 +593,15 @@ function jumpTo(id: string, tries = 40) {
   el.focus({ preventScroll: true })
 }
 
-const GROUPS = ['Vistas', 'Instrumentos', 'Timeframe', 'Capas', 'Tema', 'Inicio'] as const
+const GROUPS = [
+  'Vistas',
+  'Instrumentos',
+  'Timeframe',
+  'Capas',
+  'Tema',
+  'Ajustes',
+  'Inicio',
+] as const
 type Group = (typeof GROUPS)[number]
 
 type Command = {
@@ -631,6 +644,7 @@ function CommandPalette({
   active: view,
   theme,
   onThemeChange,
+  onReplayIntro,
   onClose,
   onSelect,
 }: {
@@ -639,6 +653,7 @@ function CommandPalette({
   active: string
   theme: 'dark' | 'light'
   onThemeChange: (t: 'dark' | 'light') => void
+  onReplayIntro?: () => void
   onClose: () => void
   onSelect: (id: string) => void
 }) {
@@ -763,6 +778,22 @@ function CommandPalette({
         onClose()
       },
     },
+    ...(onReplayIntro
+      ? [
+          {
+            key: 'intro',
+            group: 'Ajustes' as const,
+            label: 'Ver la intro otra vez',
+            detail: 'Muestra de nuevo la introducción "El mercado espera".',
+            text: 'ver la intro otra vez introducción ajustes animación',
+            icon: Play,
+            run: () => {
+              onClose()
+              onReplayIntro()
+            },
+          },
+        ]
+      : []),
     ...HOME_PARTS.map((p) => ({
       key: `home:${p.id}`,
       group: 'Inicio' as const,
