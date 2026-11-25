@@ -326,3 +326,65 @@ pub fn alpha_hc1(y: &[f64], x: &[f64]) -> Option<Alpha> {
         p_value: student_t_upper(t, nf - 2.0),
     })
 }
+
+/// Prueba t unilateral (H0: media ≤ 0) de una serie con el error estándar de Newey-West
+/// (programa 5 §4.2 y §13.3.6): `γ_l = (1/n) Σ_{j>l} (x_j − x̄)(x_{j−l} − x̄)`,
+/// `S = γ_0 + 2 Σ_{l=1..L} (1 − l/(L+1)) γ_l`, `t = x̄ / √(S/n)`, con `n − 1` grados de libertad.
+/// `None` si hay menos de dos datos o `S ≤ 0`. `std_dev` devuelve `√S`.
+pub fn newey_west_t_greater(xs: &[f64], lags: usize) -> Option<TTest> {
+    let n = xs.len();
+    if n < 2 {
+        return None;
+    }
+    let m = mean(xs)?;
+    let nf = n as f64;
+    let gamma =
+        |l: usize| -> f64 { (l..n).map(|j| (xs[j] - m) * (xs[j - l] - m)).sum::<f64>() / nf };
+    let big_l = lags as f64;
+    let s = gamma(0)
+        + 2.0
+            * (1..=lags.min(n - 1))
+                .map(|l| (1.0 - l as f64 / (big_l + 1.0)) * gamma(l))
+                .sum::<f64>();
+    if s <= 0.0 {
+        return None;
+    }
+    let t = m / (s / nf).sqrt();
+    Some(TTest {
+        n,
+        mean: m,
+        std_dev: s.sqrt(),
+        t,
+        p_value: student_t_upper(t, nf - 1.0),
+    })
+}
+
+/// Prueba t de Welch unilateral (H0: media de `a` ≤ media de `b`), con los grados de libertad de
+/// Welch-Satterthwaite (programa 5 §5.3 y §13.3.10).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Welch {
+    pub diff: f64,
+    pub se: f64,
+    pub t: f64,
+    pub df: f64,
+    pub p_value: f64,
+}
+
+pub fn welch_greater(a: &[f64], b: &[f64]) -> Option<Welch> {
+    let (ma, mb) = (mean(a)?, mean(b)?);
+    let (sa, sb) = (std_dev(a)?, std_dev(b)?);
+    let (va, vb) = (sa * sa / a.len() as f64, sb * sb / b.len() as f64);
+    let se2 = va + vb;
+    if se2 <= 0.0 {
+        return None;
+    }
+    let df = se2 * se2 / (va * va / (a.len() - 1) as f64 + vb * vb / (b.len() - 1) as f64);
+    let t = (ma - mb) / se2.sqrt();
+    Some(Welch {
+        diff: ma - mb,
+        se: se2.sqrt(),
+        t,
+        df,
+        p_value: student_t_upper(t, df),
+    })
+}
