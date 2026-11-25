@@ -33,6 +33,7 @@ use cfds_gateway::ibkr::{IbkrViewConfig, is_ibkr_route, respond_ibkr};
 use cfds_gateway::ibkr_live::{
     HubEvent, LiveHub, LiveReply, is_ibkr_live_route, respond_ibkr_live,
 };
+use cfds_gateway::journal::{is_journal_route, respond_journal};
 use cfds_gateway::learning::{PgLearning, is_learning_route, respond_learning};
 use cfds_gateway::ml::{is_ml_route, respond_ml};
 use cfds_gateway::news::{NewsConfig, is_news_route, respond_news};
@@ -106,7 +107,8 @@ struct State {
     ops_group_scan: usize,
     daily_loss_limit_pct: rust_decimal::Decimal,
     log: Arc<Logger>,
-    /// Reportes de walk-forward (#316) y experimentos de ML (#426): solo lectura del diario.
+    /// Reportes de walk-forward (#316), experimentos de ML (#426) y diario de paper (#615): solo
+    /// lectura del diario.
     walk_forward: cfds_journal::pg::PgJournal,
     /// Informe de aprendizaje y estado de sus propuestas (#331), solo lectura.
     learning: PgLearning,
@@ -234,6 +236,15 @@ async fn handle(state: Arc<State>, req: Request<Incoming>) -> Result<Response<Bo
             req.method().as_str(),
             req.uri().path(),
             chrono::Utc::now(),
+        )
+        .await
+    } else if is_journal_route(req.uri().path()) {
+        // Diario de paper para la vista Diario (#615): solo lectura.
+        respond_journal(
+            &state.walk_forward,
+            req.method().as_str(),
+            req.uri().path(),
+            req.uri().query(),
         )
         .await
     } else if is_ml_route(req.uri().path()) {
