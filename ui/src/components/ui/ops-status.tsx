@@ -96,7 +96,7 @@ export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
     <section
       aria-label="Estado de la operación"
       data-ops-status={status.gate}
-      className="glass relative grid gap-3 rounded-[20px] px-4 py-3 has-[[role=dialog]]:z-30 sm:px-5"
+      className="glass relative grid gap-3 rounded-[20px] px-4 py-3 sm:px-5"
     >
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
         <div className="flex flex-wrap items-center gap-2">
