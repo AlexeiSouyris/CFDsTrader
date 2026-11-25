@@ -64,6 +64,25 @@ pub async fn load(
     store: &PgStore,
     split_cfg: &SplitConfig,
 ) -> Result<Loaded, Box<dyn std::error::Error>> {
+    load_opts(id, args, from, equity, sources, store, split_cfg, true).await
+}
+
+/// Como [`load`], eligiendo si se cargan las noticias del puntaje (la estrategia en uso las usa;
+/// las estrategias de estudio no).
+#[allow(
+    clippy::too_many_arguments,
+    reason = "los mismos de `load` más las noticias"
+)]
+pub async fn load_opts(
+    id: &InstrumentId,
+    args: &[String],
+    from: DateTime<Utc>,
+    equity: Decimal,
+    sources: &CandleSources,
+    store: &PgStore,
+    split_cfg: &SplitConfig,
+    without_news: bool,
+) -> Result<Loaded, Box<dyn std::error::Error>> {
     let (study, _) = study::parse(args.to_vec())?;
     if study.as_ref().is_none_or(|s| s.funding.is_none()) {
         return Err("falta --escenario-financiacion (el tipo de EE. UU. está pendiente)".into());
@@ -87,7 +106,7 @@ pub async fn load(
         (from, oos_start),
         equity,
         None,
-        true,
+        without_news,
         study,
     )
     .await?;
