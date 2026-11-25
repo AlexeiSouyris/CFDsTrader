@@ -23,7 +23,7 @@
 use cfds_core::NewsInterpretation;
 use cfds_core::{Candle, InstrumentId};
 use cfds_indicators::wilder_atr;
-use cfds_risk::{Account, OpenPosition, Rejection, Request, check};
+use cfds_risk::{Account, OpenPosition, Rejection, Request, check, mark_peak};
 use cfds_strategy::{Analysis, Side, news_adjustment};
 use chrono::{DateTime, Datelike, NaiveDate, Utc, Weekday};
 use rust_decimal::Decimal;
@@ -234,7 +234,7 @@ pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioErr
             let setup = &markets[o.market].setup;
             equity += open_value(o, markets[o.market].m15, now) / fx(setup, now)?;
         }
-        peak = peak.max(equity);
+        peak = mark_peak(peak, equity);
         let today = now.with_timezone(&first.day_tz).date_naive();
         if day != Some(today) {
             day = Some(today);

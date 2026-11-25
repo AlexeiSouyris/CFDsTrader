@@ -118,6 +118,16 @@ fn pct(x: Decimal) -> Decimal {
     x / Decimal::ONE_HUNDRED
 }
 
+/// El máximo del capital después de valuar la cuenta a mercado al cierre de una vela (#691).
+///
+/// Es la única regla del máximo para el drawdown (la reducción gradual y el kill switch): el
+/// backtest de cartera y el broker simulado la aplican con el capital (realizado + no
+/// realizado) al cierre de **cada** vela cerrada, en orden, no solo cuando se decide una orden.
+/// Función pura: mismo máximo y mismo capital, mismo resultado.
+pub fn mark_peak(peak: Decimal, equity: Decimal) -> Decimal {
+    peak.max(equity)
+}
+
 /// Valida la operación contra todos los límites y, si pasa, devuelve su tamaño.
 pub fn check(
     req: &Request,
