@@ -23,12 +23,12 @@ describe('pestañas principales (#286)', () => {
     localStorage.clear()
   })
 
-  it('Performance, Panel y Terminal, con su hash y en el historial', async () => {
+  it('Performance, Inicio y Terminal, con su hash y en el historial', async () => {
     render(<App initialStage="app" />)
     const links = within(tabs()).getAllByRole('link')
-    expect(links.map((a) => a.textContent)).toEqual(['Performance', 'Panel', 'Terminal'])
-    expect(heading()).toHaveTextContent('Panel')
-    expect(within(tabs()).getByRole('link', { name: 'Panel' })).toHaveAttribute(
+    expect(links.map((a) => a.textContent)).toEqual(['Performance', 'Inicio', 'Terminal'])
+    expect(heading()).toHaveTextContent('Inicio')
+    expect(within(tabs()).getByRole('link', { name: 'Inicio' })).toHaveAttribute(
       'aria-current',
       'page',
     )
@@ -47,6 +47,7 @@ describe('pestañas principales (#286)', () => {
   })
 
   it('el Panel reúne el panel de siempre y la liquidez; las demás vistas siguen', () => {
+    history.replaceState(null, '', '/#panel')
     render(<App initialStage="app" />)
     expect(screen.getByRole('heading', { level: 2, name: 'Liquidez' })).toBeInTheDocument()
     expect(screen.getByText('Competencia de la semana')).toBeInTheDocument()
@@ -77,10 +78,10 @@ describe('pestañas principales (#286)', () => {
 
     // poco movimiento: no alcanza el umbral
     fireEvent.wheel(main, { deltaX: 40, deltaY: 0 })
-    expect(heading()).toHaveTextContent('Panel')
+    expect(heading()).toHaveTextContent('Inicio')
     // vertical dominante: es scroll de la página
     fireEvent.wheel(main, { deltaX: 200, deltaY: 400 })
-    expect(heading()).toHaveTextContent('Panel')
+    expect(heading()).toHaveTextContent('Inicio')
 
     vi.advanceTimersByTime(1000)
     swipe(main, 180)
@@ -92,7 +93,7 @@ describe('pestañas principales (#286)', () => {
 
     vi.advanceTimersByTime(1000)
     swipe(main, -180)
-    expect(heading()).toHaveTextContent('Panel')
+    expect(heading()).toHaveTextContent('Inicio')
     vi.advanceTimersByTime(1000)
     swipe(main, -180)
     expect(heading()).toHaveTextContent('Performance')
@@ -126,7 +127,7 @@ describe('pestañas principales (#286)', () => {
     fireEvent.keyDown(window, { key: 'ArrowRight', ctrlKey: true })
     expect(heading()).toHaveTextContent('Terminal')
     fireEvent.keyDown(window, { key: '[', metaKey: true })
-    expect(heading()).toHaveTextContent('Panel')
+    expect(heading()).toHaveTextContent('Inicio')
     fireEvent.keyDown(window, { key: '[', metaKey: true })
     expect(heading()).toHaveTextContent('Performance')
     // sin pestaña anterior: no hace nada
@@ -134,11 +135,11 @@ describe('pestañas principales (#286)', () => {
     expect(heading()).toHaveTextContent('Performance')
 
     fireEvent.keyDown(window, { key: ']', metaKey: true })
-    expect(heading()).toHaveTextContent('Panel')
+    expect(heading()).toHaveTextContent('Inicio')
     const input = document.createElement('input')
     document.body.append(input)
     fireEvent.keyDown(input, { key: 'ArrowRight', ctrlKey: true })
-    expect(heading()).toHaveTextContent('Panel')
+    expect(heading()).toHaveTextContent('Inicio')
     input.remove()
   })
 

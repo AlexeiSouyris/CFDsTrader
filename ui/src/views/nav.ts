@@ -7,6 +7,7 @@ import {
   Droplets,
   FolderOpen,
   Gauge,
+  House,
   LayoutDashboard,
   LayoutGrid,
   ListChecks,
@@ -24,6 +25,14 @@ export const VIEWS: ShellView[] = [
     icon: Gauge,
     description:
       'Resumen de la simulación: corridas de backtest, el fondo y sus estadísticas. Resultados del pasado, no promesas.',
+  },
+  {
+    id: 'inicio',
+    label: 'Inicio',
+    short: 'Inicio',
+    icon: House,
+    description:
+      'Elegí a dónde ir y mirá los resúmenes de la simulación. Resultados del pasado, no promesas.',
   },
   {
     id: 'panel',
@@ -107,11 +116,18 @@ export const VIEWS: ShellView[] = [
   },
 ]
 
-/** La vista de inicio (sin hash). */
-export const HOME_VIEW = 'panel'
+/** La vista de inicio (sin hash). `#panel` sigue existiendo y abre el panel de siempre (#581). */
+export const HOME_VIEW = 'inicio'
+
+/**
+ * Dónde hay vidrio y fondo animado (#581): solo en el Inicio (y en el ingreso, que no es una vista).
+ * Las demás secciones tienen superficie lisa.
+ */
+export const GLASS_VIEWS: readonly string[] = [HOME_VIEW]
 
 /**
  * Las tres pestañas principales (#286), en orden: el gesto del trackpad y los atajos de teclado
  * pasan de una a la siguiente. Cada una tiene su hash y entra en el historial del navegador.
+ * El Inicio ocupa el lugar del Panel (#581).
  */
-export const MAIN_TABS = ['performance', 'panel', 'terminal'] as const
+export const MAIN_TABS = ['performance', 'inicio', 'terminal'] as const

@@ -30,7 +30,7 @@ export function NotFound({
             className="inline-flex items-center gap-2 rounded-full whitespace-nowrap bg-primary px-4 py-2.5 text-[13px] font-bold text-primary-foreground"
           >
             <Home className="size-4" aria-hidden="true" />
-            Ir al panel
+            Ir al inicio
           </button>
           <button
             type="button"
