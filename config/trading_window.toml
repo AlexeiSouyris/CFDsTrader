@@ -9,8 +9,13 @@ skip_after_open_minutes = 15
 no_new_before_week_close_minutes = 30
 
 # Horas de entrada propias por bolsa (código de config/sessions.toml), además de la sesión.
-# Formato: { timezone = "America/New_York", from = "HH:MM", to = "HH:MM" } (to excluida), o
-# { pending = "motivo" }. Una sesión que cruza la medianoche (casi 23 h) NECESITA horas propias:
+# Formato: { timezone = "America/New_York", from = "HH:MM", to = "HH:MM" } (to excluida; la
+# zona puede ser "UTC"), o { pending = "motivo" }. Una sesión que cruza la medianoche (casi 23 h) NECESITA horas propias:
 # sin ellas, o pendientes, no se abre ninguna operación (spec §2, ADR 0013).
+#
+# Oro: solo en la ventana de Londres + Nueva York, de 07:00 a 16:00 UTC todo el año (sin cambio
+# de horario). Decisión del dueño, opción (a), el 25-11-2026 en #418: «dale, la (a) para el oro».
 [entries.hours.CMEGLOBEX_METALS]
-pending = "las horas de entrada del oro las elige el dueño (ADR 0013 §2, #418); hasta entonces el oro no abre operaciones"
+timezone = "UTC"
+from = "07:00"
+to = "16:00"

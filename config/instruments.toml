@@ -190,7 +190,7 @@ funding_benchmark = { pending = "Contrato en EUR: probablemente ESTR, como el DE
 #
 # El oro NO opera, ni en paper, mientras quede un pendiente: el backtest validado se frena (spec
 # §11), el broker simulado saltea un instrumento con costos pendientes, sin epic `ig_live` no lo
-# pide, y la ventana de entradas de su sesión está pendiente (config/trading_window.toml).
+# pide. Su ventana de entradas ya está fijada (07:00–16:00 UTC, config/trading_window.toml).
 
 # Oro al contado. Sesión de CME Globex como aproximación de la de IG (config/sessions.toml).
 [instruments.XAUUSD]
