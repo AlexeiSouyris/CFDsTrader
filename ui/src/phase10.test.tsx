@@ -115,6 +115,16 @@ describe('propuestas', () => {
     expect(screen.queryByRole('button', { name: /Aprobar|Rechazar/ })).toBeNull()
   })
 
+  it('los títulos no saltan de nivel: un h2 antes de los h3 de cada tarjeta (#612)', () => {
+    render(<ProposalsView member={MEMBERS[0]} />)
+    expect(screen.getByRole('heading', { level: 2, name: /En espera/ })).toBeInTheDocument()
+    const levels = screen.getAllByRole('heading').map((h) => Number(h.tagName.slice(1)))
+    levels.reduce((prev, l) => {
+      expect(l - prev).toBeLessThanOrEqual(1)
+      return l
+    }, 1)
+  })
+
   it('una propuesta vencida no se puede aprobar', () => {
     const old = {
       ...PROPOSALS[0],

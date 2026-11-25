@@ -187,7 +187,7 @@ export function RecentResults({
           <button
             type="button"
             onClick={() => onOpen('performance')}
-            className="mt-3 text-[12px] font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            className="mt-3 inline-flex min-h-6 items-center text-[12px] font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           >
             Ver todas en Investigación →
           </button>

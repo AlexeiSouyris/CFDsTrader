@@ -311,7 +311,10 @@ function EventText({ event }: { event: OpsEvent }) {
     <span className="min-w-0 basis-full break-words sm:basis-auto">
       {text}{' '}
       <details className="inline text-muted-foreground [&[open]]:block">
-        <summary className="inline cursor-pointer text-[11px] underline decoration-dotted">
+        <summary
+          data-inline-hit
+          className="inline cursor-pointer text-[11px] underline decoration-dotted"
+        >
           Detalle técnico
         </summary>
         <span className="mt-1 block text-[11px] [overflow-wrap:anywhere]">{technical}</span>

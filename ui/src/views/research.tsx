@@ -88,7 +88,7 @@ function Part({
             e.preventDefault()
             onOpen(view)
           }}
-          className="rounded-sm text-[12px] font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          className="inline-flex min-h-6 items-center rounded-sm text-[12px] font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
           Abrir sola →
         </a>
