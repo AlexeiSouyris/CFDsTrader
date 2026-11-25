@@ -5,6 +5,7 @@ Leen **solo** la exportación del motor (`contracts/chart_export.v1`). No recalc
 | Herramienta | Qué hace |
 |---|---|
 | `compare_reference.py` | Compara SMA(50) y ATR(14) de Wilder del motor con TA-Lib, una implementación de referencia independiente, sobre las mismas velas |
+| `make_indicator_fixture.py` | Genera `engine/crates/indicators/tests/fixtures/reference_indicators.csv`: velas **sintéticas** (se pueden commitear) con SMA, EMA y ATR según las fórmulas publicadas de TradingView (aritmética exacta) y según TA-Lib. El test `reference.rs` del motor lo compara en el CI (#666). Para la exportación real de TradingView, ver `docs/guides/golden-tradingview.md` |
 | `viewer.html` | Visor para personas: velas, SMA, pivotes confirmados, entradas y salidas; la operación elegida muestra su stop, su TP1 y una tabla con los indicadores en la vela de la señal. Solo dibuja la exportación: no calcula nada (los números se redondean para mostrarlos y el valor completo queda al pasar el mouse) |
 
 ## Cómo se usa
