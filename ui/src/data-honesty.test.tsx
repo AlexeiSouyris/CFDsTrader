@@ -89,11 +89,13 @@ describe('honestidad de los datos (#577)', () => {
     expect(indices).not.toHaveTextContent('US Tech 100 ')
   })
 
-  it('Diario, Trofeos y Noticias avisan que son de ejemplo', () => {
-    for (const View of [JournalView, CompetitionView, NewsView]) {
+  it('Noticias sin gateway avisa que es de ejemplo; Diario y Trofeos no muestran ejemplos (#616)', () => {
+    const { unmount } = render(<NewsView />)
+    expect(screen.getByRole('note')).toHaveTextContent('EJEMPLO')
+    unmount()
+    for (const View of [JournalView, CompetitionView]) {
       const { unmount } = render(<View />)
-      const note = screen.getByRole('note')
-      expect(note).toHaveTextContent('EJEMPLO')
+      expect(screen.queryByText('EJEMPLO')).toBeNull()
       unmount()
     }
   })
