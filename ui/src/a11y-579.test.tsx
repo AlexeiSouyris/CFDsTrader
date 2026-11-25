@@ -46,11 +46,11 @@ describe('armazón', () => {
   it('el logo lleva a la vista de inicio que dice su enlace', () => {
     history.replaceState(null, '', '/#terminal')
     render(<App initialStage="app" />)
-    const logo = screen.getByRole('link', { name: 'CFDsTrader: ir a Panel' })
-    expect(logo).toHaveAttribute('href', '#panel')
+    const logo = screen.getByRole('link', { name: 'CFDsTrader: ir a Inicio' })
+    expect(logo).toHaveAttribute('href', '#inicio')
     fireEvent.click(logo)
-    expect(location.hash).toBe('#panel')
-    expect(screen.getByRole('heading', { level: 1, name: 'Panel' })).toBeInTheDocument()
+    expect(location.hash).toBe('#inicio')
+    expect(screen.getByRole('heading', { level: 1, name: 'Inicio' })).toBeInTheDocument()
   })
 
   it('la barra inferior usa los mismos nombres que los títulos y tiene "Más vistas"', () => {

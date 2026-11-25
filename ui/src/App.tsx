@@ -23,7 +23,8 @@ import { MultichartView } from '@/views/multichart'
 import { PanelView } from '@/views/panel'
 import { PerformanceView } from '@/views/performance'
 import { TerminalView } from '@/views/terminal'
-import { HOME_VIEW, MAIN_TABS, VIEWS } from '@/views/nav'
+import { HomeView } from '@/views/home'
+import { GLASS_VIEWS, HOME_VIEW, MAIN_TABS, VIEWS } from '@/views/nav'
 import { FundView, GlossaryView, ProposalsView } from '@/views/phase10'
 
 const NOT_FOUND = 'no-encontrada'
@@ -143,8 +144,8 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
   )
 
   // Vidrio y fondo animado son opt-in (#581): `data-glass="on"` activa el vidrio en esa zona y
-  // el fondo semitono se monta solo donde hay vidrio. Por ahora, en toda la app (etapa 1).
-  const ambient = true
+  // el fondo semitono se monta solo donde hay vidrio: el ingreso y el Inicio.
+  const ambient = stage !== 'app' || GLASS_VIEWS.includes(view)
 
   return (
     <div
@@ -187,6 +188,7 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
           >
             <div key={view} data-dir={dir} className="view-enter">
               {view === 'performance' && <PerformanceView onOpen={select} />}
+              {view === 'inicio' && <HomeView onOpen={select} />}
               {view === 'panel' && <PanelView onOpen={select} />}
               {view === 'propuestas' && <ProposalsView member={CURRENT_MEMBER} />}
               {view === 'terminal' && <TerminalView member={CURRENT_MEMBER} />}
@@ -198,7 +200,7 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
               {view === 'fondo' && <FundView />}
               {view === 'competencia' && <CompetitionView />}
               {view === 'glosario' && <GlossaryView />}
-              {view === NOT_FOUND && <NotFound onHome={() => select('panel')} />}
+              {view === NOT_FOUND && <NotFound onHome={() => select(HOME_VIEW)} />}
             </div>
           </GlassShell>
         )}

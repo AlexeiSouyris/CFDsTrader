@@ -53,7 +53,7 @@ describe('buscador del encabezado (#362)', () => {
   it('Enter antes de que llegue el catálogo elige apenas llega', async () => {
     openSearch()
     fireEvent.change(input(), { target: { value: 'alemania' } })
-    expect(screen.queryAllByRole('option')).toHaveLength(0)
+    expect(within(screen.getByRole('dialog')).queryAllByRole('option')).toHaveLength(0)
     fireEvent.keyDown(input(), { key: 'Enter' })
     expect(await screen.findByRole('group', { name: 'Instrumento del gráfico 1' })).toBeVisible()
     expect(location.hash).toBe('#terminal')
@@ -114,7 +114,7 @@ describe('buscador del encabezado (#362)', () => {
     fireEvent.keyDown(input(), { key: 'ArrowDown' })
     fireEvent.keyDown(input(), { key: 'ArrowDown' })
     fireEvent.keyDown(input(), { key: 'Enter' })
-    expect(location.hash).toBe('#panel')
+    expect(location.hash).toBe('#inicio')
   })
 
   it('Esc cierra sin navegar', () => {

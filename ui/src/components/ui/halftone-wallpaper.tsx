@@ -147,7 +147,11 @@ export function HalftoneWallpaper({
   }, [speed])
 
   return (
-    <div aria-hidden="true" className={cn('pointer-events-none fixed inset-0 z-0', className)}>
+    <div
+      aria-hidden="true"
+      data-wallpaper
+      className={cn('pointer-events-none fixed inset-0 z-0', className)}
+    >
       {failed ? (
         <div className="h-full w-full bg-[radial-gradient(120%_90%_at_30%_10%,#3a3e44_0%,#16181b_55%,#0c0d0f_100%)]" />
       ) : (

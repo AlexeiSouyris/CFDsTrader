@@ -22,7 +22,8 @@ describe('la app', () => {
 
   it('avisa siempre que los datos son de ejemplo y que no hay promesas de ganancia', () => {
     render(<App initialStage="app" />)
-    const note = screen.getByRole('note')
+    // el aviso del pie (el Inicio tiene además su propio aviso de ejemplo)
+    const note = screen.getAllByRole('note').find((n) => n.textContent?.includes('sello EJEMPLO'))!
     expect(note).toHaveTextContent('sello EJEMPLO')
     expect(note).toHaveTextContent('ni una promesa de ganancia')
   })
@@ -42,8 +43,8 @@ describe('la app', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: 'Página no encontrada' }),
     ).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Ir al panel' }))
-    expect(screen.getByRole('heading', { level: 1, name: 'Panel' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Ir al inicio' }))
+    expect(screen.getByRole('heading', { level: 1, name: 'Inicio' })).toBeInTheDocument()
   })
 })
 

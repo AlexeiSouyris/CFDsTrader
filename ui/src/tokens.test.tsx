@@ -162,7 +162,7 @@ describe('vidrio opt-in', () => {
     )
   })
 
-  it('la app activa el vidrio y el fondo animado (etapa 1: en toda la app)', () => {
+  it('el Inicio activa el vidrio (las demás vistas, ver home.test.tsx)', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response('sin gateway', { status: 503 })),

@@ -103,14 +103,16 @@ describe('ancho de los gráficos SVG (#415)', () => {
 describe('404 y aviso del pie (#415)', () => {
   it('los botones del 404 no parten su texto y bajan de línea si no entran', () => {
     render(<NotFound onHome={() => {}} onExplore={() => {}} />)
-    const home = screen.getByRole('button', { name: 'Ir al panel' })
+    const home = screen.getByRole('button', { name: 'Ir al inicio' })
     expect(home).toHaveClass('whitespace-nowrap')
     expect(home.parentElement).toHaveClass('flex-wrap')
   })
 
   it('el aviso del pie no dice que la app está desconectada del motor', () => {
     render(<App initialStage="app" />)
-    const note = screen.getByRole('note')
+    const note = screen
+      .getAllByRole('note')
+      .find((n) => n.textContent?.includes('simulación (paper)'))!
     expect(note).not.toHaveTextContent('no está conectado al motor')
     expect(note).toHaveTextContent('simulación (paper)')
     expect(note).toHaveTextContent('no calcula nada ni envía órdenes reales')
