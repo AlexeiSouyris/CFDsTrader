@@ -15,6 +15,7 @@ import { useRef, useState, type ReactNode } from 'react'
 
 import { ExampleBadge, ExampleNotice } from '@/components/ui/data-honesty'
 import { AnalogDistribution, SentimentGauge } from '@/components/ui/market-context'
+import { ScrollRegion } from '@/components/ui/scroll-region'
 import { Segmented } from '@/components/ui/segmented'
 import { Term } from '@/components/ui/term'
 import { dateTimeUtc, dateUtc } from '@/lib/format'
@@ -219,14 +220,15 @@ function CalendarBlock() {
 /** La interpretación automática, tal cual la guardó `intelligence`: una estimación, no un hecho. */
 function Interpretation({ it }: { it: NewsInterpretation }) {
   return (
-    <section className="grid gap-3 rounded-xl border border-border p-4">
+    // nota al margen del artículo (#639): línea de acento a la izquierda, sin caja ni esquinas
+    <section className="grid gap-3 border-l-2 border-accent py-1 pl-5">
       <h3 className="text-[11px] font-bold tracking-[0.1em] text-accent uppercase">
         Interpretación automática
       </h3>
-      <p className="text-[15px] leading-[1.55]">{it.summary_es}</p>
+      <p className="font-serif text-[17px] leading-[1.55] italic">{it.summary_es}</p>
       {it.impacts.length > 0 && (
-        <div className="min-w-0 overflow-x-auto [scrollbar-width:thin]">
-          <table className="w-full text-left text-[12.5px] tabular-nums">
+        <ScrollRegion label="Estimación por instrumento">
+          <table className="w-full border-y border-border text-left font-mono text-[12px] tabular-nums">
             <caption className="sr-only">Estimación por instrumento</caption>
             <thead className="text-muted-foreground">
               <tr>
@@ -253,7 +255,7 @@ function Interpretation({ it }: { it: NewsInterpretation }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       )}
       <p className="text-[11.5px] text-muted-foreground">
         Estimación de un modelo automático ({it.interpreter.name} {it.interpreter.version}), hecha
@@ -270,7 +272,9 @@ function ContextColumn() {
   return (
     <aside
       aria-labelledby="noticias-contexto"
-      className="grid min-w-0 content-start gap-4 border-t border-border pt-6 lg:col-span-2 xl:col-span-1 xl:border-t-0 xl:border-l xl:pt-0 xl:pl-6"
+      // columna lateral pegajosa en pantallas anchas (#639, patrón *Article With Author Sidebar* de
+      // 21st.dev, https://21st.dev/@olewandowski1/components/article-5): el contexto acompaña la lectura
+      className="grid min-w-0 content-start gap-4 border-t border-border pt-6 lg:col-span-2 xl:sticky xl:top-4 xl:col-span-1 xl:self-start xl:border-t-0 xl:border-l xl:pt-0 xl:pl-6"
     >
       <div className="grid gap-2">
         <h2 id="noticias-contexto" className="font-serif text-[22px] font-semibold">
@@ -301,9 +305,9 @@ function ContextColumn() {
           {analogs.status === 'loading' ? (
             quiet('Pidiendo los datos al motor…', 'status')
           ) : report ? (
-            <div className="min-w-0 overflow-x-auto [scrollbar-width:thin]">
+            <ScrollRegion label="Análogos históricos">
               <AnalogDistribution report={report} />
-            </div>
+            </ScrollRegion>
           ) : analogs.status === 'error' ? (
             quiet('No se pudieron leer los análogos. Se vuelve a intentar cada minuto.', 'alert')
           ) : (
@@ -464,12 +468,12 @@ export function NewsView() {
             </ol>
           )}
           {real && nextBefore && (
-            <div className="grid gap-2 pt-3">
+            <div className="grid gap-2">
               <button
                 type="button"
                 onClick={() => void loadMore()}
                 disabled={more === 'loading'}
-                className="min-h-11 rounded-section border border-border px-3.5 text-[12.5px] font-semibold text-foreground transition-colors outline-accent hover:bg-foreground/5 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60"
+                className="min-h-11 border-b border-border px-3 text-left text-[12.5px] font-semibold text-accent underline-offset-4 transition-colors outline-accent hover:underline focus-visible:outline-2 focus-visible:-outline-offset-2 disabled:opacity-60"
               >
                 {more === 'loading' ? 'Cargando…' : 'Cargar más'}
               </button>

@@ -97,7 +97,8 @@ export function ProposalCard({
         )}
       </header>
 
-      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl border border-border p-3 @md:grid-cols-3 @2xl:grid-cols-5">
+      {/* los niveles como franja de ticket (#643): líneas punteadas arriba y abajo, cifras en mono */}
+      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-y border-dashed border-border py-3 font-mono @md:grid-cols-3 @2xl:grid-cols-5">
         {[
           ['Entrada', decimal(p.reference), undefined],
           ['Stop', decimal(p.stop), 'stop-loss'],
@@ -153,7 +154,7 @@ export function ProposalCard({
 
         <section
           aria-label={`Probabilidad, ${p.instrument_id} ${long ? 'largo' : 'corto'}`}
-          className="rounded-2xl border border-border p-3"
+          className="border-t border-border pt-3"
         >
           <h4 className="text-[12px] font-bold">
             <Term id="probabilidad">Probabilidad</Term> de tocar TP1 antes que el stop

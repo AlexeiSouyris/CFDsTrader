@@ -293,6 +293,7 @@ fn bracket(stop: Decimal) -> Plan {
         risk_atr: dec!(5),
         exit_index: 5,
         target_r: Some(dec!(1.5)),
+        target_cap: None,
     }
 }
 

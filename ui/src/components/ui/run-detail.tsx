@@ -58,7 +58,8 @@ function Block({
   className?: string
 }) {
   return (
-    <section className={cn('panel relative min-w-0 rounded-[20px] p-4', className)}>
+    // una sección del informe (#641): regla fina arriba, sin caja ni esquinas
+    <section className={cn('relative min-w-0 border-t border-foreground/70 pt-3', className)}>
       <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-[14px] font-bold">{title}</h3>
         {aside && <span className="text-[11px] text-muted-foreground">{aside}</span>}

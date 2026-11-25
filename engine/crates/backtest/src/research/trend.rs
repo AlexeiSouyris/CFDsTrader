@@ -117,6 +117,7 @@ pub fn trend_plans(
                 risk_atr: a,
                 exit_index: end,
                 target_r: None,
+                target_cap: None,
             });
         }
     }
