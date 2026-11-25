@@ -1,0 +1,68 @@
+[
+ {
+  "ts": "2026-11-24T04:01:30Z",
+  "level": "warn",
+  "target": "gateway",
+  "event": "instrument_skipped",
+  "fields": {
+   "detail": "XAUUSD: faltan datos del broker: XAUUSD.funding_benchmark (Las materias primas no usan tipo de referencia sino la base de la curva de futuros. Falta qué futuros usa IG como P2 y P3 y qué lado paga la base (ADR 0013).) XAUUSD.spread_typical_points (Solo está el mínimo publicado. Medir en la demo como en #67 cuando haya cupo.) XAUUSD.value_per_point (La tabla dice 'valor de un contrato 100 $', pero no el valor por punto. Confirmar con GET /markets/{epic} (valueOfOnePip).) XAUUSD.min_deal_size (Sin fuente pública (el 0,05 de #378 no tiene fuente). Confirmar con GET /markets/{epic} (dealingRules.minDealSize).) XAUUSD.tick (Confirmar con GET /markets/{epic} (decimalPlacesFactor) cuando haya cupo.) XAUUSD.funding_basis (base de la financiación de materias primas (ADR 0013 §3): faltan qué futuros usa IG como P2 y P3, qué lado paga la base y cómo cuenta las noches del fin de semana, y la serie de la base en el motor)"
+  },
+  "count": 15,
+  "last_seen": "2026-11-25T12:30:43Z"
+ },
+ {
+  "ts": "2026-11-23T21:22:42Z",
+  "level": "warn",
+  "target": "gateway",
+  "event": "instrument_skipped",
+  "fields": {
+   "detail": "US500: faltan datos del broker: US500.funding_benchmark (Contrato en EUR (#67): probablemente ESTR como el DE40, pero ni la API ni ig.com/es lo confirman para este índice. Confirmar con IG.)"
+  },
+  "count": 21,
+  "last_seen": "2026-11-25T12:30:43Z"
+ },
+ {
+  "ts": "2026-11-23T21:22:42Z",
+  "level": "warn",
+  "target": "gateway",
+  "event": "instrument_skipped",
+  "fields": {
+   "detail": "US30: faltan datos del broker: US30.funding_benchmark (Contrato en EUR (#67): probablemente ESTR como el DE40, pero ni la API ni ig.com/es lo confirman para este índice. Confirmar con IG.)"
+  },
+  "count": 21,
+  "last_seen": "2026-11-25T12:30:43Z"
+ },
+ {
+  "ts": "2026-11-24T02:01:08Z",
+  "level": "warn",
+  "target": "gateway",
+  "event": "instrument_skipped",
+  "fields": {
+   "detail": "US2000: faltan datos del broker: US2000.funding_benchmark (Contrato en EUR: probablemente ESTR, como el DE40, pero ni la API ni ig.com/es lo confirman para este índice. Confirmar con IG.) US2000.margin_retail_pct (No figura en ig.com/es/indices ni /margenes (2026-11-24). ESMA no lo trata como índice principal: mínimo regulatorio 10 %. Confirmar con la API de IG.) US2000.spread_min_points (No figura en ig.com/es/indices ni /nuestros-costes (2026-11-24). Confirmar con IG.) US2000.spread_typical_points (Sin dato publicado ni medido (2026-11-24). Medir en la demo como en #67 cuando haya cupo.) US2000.value_per_point (Confirmar con GET /markets/{epic} (valueOfOnePip) cuando haya cupo.) US2000.min_deal_size (Confirmar con GET /markets/{epic} (dealingRules.minDealSize) cuando haya cupo.) US2000.tick (Confirmar con GET /markets/{epic} (decimalPlacesFactor) cuando haya cupo.) US2000.funding_admin_fee_pct (IG España no lista este índice (2026-11-24). Si lo ofrece como CFD de índice, la tasa publicada para los CFD de índices es 3 % (fuente ig-es-costes-indices, #379). Confirmar que lo ofrece antes de fijarlo (#371).)"
+  },
+  "count": 17,
+  "last_seen": "2026-11-25T12:30:43Z"
+ },
+ {
+  "ts": "2026-11-23T21:22:42Z",
+  "level": "warn",
+  "target": "gateway",
+  "event": "instrument_skipped",
+  "fields": {
+   "detail": "US100: faltan datos del broker: US100.funding_benchmark (Contrato en EUR (#67): probablemente ESTR como el DE40, pero ni la API ni ig.com/es lo confirman para este índice. Confirmar con IG.)"
+  },
+  "count": 21,
+  "last_seen": "2026-11-25T12:30:43Z"
+ },
+ {
+  "ts": "2026-11-25T11:00:13Z",
+  "level": "warn",
+  "target": "ibkr_live",
+  "event": "disconnected",
+  "fields": {
+   "reason": "IB Gateway no responde en 127.0.0.1:4002: Connection reset by peer (os error 54)"
+  },
+  "count": 1,
+  "last_seen": "2026-11-25T11:00:13Z"
+ }
+]

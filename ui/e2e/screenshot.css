@@ -1,0 +1,9 @@
+/*
+ * Solo durante las capturas de referencia (#661, `stylePath` en playwright.config.ts).
+ * El fondo semitono del Inicio es un shader WebGL: en el Chromium sin GPU del CI a veces la captura
+ * lo saca dibujado y a veces en negro. Se oculta el lienzo y queda su degradado de respaldo, que es
+ * estable. El shader no entra en las capturas.
+ */
+[data-wallpaper] canvas {
+  visibility: hidden !important;
+}

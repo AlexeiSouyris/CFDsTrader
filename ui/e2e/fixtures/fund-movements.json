@@ -1,0 +1,22 @@
+[
+ {
+  "id": "fund:2026-11-02:1",
+  "settled_at": "2026-11-02T07:00:00Z",
+  "member_id": "alexei",
+  "kind": "contribution",
+  "amount": "600.00",
+  "units": "600",
+  "nav": "1",
+  "currency": "EUR"
+ },
+ {
+  "id": "fund:2026-11-02:2",
+  "settled_at": "2026-11-02T07:00:00Z",
+  "member_id": "m2",
+  "kind": "contribution",
+  "amount": "400.00",
+  "units": "400",
+  "nav": "1",
+  "currency": "EUR"
+ }
+]

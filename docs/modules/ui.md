@@ -64,6 +64,7 @@ resumen: Interfaz: gráficos, noticias, estrategias, P/L; hoy prototipo integrad
 - navegación por el mapa del rediseño: pestañas Inicio · Terminal · Gráficos · Investigación y barras con las ocho secciones (`NAV_SECTIONS`, `sectionOf` en `views/nav.ts`: Multigráfico, Performance, Propuestas, Liquidez, Glosario y el Panel siguen con su hash y marcan su sección), "Operaciones" y "Competencia" se llaman Diario y Trofeos
 - superficie lisa `panel` en `index.css` para lo que no es Inicio, ingreso ni Fondo (el vidrio queda solo ahí), el ajuste del vidrio pasa a "Ajustes" con "Ver la intro otra vez", y se quitaron `glass-folder.tsx`, `trophy-card.tsx` y el ranking por R del Panel (reemplazado por los trofeos de proceso)
 - toda vista a dos toques (#618): la barra de abajo del celular lleva las cuatro pestañas principales y «Más», la lateral las ocho secciones y «Más vistas», y los dos abren «Todas las vistas» (`views-menu.tsx`, `MENU_GROUPS` y `BAR_VIEWS` en `views/nav.ts`), con cada sección y sus vistas de adentro
+- pruebas en navegador real con Playwright (`ui/e2e/`, #661): humo de cada vista de `views/nav.ts` (sin errores de consola, sin desplazamiento horizontal a 375 px, axe sin violaciones serias ni críticas) y capturas de referencia por vista en tema oscuro, claro y celular, con el gateway simulado por fixtures que cumplen `contracts/` (validados en `e2e/contracts.spec.ts`); cómo actualizar las capturas en `docs/guides/pruebas-e2e-ui.md`
 
 ## Estado
 

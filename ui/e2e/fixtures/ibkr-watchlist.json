@@ -1,0 +1,60 @@
+{
+ "generated_at": "2026-11-25T16:00:00Z",
+ "source": "ibkr",
+ "instruments": [
+  {
+   "instrument_id": "MNQ",
+   "quote": {
+    "contract": "MNQZ6",
+    "kind": "future",
+    "what_to_show": "TRADES",
+    "timeframe": "1m",
+    "last": "25422",
+    "bar_start": "2026-11-25T15:02:00Z",
+    "bar_end": "2026-11-25T15:03:00Z",
+    "delay_seconds": 830,
+    "session": "2026-11-25",
+    "previous_session": "2026-11-24",
+    "previous_close": "26266.5",
+    "change": "-844.5",
+    "change_pct": "-3.22"
+   }
+  },
+  {
+   "instrument_id": "MES",
+   "quote": {
+    "contract": "MESZ6",
+    "kind": "future",
+    "what_to_show": "TRADES",
+    "timeframe": "1m",
+    "last": "7060.25",
+    "bar_start": "2026-11-25T15:02:00Z",
+    "bar_end": "2026-11-25T15:03:00Z",
+    "delay_seconds": 830,
+    "session": "2026-11-25",
+    "previous_session": "2026-11-24",
+    "previous_close": "7210.75",
+    "change": "-150.50",
+    "change_pct": "-2.09"
+   }
+  },
+  {
+   "instrument_id": "QQQ",
+   "quote": {
+    "contract": "QQQ",
+    "kind": "stock",
+    "what_to_show": "TRADES",
+    "timeframe": "1m",
+    "last": "618.24",
+    "bar_start": "2026-11-25T14:59:00Z",
+    "bar_end": "2026-11-25T15:00:00Z",
+    "delay_seconds": 1010,
+    "session": "2026-11-25",
+    "previous_session": "2026-11-24",
+    "previous_close": "635.06",
+    "change": "-16.82",
+    "change_pct": "-2.65"
+   }
+  }
+ ]
+}
