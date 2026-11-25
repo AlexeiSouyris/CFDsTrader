@@ -560,3 +560,54 @@ async fn checkpoints_are_saved_chained_and_used_to_restart() {
     assert!(rec.is_clean(), "{rec:?}");
     assert_eq!(view(&mut restored, now), view(&mut full, now));
 }
+
+/// #691: el máximo del capital (valuado en cada vela cerrada) se guarda en el punto de control y
+/// sigue igual al reiniciar. Con el límite de caída al 5 % (puntos de la caída gradual a la misma
+/// proporción), el kill switch se activa recién después del corte; el broker que arranca del
+/// punto guardado (JSON sellado y leído de nuevo) decide igual cada orden y lo activa en la
+/// misma vela.
+#[test]
+fn the_peak_survives_a_restart_from_a_checkpoint() {
+    let max = dec!(5);
+    let edit = |r: &mut RiskConfig| {
+        for p in &mut r.drawdown_scaling.points {
+            p.drawdown_pct = p.drawdown_pct * max / dec!(15);
+        }
+        r.max_drawdown_pct = max;
+    };
+    let (before, after) = split(&orders());
+    let mut full = PaperBroker::new(config(edit), markets());
+    for o in &before {
+        full.submit(o);
+    }
+    assert!(!full.kill_switch_active());
+    let ck = checkpointed(&full);
+    let row = seal(&ck, None).unwrap();
+    let [(stored, _)] = verified_chain(std::slice::from_ref(&row))
+        .try_into()
+        .expect("el punto verifica");
+    let mut from_ck =
+        PaperBroker::from_checkpoint(config(edit), markets(), &stored, full.journal()).unwrap();
+    let mut applied = full.clone();
+    applied.apply_checkpoint(&stored).unwrap();
+    for o in &after {
+        let r = full.submit(o);
+        assert_eq!(from_ck.submit(o), r);
+        assert_eq!(applied.submit(o), r);
+    }
+    let since = full
+        .kill_switch()
+        .map(|(_, t)| t)
+        .expect("el kill switch se activa");
+    assert!(since > cut(), "{since}");
+    for b in [&from_ck, &applied] {
+        assert_eq!(b.kill_switch().map(|(_, t)| t), Some(since));
+        assert_eq!(b.journal(), full.journal());
+    }
+
+    // Un punto de la versión anterior (máximo solo de las órdenes evaluadas) no se usa: se
+    // reconstruye completo.
+    let mut old = ck;
+    old.version = 1;
+    assert!(verified_chain(&[seal(&old, None).unwrap()]).is_empty());
+}

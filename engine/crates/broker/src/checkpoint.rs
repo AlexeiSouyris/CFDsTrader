@@ -13,7 +13,8 @@
 //!       su resultado (`trade_outcomes`) y sus instrumentos; no se vuelven a valuar
 //!   por instrumento: se sigue desde la vela cerrada en D (o la entrada de una abierta, si es
 //!       anterior), con el cierre y el ATR de Wilder de la vela anterior (mismo ATR, #463)
-//!   + máximo del capital, kill switch, operaciones abiertas (índices desde el corte)
+//!   + máximo del capital (valuado en cada vela cerrada hasta D, #691), kill switch,
+//!     operaciones abiertas (índices desde el corte)
 //!   + SHA-256 del registro de órdenes cubierto y de la config del broker
 //! guardado: texto JSON exacto + hash encadenado al anterior (solo agregar, migración 0043)
 //! reconstrucción: el último punto que verifica (cadena, registro, config, velas) + las órdenes
@@ -36,7 +37,9 @@ use sha2::{Digest, Sha256};
 use crate::paper::{BrokerConfig, MarketSetup, OpenTrade, PaperBroker, Sealed};
 
 /// Versión del formato de `BrokerCheckpoint`. Otro valor no se usa (se reconstruye completo).
-pub const CHECKPOINT_VERSION: u32 = 1;
+/// 2 (#691): el máximo del capital incluye el capital valuado en cada vela cerrada hasta
+/// `safe_from`; los de la versión 1 lo tenían solo de las órdenes evaluadas.
+pub const CHECKPOINT_VERSION: u32 = 2;
 
 /// Desde qué vela sigue un instrumento y el estado del ATR antes de ella.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -212,6 +215,9 @@ impl PaperBroker {
                 _ => keep.push(t.clone()),
             }
         }
+        // El máximo del capital al día hasta D (#691): desde ahí sigue quien arranque del punto
+        // de control, porque antes de D ya no puede valuar. Sin marcar datos faltantes.
+        let (peak_equity, _) = self.peak_until(d);
         self.restore_data_flags(pending);
         sealed.outcomes.sort_by_key(|(seq, _)| *seq);
         sealed.realized.sort_by_key(|(seq, _)| *seq);
@@ -273,7 +279,7 @@ impl PaperBroker {
             setup_hash: setup_hash(self.config(), self.markets()),
             safe_from: d,
             cuts,
-            peak_equity: self.peak_equity,
+            peak_equity,
             kill_switch: self.kill_switch.clone(),
             sealed,
             trades: keep,
@@ -291,6 +297,8 @@ impl PaperBroker {
             return Err("el punto de control no coincide con el broker en marcha".into());
         }
         self.cut_candles(ck)?;
+        self.peak_equity = ck.peak_equity;
+        self.peak_through = self.peak_through.max(Some(ck.safe_from));
         self.trades.clone_from(&ck.trades);
         self.sealed = ck.sealed.clone();
         Ok(())
@@ -353,6 +361,8 @@ impl PaperBroker {
         paper.cut_candles(ck)?;
         paper.set_journal(covered);
         paper.peak_equity = ck.peak_equity;
+        // El máximo incluye todo hasta D (`safe_from`): sigue desde ahí.
+        paper.peak_through = Some(ck.safe_from);
         paper.kill_switch.clone_from(&ck.kill_switch);
         paper.sealed = ck.sealed.clone();
         paper.trades.clone_from(&ck.trades);

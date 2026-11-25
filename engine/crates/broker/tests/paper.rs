@@ -795,6 +795,42 @@ fn up_and_back() -> PaperBroker {
 }
 
 #[test]
+fn the_peak_follows_every_closed_candle_without_orders() {
+    // #691: entre las dos órdenes no hay ninguna otra, pero el capital pasa por un máximo no
+    // realizado (vela 22) y vuelve (vela 23). Como el backtest, el broker valúa el capital en
+    // cada vela cerrada: la caída desde ese máximo supera el 0,5 % y la orden siguiente activa el
+    // kill switch en la vela de su señal.
+    let first = order("up", "US100", OrderSide::Long, dec!(96), 20);
+    let second = order("next", "DE40", OrderSide::Long, dec!(96), 26);
+    let mut b = up_and_back();
+    assert_eq!(b.submit(&first).status, OrderStatus::Filled);
+    assert!(!b.kill_switch_active());
+    assert_eq!(rejected(&mut b, &second), OrderRejection::DrawdownLimit);
+    let (_, since) = b.kill_switch().unwrap();
+    assert_eq!(since, at(26));
+
+    // Solo velas cerradas a la hora de la señal: con la subida todavía sin cerrar (orden en la
+    // vela 22), el máximo no la incluye y la orden pasa.
+    let mut early = up_and_back();
+    early.submit(&first);
+    let r = early.submit(&order("early", "DE40", OrderSide::Long, dec!(96), 22));
+    assert_eq!(r.status, OrderStatus::Filled, "{r:?}");
+
+    // La reconstrucción desde el registro (reinicio) llega al mismo máximo y al mismo kill switch.
+    let positions = b.positions(at(28));
+    let (rebuilt, rec) = cfds_broker::restore_and_reconcile(
+        b.config().clone(),
+        up_and_back().markets().clone(),
+        b.journal(),
+        &positions,
+        at(28),
+    );
+    assert!(rec.is_clean(), "{rec:?}");
+    assert_eq!(rebuilt.journal(), b.journal());
+    assert_eq!(rebuilt.kill_switch().map(|(_, t)| t), Some(at(26)));
+}
+
+#[test]
 fn reading_the_account_does_not_change_the_peak_nor_later_decisions() {
     // #464: `account()` es una lectura (la UI la llama cuando quiere). No mueve el máximo del
     // capital: si lo moviera, una lectura en el pico cambiaría la decisión siguiente y la

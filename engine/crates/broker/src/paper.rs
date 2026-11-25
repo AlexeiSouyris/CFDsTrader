@@ -46,6 +46,7 @@ use cfds_indicators::{AtrSeed, wilder_atr, wilder_atr_after};
 use cfds_market_data::{ExchangeCalendar, Session, trading_window};
 use cfds_risk::{
     Account, InstrumentLimits, OpenPosition, Rejection, Request, RiskConfig, Sizing, check,
+    mark_peak,
 };
 use cfds_strategy::Side;
 use chrono::{DateTime, NaiveTime, TimeDelta, Utc};
@@ -326,9 +327,14 @@ pub struct PaperBroker {
     events: Vec<BrokerEvent>,
     pub(crate) trades: Vec<OpenTrade>,
     pub(crate) kill_switch: Option<(String, DateTime<Utc>)>,
-    /// Máximo del capital para el drawdown. Solo lo actualiza `assess` (cada orden), nunca una
-    /// lectura: así la reconstrucción desde el registro llega al mismo valor (#464).
+    /// Máximo del capital para el drawdown (reducción gradual y kill switch), con el capital
+    /// valuado a mercado al cierre de **cada** vela cerrada hasta `peak_through`, como el
+    /// backtest de cartera (#691, `cfds_risk::mark_peak`). Lo pone al día `assess` (cada orden)
+    /// hasta la vela de la señal, nunca una lectura: el valor depende solo del registro y de las
+    /// velas, así la reconstrucción desde el registro llega al mismo valor (#464).
     pub(crate) peak_equity: Decimal,
+    /// Hasta qué cierre de vela está incluido el capital en `peak_equity` (`None`: ninguno).
+    pub(crate) peak_through: Option<DateTime<Utc>>,
     /// Estado del ATR de Wilder antes de la primera vela de cada instrumento cuyas velas
     /// empiezan en un punto de control (#463): el ATR sigue igual que con todas las velas.
     pub(crate) atr_seeds: BTreeMap<InstrumentId, AtrSeed>,
@@ -408,6 +414,7 @@ impl PaperBroker {
             trades: Vec::new(),
             kill_switch: None,
             peak_equity: peak,
+            peak_through: None,
             atr_seeds: BTreeMap::new(),
             sealed: Sealed::default(),
             before_checkpoint: Cell::new(None),
@@ -719,14 +726,11 @@ impl PaperBroker {
     fn outcome(&self, t: &OpenTrade, now: DateTime<Utc>) -> PaperTrade {
         let m = &self.markets[&t.instrument];
         let side = strategy_side(t.side);
-        let closed: Vec<Candle> = m
-            .candles
-            .iter()
-            .filter(|c| c.end() <= now)
-            .cloned()
-            .collect();
+        // Las velas de un instrumento entran en orden (`push_candle`): las cerradas en `now`
+        // son un prefijo.
+        let closed = &m.candles[..m.candles.partition_point(|c| c.end() <= now)];
         let exit_px = |mid| fill_price(side, Execution::Exit, mid, &m.costs, &self.cfg.costs);
-        let (fills, open) = self.exits_of(t, &closed);
+        let (fills, open) = self.exits_of(t, closed);
         let mut exits: Vec<PaperExit> = fills
             .iter()
             .map(|f| PaperExit {
@@ -979,12 +983,9 @@ impl PaperBroker {
     fn valuate(&self, t: &OpenTrade, now: DateTime<Utc>) -> Valued {
         let m = &self.markets[&t.instrument];
         let eur = |amount, at| self.to_eur(&t.instrument, amount, at);
-        let closed: Vec<Candle> = m
-            .candles
-            .iter()
-            .filter(|c| c.end() <= now)
-            .cloned()
-            .collect();
+        // Las velas de un instrumento entran en orden (`push_candle`): las cerradas en `now`
+        // son un prefijo.
+        let closed = &m.candles[..m.candles.partition_point(|c| c.end() <= now)];
         let entry_fee = eur(-t.entry_commission, t.opened_at);
         let mut v = Valued {
             realized_eur: entry_fee,
@@ -994,7 +995,7 @@ impl PaperBroker {
             unrealized: Decimal::ZERO,
             as_of: closed.last().map(Candle::end),
         };
-        let (fills, open) = self.exits_of(t, &closed);
+        let (fills, open) = self.exits_of(t, closed);
         for f in &fills {
             let size = t.size * f.fraction;
             let px = fill_price(
@@ -1046,6 +1047,63 @@ impl PaperBroker {
             equity += *r;
         }
         (equity, unrealized, margin_used)
+    }
+
+    /// El capital en `now` como `equity_at`, sumado en el mismo orden (da exactamente lo mismo).
+    /// `settled`: el valor de las operaciones ya cerradas del todo, que no cambia después (sin
+    /// repintado); evita volver a valuarlas en cada vela de [`Self::peak_until`].
+    fn equity_marked(&self, now: DateTime<Utc>, settled: &mut BTreeMap<usize, Decimal>) -> Decimal {
+        self.touch_sealed(now, false);
+        let mut equity = self.cfg.initial_equity;
+        let mut sealed = self.sealed.realized.iter().peekable();
+        for t in self.trades.iter().filter(|t| t.opened_at <= now) {
+            while let Some((_, r)) = sealed.next_if(|(seq, _)| *seq < t.seq) {
+                equity += *r;
+            }
+            equity += match settled.get(&t.seq) {
+                Some(v) => *v,
+                None => {
+                    let v = self.valuate(t, now);
+                    let value = v.realized_eur + v.unrealized;
+                    if v.open_fraction.is_zero() {
+                        settled.insert(t.seq, value);
+                    }
+                    value
+                }
+            };
+        }
+        for (_, r) in sealed {
+            equity += *r;
+        }
+        equity
+    }
+
+    /// El máximo del capital con el capital valuado a mercado al cierre de cada vela cerrada
+    /// (de cualquier instrumento) posterior a `peak_through` y hasta `until`, en orden, como el
+    /// backtest de cartera en cada vela (#691). Solo velas que ya cerraron en `until`: nada del
+    /// futuro. Devuelve el máximo y hasta dónde quedó incluido; no cambia el broker.
+    pub(crate) fn peak_until(&self, until: DateTime<Utc>) -> (Decimal, Option<DateTime<Utc>>) {
+        let through = self.peak_through;
+        if through.is_some_and(|p| until <= p) {
+            return (self.peak_equity, through);
+        }
+        let mut peak = self.peak_equity;
+        // Antes de la primera operación el capital no se mueve (lo sellado ya está en el máximo).
+        if let Some(first) = self.trades.iter().map(|t| t.opened_at).min() {
+            let mut times: Vec<DateTime<Utc>> = self
+                .markets
+                .values()
+                .flat_map(|m| m.candles.iter().map(Candle::end))
+                .filter(|t| *t >= first && *t <= until && through.is_none_or(|p| *t > p))
+                .collect();
+            times.sort_unstable();
+            times.dedup();
+            let mut settled = BTreeMap::new();
+            for t in times {
+                peak = mark_peak(peak, self.equity_marked(t, &mut settled));
+            }
+        }
+        (peak, Some(until))
     }
 
     pub(crate) fn day_start(&self, now: DateTime<Utc>) -> DateTime<Utc> {
@@ -1163,7 +1221,10 @@ impl PaperBroker {
         };
         let limits = m.limits;
         let (equity, _, margin_used) = self.equity_at(as_of);
-        self.peak_equity = self.peak_equity.max(equity);
+        // El máximo, al día hasta la vela de la señal: valuado en cada vela cerrada (#691).
+        let (peak, through) = self.peak_until(as_of);
+        self.peak_equity = mark_peak(peak, equity);
+        self.peak_through = through;
         let day_start = self.day_start(as_of);
         let (day_start_equity, _, _) = self.equity_at(day_start);
         // Un corte sin tasa de referencia es un error de datos: kill switch antes de decidir.
@@ -1331,7 +1392,7 @@ impl crate::Broker for PaperBroker {
 
     fn account(&mut self, now: DateTime<Utc>) -> PaperAccount {
         // Es una lectura (la UI la pide cuando quiere): no mueve el máximo del capital. Solo lo
-        // mueve la evaluación de una orden, que la reconstrucción repite igual (#464).
+        // pone al día la evaluación de una orden, que la reconstrucción repite igual (#464, #691).
         let (equity, unrealized, margin_used) = self.equity_at(now);
         let day_start = self.day_start(now);
         let realized_today: Decimal = self
