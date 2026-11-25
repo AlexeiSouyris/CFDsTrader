@@ -208,6 +208,14 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - **Liquidez con los futuros** (#259): `liquidity_levels` y `liquidity_stats` con `--fuente futuros` calculan lo mismo con estas velas, y lo guardan bajo un **instrumento derivado** (`<instrumento><id_suffix>`, por ejemplo `US500.FUT`, `config/candle_sources.toml`). Así las tablas de niveles, FVG, gaps, desequilibrio y agregados (y sus contratos) no cambian y nunca mezclan las dos fuentes. El gateway lo sirve con `?source=futures`, y `liquidity_view.v1` y `gateway_instruments.v1` traen el campo opcional `source` / `sources` (`id` `ig` o `futures` y su etiqueta) para que la UI muestre de dónde son los precios. No se mezcla con `candles` (IG): el spread y los costos siguen siendo los de IG.
 - Los datos viven solo en la base local de la máquina de datos, **nunca en el repo**.
 
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `ibkr_bar.v1` | `ibkr_bars` | Una vela **cerrada** de IBKR como fuente de datos (#536): `source` (`ibkr`), `instrument_id` (el id de `config/ibkr.toml`: MNQ, MES, QQQ, EURUSD), `kind` (`future`, `stock` o `forex`), `contract` (como lo nombra IBKR: MNQZ6, QQQ, EUR.USD), `bar_size` (`1m`, `15m` o `1h`), `what_to_show` (`TRADES` o `MIDPOINT`), `start` (inicio en UTC, alineado), OHLC como string decimal y `volume` (null si IBKR no lo da). |
+
+- La escribe Rust (`cargo run -p cfds-ibkr --example ibkr_load`, solo en la máquina con IB Gateway paper) con `PgStore::insert_ibkr_bars`. Tabla de **solo agregar** (`infra/migrations/0048_ibkr_bars.sql`, trigger), clave `(source, instrument_id, contract, bar_size, what_to_show, start_at)`: la misma vela otra vez no cambia nada y con otros valores es un conflicto (sería repintado) y no se guarda nada del lote.
+- Precios **sin ajustar**. El futuro continuo de IBKR (CONTFUT) **no entra**: está ajustado por vencimiento y repinta. Tampoco las diarias (IBKR las fecha por sesión, sin hora). Ver `docs/analysis/2026-11-ibkr-medicion-historia.md`.
+- Tabla aparte de `candles` (IG), `futures_bars_1m` y `futures_candles` (Databento): ninguna lectura las mezcla sin querer.
+
 ### Indicadores diarios (#148, #213, #218)
 
 | Contrato | Tabla | Contenido |
