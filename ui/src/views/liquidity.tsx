@@ -24,11 +24,40 @@ import { dateTimeUtc } from '@/lib/format'
  */
 const HeadingLevel = createContext<2 | 3>(2)
 
-function Card({ title, children }: { title?: ReactNode; children: ReactNode }) {
+/**
+ * Una sección del informe (#626, patrón *Article With Author Sidebar* de 21st.dev,
+ * https://21st.dev/@olewandowski1/components/article-5, reescrito): una regla fina arriba, número
+ * y título, y el contenido directo sobre la página. Sin caja, sin fondo y sin esquinas: así
+ * Liquidez se lee como un informe y no como una pila de tarjetas iguales (#625).
+ */
+function Card({ n, title, children }: { n?: string; title?: ReactNode; children: ReactNode }) {
   const Heading = useContext(HeadingLevel) === 3 ? 'h3' : 'h2'
   return (
-    <section className="panel relative min-w-0 rounded-[20px] p-4">
-      {title && <Heading className="mb-3 text-[14px] font-bold">{title}</Heading>}
+    <section data-report-section className="relative min-w-0 border-t border-foreground/70 pt-3">
+      {title && (
+        <div className="mb-3 flex min-w-0 items-baseline gap-3">
+          {n && (
+            <span
+              aria-hidden="true"
+              className="shrink-0 font-mono text-[11px] font-bold tracking-[0.12em] text-accent"
+            >
+              {n}
+            </span>
+          )}
+          <Heading className="min-w-0 text-[15px] font-bold">{title}</Heading>
+        </div>
+      )}
+      {children}
+    </section>
+  )
+}
+
+/** Un aviso del informe (esperando, sin conexión, sin datos): una nota al margen, no una tarjeta. */
+function Note({ title, children }: { title?: ReactNode; children: ReactNode }) {
+  const Heading = useContext(HeadingLevel) === 3 ? 'h3' : 'h2'
+  return (
+    <section className="min-w-0 border-l-2 border-accent py-1 pl-4">
+      {title && <Heading className="mb-1 text-[14px] font-bold">{title}</Heading>}
       {children}
     </section>
   )
@@ -59,7 +88,7 @@ const TF_TEXT: Record<ViewTimeframe, [string, string]> = {
 
 function Shell({ children, controls }: { children: ReactNode; controls?: ReactNode }) {
   return (
-    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
       <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
         {INTRO}
         {controls}
@@ -71,21 +100,21 @@ function Shell({ children, controls }: { children: ReactNode; controls?: ReactNo
 
 function Waiting() {
   return (
-    <Card>
+    <Note>
       <p role="status" className="text-[13px]">
         Pidiendo los datos al motor…
       </p>
-    </Card>
+    </Note>
   )
 }
 
 function Unreachable({ message }: { message: string }) {
   return (
-    <Card title="No se pudo leer al motor">
+    <Note title="No se pudo leer al motor">
       <p role="alert" className="text-[13px]">
         No se pudo conectar con el motor ({message}). Se vuelve a intentar cada minuto.
       </p>
-    </Card>
+    </Note>
   )
 }
 
@@ -181,7 +210,7 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
   const futures = data.source?.id === 'futures'
   if (data.as_of === null || data.candles.length === 0)
     return (
-      <Card title="Sin datos todavía">
+      <Note title="Sin datos todavía">
         <p className="text-[13px]">
           El motor todavía no tiene {TF_TEXT[tf][1]} de {data.instrument_id} guardadas. Fuente:{' '}
           {source}.{' '}
@@ -189,14 +218,14 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
             ? 'Los futuros no tienen velas diarias.'
             : 'La vista se llena sola cuando lleguen.'}
         </p>
-      </Card>
+      </Note>
     )
   const open = data.fvgs.filter((f) => f.status === 'open')
   const closed = data.fvgs.filter((f) => f.status !== 'open')
   const current = data.imbalance.at(-1)
   return (
-    <div className="grid gap-3">
-      <p className="text-[11.5px] text-muted-foreground">
+    <div className="grid gap-6">
+      <p className="font-mono text-[11px] text-muted-foreground">
         Datos del motor al {dateTimeUtc(data.as_of)} · {data.candles.length}{' '}
         {TF_TEXT[tf][data.candles.length === 1 ? 0 : 1]} · fuente: <strong>{source}</strong>{' '}
         <StaleNote at={data.as_of} />
@@ -208,8 +237,9 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
         </p>
       )}
 
-      <div className="grid gap-3 xl:grid-cols-[1fr_320px]">
-        <Card>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+        {/* el gráfico, en un marco plano de 4 px: es la figura del informe */}
+        <figure className="m-0 min-w-0 rounded-[4px] border border-border bg-card p-2">
           <LiquidityChart
             key={`${data.instrument_id}|${tf}`}
             instrument={data.instrument_id}
@@ -223,8 +253,8 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
               fetchOlderBars(data.instrument_id, tf, before, data.source?.id ?? 'ig')
             }
           />
-        </Card>
-        <Card title="Índice de desequilibrio">
+        </figure>
+        <Card n="01" title="Índice de desequilibrio">
           {current ? (
             <ImbalanceGauge imbalance={current} />
           ) : (
@@ -234,6 +264,7 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
       </div>
 
       <Card
+        n="02"
         title={
           <>
             Niveles: intacto, <Term id="sweep">barrido con reversión</Term> o roto
@@ -247,15 +278,15 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
         )}
       </Card>
 
-      <div className="grid gap-3 2xl:grid-cols-2">
-        <Card title={`FVG abiertos (${open.length})`}>
+      <div className="grid gap-6 2xl:grid-cols-2">
+        <Card n="03" title={`FVG abiertos (${open.length})`}>
           {open.length ? (
             <FvgTable fvgs={open} label="FVG abiertos" />
           ) : (
             <p className="text-[12.5px]">No hay FVG abiertos.</p>
           )}
         </Card>
-        <Card title={`FVG llenos o vencidos (${closed.length})`}>
+        <Card n="04" title={`FVG llenos o vencidos (${closed.length})`}>
           {closed.length ? (
             <FvgTable fvgs={closed} label="FVG llenos o vencidos" />
           ) : (
@@ -264,7 +295,7 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
         </Card>
       </div>
 
-      <Card title="Estadísticas">
+      <Card n="05" title="Estadísticas">
         {data.stats.length ? (
           <StatsPanel stats={data.stats} />
         ) : (

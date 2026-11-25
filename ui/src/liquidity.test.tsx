@@ -226,6 +226,27 @@ describe('vista de liquidez en vivo (#231)', () => {
     )
   })
 
+  it('se lee como informe: secciones numeradas con regla fina, sin tarjetas (#626)', () => {
+    const { container } = render(<LiquidityContent data={DATA} />)
+    const sections = container.querySelectorAll('[data-report-section]')
+    expect(sections).toHaveLength(5)
+    for (const s of sections) {
+      expect(s.className).not.toMatch(/\bpanel\b|rounded-\[20px\]/)
+      expect(s.className).toMatch(/border-t/)
+    }
+    expect(within(sections[1] as HTMLElement).getByText('02')).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    )
+  })
+
+  it('la reacción en ATR se acorta a 2 decimales, sin cambiar el valor del motor (#626)', () => {
+    const long = { ...DATA.fvgs[0], reactions: [{ bars: 4, return_atr: '-1.008479621068377' }] }
+    render(<FvgTable fvgs={[long]} />)
+    expect(screen.getByText('−1,01 ATR')).toBeInTheDocument()
+    expect(screen.queryByText(/1,0084/)).toBeNull()
+  })
+
   it('el ejemplo trae un nivel vencido y la tabla lo muestra atenuado', () => {
     const expired = DATA.levels.filter((l) => l.expired_at)
     expect(expired).toHaveLength(1)
