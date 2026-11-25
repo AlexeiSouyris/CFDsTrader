@@ -22,6 +22,7 @@ import { LiquidityView } from '@/views/liquidity'
 import { MultichartView } from '@/views/multichart'
 import { PanelView } from '@/views/panel'
 import { PerformanceView } from '@/views/performance'
+import { ResearchView } from '@/views/research'
 import { TerminalView } from '@/views/terminal'
 import { HomeView } from '@/views/home'
 import { GLASS_VIEWS, HOME_VIEW, MAIN_TABS, VIEWS } from '@/views/nav'
@@ -188,6 +189,7 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
           >
             <div key={view} data-dir={dir} className="view-enter">
               {view === 'performance' && <PerformanceView onOpen={select} />}
+              {view === 'investigacion' && <ResearchView onOpen={select} />}
               {view === 'inicio' && <HomeView onOpen={select} />}
               {view === 'panel' && <PanelView onOpen={select} />}
               {view === 'propuestas' && <ProposalsView member={CURRENT_MEMBER} />}

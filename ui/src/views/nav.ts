@@ -3,6 +3,7 @@ import {
   BarChart3,
   BookOpen,
   ClipboardCheck,
+  FlaskConical,
   CandlestickChart,
   Droplets,
   FolderOpen,
@@ -71,6 +72,14 @@ export const VIEWS: ShellView[] = [
     icon: LayoutGrid,
     description:
       'Hasta cuatro gráficos a la vez, cada uno con su instrumento y timeframe. Solo para mirar: sin órdenes.',
+  },
+  {
+    id: 'investigacion',
+    label: 'Investigación',
+    short: 'Investigación',
+    icon: FlaskConical,
+    description:
+      'Corridas, modelo, propuestas, liquidez y glosario en un solo informe. Resultados del pasado, no promesas.',
   },
   {
     id: 'liquidez',

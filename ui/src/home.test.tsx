@@ -112,11 +112,11 @@ describe('puertas a las secciones', () => {
     first.focus()
     expect(first).toHaveFocus()
     fireEvent.keyDown(window, { key: '3' })
-    expect(location.hash).toBe('#performance')
-    expect(heading()).toHaveTextContent('Performance')
+    expect(location.hash).toBe('#investigacion')
+    expect(heading()).toHaveTextContent('Investigación')
     // fuera del Inicio, el atajo ya no existe
     fireEvent.keyDown(window, { key: '1' })
-    expect(location.hash).toBe('#performance')
+    expect(location.hash).toBe('#investigacion')
   })
 
   it('el atajo no salta mientras se usa un control ni con modificadores', () => {
