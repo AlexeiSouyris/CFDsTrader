@@ -36,7 +36,7 @@ export function PaperBadge({ compact = false }: { compact?: boolean }) {
       title="Paper: las órdenes van al broker simulado. No se envía ninguna orden real."
       className={cn(
         'flex shrink-0 items-center gap-3 border border-[var(--chart-signal)]/50 bg-[var(--chart-signal)]/10',
-        compact ? 'gap-2 rounded-full px-3 py-1.5' : 'rounded-[18px] px-4 py-3',
+        compact ? 'gap-2 rounded-full px-3 py-1.5' : 'rounded-section px-4 py-3',
       )}
     >
       <span className="relative flex size-2.5" aria-hidden="true">
@@ -110,7 +110,7 @@ export function AccountStrip({ account, aside }: { account: PaperAccount; aside?
   return (
     <section
       aria-label="Cuenta de simulación"
-      className="glass relative flex min-w-0 flex-wrap items-center gap-x-6 gap-y-3 rounded-[20px] px-4 py-3"
+      className="glass relative flex min-w-0 flex-wrap items-center gap-x-6 gap-y-3 rounded-section px-4 py-3"
     >
       <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
         <PaperBadge compact />
@@ -175,7 +175,7 @@ export function KillSwitchBanner({ account }: { account: PaperAccount }) {
   return (
     <div
       role="alert"
-      className="flex flex-wrap items-start gap-3 rounded-[20px] border border-down/40 bg-down/10 p-4"
+      className="flex flex-wrap items-start gap-3 rounded-section border border-down/40 bg-down/10 p-4"
     >
       <OctagonAlert className="mt-0.5 size-5 shrink-0 text-down" aria-hidden="true" />
       <div className="min-w-0 flex-1">

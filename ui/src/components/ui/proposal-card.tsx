@@ -62,7 +62,7 @@ export function ProposalCard({
     <article
       aria-label={`Propuesta ${p.instrument_id} ${long ? 'largo' : 'corto'}`}
       data-example={example || undefined}
-      className="glass relative @container min-w-0 rounded-[20px] p-4 sm:p-5"
+      className="glass relative @container min-w-0 rounded-section p-4 sm:p-5"
     >
       <header className="flex flex-wrap items-center gap-2">
         <h3 className="text-[18px] leading-none font-extrabold tracking-tight">

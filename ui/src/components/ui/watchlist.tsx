@@ -60,7 +60,7 @@ export function Watchlist({
   return (
     <section
       aria-label="Mercados"
-      className="glass flex min-w-0 flex-col gap-2 rounded-[20px] p-2"
+      className="glass flex min-w-0 flex-col gap-2 rounded-section p-2"
       aria-busy={groups.some((g) => g.loading) || undefined}
     >
       <h2 className="px-2 pt-1 text-[13px] font-extrabold tracking-tight">Mercados</h2>
@@ -114,8 +114,8 @@ function WatchGroupList({
                 data-feed={g.feed}
                 onClick={() => onSelect(r.instrument_id, g.feed)}
                 className={cn(
-                  'grid min-h-11 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 rounded-xl px-2.5 py-1.5 text-left transition-colors hover:bg-foreground/5 focus-visible:outline-2 focus-visible:outline-ring',
-                  on && 'bg-primary/10 ring-1 ring-primary/40',
+                  'grid min-h-9 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 rounded-xl px-2 py-1 text-left transition-colors hover:bg-foreground/5 focus-visible:outline-2 focus-visible:outline-ring',
+                  on && 'bg-primary/10 ring-1 ring-primary/50 ring-inset',
                 )}
               >
                 <span className="min-w-0">

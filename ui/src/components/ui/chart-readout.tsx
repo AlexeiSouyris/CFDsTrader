@@ -30,6 +30,7 @@ export function ChartReadout({
   rangeLabel,
   from = 0,
   to,
+  ohlc,
 }: {
   store: PointerStore
   starts: string[]
@@ -40,6 +41,11 @@ export function ChartReadout({
   from?: number
   /** última vela del tramo visible (por defecto, la última) */
   to?: number
+  /**
+   * Las velas tal como llegan (#581, Terminal): con esto se ve el OHLC de la vela bajo el cursor (o
+   * de la última visible), como en una terminal. Mismo orden que `starts` y `closes`.
+   */
+  ohlc?: readonly { open: string; high: string; low: string; close: string }[]
 }) {
   const hover = usePointer(store, (s) => s.hover)
   const measure = usePointer(store, (s) => s.measure)
@@ -55,6 +61,7 @@ export function ChartReadout({
   let price = closes[clampI(to ?? n - 1)]
   let change = changeText(Number(first), Number(price), digits)
   let note = rangeLabel
+  let barAt = clampI(to ?? n - 1)
   if (measure && at(measure.from.start) >= 0 && at(measure.to.start) >= 0) {
     state = 'measure'
     price = closes[at(measure.to.start)]
@@ -62,6 +69,7 @@ export function ChartReadout({
     note = dateRange(measure.from.start, measure.to.start)
   } else if (hover !== null && hover >= 0 && hover < n) {
     state = 'hover'
+    barAt = hover
     price = closes[hover]
     change = changeText(Number(first), Number(closes[hover]), digits)
     note = dateTimeUtc(starts[hover])
@@ -88,6 +96,37 @@ export function ChartReadout({
           {state === 'measure' ? note : `· ${note}`}
         </span>
       </p>
+      {ohlc?.[barAt] && <OhlcLine bar={ohlc[barAt]} fmt={fmt} />}
     </div>
+  )
+}
+
+/** "O 1.0841  H 1.0850  L 1.0838  C 1.0846": los cuatro precios de una vela, tal como llegan. */
+function OhlcLine({
+  bar,
+  fmt,
+}: {
+  bar: { open: string; high: string; low: string; close: string }
+  fmt: (t: string) => string
+}) {
+  const parts = [
+    ['O', 'apertura', bar.open],
+    ['H', 'máximo', bar.high],
+    ['L', 'mínimo', bar.low],
+    ['C', 'cierre', bar.close],
+  ] as const
+  return (
+    <dl data-chart-ohlc className="mt-1 flex flex-wrap gap-x-3 font-mono text-[11px] tabular-nums">
+      {parts.map(([k, name, v]) => (
+        <div key={k} className="flex gap-1">
+          <dt className="text-muted-foreground">
+            <abbr title={name} className="no-underline">
+              {k}
+            </abbr>
+          </dt>
+          <dd>{fmt(v)}</dd>
+        </div>
+      ))}
+    </dl>
   )
 }
