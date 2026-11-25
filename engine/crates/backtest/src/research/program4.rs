@@ -56,7 +56,7 @@ pub fn is_valid(c: &Candle) -> bool {
 
 /// Inicio del tramo de contrato de cada vela: `true` en la primera vela y en la primera vela
 /// en o después de cada vencimiento de `rolls`.
-fn segment_starts(m15: &[Candle], rolls: &[DateTime<Utc>]) -> Vec<bool> {
+pub fn segment_starts(m15: &[Candle], rolls: &[DateTime<Utc>]) -> Vec<bool> {
     let mut out = vec![false; m15.len()];
     if let Some(first) = out.first_mut() {
         *first = true;
@@ -344,6 +344,7 @@ fn impulse_at(
         risk_atr: atr.get(t).copied().flatten()?,
         exit_index,
         target_r: Some(cfg.target_r),
+        target_cap: None,
     })
 }
 

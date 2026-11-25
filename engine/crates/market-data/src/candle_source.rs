@@ -1,4 +1,5 @@
-//! De qué velas sale la liquidez (#259): las del CFD de IG o las de los futuros de Databento.
+//! De qué velas sale la liquidez (#259): las del CFD de IG, las de los futuros de Databento o
+//! (#630) las barras de los futuros micro de IBKR (`ibkr_bars`) de los instrumentos con mapeo.
 //! Configuración en `config/candle_sources.toml`, validada al cargar.
 //!
 //! Lo que se calcula con los futuros se guarda bajo un **instrumento derivado**
@@ -20,24 +21,29 @@ pub enum CandleSource {
     Ig,
     /// Velas armadas desde los futuros (`futures_candles`).
     Futures,
+    /// Barras de los futuros micro de IBKR (`ibkr_bars`, #630). Sin diarias.
+    Ibkr,
 }
 
 impl CandleSource {
-    pub const ALL: [CandleSource; 2] = [CandleSource::Ig, CandleSource::Futures];
+    pub const ALL: [CandleSource; 3] =
+        [CandleSource::Ig, CandleSource::Futures, CandleSource::Ibkr];
 
     /// El nombre en la query del gateway y en los contratos (`ig`, `futures`).
     pub fn as_str(self) -> &'static str {
         match self {
             CandleSource::Ig => "ig",
             CandleSource::Futures => "futures",
+            CandleSource::Ibkr => "ibkr",
         }
     }
 
-    /// Lee `ig` o `futures` (también `futuros`, el nombre del flag en español).
+    /// Lee `ig`, `futures` (también `futuros`, el nombre del flag en español) o `ibkr`.
     pub fn parse(s: &str) -> Option<Self> {
         match s {
             "ig" => Some(CandleSource::Ig),
             "futures" | "futuros" => Some(CandleSource::Futures),
+            "ibkr" => Some(CandleSource::Ibkr),
             _ => None,
         }
     }
@@ -58,6 +64,21 @@ pub struct CandleSources {
     pub roll: BTreeMap<InstrumentId, RollDay>,
     /// Tasa que el precio del futuro ya descuenta en su base (#467).
     pub basis: FuturesBasisConfig,
+    /// `[ibkr]` (#630): las barras de IBKR como fuente de la liquidez.
+    pub ibkr: IbkrCandles,
+}
+
+/// `[ibkr]` de `config/candle_sources.toml` (#630).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IbkrCandles {
+    /// Valor de `source` en `ibkr_bars` (el de `[load] source` de `config/ibkr.toml`).
+    pub source: String,
+    /// Qué precio (`what_to_show` de `ibkr_bars`).
+    pub what_to_show: String,
+    pub label: String,
+    pub id_suffix: String,
+    /// Instrumento de `ibkr_bars` de cada CFD (por ejemplo US100 → MNQ). Sin entrada, sin velas.
+    pub instruments: BTreeMap<InstrumentId, String>,
 }
 
 /// Qué parte de la base del futuro se descuenta de la financiación del CFD (#467).
@@ -118,6 +139,60 @@ pub enum RollDay {
 struct Raw {
     ig: RawIg,
     futures: RawFutures,
+    ibkr: RawIbkr,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawIbkr {
+    source: String,
+    what_to_show: String,
+    label: String,
+    id_suffix: String,
+    instruments: BTreeMap<InstrumentId, String>,
+}
+
+/// Un sufijo de instrumento derivado: un separador y mayúsculas o dígitos (por ejemplo `.FUT`).
+fn suffix_ok(s: &str) -> bool {
+    let s = s.as_bytes();
+    (2..=6).contains(&s.len())
+        && matches!(s[0], b'.' | b'_' | b'-')
+        && s[1..]
+            .iter()
+            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
+}
+
+fn ibkr_config(r: RawIbkr, futures_suffix: &str) -> Result<IbkrCandles, String> {
+    if !(1..=80).contains(&r.label.chars().count()) {
+        return Err("ibkr.label: de 1 a 80 caracteres".into());
+    }
+    if !suffix_ok(&r.id_suffix) || r.id_suffix == futures_suffix {
+        return Err(format!(
+            "ibkr.id_suffix: un separador y mayúsculas, distinto del de futures: {:?}",
+            r.id_suffix
+        ));
+    }
+    let id_ok = |s: &str| {
+        let b = s.as_bytes();
+        !b.is_empty()
+            && b.len() <= 32
+            && b.iter()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'.' | b'_' | b'-'))
+    };
+    if !id_ok(&r.source) || !id_ok(&r.what_to_show) {
+        return Err("ibkr.source y ibkr.what_to_show: texto corto sin espacios".into());
+    }
+    // Sin entradas vale: ningún CFD tiene velas de IBKR.
+    if r.instruments.values().any(|v| !id_ok(v)) {
+        return Err("ibkr.instruments: el id de ibkr_bars de cada CFD".into());
+    }
+    Ok(IbkrCandles {
+        source: r.source,
+        what_to_show: r.what_to_show,
+        label: r.label,
+        id_suffix: r.id_suffix,
+        instruments: r.instruments,
+    })
 }
 
 #[derive(Deserialize)]
@@ -252,13 +327,7 @@ impl CandleSources {
         {
             return Err(format!("futures.source inválido: {:?}", r.futures.source));
         }
-        let s = r.futures.id_suffix.as_bytes();
-        if !(2..=6).contains(&s.len())
-            || !matches!(s[0], b'.' | b'_' | b'-')
-            || !s[1..]
-                .iter()
-                .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
-        {
+        if !suffix_ok(&r.futures.id_suffix) {
             return Err(format!(
                 "futures.id_suffix tiene que ser un separador y mayúsculas (por ejemplo .FUT): {:?}",
                 r.futures.id_suffix
@@ -278,6 +347,7 @@ impl CandleSources {
             )
         })?;
         let basis = basis_config(r.futures.basis)?;
+        let ibkr = ibkr_config(r.ibkr, &r.futures.id_suffix)?;
         Ok(Self {
             ig_label: r.ig.label,
             daily_tz,
@@ -287,6 +357,7 @@ impl CandleSources {
             expiry_months: r.futures.expiry_months,
             roll: r.futures.roll,
             basis,
+            ibkr,
         })
     }
 
@@ -294,7 +365,13 @@ impl CandleSources {
         match source {
             CandleSource::Ig => &self.ig_label,
             CandleSource::Futures => &self.futures_label,
+            CandleSource::Ibkr => &self.ibkr.label,
         }
+    }
+
+    /// El instrumento de `ibkr_bars` del CFD `base` (#630), si tiene mapeo.
+    pub fn ibkr_instrument(&self, base: &InstrumentId) -> Option<&str> {
+        self.ibkr.instruments.get(base).map(String::as_str)
     }
 
     /// Bajo qué instrumento se guarda lo calculado con `source` para `base` (el CFD).
@@ -306,6 +383,9 @@ impl CandleSources {
         match source {
             CandleSource::Ig => Ok(base.clone()),
             CandleSource::Futures => format!("{base}{}", self.id_suffix)
+                .parse()
+                .map_err(|e| format!("{e}")),
+            CandleSource::Ibkr => format!("{base}{}", self.ibkr.id_suffix)
                 .parse()
                 .map_err(|e| format!("{e}")),
         }
@@ -321,8 +401,8 @@ impl CandleSources {
         let id = self.instrument_for(source, &base.id)?;
         let name = match source {
             CandleSource::Ig => base.name.clone(),
-            CandleSource::Futures => {
-                let n = format!("{} ({})", base.name, self.futures_label);
+            CandleSource::Futures | CandleSource::Ibkr => {
+                let n = format!("{} ({})", base.name, self.label(source));
                 n.chars().take(100).collect()
             }
         };
@@ -461,6 +541,46 @@ mod tests {
         assert_eq!(CandleSource::parse("futuros"), Some(CandleSource::Futures));
         assert_eq!(CandleSource::parse("ig"), Some(CandleSource::Ig));
         assert_eq!(CandleSource::parse("cfd"), None);
+        // IBKR (#630): US100 → MNQ y US500 → MES, bajo su propio sufijo; DE40 sin mapeo.
+        assert_eq!(CandleSource::parse("ibkr"), Some(CandleSource::Ibkr));
+        assert_eq!(c.ibkr_instrument(&us500), Some("MES"));
+        assert_eq!(c.ibkr_instrument(&"US100".parse().unwrap()), Some("MNQ"));
+        assert_eq!(c.ibkr_instrument(&"DE40".parse().unwrap()), None);
+        assert_eq!(
+            c.instrument_for(CandleSource::Ibkr, &us500).unwrap(),
+            "US500.IBKR".parse::<InstrumentId>().unwrap()
+        );
+        assert_eq!(c.ibkr.source, "ibkr");
+        assert_eq!(c.ibkr.what_to_show, "TRADES");
+    }
+
+    #[test]
+    fn the_ibkr_source_is_the_one_the_loader_saves() {
+        let ibkr: toml::Table =
+            toml::from_str(include_str!("../../../../config/ibkr.toml")).unwrap();
+        let c = CandleSources::from_toml(REAL).unwrap();
+        assert_eq!(
+            ibkr["load"]["source"].as_str(),
+            Some(c.ibkr.source.as_str())
+        );
+    }
+
+    #[test]
+    fn the_ibkr_section_is_validated() {
+        for (from, to) in [
+            ("id_suffix = \".IBKR\"", "id_suffix = \".FUT\""),
+            ("id_suffix = \".IBKR\"", "id_suffix = \"IBKR\""),
+            ("US100 = \"MNQ\"", "US100 = \"M NQ\""),
+            ("what_to_show = \"TRADES\"", "what_to_show = \"\""),
+            (
+                "what_to_show = \"TRADES\"",
+                "what_to_show = \"TRADES\"\nnope = 1",
+            ),
+        ] {
+            let bad = REAL.replacen(from, to, 1);
+            assert_ne!(bad, REAL, "{from}");
+            assert!(CandleSources::from_toml(&bad).is_err(), "{to}");
+        }
     }
 
     #[test]
