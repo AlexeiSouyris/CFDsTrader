@@ -80,11 +80,9 @@ describe('multigráfico (#540)', () => {
       'aria-pressed',
       'true',
     )
-    expect(
-      within(within(first).getByRole('group', { name: 'Tipo de gráfico' })).getByRole('button', {
-        name: 'Línea',
-      }),
-    ).toHaveAttribute('aria-pressed', 'true')
+    // en modo compacto el tipo de gráfico no se repite en el panel: se ve la línea de cierre
+    expect(within(first).queryByRole('group', { name: 'Tipo de gráfico' })).toBeNull()
+    expect(first.querySelector('[data-line-area]')).not.toBeNull()
 
     // otro panel activo: la barra muestra sus herramientas (las de siempre)
     fireEvent.click(within(slots()[1] as HTMLElement).getByRole('button', { name: /Gráfico 2/ }))
@@ -103,6 +101,51 @@ describe('multigráfico (#540)', () => {
     const picker = screen.getByRole('group', { name: 'Gráfico a la vista' })
     fireEvent.click(within(picker).getByRole('button', { name: '3' }))
     expect(hidden()).toEqual([true, true, false, true])
+  })
+
+  it('con más de un gráfico, modo compacto: los controles del activo van a la barra de arriba (#545)', () => {
+    render(<MultichartView />)
+    const bar = () => screen.getByRole('toolbar', { name: 'Gráfico activo' })
+    const first = () => slots()[0] as HTMLElement
+    // el panel: solo el gráfico con su encabezado mínimo (US100 15 m trae datos de ejemplo)
+    expect(first().querySelector('[data-chart-compact]')).not.toBeNull()
+    expect(within(first()).queryByRole('group', { name: 'Niveles' })).toBeNull()
+    expect(within(first()).queryByRole('group', { name: 'Rango' })).toBeNull()
+    const heading = first().querySelector('[data-compact-heading]') as HTMLElement
+    expect(heading).toHaveTextContent(/US100 · 15m/)
+    expect(heading).toHaveTextContent(/Último cierre/)
+
+    // los controles del activo, en la barra de arriba, una sola vez
+    expect(within(bar()).getAllByRole('group', { name: 'Niveles' })).toHaveLength(1)
+    expect(within(bar()).getAllByRole('group', { name: 'Rango' })).toHaveLength(1)
+    expect(within(bar()).getAllByRole('button', { name: /Herramientas/ })).toHaveLength(1)
+    // el filtro de niveles sigue andando sobre el gráfico activo
+    const levels = () => within(bar()).getByRole('group', { name: 'Niveles' })
+    fireEvent.click(within(levels()).getByRole('button', { name: 'Activos' }))
+    expect(within(levels()).getByRole('button', { name: 'Activos' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+
+    // otro activo sin velas: la barra no muestra controles de un gráfico que no está
+    fireEvent.click(within(slots()[1] as HTMLElement).getByRole('button', { name: /Gráfico 2/ }))
+    expect(within(bar()).queryByRole('group', { name: 'Niveles' })).toBeNull()
+    // volver al 1: sus controles vuelven, con lo que tenían
+    fireEvent.click(within(first()).getByRole('button', { name: /Gráfico 1/ }))
+    expect(within(levels()).getByRole('button', { name: 'Activos' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+  })
+
+  it('con un solo gráfico, la vista completa de siempre', () => {
+    render(<MultichartView />)
+    fireEvent.click(layoutBtn('1'))
+    const only = slots()[0] as HTMLElement
+    expect(only.querySelector('[data-chart-compact]')).toBeNull()
+    expect(only.querySelector('[data-compact-heading]')).toBeNull()
+    expect(within(only).getByRole('group', { name: 'Niveles' })).toBeInTheDocument()
+    expect(within(only).getByRole('group', { name: 'Rango' })).toBeInTheDocument()
   })
 
   it('no tiene botones de órdenes ni promete ganancias', () => {

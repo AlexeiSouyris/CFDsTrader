@@ -19,6 +19,8 @@ export function SlotChart({
   onRuler,
   mode,
   onMode,
+  compact,
+  controlsTarget,
 }: {
   slot: SlotData
   height: number
@@ -27,6 +29,9 @@ export function SlotChart({
   onRuler?: (on: boolean) => void
   mode?: ChartMode
   onMode?: (m: ChartMode) => void
+  /** modo compacto del Multigráfico (#545): ver `LiquidityChart` */
+  compact?: boolean
+  controlsTarget?: HTMLElement | null
 }) {
   const { sel, data, live } = slot
   if (!data)
@@ -62,6 +67,8 @@ export function SlotChart({
       onRulerChange={onRuler}
       mode={mode}
       onModeChange={onMode}
+      compact={compact}
+      controlsTarget={controlsTarget}
     />
   )
 }

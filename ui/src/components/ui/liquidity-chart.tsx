@@ -19,8 +19,14 @@
  * motor (Fibonacci con su golden pocket, EMA diaria, spring/upthrust, fondos, cruces de medias,
  * puntos pivote y régimen del VIX), cada una activable desde el menú "Herramientas". Tampoco se
  * calculan acá: se ubican en la vela que dice el motor.
+ *
+ * Modo compacto (#545, prop `compact`): sin cabecera ni leyenda, para las grillas del
+ * Multigráfico. Los controles (niveles, rango, herramientas y, si no se maneja desde afuera, el
+ * tipo de gráfico) se dibujan en `controlsTarget` —la barra de arriba del Multigráfico— solo
+ * cuando el gráfico es el activo. Sin `compact`, el gráfico se ve como siempre.
  */
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import {
   CHART_MODES,
@@ -134,6 +140,8 @@ export function LiquidityChart({
   onRulerChange,
   mode: modeProp,
   onModeChange,
+  compact = false,
+  controlsTarget,
   className,
 }: {
   instrument: string
@@ -167,6 +175,16 @@ export function LiquidityChart({
   onRulerChange?: (on: boolean) => void
   mode?: ChartMode
   onModeChange?: (m: ChartMode) => void
+  /**
+   * Modo compacto (#545): solo el gráfico y su barra de navegación, sin cabecera ni leyenda. La
+   * cabecera mínima la pone quien lo usa.
+   */
+  compact?: boolean
+  /**
+   * En modo compacto, dónde van los controles del gráfico (la barra del gráfico activo). Sin
+   * esto (un gráfico que no es el activo), no se dibujan.
+   */
+  controlsTarget?: HTMLElement | null
   className?: string
 }) {
   const ranges = RANGES[timeframe]
@@ -396,64 +414,75 @@ export function LiquidityChart({
     [base, n, a, b, baseMap],
   )
 
+  // Los controles del gráfico: en su cabecera o, en modo compacto, en la barra de afuera (#545).
+  const controls = (
+    <div className="flex flex-wrap gap-2" data-chart-controls={instrument}>
+      {!(compact && modeProp !== undefined) && (
+        <Segmented
+          label="Tipo de gráfico"
+          options={CHART_MODES}
+          value={mode}
+          onChange={(v) => setMode(v as ChartMode)}
+        />
+      )}
+      <Segmented
+        label="Niveles"
+        options={FILTERS}
+        value={filter}
+        onChange={(v) => setFilter(v as typeof filter)}
+      />
+      <Segmented
+        label="Rango"
+        options={ranges.map((r) => r.label)}
+        value={range}
+        onChange={(v) => vp.setRange((ranges.find((r) => r.label === v) ?? ranges[1]).bars)}
+      />
+      <ChartToolsMenu tools={tools} onToggle={toggleTool} available={layers !== null} />
+    </div>
+  )
+
   return (
-    <div className={cn('w-full', className)}>
-      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <p className="text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase">
-              {instrument} · {TF_LABEL[timeframe].short} · liquidez
-            </p>
-            {vix && (
-              <span
-                data-vix={vix.regime}
-                className={cn(
-                  'inline-flex h-5 items-center rounded-full border px-2 text-[10.5px] font-bold',
-                  VIX_STYLE[vix.regime],
-                )}
-              >
-                <Term id="vix">
-                  VIX {decimal(trimZeros(vix.close))} · {VIX_LABEL[vix.regime]}
-                </Term>
-              </span>
+    <div className={cn('w-full', className)} data-chart-compact={compact || undefined}>
+      {compact ? (
+        controlsTarget && createPortal(controls, controlsTarget)
+      ) : (
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <p className="text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase">
+                {instrument} · {TF_LABEL[timeframe].short} · liquidez
+              </p>
+              {vix && (
+                <span
+                  data-vix={vix.regime}
+                  className={cn(
+                    'inline-flex h-5 items-center rounded-full border px-2 text-[10.5px] font-bold',
+                    VIX_STYLE[vix.regime],
+                  )}
+                >
+                  <Term id="vix">
+                    VIX {decimal(trimZeros(vix.close))} · {VIX_LABEL[vix.regime]}
+                  </Term>
+                </span>
+              )}
+            </div>
+            <ChartReadout
+              store={measure.store}
+              starts={starts}
+              closes={closeTexts}
+              rangeLabel={range || `${count} ${TF_LABEL[timeframe].long[count === 1 ? 0 : 1]}`}
+              from={va}
+              to={vb - 1}
+            />
+            {lastClose && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Última vela cerrada: {dateTimeUtc(lastClose.toISOString())}
+              </p>
             )}
           </div>
-          <ChartReadout
-            store={measure.store}
-            starts={starts}
-            closes={closeTexts}
-            rangeLabel={range || `${count} ${TF_LABEL[timeframe].long[count === 1 ? 0 : 1]}`}
-            from={va}
-            to={vb - 1}
-          />
-          {lastClose && (
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Última vela cerrada: {dateTimeUtc(lastClose.toISOString())}
-            </p>
-          )}
+          {controls}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Segmented
-            label="Tipo de gráfico"
-            options={CHART_MODES}
-            value={mode}
-            onChange={(v) => setMode(v as ChartMode)}
-          />
-          <Segmented
-            label="Niveles"
-            options={FILTERS}
-            value={filter}
-            onChange={(v) => setFilter(v as typeof filter)}
-          />
-          <Segmented
-            label="Rango"
-            options={ranges.map((r) => r.label)}
-            value={range}
-            onChange={(v) => vp.setRange((ranges.find((r) => r.label === v) ?? ranges[1]).bars)}
-          />
-          <ChartToolsMenu tools={tools} onToggle={toggleTool} available={layers !== null} />
-        </div>
-      </div>
+      )}
 
       <div ref={boxRef} className="chart-enter relative w-full">
         <svg
@@ -876,105 +905,107 @@ export function LiquidityChart({
         />
       </div>
 
-      <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-        {(Object.keys(STATE_STYLE) as LevelState[]).map((st) => (
-          <li key={st} className="flex items-center gap-1.5">
-            <svg width={22} height={6} aria-hidden>
-              <line
-                x1={0}
-                x2={22}
-                y1={3}
-                y2={3}
-                stroke={STATE_STYLE[st].stroke}
-                strokeWidth={1.6}
-                strokeDasharray={STATE_STYLE[st].dash}
-              />
-            </svg>
-            {STATE_LABEL[st]}
-          </li>
-        ))}
-        <li className="flex items-center gap-1.5">
-          <svg width={22} height={6} aria-hidden opacity={0.3}>
-            <line x1={0} x2={22} y1={3} y2={3} stroke="var(--chart-accent)" strokeWidth={1.6} />
-          </svg>
-          Vencido
-        </li>
-        <li className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-4 rounded-[2px] bg-up/30" aria-hidden />
-          FVG abierto
-        </li>
-        <li className="flex items-center gap-1.5">
-          <span
-            className="inline-block h-2.5 w-4 rounded-[2px] border border-dashed border-muted-foreground/50"
-            aria-hidden
-          />
-          FVG lleno o vencido
-        </li>
-        <li>▲ ▼ vela de desplazamiento</li>
-        {coarse ? (
-          <>
-            <li>
-              Un dedo en horizontal te mueve en el tiempo · dos dedos: zoom · eje de precio:
-              arrastrá para estirarlo, doble toque vuelve a automático
+      {!compact && (
+        <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+          {(Object.keys(STATE_STYLE) as LevelState[]).map((st) => (
+            <li key={st} className="flex items-center gap-1.5">
+              <svg width={22} height={6} aria-hidden>
+                <line
+                  x1={0}
+                  x2={22}
+                  y1={3}
+                  y2={3}
+                  stroke={STATE_STYLE[st].stroke}
+                  strokeWidth={1.6}
+                  strokeDasharray={STATE_STYLE[st].dash}
+                />
+              </svg>
+              {STATE_LABEL[st]}
             </li>
-            <li>Mantené apretado y arrastrá (o usá la regla) para medir; un toque la borra</li>
-          </>
-        ) : (
-          <>
-            <li>
-              Arrastrá para moverte en el tiempo · rueda: zoom · eje de precio: arrastrá para
-              estirarlo, doble clic vuelve a automático
-            </li>
-            <li>Shift + arrastrar (o la regla) mide; un clic o Esc borra la medición</li>
-          </>
-        )}
-        {layers && tools.ema && layers.ema.length > 0 && (
+          ))}
           <li className="flex items-center gap-1.5">
-            <svg width={22} height={6} aria-hidden>
-              <line x1={0} x2={22} y1={3} y2={3} stroke="var(--chart-ema)" strokeWidth={1.6} />
+            <svg width={22} height={6} aria-hidden opacity={0.3}>
+              <line x1={0} x2={22} y1={3} y2={3} stroke="var(--chart-accent)" strokeWidth={1.6} />
             </svg>
-            EMA {layers.emaPeriod} diaria
+            Vencido
           </li>
-        )}
-        {layers && tools.fibonacci && layers.fibonacci.length > 0 && (
+          <li className="flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-4 rounded-[2px] bg-up/30" aria-hidden />
+            FVG abierto
+          </li>
           <li className="flex items-center gap-1.5">
             <span
-              className="inline-block h-2.5 w-4 rounded-[2px] bg-[var(--chart-fib)]/30"
+              className="inline-block h-2.5 w-4 rounded-[2px] border border-dashed border-muted-foreground/50"
               aria-hidden
             />
-            Fibonacci (F) y golden pocket
+            FVG lleno o vencido
           </li>
-        )}
-        {layers && tools.pivots && layers.pivots.length > 0 && (
-          <li className="flex items-center gap-1.5">
-            <svg width={22} height={6} aria-hidden>
-              <line
-                x1={0}
-                x2={22}
-                y1={3}
-                y2={3}
-                stroke="var(--chart-pivot)"
-                strokeDasharray="3 3"
+          <li>▲ ▼ vela de desplazamiento</li>
+          {coarse ? (
+            <>
+              <li>
+                Un dedo en horizontal te mueve en el tiempo · dos dedos: zoom · eje de precio:
+                arrastrá para estirarlo, doble toque vuelve a automático
+              </li>
+              <li>Mantené apretado y arrastrá (o usá la regla) para medir; un toque la borra</li>
+            </>
+          ) : (
+            <>
+              <li>
+                Arrastrá para moverte en el tiempo · rueda: zoom · eje de precio: arrastrá para
+                estirarlo, doble clic vuelve a automático
+              </li>
+              <li>Shift + arrastrar (o la regla) mide; un clic o Esc borra la medición</li>
+            </>
+          )}
+          {layers && tools.ema && layers.ema.length > 0 && (
+            <li className="flex items-center gap-1.5">
+              <svg width={22} height={6} aria-hidden>
+                <line x1={0} x2={22} y1={3} y2={3} stroke="var(--chart-ema)" strokeWidth={1.6} />
+              </svg>
+              EMA {layers.emaPeriod} diaria
+            </li>
+          )}
+          {layers && tools.fibonacci && layers.fibonacci.length > 0 && (
+            <li className="flex items-center gap-1.5">
+              <span
+                className="inline-block h-2.5 w-4 rounded-[2px] bg-[var(--chart-fib)]/30"
+                aria-hidden
               />
-            </svg>
-            Puntos pivote (P, R1–R3, S1–S3)
-          </li>
-        )}
-        {markers.length > 0 && (
-          <li>
-            {[...new Set(markers.map((mk) => mk.kind))]
-              .map((k) => `${MARKER_GLYPH[k]} ${MARKER_NAME[k].toLowerCase()}`)
-              .join(' · ')}
-          </li>
-        )}
-        {signals.length > 0 && (
-          <li className="flex items-center gap-1.5">
-            <span className="inline-block size-2 rounded-[2px] bg-up" aria-hidden />
-            <span className="inline-block size-2 rounded-[2px] bg-down" aria-hidden />
-            señal del motor
-          </li>
-        )}
-      </ul>
+              Fibonacci (F) y golden pocket
+            </li>
+          )}
+          {layers && tools.pivots && layers.pivots.length > 0 && (
+            <li className="flex items-center gap-1.5">
+              <svg width={22} height={6} aria-hidden>
+                <line
+                  x1={0}
+                  x2={22}
+                  y1={3}
+                  y2={3}
+                  stroke="var(--chart-pivot)"
+                  strokeDasharray="3 3"
+                />
+              </svg>
+              Puntos pivote (P, R1–R3, S1–S3)
+            </li>
+          )}
+          {markers.length > 0 && (
+            <li>
+              {[...new Set(markers.map((mk) => mk.kind))]
+                .map((k) => `${MARKER_GLYPH[k]} ${MARKER_NAME[k].toLowerCase()}`)
+                .join(' · ')}
+            </li>
+          )}
+          {signals.length > 0 && (
+            <li className="flex items-center gap-1.5">
+              <span className="inline-block size-2 rounded-[2px] bg-up" aria-hidden />
+              <span className="inline-block size-2 rounded-[2px] bg-down" aria-hidden />
+              señal del motor
+            </li>
+          )}
+        </ul>
+      )}
     </div>
   )
 }

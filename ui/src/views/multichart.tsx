@@ -11,6 +11,11 @@
  * Distribuciones: 1, 2 lado a lado (la de 2 por defecto), 2 apilados (solo si se elige) y 4 en
  * una cuadrícula de 2 × 2. En el celular se ve un gráfico por vez, con un selector. La distribución,
  * los instrumentos y el gráfico activo se recuerdan en el navegador.
+ *
+ * Modo compacto (#545): con más de un gráfico, cada panel muestra solo el gráfico con un
+ * encabezado mínimo (instrumento, timeframe y último cierre tal cual llega del motor), y los
+ * controles del gráfico activo (niveles, rango y herramientas) pasan a la barra de arriba. Con un
+ * solo gráfico hay lugar de sobra: se ve completo, con su cabecera, controles y leyenda.
  */
 import { CandlestickChart, LineChart, MousePointer2, Ruler, type LucideIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -34,11 +39,12 @@ import { useChartTools } from '@/lib/use-chart-tools'
 import { cn } from '@/lib/utils'
 
 /** Distribuciones: la etiqueta del selector, cuántos gráficos y cómo se ubican en escritorio. */
+/** `compact`: los paneles sin cabecera ni controles propios (#545), por eso son más altos. */
 const LAYOUTS = {
-  '1': { label: '1', count: 1, grid: '', height: 520 },
-  '2': { label: '2 lado a lado', count: 2, grid: 'lg:grid-cols-2', height: 460 },
-  '2v': { label: '2 apilados', count: 2, grid: '', height: 300 },
-  '4': { label: '4', count: 4, grid: 'lg:grid-cols-2', height: 300 },
+  '1': { label: '1', count: 1, grid: '', height: 520, compact: false },
+  '2': { label: '2 lado a lado', count: 2, grid: 'lg:grid-cols-2', height: 500, compact: true },
+  '2v': { label: '2 apilados', count: 2, grid: '', height: 340, compact: true },
+  '4': { label: '4', count: 4, grid: 'lg:grid-cols-2', height: 340, compact: true },
 } as const
 type Layout = keyof typeof LAYOUTS
 /** orden del selector: la de 2 apilados queda al final, como opción */
@@ -124,6 +130,8 @@ export function MultichartView() {
   const slots = [s0, s1, s2, s3]
   const current = slots[active]
   const sel = saved.slots[active]
+  // en modo compacto, el gráfico activo dibuja sus controles acá, en la barra de arriba (#545)
+  const [controlsEl, setControlsEl] = useState<HTMLElement | null>(null)
 
   const setActive = (i: number) => setSaved((p) => (p.active === i ? p : { ...p, active: i }))
   const patchSel = (patch: Partial<ChartSel>) =>
@@ -167,11 +175,15 @@ export function MultichartView() {
           value={sel.timeframe}
           onChange={(tf) => patchSel({ timeframe: tf as ViewTimeframe })}
         />
-        <ChartToolsMenu
-          tools={chartTools}
-          onToggle={toggleChartTool}
-          available={current.data?.analysis != null}
-        />
+        {layout.compact ? (
+          <div ref={setControlsEl} data-active-controls className="flex min-w-0" />
+        ) : (
+          <ChartToolsMenu
+            tools={chartTools}
+            onToggle={toggleChartTool}
+            available={current.data?.analysis != null}
+          />
+        )}
         <span className="ml-auto" />
         <Segmented
           label="Distribución"
@@ -243,18 +255,32 @@ export function MultichartView() {
                 i !== active && 'max-lg:hidden',
               )}
             >
-              <header className="mb-2 flex items-baseline justify-between gap-2">
+              <header
+                className={cn(
+                  'flex min-w-0 items-baseline justify-between gap-2',
+                  layout.compact ? 'mb-1' : 'mb-2',
+                )}
+              >
                 <button
                   type="button"
                   aria-pressed={i === active}
                   onClick={() => setActive(i)}
-                  className="rounded-md text-[13px] font-extrabold tracking-tight focus-visible:outline-2 focus-visible:outline-ring"
+                  className="shrink-0 rounded-md text-[13px] font-extrabold tracking-tight focus-visible:outline-2 focus-visible:outline-ring"
                 >
                   Gráfico {i + 1}
                   <span className="sr-only">{i === active ? ' (activo)' : ', activar'}</span>
                 </button>
+                {layout.compact && <CompactHeading slot={slot} />}
                 {slot.source && (
-                  <span className="text-[11px] text-muted-foreground">{SOURCE[slot.source]}</span>
+                  // en compacto y en el celular, la fuente queda en el panel de información
+                  <span
+                    className={cn(
+                      'shrink-0 text-[11px] text-muted-foreground',
+                      layout.compact && 'max-sm:hidden',
+                    )}
+                  >
+                    {SOURCE[slot.source]}
+                  </span>
                 )}
               </header>
               <SlotChart
@@ -264,6 +290,8 @@ export function MultichartView() {
                 onRuler={(ruler) => patchTools(i, { ruler })}
                 mode={tools[i].mode}
                 onMode={(mode) => patchTools(i, { mode })}
+                compact={layout.compact}
+                controlsTarget={i === active ? controlsEl : null}
               />
             </section>
           ))}
@@ -272,6 +300,34 @@ export function MultichartView() {
         <SlotInfo index={active} slot={current} />
       </div>
     </div>
+  )
+}
+
+/**
+ * El encabezado mínimo de un panel en modo compacto (#545): instrumento, timeframe y el cierre de
+ * la última vela, tal cual llega del motor (solo con formato de pantalla).
+ */
+function CompactHeading({ slot }: { slot: SlotData }) {
+  const { sel, data } = slot
+  const last = data ? chartBars(data).at(-1) : undefined
+  return (
+    <p
+      data-compact-heading
+      className="flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden text-[12px] whitespace-nowrap"
+    >
+      <span className="truncate font-bold tracking-[0.08em] text-muted-foreground uppercase">
+        {data?.instrument_id ?? sel.instrument} · {data?.timeframe ?? sel.timeframe}
+      </span>
+      {last && (
+        <span
+          className="font-bold tabular-nums"
+          title={`Última vela cerrada: ${dateTimeUtc(last.end)}`}
+        >
+          <span className="sr-only">Último cierre: </span>
+          {decimal(last.close)}
+        </span>
+      )}
+    </p>
   )
 }
 
