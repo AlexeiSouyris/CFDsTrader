@@ -267,3 +267,7 @@ Nada de esto lo decide un agente. Cada respuesta tiene que quedar en el Issue #5
 9. **Slippage:** ¿la mitad del spread (borrador) o 0,1 × spread + 1 tick (spec)?
 10. **Riesgo total:** ¿se acepta tener hasta 16 posiciones con 1 % de riesgo cada una, o se pone un tope de riesgo total?
 11. **Enviar las preguntas a IG** (`docs/guides/consultas-proveedores.md`, consulta 5): solo el dueño las manda.
+
+---
+
+**Nota del 25-11-2026 (#690), agregada después; el texto de arriba no se tocó:** la regla de presupuesto global de #660 fue aprobada por el dueño el 25-11-2026 en #660 (cita: «1, 2 y 7 apruebo la recomendacion.»), adoptada en #690. **El presupuesto nuevo de 5 % que pide este borrador («El programa 3 recibe un presupuesto nuevo de falsos positivos del 5 %»; punto 12 de la revisión) deja de existir**, igual que el 2,5 % de reserva del programa 2. Si el programa 3 llega a congelarse, su hipótesis saca su nivel del libro único ("Presupuesto global" en `registro-de-resultados.md`): `α_j = mín(1,25 %, W/(1 + W))`, pagando `α_j/(1 − α_j)` al congelarse, y antes tiene que pasar el filtro de borde bruto (k = 2).

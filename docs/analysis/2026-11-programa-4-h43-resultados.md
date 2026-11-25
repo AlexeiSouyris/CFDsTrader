@@ -122,3 +122,7 @@ Ninguna de estas lecturas se eligió mirando resultados: están en el código de
 - El filtro de noticias de alto impacto de la spec (§7.2) no tiene histórico y no se aplicó, como en las pruebas anteriores. Los días de FOMC, CPI y empleo sí se excluyeron.
 - Las reglas son una lectura medible de lo que dice Bruni en una entrevista (perfil, área de valor, estructura, volumen "eficiente"); otra definición podría dar otro resultado, pero cambiarla ahora sería una prueba nueva.
 - Muestra chica: 85 operaciones.
+
+---
+
+**Nota del 25-11-2026 (#690), agregada después del informe:** la regla de presupuesto global de #660 fue aprobada por el dueño el 25-11-2026 en #660 (cita: «1, 2 y 7 apruebo la recomendacion.»), adoptada en #690. **La reserva de 1,25 % del programa 4 deja de existir.** La candidata de §8 del pre-registro ("saltear tras una pérdida") solo se puede probar con un pre-registro nuevo que saque su nivel del libro único ("Presupuesto global" en `registro-de-resultados.md`) y pase el filtro de borde bruto. El pre-registro congelado (`2026-11-programa-4-preregistro.md` y su `.sha256`) no se tocó.

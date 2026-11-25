@@ -59,6 +59,69 @@ pub struct RuleConfig {
     pub second_half_from: NaiveDate,
 }
 
+/// Presupuesto global de error (#660, aprobado por el dueño el 25-11-2026; adopción #690):
+/// alfa-inversión de Foster y Stine (2008) para todo el proyecto. El libro con el estado de `W`
+/// está en `docs/analysis/registro-de-resultados.md` ("Presupuesto global") y lo verifica
+/// `tools/research/check_dsr_trials.py`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AlphaBudgetConfig {
+    /// α del proyecto (controla el mFDR en α).
+    pub alpha: Decimal,
+    /// Riqueza inicial `W(0) ≤ α × (1 − α)`.
+    pub initial_wealth: Decimal,
+    /// Fecha (UTC) desde la que rige la época.
+    pub start: NaiveDate,
+    /// Tope de la apuesta por hipótesis (`α_j = mín(max_bet, W/(1 + W))`).
+    pub max_bet: Decimal,
+    /// Premio `ω ≤ α`, pagado solo si el fuera de muestra confirma la hipótesis.
+    pub payout: Decimal,
+    /// Factor `k` del filtro de borde bruto: `E_bruto ≥ k × C`.
+    pub edge_cost_factor: Decimal,
+    /// IC previo cuando no hay cita (`E_bruto ≈ IC × σ_h`).
+    pub default_ic: Decimal,
+    /// Pruebas anteriores al registro, base del N del Sharpe deflactado.
+    pub dsr_trials_base: u32,
+}
+
+impl AlphaBudgetConfig {
+    /// La apuesta máxima con riqueza `wealth`: `mín(max_bet, W/(1 + W))`. Con `W ≤ 0`, 0.
+    pub fn max_bet_for(&self, wealth: Decimal) -> Decimal {
+        if wealth <= Decimal::ZERO {
+            return Decimal::ZERO;
+        }
+        self.max_bet.min(wealth / (Decimal::ONE + wealth))
+    }
+
+    /// Lo que paga una apuesta `bet`, pase o no: `α_j / (1 − α_j)`.
+    pub fn cost(bet: Decimal) -> Decimal {
+        bet / (Decimal::ONE - bet)
+    }
+
+    /// `W` después de una hipótesis: `W − α_j/(1 − α_j) + premio`. `Err` si la apuesta supera
+    /// la regla, si el premio supera `ω` o si `W` quedaría negativo.
+    pub fn wealth_after(
+        &self,
+        wealth: Decimal,
+        bet: Decimal,
+        payout: Decimal,
+    ) -> Result<Decimal, String> {
+        if bet <= Decimal::ZERO || bet > self.max_bet_for(wealth) {
+            return Err(format!(
+                "apuesta {bet} fuera de la regla (máximo {} con W = {wealth})",
+                self.max_bet_for(wealth)
+            ));
+        }
+        if payout < Decimal::ZERO || payout > self.payout {
+            return Err(format!("premio {payout} fuera de [0, {}]", self.payout));
+        }
+        let after = wealth - Self::cost(bet) + payout;
+        if after < Decimal::ZERO {
+            return Err(format!("W quedaría negativo: {after}"));
+        }
+        Ok(after)
+    }
+}
+
 /// Familia V (exposición manejada por volatilidad), ronda 3 (#493).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VolManagedConfig {
@@ -254,6 +317,8 @@ pub struct ResearchConfig {
     pub montecarlo: MonteCarloConfig,
     /// Particiones `S` del PBO por CSCV (#664): par, entre 2 y `pbo::MAX_PARTITIONS`.
     pub pbo_partitions: usize,
+    /// Presupuesto global de error del proyecto (#660, #690).
+    pub alpha_budget: AlphaBudgetConfig,
 }
 
 impl ResearchConfig {
@@ -348,6 +413,19 @@ impl ResearchConfig {
             program5: Program5,
             montecarlo: MonteCarlo,
             pbo: PboRaw,
+            alpha_budget: AlphaBudgetRaw,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct AlphaBudgetRaw {
+            alpha: String,
+            initial_wealth: String,
+            start: String,
+            max_bet: String,
+            payout: String,
+            edge_cost_factor: String,
+            default_ic: String,
+            dsr_trials_base: u32,
         }
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
@@ -762,6 +840,38 @@ impl ResearchConfig {
         {
             return Err("pbo.partitions tiene que ser par y estar entre 2 y 20".into());
         }
+        let ab = &raw.alpha_budget;
+        let alpha_budget = AlphaBudgetConfig {
+            alpha: dec(&ab.alpha, "alpha_budget.alpha")?,
+            initial_wealth: dec(&ab.initial_wealth, "alpha_budget.initial_wealth")?,
+            start: date(&ab.start, "alpha_budget.start")?,
+            max_bet: dec(&ab.max_bet, "alpha_budget.max_bet")?,
+            payout: dec(&ab.payout, "alpha_budget.payout")?,
+            edge_cost_factor: dec(&ab.edge_cost_factor, "alpha_budget.edge_cost_factor")?,
+            default_ic: dec(&ab.default_ic, "alpha_budget.default_ic")?,
+            dsr_trials_base: ab.dsr_trials_base,
+        };
+        if alpha_budget.alpha >= Decimal::ONE {
+            return Err("alpha_budget.alpha tiene que ser menor que 1".into());
+        }
+        if alpha_budget.initial_wealth > alpha_budget.alpha * (Decimal::ONE - alpha_budget.alpha) {
+            return Err("alpha_budget.initial_wealth no puede superar α × (1 − α)".into());
+        }
+        if alpha_budget.max_bet > alpha_budget.alpha {
+            return Err("alpha_budget.max_bet no puede superar α".into());
+        }
+        if alpha_budget.payout > alpha_budget.alpha {
+            return Err("alpha_budget.payout (ω) no puede superar α".into());
+        }
+        if alpha_budget.edge_cost_factor < Decimal::ONE {
+            return Err("alpha_budget.edge_cost_factor (k) tiene que ser al menos 1".into());
+        }
+        if alpha_budget.default_ic >= Decimal::ONE {
+            return Err("alpha_budget.default_ic tiene que ser menor que 1".into());
+        }
+        if alpha_budget.dsr_trials_base < 2 {
+            return Err("alpha_budget.dsr_trials_base tiene que ser al menos 2".into());
+        }
         Ok(Self {
             orb: OrbConfig {
                 range_candles: raw.orb.range_candles,
@@ -812,6 +922,7 @@ impl ResearchConfig {
             program5,
             montecarlo,
             pbo_partitions,
+            alpha_budget,
         })
     }
 }

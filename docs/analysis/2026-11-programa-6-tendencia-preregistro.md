@@ -43,6 +43,8 @@ El programa 3 es el borrador del dueño (24-11-2026) de **tendencia multi-activo
 
 ## 1. Presupuesto de error y cantidad de pruebas
 
+> **Nota del 25-11-2026 (#690):** la regla de #660 fue aprobada por el dueño el 25-11-2026 en #660 (cita: «1, 2 y 7 apruebo la recomendacion.»), adoptada en #690. **α₆ sale de ese presupuesto global**: al congelar, H6.1 apuesta `α₆ = mín(1,25 %, W/(1 + W))` (o menos) del libro de `registro-de-resultados.md` ("Presupuesto global"), paga `α₆/(1 − α₆)` y el pre-registro cita `W` antes y después. Con `W = 4,75 %` hoy, **α₆ ≤ 1,25 %** (no 2,5 %). La opción provisional de abajo (5 % nuevo, α₆ = 0,025 y 2,5 % en reserva) **deja de existir**. Antes de congelar, H6.1 tiene que pasar el filtro de borde bruto (k = 2). Los demás puntos abiertos de §15 no cambian.
+
 - **Presupuesto:** lo fija la regla de presupuesto global que propone #660 (`docs/analysis/2026-11-regla-presupuesto-global.md`, en preparación por otro agente; no se repite acá). El nivel de H6.1 se escribe como **α₆** y queda **PENDIENTE** hasta que el dueño apruebe esa regla (punto abierto 2).
 - **Si el dueño quiere congelar antes de #660:** la recomendación provisional es la regla vieja (un 5 % nuevo para el programa) con **α₆ = 0,025** para H6.1, unilateral, y el 2,5 % restante en reserva para un programa de *carry* o de reversión diaria sobre el mismo universo, con su propio pre-registro. H6.0 no vota, así que no gasta presupuesto.
 - **Cantidad de pruebas para el Sharpe deflactado:** el N del registro **al congelar**. Hoy es **361** (`config/research.toml`, `[rule_program5]`). Al congelar se suman H6.1 y H6.0 (aunque H6.0 no vote, se mira): **N = 363**, salvo que antes se congele otro programa o que #660 cambie cómo se cuenta (punto abierto 3). Referencia con N = 100 y N = 1000, sin voto.
@@ -352,7 +354,7 @@ Todos **PENDIENTES**. Ningún agente los decide. Cada respuesta queda en #672 co
 | # | Punto | Valor recomendado | Por qué | Estado |
 |---|---|---|---|---|
 | 1 | Relación con el programa 3 (#513) | El programa 6 **reemplaza** al 3; el 3 se cierra sin congelar y sus anexos se reutilizan | Son dos pruebas casi iguales sobre los mismos datos: correr las dos gasta presupuesto dos veces e invita a quedarse con la mejor | PENDIENTE |
-| 2 | Presupuesto (α₆) | El que dé la regla global de #660; si se congela antes, 5 % nuevo con **α₆ = 0,025** para H6.1 y 2,5 % en reserva | No duplicar #660. Con un α₆ más chico el poder cae mucho (§11) | PENDIENTE |
+| 2 | Presupuesto (α₆) | El que dé la regla global de #660; si se congela antes, 5 % nuevo con **α₆ = 0,025** para H6.1 y 2,5 % en reserva | No duplicar #660. Con un α₆ más chico el poder cae mucho (§11) | **Resuelto por #660 (aprobada el 25-11-2026, #690):** α₆ sale del libro global, ≤ 1,25 % con `W` = 4,75 %; la opción de 5 % nuevo ya no existe (nota de §1) |
 | 3 | N del Sharpe deflactado | N del registro al congelar + 2 (hoy 361 → **363**) | Se suman H6.1 y H6.0, aunque H6.0 no vote, porque igual se mira | PENDIENTE |
 | 4 | Papel de H6.0 | **Control sin voto**; se informa H6.1 − H6.0 | Dos hipótesis de tendencia que votan sobre los mismos datos parten el presupuesto y casi dan lo mismo | PENDIENTE |
 | 5 | FDAX | **Fuera** del universo (se dice en el informe) | Solo tiene datos desde el 11-03-2025: menos de 8 meses antes del fuera de muestra, menos que el calentamiento | PENDIENTE |

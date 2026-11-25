@@ -56,9 +56,9 @@ use rust_decimal::Decimal;
 
 pub use buy_and_hold::buy_and_hold_returns;
 pub use config::{
-    ChampionshipConfig, IntradayMomentumConfig, MacroDayConfig, OrbConfig, OvernightDriftConfig,
-    Program4Config, Program5Config, ResearchConfig, ReviewChecksConfig, RoundNumberConfig,
-    RuleConfig, TrendConfig, TurnOfMonthConfig, VolManagedConfig,
+    AlphaBudgetConfig, ChampionshipConfig, IntradayMomentumConfig, MacroDayConfig, OrbConfig,
+    OvernightDriftConfig, Program4Config, Program5Config, ResearchConfig, ReviewChecksConfig,
+    RoundNumberConfig, RuleConfig, TrendConfig, TurnOfMonthConfig, VolManagedConfig,
 };
 pub use intraday_momentum::intraday_momentum_plans;
 pub use macro_day::{MacroDayRule, macro_day_windows};

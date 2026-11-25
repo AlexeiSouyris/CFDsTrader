@@ -106,6 +106,7 @@ Detalle y criterios de aprobación por fase en `docs/ROADMAP.md`. Resumen obliga
 - **Funciones puras** para señales y estrategias: misma entrada, misma salida, sin estado oculto.
 - **Órdenes idempotentes** (ID propio), y un **kill switch** ante límite superado, error de datos o desconexión.
 - **Registro de resultados:** toda prueba (backtest, walk-forward, ronda de investigación, ML) agrega una fila a `docs/analysis/registro-de-resultados.csv` en el mismo PR. Las filas viejas no se editan: si algo cambia, va una fila nueva que dice contra qué fila compara y si dio mejor, peor o igual (ver `docs/analysis/registro-de-resultados.md`).
+- **Presupuesto global de error:** toda hipótesis que vota (investigación o ML confirmatorio) saca su nivel del libro único del proyecto ("Presupuesto global" en `docs/analysis/registro-de-resultados.md`, números en `config/research.toml` `[alpha_budget]`), pasa antes el filtro de borde bruto (`E_bruto ≥ 2 × C`) y agrega su fila al libro en el PR que la congela. No hay "5 % nuevo" por programa (#660, #690).
 - **No inventar:** ni datos, ni endpoints de APIs, ni parámetros del broker. Si no está en la documentación oficial o en la spec, se pregunta.
 
 ## 5c. Trabajo por fases
