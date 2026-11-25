@@ -4,7 +4,7 @@
  * | Ruta | Contrato |
  * |---|---|
  * | `GET /api/v1/ops/status` | `ops_status.v1`: compuerta, kill switch, pérdida diaria, apalancamiento y última reconciliación |
- * | `GET /api/v1/ops/events` | `ops_event.v1[]`: los últimos eventos del broker y alertas, el más nuevo primero |
+ * | `GET /api/v1/ops/events` | `ops_event.v1[]`: los últimos eventos del broker y alertas, el más nuevo primero, con los repetidos agrupados por el motor (#576) |
  *
  * Todo lo calcula el motor. La UI lo muestra tal cual y **no** puede reiniciar el kill switch:
  * no existe una ruta para eso. Sin gateway no se inventa un estado: se dice que no hay conexión.
@@ -57,6 +57,13 @@ export type OpsEvent = {
   target: string
   event: string
   fields: Record<string, unknown>
+  /**
+   * Cuántas veces ocurrió el mismo evento (#576): el motor agrupa los repetidos. Si falta, 1.
+   * Con más de una, `ts` es la primera vez y `last_seen` la última.
+   */
+  count?: number
+  /** Última vez que ocurrió (#576). Si falta, igual a `ts`. */
+  last_seen?: Utc
 }
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {

@@ -226,6 +226,8 @@ async fn route(feed: &Feed, store: Option<&dyn EventStore>) -> Vec<Value> {
     let deps = StatusDeps {
         feed,
         events: store,
+        events_limit: feed.cap(),
+        group_scan: 100,
         daily_loss_limit_pct: dec!(3),
         scrub: &scrub,
     };
@@ -234,6 +236,7 @@ async fn route(feed: &Feed, store: Option<&dyn EventStore>) -> Vec<Value> {
         &deps,
         "GET",
         "/api/v1/ops/events",
+        None,
         "2026-11-23T12:00:00Z".parse().unwrap(),
     )
     .await;
@@ -301,4 +304,52 @@ fn the_ops_config_is_validated() {
         assert_ne!(bad, GATEWAY);
         assert!(StatusConfig::from_toml(&bad).is_err(), "{new}");
     }
+}
+
+#[tokio::test]
+async fn repeated_events_are_stored_each_time_but_read_grouped() {
+    // #576: la base guarda cada uno (es de solo agregar); la ruta los agrupa con count y
+    // last_seen, aunque vengan intercalados con otros.
+    let s = setup(cfg(5, 100));
+    s.log
+        .log(Level::Warn, "broker", "risk_decision", json!({ "n": 1 }));
+    for _ in 0..30 {
+        s.log.log(
+            Level::Warn,
+            "gateway",
+            "connection_error",
+            json!({ "error": "x" }),
+        );
+        s.log.log(
+            Level::Warn,
+            "broker",
+            "instrument_skipped",
+            json!({ "i": "US100" }),
+        );
+    }
+    settle().await;
+    assert_eq!(s.store.rows.lock().unwrap().len(), 61);
+    let rows = route(&s.feed, Some(s.store.as_ref())).await;
+    let summary: Vec<(&str, u64)> = rows
+        .iter()
+        .map(|r| (r["event"].as_str().unwrap(), r["count"].as_u64().unwrap()))
+        .collect();
+    assert_eq!(
+        summary,
+        [
+            ("instrument_skipped", 30),
+            ("connection_error", 30),
+            ("risk_decision", 1)
+        ]
+    );
+    for r in &rows {
+        assert!(r["ts"].as_str().unwrap() <= r["last_seen"].as_str().unwrap());
+    }
+    // La memoria también agrupa, igual.
+    let mem = route(&s.feed, None).await;
+    let mem_summary: Vec<(&str, u64)> = mem
+        .iter()
+        .map(|r| (r["event"].as_str().unwrap(), r["count"].as_u64().unwrap()))
+        .collect();
+    assert_eq!(mem_summary, summary);
 }
