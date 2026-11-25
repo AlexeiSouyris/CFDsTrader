@@ -343,6 +343,16 @@ fn empty_view_follows_the_contract() {
             cfds_gateway::LiquidityView::empty(id.clone(), s, M15, at("2026-11-23T10:00:00Z"));
         assert_valid(&serde_json::to_value(&view).unwrap());
     }
+    // Con `source=auto` y velas de reemplazo (#628): `fallback` con el motivo de la config.
+    let cfg = GatewayConfig::from_toml(CONFIG).unwrap();
+    let s = cfds_gateway::ViewSource::new(CandleSource::Futures, &sources());
+    let mut view =
+        cfds_gateway::LiquidityView::empty(id.clone(), s, M15, at("2026-11-23T10:00:00Z"));
+    view.fallback = Some(cfds_gateway::Fallback {
+        from: "ig",
+        note: cfg.auto.fallback[0].1.clone(),
+    });
+    assert_valid(&serde_json::to_value(&view).unwrap());
     let s = cfds_gateway::ViewSource::new(CandleSource::Ig, &sources());
     let view = cfds_gateway::LiquidityView::empty(id, s, M15, at("2026-11-23T10:00:00Z"));
     // Un documento sin `source` (la primera versión) sigue valiendo.

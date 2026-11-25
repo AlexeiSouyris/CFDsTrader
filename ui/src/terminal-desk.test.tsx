@@ -161,7 +161,7 @@ describe('terminal de trading completa (#552)', () => {
   it('la lista de mercados muestra el último cierre del gateway, sin inventar variación', async () => {
     gateway()
     render(<TerminalView member={CURRENT_MEMBER} />)
-    const de40 = await within(markets()).findByText('100,5')
+    const de40 = await within(markets()).findByText('100,50')
     const row = de40.closest('button')!
     expect(row).toHaveTextContent('DE40')
     expect(row).toHaveTextContent('Alemania 40')
@@ -405,5 +405,9 @@ describe('resumen de mercados (#552)', () => {
     expect(row).toHaveTextContent('−0,42 %')
     expect(row).toHaveTextContent('10 min de atraso')
     expect(screen.queryByText(/la fuente todavía no los manda/)).toBeNull()
+    // denso como una terminal (#635): renglón con línea fina, sin píldora ni anillo redondeado
+    expect(row.className).not.toMatch(/rounded-xl|ring-1/)
+    expect(row.closest('li')!.className).toMatch(/border-b/)
+    expect(row).toHaveAttribute('aria-pressed', 'true')
   })
 })

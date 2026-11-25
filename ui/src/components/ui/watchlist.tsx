@@ -5,14 +5,20 @@
  *
  * Los renglones van en grupos, uno por fuente (#556): los del broker simulado y los de IBKR, que
  * son solo datos y llevan su marca con el atraso que declara el gateway.
+ *
+ * Aspecto (#635, patrón *Market Watchlist* de 21st.dev, https://21st.dev/@ssychui/components/market-watchlist,
+ * reescrito): una sola tabla densa, renglones separados por líneas de 1 px, cifras en mono
+ * alineadas por columna y el elegido marcado con una barra ámbar a la izquierda. Sin tarjetas.
  */
 import { dateTimeUtc, decimal, isNegative, signed } from '@/lib/format'
 import type { MarketSummary } from '@/lib/market-summary'
 import { cn } from '@/lib/utils'
 
+// 24 h como el resto de la app: es-AR daba "04:00 a. m." (QA terminal #19)
 const TIME = new Intl.DateTimeFormat('es-AR', {
   hour: '2-digit',
   minute: '2-digit',
+  hourCycle: 'h23',
   timeZone: 'UTC',
 })
 const DAY = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' })
@@ -44,6 +50,12 @@ export type WatchGroup = {
 /** El atraso como lo declara la fuente, en minutos enteros para la pantalla. */
 const delayMin = (s: number) => Math.max(1, Math.round(s / 60))
 
+/**
+ * Un precio con al menos 2 decimales (QA terminal #19, charts #13): "25.590" solo se leía como 25
+ * con decimales; "25.590,00" no. Si el precio trae más, se muestran todos. Solo formato.
+ */
+const fixed = (text: string) => decimal(text, Math.max(2, text.split('.')[1]?.length ?? 0))
+
 export function Watchlist({
   groups,
   names,
@@ -60,10 +72,12 @@ export function Watchlist({
   return (
     <section
       aria-label="Mercados"
-      className="panel flex min-w-0 flex-col gap-2 rounded-section p-2"
+      className="panel flex min-w-0 flex-col rounded-section"
       aria-busy={groups.some((g) => g.loading) || undefined}
     >
-      <h2 className="px-2 pt-1 text-[13px] font-extrabold tracking-tight">Mercados</h2>
+      <h2 className="border-b border-border px-2.5 py-2 text-[11px] font-extrabold tracking-[0.12em] uppercase">
+        Mercados
+      </h2>
       {groups.map((g) => (
         <WatchGroupList
           key={g.id}
@@ -91,22 +105,22 @@ function WatchGroupList({
   const anyChange = g.rows.some((r) => r.change_pct !== null)
   const headingId = `watch-group-${g.id}`
   return (
-    <section aria-labelledby={headingId} data-watch-group={g.id} className="grid gap-0.5">
-      <header className="min-w-0 px-2 pb-1">
+    <section aria-labelledby={headingId} data-watch-group={g.id} className="grid">
+      <header className="min-w-0 border-b border-border bg-surface px-2.5 py-1.5">
         <h3
           id={headingId}
           className="text-[10.5px] font-bold tracking-[0.08em] text-muted-foreground uppercase"
         >
           {g.title}
         </h3>
-        <p className="truncate text-[10.5px] text-muted-foreground">{g.sourceLabel}</p>
+        <p className="truncate font-mono text-[10px] text-muted-foreground">{g.sourceLabel}</p>
       </header>
-      <ul className="grid gap-0.5">
+      <ul className="grid">
         {g.rows.map((r) => {
           const key = g.feed === 'ibkr' ? `ibkr:${r.instrument_id}` : r.instrument_id
           const on = key === selected
           return (
-            <li key={key}>
+            <li key={key} className="border-b border-border/60">
               <button
                 type="button"
                 aria-pressed={on}
@@ -114,8 +128,10 @@ function WatchGroupList({
                 data-feed={g.feed}
                 onClick={() => onSelect(r.instrument_id, g.feed)}
                 className={cn(
-                  'grid min-h-9 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 rounded-xl px-2 py-1 text-left transition-colors hover:bg-foreground/5 focus-visible:outline-2 focus-visible:outline-ring',
-                  on && 'bg-primary/10 ring-1 ring-primary/50 ring-inset',
+                  'relative grid min-h-9 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 px-2.5 py-1.5 text-left transition-colors hover:bg-foreground/5 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+                  // el elegido: barra ámbar a la izquierda y fondo apenas tintado
+                  on &&
+                    "bg-primary/10 before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-primary before:content-['']",
                 )}
               >
                 <span className="min-w-0">
@@ -127,34 +143,42 @@ function WatchGroupList({
                   </span>
                 </span>
                 <span className="text-right">
-                  <span className="block text-[12.5px] font-bold tabular-nums">
-                    {r.last === null ? '—' : decimal(r.last)}
+                  <span className="block font-mono text-[12.5px] font-bold tabular-nums">
+                    {r.last === null ? '—' : fixed(r.last)}
                   </span>
                   {r.change_pct !== null && (
                     <span
                       className={cn(
-                        'block text-[10.5px] font-bold tabular-nums',
+                        'block font-mono text-[10.5px] font-bold tabular-nums',
                         isNegative(r.change_pct) ? 'text-down' : 'text-up',
                       )}
                     >
-                      {signed(r.change_pct)} %
+                      {signed(r.change_pct, 2)} %
+                      <span className="sr-only"> contra el cierre de la sesión anterior</span>
                     </span>
                   )}
                 </span>
                 <span
-                  className="col-span-2 truncate text-[10px] text-muted-foreground tabular-nums"
+                  className="col-span-2 truncate font-mono text-[10px] text-muted-foreground tabular-nums"
                   title={r.at ? `Vela cerrada: ${dateTimeUtc(r.at)}` : undefined}
                 >
                   {r.at ? when(r.at) : 'sin velas'}
                   {!g.badge && r.delay_s !== null && ` · ${delayMin(r.delay_s)} min de atraso`}
                 </span>
                 {g.badge && (
+                  // `delay_s` es cuánto hace que cerró la última vela (`generated_at − bar_end`):
+                  // se dice así, no como "atraso" de la fuente, que es otro número (#275)
                   <span
                     data-delay-badge
-                    className="col-span-2 mt-0.5 max-w-full justify-self-start truncate rounded-full border border-border px-1.5 py-px text-[9.5px] font-bold text-muted-foreground"
+                    title={
+                      r.delay_s !== null
+                        ? `La última vela cerrada terminó hace unos ${delayMin(r.delay_s)} min`
+                        : undefined
+                    }
+                    className="col-span-2 max-w-full justify-self-start truncate font-mono text-[10px] font-bold tracking-[0.04em] text-muted-foreground"
                   >
                     {g.badge}
-                    {r.delay_s !== null && ` · ~${delayMin(r.delay_s)} min de atraso`}
+                    {r.delay_s !== null && ` · cerró hace ~${delayMin(r.delay_s)} min`}
                   </span>
                 )}
               </button>
@@ -163,10 +187,10 @@ function WatchGroupList({
         })}
       </ul>
       {g.note && (
-        <p className="px-2 pb-1 text-[10.5px] leading-snug text-muted-foreground">{g.note}</p>
+        <p className="px-2.5 py-1.5 text-[10.5px] leading-snug text-muted-foreground">{g.note}</p>
       )}
       {!g.note && !anyChange && g.rows.length > 0 && (
-        <p className="px-2 pb-1 text-[10.5px] leading-snug text-muted-foreground">
+        <p className="px-2.5 py-1.5 text-[10.5px] leading-snug text-muted-foreground">
           Sin variación ni atraso: la fuente todavía no los manda. Precios del pasado, no promesas.
         </p>
       )}

@@ -8,7 +8,7 @@ import { OctagonAlert } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 
 import { Term } from '@/components/ui/term'
-import { dateTimeUtc, decimal } from '@/lib/format'
+import { dateTimeUtc, decimal, leverageText } from '@/lib/format'
 import type { Gate, OpsEvent, OpsStatus } from '@/lib/ops-api'
 import { cn } from '@/lib/utils'
 
@@ -109,7 +109,7 @@ export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
               className={a.kill_switch.active ? 'border-down bg-down text-white' : 'border-border'}
             >
               <Term id="kill-switch">Kill switch</Term>{' '}
-              {a.kill_switch.active ? 'ACTIVO' : 'apagado'}
+              {a.kill_switch.active ? 'ACTIVO' : 'inactivo'}
             </Chip>
           )}
         </div>
@@ -151,7 +151,7 @@ export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
             </div>
             <p className="text-[11.5px] text-muted-foreground tabular-nums sm:whitespace-nowrap">
               <Term id="apalancamiento">Apalancamiento</Term>{' '}
-              <strong className="font-bold text-foreground">{decimal(a.leverage)}:1</strong> ·{' '}
+              <strong className="font-bold text-foreground">{leverageText(a.leverage)}</strong> ·{' '}
               {a.open_positions} de {a.max_positions} posiciones
             </p>
           </>
@@ -169,7 +169,9 @@ export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
         >
           Reconciliación {rec.kind === 'startup' ? 'al arrancar' : 'periódica'}:{' '}
           {rec.clean
-            ? `limpia (${rec.matched} coinciden)`
+            ? rec.matched === 0
+              ? 'limpia, sin posiciones que comparar'
+              : `limpia (${rec.matched} coinciden)`
             : `${rec.mismatches} posiciones distintas y ${rec.drifts} órdenes que no se reconstruyen igual`}{' '}
           <span className="whitespace-nowrap tabular-nums">· {dateTimeUtc(rec.at)}</span>
         </p>
@@ -311,7 +313,10 @@ function EventText({ event }: { event: OpsEvent }) {
     <span className="min-w-0 basis-full break-words sm:basis-auto">
       {text}{' '}
       <details className="inline text-muted-foreground [&[open]]:block">
-        <summary className="inline cursor-pointer text-[11px] underline decoration-dotted">
+        <summary
+          data-inline-hit
+          className="inline cursor-pointer text-[11px] underline decoration-dotted"
+        >
           Detalle técnico
         </summary>
         <span className="mt-1 block text-[11px] [overflow-wrap:anywhere]">{technical}</span>

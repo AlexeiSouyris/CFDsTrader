@@ -32,16 +32,34 @@ const DIRECTION = { bullish: 'Alcista', bearish: 'Bajista' } as const
 const TERCILE = { low: 'Chico', mid: 'Mediano', high: 'Grande', all: 'Todos los tamaños' } as const
 const FVG_STATUS = { open: 'Abierto', filled: 'Lleno', expired: 'Vencido' } as const
 
-const th = 'py-2 font-bold'
+/*
+ * Tablas del informe (#626, patrón *Audit Log Table* de 21st.dev,
+ * https://21st.dev/@arihantcodes_1f7b8c4d/components/audit-log-table, reescrito): densas, con borde
+ * de 1 px, encabezado tintado, líneas finas entre filas y el estado como punto + palabra.
+ */
+const th = 'bg-surface py-1.5 font-bold'
 const headRow =
   'border-b border-border text-left text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase'
-const bodyRow = 'border-b border-border last:border-b-0'
-const table = 'w-full text-[12.5px] [&_td]:px-2 [&_th]:px-2'
+const bodyRow =
+  'border-b border-border/60 last:border-b-0 hover:bg-[color-mix(in_srgb,var(--foreground)_4%,transparent)]'
+const table = 'w-full text-[12.5px] [&_td]:px-2.5 [&_td]:py-1.5 [&_th]:px-2.5'
+/** El marco de cada tabla: plano, esquinas de 4 px. */
+const frame = 'rounded-[4px] border border-border'
+
+/** El estado como punto + palabra: nunca solo color. */
+function Dot() {
+  return (
+    <span
+      aria-hidden="true"
+      className="mr-1.5 inline-block size-1.5 rounded-full bg-current align-middle"
+    />
+  )
+}
 
 /** Niveles con su estado. Los vencidos (`expired_at`) van atenuados y lo dicen. */
 export function LevelsTable({ levels }: { levels: LiquidityLevel[] }) {
   return (
-    <ScrollRegion label="Niveles de liquidez">
+    <ScrollRegion label="Niveles de liquidez" className={frame}>
       <table className={cn(table, 'min-w-[560px]')}>
         <caption className="sr-only">Niveles de liquidez y su estado</caption>
         <thead>
@@ -62,18 +80,17 @@ export function LevelsTable({ levels }: { levels: LiquidityLevel[] }) {
                 data-expired={expired || undefined}
                 className={cn(bodyRow, expired && 'opacity-50')}
               >
-                <td className="py-2 font-semibold">{levelName(l)}</td>
-                <td className="py-2 text-right whitespace-nowrap tabular-nums">
-                  {decimal(l.price)}
-                </td>
-                <td className={cn('py-2 font-semibold', STATE_TONE[l.state])}>
+                <td className="font-semibold">{levelName(l)}</td>
+                <td className="text-right whitespace-nowrap tabular-nums">{decimal(l.price)}</td>
+                <td className={cn('whitespace-nowrap font-semibold', STATE_TONE[l.state])}>
+                  <Dot />
                   {STATE_LABEL[l.state]}
                   {expired && <span className="font-normal"> · vencido</span>}
                 </td>
-                <td className="py-2 whitespace-nowrap text-muted-foreground tabular-nums">
+                <td className="whitespace-nowrap text-muted-foreground tabular-nums">
                   {dateTimeUtc(l.exists_from)}
                 </td>
-                <td className="py-2 whitespace-nowrap text-muted-foreground tabular-nums">
+                <td className="whitespace-nowrap text-muted-foreground tabular-nums">
                   {l.state_changed_at
                     ? dateTimeUtc(l.state_changed_at)
                     : expired
@@ -90,7 +107,8 @@ export function LevelsTable({ levels }: { levels: LiquidityLevel[] }) {
 }
 
 const point = (m: FvgPoint) => (m === null ? '—' : `${m.bars} ${m.bars === 1 ? 'vela' : 'velas'}`)
-const atrText = (s: string | null) => (s === null ? '—' : `${signed(s)} ATR`)
+/** Reacción en ATR, acortada a 2 decimales para leerla (el motor manda 20+; solo es formato). */
+const atrText = (s: string | null) => (s === null ? '—' : `${signed(roundedText(s))} ATR`)
 
 /** Cuántos FVG se ven antes de "Mostrar todos": la lista entera alarga mucho el Panel (#357). */
 const FVG_PREVIEW = 8
@@ -112,7 +130,7 @@ export function FvgTable({
   const hidden = rows.length - shown.length
   return (
     <div className="grid gap-2">
-      <ScrollRegion label={label}>
+      <ScrollRegion label={label} className={frame}>
         <table className={cn(table, 'min-w-[720px] [&_td]:whitespace-nowrap')}>
           <caption className="sr-only">FVG, del más nuevo al más viejo</caption>
           <thead>
@@ -131,35 +149,27 @@ export function FvgTable({
           <tbody>
             {shown.map((f) => (
               <tr key={fvgKey(f)} className={bodyRow}>
-                <td className="py-2 text-muted-foreground tabular-nums">
-                  {dateTimeUtc(f.created_at)}
-                </td>
+                <td className="text-muted-foreground tabular-nums">{dateTimeUtc(f.created_at)}</td>
                 <td
                   className={cn(
-                    'py-2 font-semibold',
+                    'font-semibold',
                     f.direction === 'bullish' ? 'text-up' : 'text-down',
                   )}
                 >
                   {DIRECTION[f.direction]}
                 </td>
-                <td className="py-2 text-right tabular-nums">
+                <td className="text-right tabular-nums">
                   {decimal(f.bottom)} – {decimal(f.top)}
                 </td>
-                <td className="py-2 text-right tabular-nums">
-                  {decimal(roundedText(f.size_atr))} ATR
-                </td>
-                <td className="py-2 text-right tabular-nums">{point(f.touch)}</td>
-                <td className="py-2 text-right tabular-nums">{point(f.mid)}</td>
-                <td className="py-2 text-right tabular-nums">{point(f.fill)}</td>
-                <td className="py-2 text-right tabular-nums">
+                <td className="text-right tabular-nums">{decimal(roundedText(f.size_atr))} ATR</td>
+                <td className="text-right tabular-nums">{point(f.touch)}</td>
+                <td className="text-right tabular-nums">{point(f.mid)}</td>
+                <td className="text-right tabular-nums">{point(f.fill)}</td>
+                <td className="text-right tabular-nums">
                   {f.reactions.map((r) => atrText(r.return_atr)).join(' · ')}
                 </td>
-                <td
-                  className={cn(
-                    'py-2 font-semibold',
-                    f.status !== 'open' && 'text-muted-foreground',
-                  )}
-                >
+                <td className={cn('font-semibold', f.status !== 'open' && 'text-muted-foreground')}>
+                  <Dot />
                   {FVG_STATUS[f.status]}
                 </td>
               </tr>
@@ -216,10 +226,10 @@ function Reaction({ d }: { d: StatsDistribution | undefined }) {
   if (!d || d.insufficient || d.median === null) return <>—</>
   return (
     <>
-      {signed(d.median)} ATR
+      {signed(roundedText(d.median))} ATR
       {d.p25 !== null && d.p75 !== null && (
         <span className="block text-[10.5px] text-muted-foreground">
-          p25 {signed(d.p25)} · p75 {signed(d.p75)}
+          p25 {signed(roundedText(d.p25))} · p75 {signed(roundedText(d.p75))}
         </span>
       )}
     </>
@@ -243,7 +253,7 @@ export function StatsPanel({ stats }: { stats: LiquidityStats[] }) {
         {stats[0]?.min_cases ?? '—'} casos no se muestra la tasa. Son frecuencias pasadas, no una
         predicción.
       </p>
-      <ScrollRegion label="FVG por timeframe, dirección y tamaño">
+      <ScrollRegion label="FVG por timeframe, dirección y tamaño" className={frame}>
         <table className={cn(table, 'min-w-[640px]')}>
           <caption className="mb-2 text-left text-[12px] font-bold">
             <Term id="fvg">FVG</Term> por timeframe, dirección y tamaño
@@ -263,26 +273,26 @@ export function StatsPanel({ stats }: { stats: LiquidityStats[] }) {
           <tbody>
             {fvg.map((s) => (
               <tr key={groupKey(s)} className={cn(bodyRow, 'align-top')}>
-                <td className="py-2 font-semibold">
+                <td className="font-semibold">
                   {s.timeframe} · {DIRECTION[s.direction]} · {TERCILE[s.size_tercile]}
                   <span className="block text-[10.5px] font-normal text-muted-foreground">
                     {s.n} casos
                   </span>
                 </td>
-                <td className="py-2">
+                <td>
                   <Rate stat={rateOf(s, 'touch')} minCases={s.min_cases} />
                 </td>
-                <td className="py-2">
+                <td>
                   <Rate stat={rateOf(s, 'mid')} minCases={s.min_cases} />
                 </td>
-                <td className="py-2">
+                <td>
                   <Rate stat={rateOf(s, 'fill')} minCases={s.min_cases} />
                 </td>
-                <td className="py-2 text-right tabular-nums">
+                <td className="text-right tabular-nums">
                   {median(distOf(s, 'bars_to_touch'))} · {median(distOf(s, 'bars_to_mid'))} ·{' '}
                   {median(distOf(s, 'bars_to_fill'))}
                 </td>
-                <td className="py-2 text-right tabular-nums">
+                <td className="text-right tabular-nums">
                   <Reaction d={distOf(s, 'reaction', horizon ?? undefined)} />
                 </td>
               </tr>
@@ -291,7 +301,7 @@ export function StatsPanel({ stats }: { stats: LiquidityStats[] }) {
         </table>
       </ScrollRegion>
 
-      <ScrollRegion label="Gaps de apertura (diario)">
+      <ScrollRegion label="Gaps de apertura (diario)" className={frame}>
         <table className={cn(table, 'min-w-[520px]')}>
           <caption className="mb-2 text-left text-[12px] font-bold">
             <Term id="gap">Gaps</Term> de apertura (diario)
@@ -307,21 +317,19 @@ export function StatsPanel({ stats }: { stats: LiquidityStats[] }) {
           <tbody>
             {gaps.map((s) => (
               <tr key={groupKey(s)} className={cn(bodyRow, 'align-top')}>
-                <td className="py-2 font-semibold">
+                <td className="font-semibold">
                   {s.direction === 'bullish' ? 'Gap al alza' : 'Gap a la baja'}
                   <span className="block text-[10.5px] font-normal text-muted-foreground">
                     {s.n} casos
                   </span>
                 </td>
-                <td className="py-2">
+                <td>
                   <Rate stat={rateOf(s, 'same_session_fill')} minCases={s.min_cases} />
                 </td>
-                <td className="py-2">
+                <td>
                   <Rate stat={rateOf(s, 'fill')} minCases={s.min_cases} />
                 </td>
-                <td className="py-2 text-right tabular-nums">
-                  {median(distOf(s, 'sessions_to_fill'))}
-                </td>
+                <td className="text-right tabular-nums">{median(distOf(s, 'sessions_to_fill'))}</td>
               </tr>
             ))}
           </tbody>

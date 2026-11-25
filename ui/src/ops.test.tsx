@@ -100,7 +100,7 @@ describe('estado de la operación (#314)', () => {
     render(<TerminalView member={CURRENT_MEMBER} />)
     await waitFor(() => expect(bar()).toHaveAttribute('data-ops-status', 'ready'))
     expect(bar()).toHaveTextContent('Acepta órdenes')
-    expect(bar()).toHaveTextContent('Kill switch apagado')
+    expect(bar()).toHaveTextContent('Kill switch inactivo')
     expect(bar()).toHaveTextContent('40,0 % del máximo (3 % del capital)')
     expect(bar()).toHaveTextContent('1,35:1')
     expect(bar()).toHaveTextContent('Reconciliación al arrancar: limpia (3 coinciden)')
@@ -139,6 +139,19 @@ describe('estado de la operación (#314)', () => {
     await waitFor(() => expect(bar()).toHaveAttribute('data-ops-status', 'offline'))
     expect(bar()).toHaveTextContent('Sin conexión con el gateway')
     expect(bar()).not.toHaveTextContent('Acepta órdenes')
+  })
+
+  it('sin posiciones: apalancamiento "—" y la reconciliación lo dice en palabras (#612)', async () => {
+    gateway({
+      ...READY,
+      account: { ...READY.account!, leverage: '0', open_positions: 0 },
+      last_reconcile: { ...READY.last_reconcile!, kind: 'periodic', matched: 0 },
+    })
+    render(<OperationView />)
+    await waitFor(() => expect(bar()).toHaveAttribute('data-ops-status', 'ready'))
+    expect(bar()).toHaveTextContent('Apalancamiento — · 0 de 5 posiciones')
+    expect(bar()).not.toHaveTextContent('0:1')
+    expect(bar()).toHaveTextContent('Reconciliación periódica: limpia, sin posiciones que comparar')
   })
 
   it('arrancando y con reconciliación sucia, lo muestra en la barra', async () => {
