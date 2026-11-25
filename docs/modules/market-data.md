@@ -25,6 +25,7 @@ resumen: Validación de velas, errores de datos, filtros de spread y de noticias
 - catálogo de instrumentos y costos del broker con su fuente (#7), moneda de la cuenta y valor de cada tipo de referencia de la financiación (#76)
 - trait `MarketDataProvider` y proveedor en memoria (#28). Vela de 1h armada con las cuatro de 15m de la spec §3 y su comparación con la del proveedor (`aggregate_h1`, `compare_h1`, #150; se mide con el ejemplo `h1_check` de `cfds-ingest`, que da por campo la diferencia máxima y el p99 y cuenta el efecto de los picos de bid y ask y el signo contrario como error de datos, `H1Comparison::stats`). Los proveedores reales viven en su propio crate (ej. `ig`) para no sumar dependencias de red acá
 - día de sesión de una vela intradía y variación contra el cierre de una sesión anterior (`session_day`: `SessionOffsets` de `[session]` de `config/terminal.toml`, `session_date`, `session_start`, `change`, `change_pct`), único criterio que comparten la terminal `bolsa` y el gateway (#551)
+- sorpresa del calendario, dato real oficial − pronóstico previo (`surprise`, ADR 0018, #698): consenso = última instantánea de `calendar_estimates` con `seen_at` estrictamente anterior a la hora del evento; dato real = el `first` de `release_actuals` publicado a esa misma hora, con nivel, cambio o variación % según `[[surprise]]` de `config/calendar_surprise.toml`. Función pura; no se guarda
 
 ## Estado
 

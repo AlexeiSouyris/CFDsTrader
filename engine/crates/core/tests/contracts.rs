@@ -1193,3 +1193,124 @@ fn contract_and_rust_reject_the_same_bad_fx_rates() {
         assert_both_reject::<cfds_core::FxRate>(schema, d);
     }
 }
+
+fn sample_estimate() -> cfds_core::CalendarEstimate {
+    cfds_core::CalendarEstimate {
+        source: "forex_factory".into(),
+        event: "CPI m/m".into(),
+        country: "US".into(),
+        scheduled_at: "2026-12-10T13:30:00Z".parse().unwrap(),
+        forecast_raw: Some("-0.1%".into()),
+        previous_raw: Some("0.20%".into()),
+        forecast_value: Some(dec!(-0.1)),
+        previous_value: Some(dec!(0.20)),
+        unit: Some(cfds_core::StatUnit::Percent),
+        seen_at: "2026-12-07T10:00:07Z".parse().unwrap(),
+    }
+}
+
+#[test]
+fn calendar_estimate_roundtrips_through_the_contract() {
+    let schema = "calendar_estimate.v1.schema.json";
+    assert_roundtrip(schema, &sample_estimate());
+    let mut empty = sample_estimate();
+    empty.forecast_raw = None;
+    empty.previous_raw = Some("n/a".into());
+    empty.forecast_value = None;
+    empty.previous_value = None;
+    empty.unit = None;
+    assert_roundtrip(schema, &empty);
+    let json = serde_json::to_value(sample_estimate()).unwrap();
+    assert_eq!(json["previous_value"], json!("0.20"), "conserva la escala");
+}
+
+#[test]
+fn contract_and_rust_reject_the_same_bad_calendar_estimates() {
+    let schema = "calendar_estimate.v1.schema.json";
+    let doc = || serde_json::to_value(sample_estimate()).unwrap();
+    let mut cases: Vec<Value> = Vec::new();
+    for (key, value) in [
+        ("forecast_raw", json!(null)), // número sin texto
+        ("forecast_raw", json!("")),
+        ("forecast_raw", json!("9".repeat(51))),
+        ("forecast_value", json!(0.3)),
+        ("forecast_value", json!("+0.3")),
+        ("unit", json!(null)),
+        ("unit", json!("points")),
+        ("country", json!("usa")),
+        ("country", json!(null)),
+        ("seen_at", json!("2026-12-07T10:00:07+00:00")),
+        ("actual", json!("0.4%")),
+    ] {
+        let mut d = doc();
+        d[key] = value;
+        cases.push(d);
+    }
+    let mut d = doc();
+    d["forecast_value"] = json!(null);
+    d["previous_value"] = json!(null); // sin números: unit tiene que ser null
+    cases.push(d);
+    let mut d = doc();
+    d.as_object_mut().unwrap().remove("unit");
+    cases.push(d);
+    for d in cases {
+        assert_both_reject::<cfds_core::CalendarEstimate>(schema, d);
+    }
+}
+
+fn sample_actual() -> cfds_core::ReleaseActual {
+    cfds_core::ReleaseActual {
+        source: "bls".into(),
+        series_id: "CUSR0000SA0".into(),
+        reference_period: "2026-10".into(),
+        value: dec!(337.476),
+        unit: cfds_core::StatUnit::Level,
+        vintage: cfds_core::Vintage::First,
+        released_at: "2026-11-10T13:30:00Z".parse().unwrap(),
+        retrieved_at: "2026-11-11T15:00:00Z".parse().unwrap(),
+        source_url: "https://api.bls.gov/publicAPI/v1/timeseries/data/".into(),
+    }
+}
+
+#[test]
+fn release_actual_roundtrips_through_the_contract() {
+    let schema = "release_actual.v1.schema.json";
+    assert_roundtrip(schema, &sample_actual());
+    let mut revised = sample_actual();
+    revised.vintage = cfds_core::Vintage::Revised;
+    revised.value = dec!(-12.5);
+    revised.unit = cfds_core::StatUnit::Thousands;
+    assert_roundtrip(schema, &revised);
+}
+
+#[test]
+fn contract_and_rust_reject_the_same_bad_release_actuals() {
+    let schema = "release_actual.v1.schema.json";
+    let doc = || serde_json::to_value(sample_actual()).unwrap();
+    let mut cases: Vec<Value> = Vec::new();
+    for (key, value) in [
+        ("source", json!("fred")),
+        ("series_id", json!("cusr0000sa0")),
+        ("series_id", json!("")),
+        ("reference_period", json!("2026-13")),
+        ("reference_period", json!("2026-10-01")),
+        ("value", json!(337.476)),
+        ("value", json!("-")),
+        ("vintage", json!("latest")),
+        ("unit", json!("index")),
+        ("source_url", json!("http://api.bls.gov/")),
+        ("released_at", json!(null)),
+        ("extra", json!(1)),
+    ] {
+        let mut d = doc();
+        d[key] = value;
+        cases.push(d);
+    }
+    for d in cases {
+        assert_both_reject::<cfds_core::ReleaseActual>(schema, d);
+    }
+    // Más estricto que el contrato: leído antes de publicarse.
+    let mut d = doc();
+    d["retrieved_at"] = json!("2026-11-10T13:29:59Z");
+    assert!(serde_json::from_value::<cfds_core::ReleaseActual>(d).is_err());
+}

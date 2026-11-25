@@ -4,6 +4,7 @@
 //! (ver `tests/contracts.rs`).
 
 pub mod broker;
+pub mod calendar_surprise;
 pub mod candle;
 pub mod daily;
 pub mod daily_drawdown;
@@ -28,6 +29,7 @@ pub use broker::{
     AccountCurrency, ClientId, KillSwitch, Order, OrderRejection, OrderReport, OrderSide,
     OrderStatus, PaperAccount, PaperMode, Position, TicketVerdict,
 };
+pub use calendar_surprise::{CalendarEstimate, ReleaseActual, StatUnit, Vintage};
 pub use candle::{Candle, Timeframe};
 pub use daily::DailyCandle;
 pub use daily_drawdown::DailyDrawdown;
