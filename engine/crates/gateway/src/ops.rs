@@ -112,6 +112,50 @@ pub async fn alert_events<H: HttpPost>(
     }
 }
 
+/// `true` si la conexión terminó porque **el cliente la cerró** antes de que el gateway
+/// terminara (#576): el navegador o el proxy de Vite cancelan un pedido en curso al recargar,
+/// cambiar de vista o de instrumento, o al cerrar un `EventSource` (la vela en formación por SSE,
+/// #558, nunca termina sola). Es lo esperable y no un error del gateway: no va como `warn` ni se
+/// guarda en `ops_events`.
+///
+/// - `connection closed before message completed` (hyper: el cliente cerró a mitad del pedido o
+///   de la respuesta);
+/// - un error de escritura con el socket ya cerrado por el otro lado (`BrokenPipe`,
+///   `ConnectionReset`, `ConnectionAborted`, `UnexpectedEof`).
+///
+/// Cualquier otro error (un pedido mal formado, un timeout) sigue siendo un `connection_error`.
+pub fn client_closed(e: &hyper::Error) -> bool {
+    use std::io::ErrorKind;
+    if e.is_incomplete_message() {
+        return true;
+    }
+    let mut src = std::error::Error::source(e);
+    while let Some(s) = src {
+        if let Some(io) = s.downcast_ref::<std::io::Error>() {
+            return matches!(
+                io.kind(),
+                ErrorKind::BrokenPipe
+                    | ErrorKind::ConnectionReset
+                    | ErrorKind::ConnectionAborted
+                    | ErrorKind::UnexpectedEof
+            );
+        }
+        src = s.source();
+    }
+    false
+}
+
+/// Cómo se registra el final con error de una conexión HTTP (#576): el nivel y el nombre del
+/// evento. Que el cliente cierre es `info` (`client_closed`, no entra al feed ni a la base); lo
+/// demás, `warn` (`connection_error`).
+pub fn connection_end(e: &hyper::Error) -> (Level, &'static str) {
+    if client_closed(e) {
+        (Level::Info, "client_closed")
+    } else {
+        (Level::Warn, "connection_error")
+    }
+}
+
 /// La contraseña de una URL `scheme://usuario:clave@host/...`, para registrarla como secreto.
 pub fn url_password(url: &str) -> Option<&str> {
     let rest = &url[url.find("://")? + 3..];

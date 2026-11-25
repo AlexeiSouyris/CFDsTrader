@@ -84,12 +84,7 @@ function Panel({
   className?: string
 }) {
   return (
-    <section
-      className={cn(
-        'glass relative min-w-0 rounded-[20px] p-3 has-[[role=dialog]]:z-30 sm:p-4',
-        className,
-      )}
-    >
+    <section className={cn('glass relative min-w-0 rounded-[20px] p-3 sm:p-4', className)}>
       <header className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h2 className="text-[14px] font-extrabold tracking-tight">{title}</h2>
         {aside && <span className="text-[11px] text-muted-foreground">{aside}</span>}

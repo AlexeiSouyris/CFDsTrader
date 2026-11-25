@@ -208,4 +208,25 @@ Todas se leyeron o transcribieron entre el 24 y el 25-11-2026. Las transcripcion
 - "Stop Trying To Predict the Market (Do This Instead)": https://www.youtube.com/watch?v=WjZPrshYxIM (método en 5 pasos).
 - "I Don't Care How Liquidity Works. I just profit from it": https://www.youtube.com/watch?v=W8s7i0Q8W1g (filtro de distancia entre mechas).
 - "I Took A 17-Minute Cold Shower To Fix My Trading": https://www.youtube.com/watch?v=MNyhupN6n2w (psicología; poco útil).
-- "Before You Buy Another Prop Firm Challenge…": https://www.youtube.com/watch?v=d144Xr6Y6v0 (sin subtítulos; no se analizó).
+- "Before You Buy Another Prop Firm Challenge…": https://www.youtube.com/watch?v=d144Xr6Y6v0 (transcripto con Whisper el 25-11-2026: calculadora para decidir si comprar un desafío de prop firm; ver la adenda).
+
+
+## Adenda (25-11-2026): tres videos más, transcriptos con Whisper
+
+- **World Class Edge, "Upcoming Wizards"** (https://www.youtube.com/watch?v=b7KxHemoAp0, 15-10-2026). Es la entrevista más reveladora.
+  - **Dice que la mitad o más de su resultado viene del modelo de riesgo, no de la estrategia.** Usa fracciones de Kelly; en la competencia llegó a medio Kelly y aclara que en una cuenta propia no lo haría. Llama "estúpido" arriesgar 1 % fijo por operación. Para el proyecto, 1 % fijo es la regla: **no se cambia**.
+  - **Afirma que, solo cambiando cuánto arriesga, convirtió una estrategia de 40 % de aciertos con 1:1 en una de 65 %.** Así dicho es **imposible**: el tamaño de la posición no cambia si una operación gana o pierde. Lo único posible es que deje de tomar ciertas operaciones o tome la contraria cuando su autocorrelación predice una pérdida (lo dice: "opero al revés"). Eso ya no es la misma estrategia, y la idea necesita pruebas fuera de muestra que él no muestra.
+  - **Sus "cinco ataques" contra el sobreajuste. Son útiles y se pueden sumar como reportes a nuestras pruebas:**
+    1. sacar el mejor activo;
+    2. partir el historial en 3 tramos;
+    3. sacar el mejor régimen;
+    4. sacar las 5 mejores operaciones: si explican más de la mitad del resultado, la ventaja está concentrada;
+    5. saltear al azar 3 de cada 10 operaciones.
+
+    Además, "optimización por bloques": partir las operaciones en 10 tramos.
+  - **Prop firms "sin ventaja":** sostiene que, con mucha frecuencia de operación y muchos desafíos repartidos en tandas ("court method"), se gana aunque la estrategia no tenga ventaja, aprovechando el precio de los desafíos. Lo vende como masterclass y menciona un "glitch financiero" que no explica. **No aplica al proyecto** (no usamos prop firms) y es una señal más de su relación comercial con ellas.
+  - Se presenta como campeón "cuatro veces" con "más de 550 % en un año". La tabla oficial muestra **3 trimestres ganados ya cerrados** (más el Q4-2026 provisorio).
+- **Wayond, documental** (https://www.youtube.com/watch?v=bTBI6mUz7PQ, 26-06-2026). Biografía: se mudó a Dubái por los impuestos y aprendió con Fabio Valentini. Menciona una versión vieja de su estrategia con 1:3 y 36 % de aciertos. Quiere volver a enseñar "con otro modelo".
+- **Su canal, sobre desafíos de prop firms** (d144Xr6Y6v0). Pide revisar antes de comprar un desafío la racha perdedora normal: con 40 % de aciertos son unas 9 pérdidas seguidas, y nunca debería pasar de la mitad del drawdown permitido. Ofrece una calculadora en su Telegram.
+
+**Qué cambia para el proyecto:** nada en la pre-registración congelada. Se propone sumar los "cinco ataques" como **reporte informativo** de cada prueba futura. No cuentan como criterio de aprobación ni gastan margen de error.

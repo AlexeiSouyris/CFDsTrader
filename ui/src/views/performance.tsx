@@ -37,12 +37,7 @@ function Card({
   className?: string
 }) {
   return (
-    <section
-      className={cn(
-        'glass relative min-w-0 rounded-[20px] p-4 has-[[role=dialog]]:z-30',
-        className,
-      )}
-    >
+    <section className={cn('glass relative min-w-0 rounded-[20px] p-4', className)}>
       {title && (
         <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-[14px] font-bold">{title}</h2>
