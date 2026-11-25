@@ -33,8 +33,10 @@ pub mod buy_and_hold;
 pub mod config;
 pub mod intraday_momentum;
 pub mod macro_day;
+pub mod montecarlo;
 pub mod orb;
 pub mod overnight;
+pub mod pbo;
 pub mod pre_fomc;
 pub mod program4;
 pub mod program4_c;
@@ -60,8 +62,10 @@ pub use config::{
 };
 pub use intraday_momentum::intraday_momentum_plans;
 pub use macro_day::{MacroDayRule, macro_day_windows};
+pub use montecarlo::{MonteCarloConfig, MonteCarloReport, PathStats, Summary, monte_carlo};
 pub use orb::orb_plans;
 pub use overnight::window_returns;
+pub use pbo::{Pbo, pbo_cscv};
 pub use pre_fomc::{
     CalendarRow, EventOutcome, EventWindow, PreFomcConfig, ReleaseStatus, Skip, event_schedule,
     pre_fomc_windows,
