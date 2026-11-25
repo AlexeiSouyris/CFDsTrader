@@ -169,7 +169,9 @@ export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
         >
           Reconciliación {rec.kind === 'startup' ? 'al arrancar' : 'periódica'}:{' '}
           {rec.clean
-            ? `limpia (${rec.matched} coinciden)`
+            ? rec.matched === 0
+              ? 'limpia, sin posiciones que comparar'
+              : `limpia (${rec.matched} coinciden)`
             : `${rec.mismatches} posiciones distintas y ${rec.drifts} órdenes que no se reconstruyen igual`}{' '}
           <span className="whitespace-nowrap tabular-nums">· {dateTimeUtc(rec.at)}</span>
         </p>
