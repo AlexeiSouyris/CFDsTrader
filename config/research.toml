@@ -223,3 +223,41 @@ regime_window = 200
 regime_bands = ["25", "50", "75"]
 # Datos fuertes que excluyen el día entero (decisión 11): FOMC, CPI y empleo del BLS.
 strong_releases = ["fed_fomc/fomc_statement", "bls/cpi", "bls/employment_situation"]
+
+[rule_program5]
+# Programa 5 (#649, docs/analysis/2026-11-programa-5-fvg-preregistro.md, congelado el 25-11-2026):
+# 5 % nuevo repartido por Bonferroni, H5.1 2,5 % y H5.2 2,5 %, unilateral (punto abierto 1).
+alpha = "0.025"
+# 359 pruebas registradas hasta el programa 4 más H5.1 y H5.2 (al congelar). Solo lo usa el
+# descriptivo de la estrategia filtrada (§5.4, punto abierto 14: no vota).
+dsr_trials = 361
+dsr_min = "0.95"
+# Estrés de costos que vota en H5.2 (§5.3, criterio 4).
+cost_stress = "1.5"
+# Mitades: 02-2013 → 12-2020 y 01-2021 → 10-2025.
+second_half_from = "2021-01-01"
+
+[program5]
+# El FVG, el toque, el llenado, el ATR (14) y el máximo de 500 velas son los del motor
+# (config/liquidity.toml, [fvg_stats] y [order_blocks]); esto fija solo lo del programa.
+# Orden del sorteo (§6): US100 y luego US500.
+instruments = ["US100", "US500"]
+# Timeframe que vota (punto 2) y el descriptivo.
+timeframe = "15m"
+descriptive_timeframe = "1h"
+# Reacción a 8 velas (vota) y a 4 (consistencia, > 0) (punto 6).
+horizon = 8
+consistency_horizon = 4
+# 5 placebos por evento, con reposición (punto 9).
+placebos_per_event = 5
+# Newey-West de 3 rezagos sobre la serie mensual (punto 11).
+newey_west_lags = 3
+# Muestras mínimas por instrumento (punto 15).
+min_events = 1000
+min_f_trades = 100
+# Test de suerte (§6, punto 18): SplitMix64, semilla 20261125, 1.000 repeticiones.
+luck_simulations = 1000
+luck_seed = 20261125
+# Spread del CFD fuera de la sesión de contado, solo para el descriptivo de costos de H5.1
+# (punto 12): la franja más frecuente fuera de la sesión de docs/research/ig-spreads-2026-11.md.
+out_of_session_spread = { US100 = "2.5", US500 = "1.6" }

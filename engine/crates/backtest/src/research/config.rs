@@ -195,6 +195,33 @@ pub struct ChampionshipConfig {
     pub strong_releases: Vec<(String, String)>,
 }
 
+/// Programa 5 (#649, pre-registro congelado): reacción al primer toque de un FVG. La definición
+/// del FVG, del toque y del llenado es la del motor (`config/liquidity.toml`); esto fija solo lo
+/// del programa.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Program5Config {
+    /// Instrumentos (CFD) en el orden del sorteo.
+    pub instruments: Vec<String>,
+    /// Timeframe que vota (H5.1 y la etiqueta de H5.2) y el descriptivo.
+    pub timeframe: String,
+    pub descriptive_timeframe: String,
+    /// Horizonte principal de la reacción, en velas, y el de consistencia.
+    pub horizon: usize,
+    pub consistency_horizon: usize,
+    /// Placebos sorteados por evento real (con reposición).
+    pub placebos_per_event: usize,
+    /// Rezagos del error estándar de Newey-West de H5.1.
+    pub newey_west_lags: usize,
+    /// Muestras mínimas: eventos con placebo (H5.1) y operaciones F (H5.2), por instrumento.
+    pub min_events: usize,
+    pub min_f_trades: usize,
+    pub luck_simulations: usize,
+    pub luck_seed: u64,
+    /// Spread del CFD fuera de la sesión de contado (descriptivo de costos de H5.1), por
+    /// instrumento; en la sesión se usa el de `config/instruments.toml`.
+    pub out_of_session_spread: std::collections::BTreeMap<String, Decimal>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResearchConfig {
     pub orb: OrbConfig,
@@ -220,6 +247,8 @@ pub struct ResearchConfig {
     pub rule_program4: RuleConfig,
     pub program4: Program4Config,
     pub program4_c: ChampionshipConfig,
+    pub rule_program5: RuleConfig,
+    pub program5: Program5Config,
 }
 
 impl ResearchConfig {
@@ -310,6 +339,24 @@ impl ResearchConfig {
             rule_program4: Rule,
             program4: Program4,
             program4_c: Program4C,
+            rule_program5: Rule,
+            program5: Program5,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Program5 {
+            instruments: Vec<String>,
+            timeframe: String,
+            descriptive_timeframe: String,
+            horizon: usize,
+            consistency_horizon: usize,
+            placebos_per_event: usize,
+            newey_west_lags: usize,
+            min_events: usize,
+            min_f_trades: usize,
+            luck_simulations: usize,
+            luck_seed: u64,
+            out_of_session_spread: std::collections::BTreeMap<String, String>,
         }
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
@@ -643,6 +690,45 @@ impl ResearchConfig {
         {
             return Err("program4_c.regime_bands: crecientes y entre 0 y 100".into());
         }
+        let p5 = &raw.program5;
+        if p5.instruments.is_empty()
+            || p5.horizon == 0
+            || p5.consistency_horizon == 0
+            || p5.placebos_per_event == 0
+            || p5.min_events == 0
+            || p5.min_f_trades == 0
+            || p5.luck_simulations == 0
+        {
+            return Err(
+                "program5: instrumentos, horizontes, placebos, mínimos y simulaciones mayores que 0"
+                    .into(),
+            );
+        }
+        let program5 = Program5Config {
+            instruments: p5.instruments.clone(),
+            timeframe: p5.timeframe.clone(),
+            descriptive_timeframe: p5.descriptive_timeframe.clone(),
+            horizon: p5.horizon,
+            consistency_horizon: p5.consistency_horizon,
+            placebos_per_event: p5.placebos_per_event,
+            newey_west_lags: p5.newey_west_lags,
+            min_events: p5.min_events,
+            min_f_trades: p5.min_f_trades,
+            luck_simulations: p5.luck_simulations,
+            luck_seed: p5.luck_seed,
+            out_of_session_spread: p5
+                .out_of_session_spread
+                .iter()
+                .map(|(k, v)| Ok((k.clone(), dec(v, "program5.out_of_session_spread")?)))
+                .collect::<Result<_, String>>()?,
+        };
+        if p5
+            .instruments
+            .iter()
+            .any(|i| !program5.out_of_session_spread.contains_key(i))
+        {
+            return Err("program5.out_of_session_spread: falta un instrumento".into());
+        }
         Ok(Self {
             orb: OrbConfig {
                 range_candles: raw.orb.range_candles,
@@ -689,6 +775,8 @@ impl ResearchConfig {
             rule_program4: rule(&raw.rule_program4, "rule_program4")?,
             program4,
             program4_c,
+            rule_program5: rule(&raw.rule_program5, "rule_program5")?,
+            program5,
         })
     }
 }

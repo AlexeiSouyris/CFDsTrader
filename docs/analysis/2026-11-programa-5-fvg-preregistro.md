@@ -1,8 +1,8 @@
 # Programa 5: pre-registro. Reacción al primer toque de un FVG (US100 y US500)
 
-> **Estado: BORRADOR (no congelado).** Issue #649. Escrito por un agente de IA (Claude Code) el 25-11-2026. **No tiene `.sha256` y no se puede correr**: primero el dueño decide los puntos abiertos de §11 (todos marcados PENDIENTE). Cuando los apruebe, se escriben sus decisiones en una sección nueva, se commitea con fecha y hora y se agrega el SHA-256 (como el programa 4).
+> **Estado: CONGELADO el 25-11-2026** (Issue #649). Escrito por un agente de IA (Claude Code). El dueño aprobó los 20 puntos abiertos de §11 con los valores recomendados el 25-11-2026: «apruebo los 20....» (https://github.com/AlexeiSouyris/CFDsTrader/issues/649#issuecomment-7164689340). Sus decisiones, el conteo previo de H5.2 (punto 16) y las precisiones de implementación están en §13. La huella SHA-256 de este archivo está en `2026-11-programa-5-fvg-preregistro.md.sha256`: si el archivo cambia, la huella deja de coincidir.
 >
-> Antes de escribir este borrador solo se **contaron eventos** (§7). **No se calculó ninguna reacción, ningún retorno ni ningún resultado.** Cambiar algo de acá después de correr invalida la hipótesis y cuenta como una prueba nueva.
+> Antes de congelar solo se **contaron eventos y operaciones** (§7 y §13.2). **No se calculó ninguna reacción, ningún retorno, ningún P/L ni ningún resultado.** Cambiar algo de acá después de correr invalida la hipótesis y cuenta como una prueba nueva.
 >
 > Método y formato: el pre-registro del programa 4 (`2026-11-programa-4-preregistro.md`), el del programa Nasdaq (`2026-11-programa-nasdaq-preregistro.md`) y el control de M1 de la ronda 3 (`2026-11-ronda3-preregistro.md` §4). Definiciones de FVG: las del motor (`engine/crates/liquidity/src/fvg.rs` y `stats.rs`, spec §5.4 y §5.4.1).
 
@@ -19,13 +19,14 @@ Nada de esto es una recomendación de operar. Los resultados pasados no prometen
 
 **Cómo se evita engañarse:** las reglas se escriben **antes** de mirar resultados; se usan los años 2013 a octubre de 2025 de los futuros del Nasdaq 100 y del S&P 500; **desde noviembre de 2025 no se mira nada** (es la prueba final); tiene que funcionar en las dos mitades del período y en los dos índices; los costos se cargan y además se prueban un 50 % más caros; y se compara contra el azar.
 
-**Cuántos casos hay** (§7): unos **40.000 primeros toques** por índice en velas de 15 minutos y unos **10.000** en velas de 1 hora. Sobra muestra para H5.1. Para H5.2 la muestra depende de cuántas operaciones de la estrategia coinciden con un toque; se propone contarlas antes de congelar (punto abierto 16).
+**Cuántos casos hay** (§7 y §13.2): unos **40.000 primeros toques** por índice en velas de 15 minutos y unos **10.000** en velas de 1 hora. Sobra muestra para H5.1. Para H5.2, de unas 2.600 operaciones de la estrategia por índice, **577 (US100) y 565–566 (US500)** coinciden con un primer toque: más que el mínimo de 100.
 
-**Lo que falta para correrlo:** que el dueño decida los **20 puntos abiertos** de §11. Cada uno trae un valor recomendado y el motivo.
+**Estado:** el dueño aprobó los **20 puntos** de §11 con los valores recomendados (§13). El pre-registro está congelado y se puede correr.
 
 ## 0. Aprobación y presupuesto
 
-- **Pedido del dueño** (Alexei), 25-11-2026, textual: «si armalo», sobre la propuesta de H5.1 y H5.2 (registrado en #649). **No es todavía la aprobación del presupuesto ni de los parámetros**: eso son los puntos abiertos 1 a 20.
+- **Pedido del dueño** (Alexei), 25-11-2026, textual: «si armalo», sobre la propuesta de H5.1 y H5.2 (registrado en #649).
+- **Aprobación del dueño** (Alexei), 25-11-2026, textual: «apruebo los 20....», sobre los 20 puntos abiertos de §11 con los valores recomendados (registrado en #649). Aprueba el presupuesto y todos los parámetros (§13).
 - **Presupuesto propuesto** (punto abierto 1): un **5 % nuevo** de falsos positivos para el programa 5, como los programas 2 y 4, repartido por Bonferroni, unilateral:
 
 | Hipótesis | Qué prueba | Nivel propuesto |
@@ -199,7 +200,7 @@ Por mitades (F1 + F2, 15m): US100 28.560 (2013-02 → 2020) y 17.171 (2021 → 2
 
 **IBKR** (solo de las tablas ya guardadas, sin recalcular): `US100.IBKR` 932 FVG tocados en 15m y 254 en 1h; `US500.IBKR` 909 y 243; todos desde el 14-09-2026, **dentro del fuera de muestra** (§2).
 
-**H5.2:** no se contaron las operaciones F. El diagnóstico de #456 da unas 3.000 operaciones por índice en 2011–2025; cuántas coinciden con un primer toque en la vela de la señal no se sabe sin correr la estrategia. Se propone un conteo **solo de señales** antes de congelar (punto abierto 16).
+**H5.2:** contadas antes de congelar con el punto 16 aprobado (§13.2): **577 operaciones F en US100 y 565–566 en US500**, más que el mínimo de 100.
 
 ## 8. Fuera de alcance
 
@@ -233,30 +234,30 @@ Todo esto cuenta como una prueba nueva, con su costo en el presupuesto:
 
 ## 11. Puntos abiertos para el dueño
 
-Todos **PENDIENTES**. Los decide el dueño; cada respuesta queda en #649 con sus palabras y la fecha. Una respuesta del tipo "apruebo las recomendaciones" alcanza para todos.
+Todos **APROBADOS** por el dueño el 25-11-2026 con el valor recomendado: «apruebo los 20....» (#649, §13).
 
 | # | Punto | Valor recomendado | Por qué | Estado |
 |---|---|---|---|---|
-| 1 | Presupuesto y reparto | 5 % nuevo para el programa 5: **H5.1 2,5 %, H5.2 2,5 %**, sin reserva | Solo dos hipótesis; partir más quita poder. Igual que los programas 2 y 4, con presupuesto propio | PENDIENTE |
-| 2 | Timeframe principal | **15 m**; 1 h solo descriptivo | Es el de la estrategia (H5.2 lo necesita) y tiene 4 veces más eventos; probar los dos con voto pide partir el nivel | PENDIENTE |
-| 3 | Tamaño mínimo del FVG | **Ninguno** (cualquier hueco > 0, la definición del motor); terciles de tamaño como descriptivo | No agrega un parámetro libre y prueba el FVG tal como lo usa hoy la estrategia. Alternativa: ≥ 0,25 ATR (deja ~60 % de los eventos) | PENDIENTE |
-| 4 | Qué cuenta como toque | **Primer toque del motor** (`L ≤ techo`, `stats.rs`) **sin** la vela que en el mismo toque cierra más allá del piso (F2) | Es lo que mide hoy `[fvg_stats]`, y F2 es lo que la spec ya exige para "tocar" en el puntaje; se sabe al cierre de la vela | PENDIENTE |
-| 5 | Espera mínima y máxima entre creación y toque | **Desde 1 vela** (puede ser la siguiente) **hasta 500** (`max_age_bars`) | Son los valores del motor; la espera va como descriptivo. Alternativa: ≥ 3 velas (deja ~40 %) | PENDIENTE |
-| 6 | Horizonte principal | **8 velas** (2 h en 15 m); 4 velas como criterio de consistencia (> 0) | Son los dos que ya calcula el motor; uno solo vota para no partir el nivel, el otro tiene que ir en el mismo sentido | PENDIENTE |
-| 7 | Vencimientos | **Excluir** el FVG si su creación, su toque o sus 8 velas de reacción cruzan un cambio de contrato (F1) | El salto entre contratos crea huecos y reacciones falsas; se pierde un 1 % de los eventos en 15 m y un 2–3 % en 1 h (§7) | PENDIENTE |
-| 8 | Horario | **Todas las horas** en H5.1 (el motor calcula sobre todas las velas); contado / fuera como descriptivo y como condición de emparejamiento del placebo | Más muestra y es el FVG que ve hoy la liquidez; el placebo con la misma franja evita que el horario explique la diferencia | PENDIENTE |
-| 9 | Diseño del placebo | El de §4.1: mismo mes y franja, misma distancia de llegada y tamaño en ATR, mismo primer toque con la misma espera, que no sea un toque real, **5 placebos por evento** | Copia todo menos el hueco; 5 por evento reduce el ruido del placebo sin costo de muestra | PENDIENTE |
-| 10 | ATR de la reacción | **ATR[i] del motor** para los reales y ATR[s − 1] para los placebos; ATR[t − 1] para los reales como descriptivo | Usa la reacción tal como ya la guarda el motor; la diferencia juega en contra de H5.1 (conservador) | PENDIENTE |
-| 11 | Estadística de H5.1 | Serie **mensual** de diferencias (real − placebo), **US100 y US500 combinados**, t unilateral con Newey-West de 3 rezagos | Los eventos de un mismo mes no son independientes; los programas anteriores también votan con series mensuales | PENDIENTE |
-| 12 | Costos en H5.1 | **No votan**; se informa la diferencia en puntos contra el costo de ida y vuelta × 1 y × 1,5 | H5.1 no opera; los costos votan en H5.2 | PENDIENTE |
-| 13 | Qué es "coincidir" en H5.2 | La vela de la señal `t` **es** el primer toque (con F1, F2 y F4) de un FVG de 15 m **de la misma dirección** | Lo más simple y sin parámetros; "en `t` o en `t − 1`" va como descriptivo | PENDIENTE |
-| 14 | Qué vota en H5.2 | **El filtro relativo** (F contra el resto, §5.3); la estrategia filtrada contra comprar y mantener (alfa, Sharpe deflactado, 50/50) **solo descriptiva** | La estrategia en uso no tiene ventaja antes de costos (R001–R003): exigirle ganarle a comprar y mantener casi seguro gasta el 2,5 % sin aprender nada sobre el FVG | PENDIENTE |
-| 15 | Muestras mínimas | H5.1: **1.000 eventos con placebo por instrumento**. H5.2: **100 operaciones F por instrumento** | 100 es el mínimo de los programas anteriores; en H5.1 sobra muestra (§7) y 1.000 evita pasar con un subconjunto chico | PENDIENTE |
-| 16 | Conteo previo de H5.2 | **Autorizar** contar las operaciones F y R por año (sin P/L ni ningún resultado) antes de congelar; si F < 100 en algún instrumento, H5.2 no se congela y se avisa | Igual que la decisión 14 del programa 4: no gastar presupuesto en una hipótesis sin muestra | PENDIENTE |
-| 17 | IBKR (MNQ y MES) | **No usarlo en este programa** | Todas sus velas (desde el 14-09-2026) están en el fuera de muestra; mirarlas sería gastar la prueba final. Si algo pasa, puede entrar en el único vistazo al fuera de muestra que apruebe el dueño | PENDIENTE |
-| 18 | Generador y semilla | **SplitMix64, semilla 20261125** (la del programa 4) | Ya está definido y probado; fijarlo ahora evita elegir una semilla después | PENDIENTE |
-| 19 | Orden de las pruebas | **H5.2 se corre aunque H5.1 no pase** (son independientes, cada una con su 2,5 %) | Una puede fallar y la otra no: el FVG puede no rebotar en general y aun así separar operaciones de la estrategia, o al revés | PENDIENTE |
-| 20 | Congelar | Escribir las decisiones, quitar "borrador", SHA-256, `[rule_program5]` y `[program5]` en `config/research.toml`, y sumar H5.1 y H5.2 al N (§10) | El mismo procedimiento que los programas anteriores | PENDIENTE |
+| 1 | Presupuesto y reparto | 5 % nuevo para el programa 5: **H5.1 2,5 %, H5.2 2,5 %**, sin reserva | Solo dos hipótesis; partir más quita poder. Igual que los programas 2 y 4, con presupuesto propio | APROBADO (25-11-2026) |
+| 2 | Timeframe principal | **15 m**; 1 h solo descriptivo | Es el de la estrategia (H5.2 lo necesita) y tiene 4 veces más eventos; probar los dos con voto pide partir el nivel | APROBADO (25-11-2026) |
+| 3 | Tamaño mínimo del FVG | **Ninguno** (cualquier hueco > 0, la definición del motor); terciles de tamaño como descriptivo | No agrega un parámetro libre y prueba el FVG tal como lo usa hoy la estrategia. Alternativa: ≥ 0,25 ATR (deja ~60 % de los eventos) | APROBADO (25-11-2026) |
+| 4 | Qué cuenta como toque | **Primer toque del motor** (`L ≤ techo`, `stats.rs`) **sin** la vela que en el mismo toque cierra más allá del piso (F2) | Es lo que mide hoy `[fvg_stats]`, y F2 es lo que la spec ya exige para "tocar" en el puntaje; se sabe al cierre de la vela | APROBADO (25-11-2026) |
+| 5 | Espera mínima y máxima entre creación y toque | **Desde 1 vela** (puede ser la siguiente) **hasta 500** (`max_age_bars`) | Son los valores del motor; la espera va como descriptivo. Alternativa: ≥ 3 velas (deja ~40 %) | APROBADO (25-11-2026) |
+| 6 | Horizonte principal | **8 velas** (2 h en 15 m); 4 velas como criterio de consistencia (> 0) | Son los dos que ya calcula el motor; uno solo vota para no partir el nivel, el otro tiene que ir en el mismo sentido | APROBADO (25-11-2026) |
+| 7 | Vencimientos | **Excluir** el FVG si su creación, su toque o sus 8 velas de reacción cruzan un cambio de contrato (F1) | El salto entre contratos crea huecos y reacciones falsas; se pierde un 1 % de los eventos en 15 m y un 2–3 % en 1 h (§7) | APROBADO (25-11-2026) |
+| 8 | Horario | **Todas las horas** en H5.1 (el motor calcula sobre todas las velas); contado / fuera como descriptivo y como condición de emparejamiento del placebo | Más muestra y es el FVG que ve hoy la liquidez; el placebo con la misma franja evita que el horario explique la diferencia | APROBADO (25-11-2026) |
+| 9 | Diseño del placebo | El de §4.1: mismo mes y franja, misma distancia de llegada y tamaño en ATR, mismo primer toque con la misma espera, que no sea un toque real, **5 placebos por evento** | Copia todo menos el hueco; 5 por evento reduce el ruido del placebo sin costo de muestra | APROBADO (25-11-2026) |
+| 10 | ATR de la reacción | **ATR[i] del motor** para los reales y ATR[s − 1] para los placebos; ATR[t − 1] para los reales como descriptivo | Usa la reacción tal como ya la guarda el motor; la diferencia juega en contra de H5.1 (conservador) | APROBADO (25-11-2026) |
+| 11 | Estadística de H5.1 | Serie **mensual** de diferencias (real − placebo), **US100 y US500 combinados**, t unilateral con Newey-West de 3 rezagos | Los eventos de un mismo mes no son independientes; los programas anteriores también votan con series mensuales | APROBADO (25-11-2026) |
+| 12 | Costos en H5.1 | **No votan**; se informa la diferencia en puntos contra el costo de ida y vuelta × 1 y × 1,5 | H5.1 no opera; los costos votan en H5.2 | APROBADO (25-11-2026) |
+| 13 | Qué es "coincidir" en H5.2 | La vela de la señal `t` **es** el primer toque (con F1, F2 y F4) de un FVG de 15 m **de la misma dirección** | Lo más simple y sin parámetros; "en `t` o en `t − 1`" va como descriptivo | APROBADO (25-11-2026) |
+| 14 | Qué vota en H5.2 | **El filtro relativo** (F contra el resto, §5.3); la estrategia filtrada contra comprar y mantener (alfa, Sharpe deflactado, 50/50) **solo descriptiva** | La estrategia en uso no tiene ventaja antes de costos (R001–R003): exigirle ganarle a comprar y mantener casi seguro gasta el 2,5 % sin aprender nada sobre el FVG | APROBADO (25-11-2026) |
+| 15 | Muestras mínimas | H5.1: **1.000 eventos con placebo por instrumento**. H5.2: **100 operaciones F por instrumento** | 100 es el mínimo de los programas anteriores; en H5.1 sobra muestra (§7) y 1.000 evita pasar con un subconjunto chico | APROBADO (25-11-2026) |
+| 16 | Conteo previo de H5.2 | **Autorizar** contar las operaciones F y R por año (sin P/L ni ningún resultado) antes de congelar; si F < 100 en algún instrumento, H5.2 no se congela y se avisa | Igual que la decisión 14 del programa 4: no gastar presupuesto en una hipótesis sin muestra | APROBADO (25-11-2026) |
+| 17 | IBKR (MNQ y MES) | **No usarlo en este programa** | Todas sus velas (desde el 14-09-2026) están en el fuera de muestra; mirarlas sería gastar la prueba final. Si algo pasa, puede entrar en el único vistazo al fuera de muestra que apruebe el dueño | APROBADO (25-11-2026) |
+| 18 | Generador y semilla | **SplitMix64, semilla 20261125** (la del programa 4) | Ya está definido y probado; fijarlo ahora evita elegir una semilla después | APROBADO (25-11-2026) |
+| 19 | Orden de las pruebas | **H5.2 se corre aunque H5.1 no pase** (son independientes, cada una con su 2,5 %) | Una puede fallar y la otra no: el FVG puede no rebotar en general y aun así separar operaciones de la estrategia, o al revés | APROBADO (25-11-2026) |
+| 20 | Congelar | Escribir las decisiones, quitar "borrador", SHA-256, `[rule_program5]` y `[program5]` en `config/research.toml`, y sumar H5.1 y H5.2 al N (§10) | El mismo procedimiento que los programas anteriores | APROBADO (25-11-2026) |
 
 ## 12. Referencias
 
@@ -266,3 +267,49 @@ Todos **PENDIENTES**. Los decide el dueño; cada respuesta queda en #649 con sus
 - Bailey, D. H. y López de Prado, M. (2014). *The deflated Sharpe ratio*. Journal of Portfolio Management, 40(5), 94–107.
 - Newey, W. K. y West, K. D. (1987). *A simple, positive semi-definite, heteroskedasticity and autocorrelation consistent covariance matrix*. Econometrica, 55(3), 703–708.
 - Steele, G. L., Lea, D. y Flood, C. H. (2014). *Fast splittable pseudorandom number generators*. OOPSLA 2014.
+
+## 13. Decisiones del dueño, conteo previo y precisiones fijadas al congelar
+
+### 13.1 Decisiones del dueño
+
+El 25-11-2026 el dueño (Alexei) escribió en #649, textual: **«apruebo los 20....»** (https://github.com/AlexeiSouyris/CFDsTrader/issues/649#issuecomment-7164689340). Se toma como la aprobación de los 20 puntos abiertos de §11 **con el valor recomendado de cada uno**, sin cambios:
+
+1. 5 % nuevo: **H5.1 2,5 %, H5.2 2,5 %**, sin reserva. 2. **15 m** vota; 1 h solo descriptivo. 3. **Sin tamaño mínimo**. 4. Primer toque del motor **sin** la vela que llena en el mismo toque (F2). 5. Espera **de 1 a 500 velas**. 6. **8 velas** vota; 4 velas como consistencia (> 0). 7. **Excluir** los vencimientos de por medio (F1). 8. **Todas las horas**; la franja empareja el placebo. 9. Placebo de §4.1 con **5 por evento**. 10. **ATR[i]** para los reales, ATR[s − 1] para los placebos. 11. Serie **mensual**, US100 y US500 **combinados**, t unilateral con **Newey-West de 3 rezagos**. 12. Los costos **no votan** en H5.1. 13. "Coincidir" = la vela de la señal **es** el primer toque de un FVG de 15 m de la misma dirección (F1, F2, F4). 14. En H5.2 vota **el filtro relativo**; la estrategia filtrada es **solo descriptiva**. 15. Mínimos: **1.000 eventos con placebo** (H5.1) y **100 operaciones F** (H5.2) por instrumento. 16. Conteo previo de H5.2 **autorizado**. 17. **Sin IBKR**. 18. **SplitMix64, semilla 20261125**. 19. **H5.2 se corre aunque H5.1 no pase**. 20. Congelar como el programa 4.
+
+**N para el Sharpe deflactado:** 359 (programa 4) + H5.1 + H5.2 = **361**; no se congeló otro programa entre medio. Valores en `config/research.toml`, secciones `[rule_program5]` y `[program5]`.
+
+### 13.2 Conteo previo (punto 16), sin resultados
+
+Corrido con `programa_5_conteo` (`engine/crates/backtest/examples/programa_5_conteo.rs`, commiteado antes de correr) el **25-11-2026 entre las 14:09 y las 14:10 UTC**, en una conexión de solo lectura, con velas hasta el 01-11-2025 (el fuera de muestra no se cargó). Usa las funciones del motor (`cfds_liquidity::fvg_events`) y los filtros de §3 (`cfds_backtest::research::program5`). **Solo cantidades**: no se calculó ningún P/L, ningún R, ninguna reacción ni ningún retorno.
+
+**Eventos reales:** el conteo con el motor da **exactamente** las cifras de §7 (US100 15m: 59.636 → 59.174 → **45.731**; 1h: 15.064 → 14.720 → **11.074**; US500 15m: 51.101 → 50.738 → **41.436**; 1h: 13.669 → 13.355 → **10.516**), con los mismos totales por año.
+
+**Operaciones de la estrategia en uso** en las 51 ventanas de validación (02-2013 → 10-2025), etiquetadas con §5.2:
+
+| Instrumento | Escenario | Operaciones | F | R | F por año (2013 → 2025) |
+|---|---|---|---|---|---|
+| US100 | EUR | 2.692 | **577** | 2.115 | 38, 29, 54, 30, 41, 38, 48, 49, 44, 50, 57, 56, 43 |
+| US100 | USD | 2.690 | **577** | 2.113 | igual que EUR |
+| US500 | EUR | 2.606 | **566** | 2.040 | 37, 25, 47, 32, 37, 49, 50, 45, 37, 52, 53, 55, 47 |
+| US500 | USD | 2.598 | **565** | 2.033 | igual que EUR salvo 2025: 46 |
+
+Todas superan el mínimo de 100 operaciones F por instrumento: **H5.2 se congela**. (Los dos escenarios difieren en pocas operaciones porque la financiación cambia el capital dentro de cada bloque y, con eso, algún rechazo del riesgo o del kill switch.)
+
+### 13.3 Precisiones de implementación fijadas al congelar
+
+No cambian ninguna decisión aprobada; fijan cómo se calcula lo que §3 a §6 dejan implícito, antes de ver ningún resultado.
+
+1. **Series y eventos.** Velas de `futures_candles` (`source = 'databento'`) de US100 y US500 con su `contract_id`, desde el 01-01-2011 (calentamiento) hasta el 01-11-2025 excluido. `fvg_events` del motor sobre toda la serie cargada (ATR de Wilder 14 de `wilder_atr` sobre toda la serie, como el motor y §7). **Un evento por FVG**: si una vela es el primer toque de varios FVG, cuenta como varios eventos. Orden de los eventos: hora del toque, luego vela de creación, luego alcista antes que bajista.
+2. **Franja.** Una vela está "en contado" si empieza en o después de la apertura y termina en o antes del cierre de la sesión regular de XNYS de ese día (`config/sessions.toml` y los feriados y cierres anticipados de `config/holidays`); si no, está "fuera".
+3. **Placebo.** Candidatas de un evento `e` con espera `a`: velas `s` con `s − a − 2 ≥ 0`, del mismo mes calendario (UTC, por la hora de inicio) y la misma franja que `t`, con ATR (el mismo `wilder_atr` de 14) > 0 en `s − 1`, las velas `s − a − 2` a `s + 8` del mismo contrato, `s + 8` antes del 01-11-2025, y las condiciones de toque, no llenado y primer toque de §4.1 calculadas en `Decimal`. La condición 3 (no es un evento real) se lee **literal**: se excluye `s` si es la vela de toque de un **evento real** (que pasó F1 a F3) de la misma dirección.
+4. **Sorteo (un solo flujo, SplitMix64 semilla 20261125, índice = (x · n) >> 64).** Primero los 5 placebos de cada evento de 15 m (US100 en orden, luego US500); después las 1.000 repeticiones del test de suerte, cada una con 5 placebos por evento en el mismo orden; después, en el mismo flujo, los 5 placebos de cada evento de 1 h (descriptivo, sin test de suerte). Un evento sin candidatas no sortea nada y sale del análisis.
+5. **Serie mensual de H5.1.** Mes = mes UTC del inicio de la vela del toque. `D_m` de un instrumento = media de `r_8` de sus eventos con placebo en `m` − media de `r_8` de todos sus placebos en `m`. Mitades y criterio 4 (`r_4`) con los mismos sorteos.
+6. **Newey-West.** Con `n` meses y media `x̄`: `γ_l = (1/n) Σ_{j>l} (x_j − x̄)(x_{j−l} − x̄)`, `S = γ_0 + 2 Σ_{l=1..3} (1 − l/4) γ_l`, `t = x̄ / √(S/n)`, `p = P(T_{n−1} > t)`. Si `S ≤ 0`, no hay prueba y H5.1 no pasa.
+7. **Test de suerte de H5.1.** En cada repetición, la media de `r_8` de todos los placebos (combinada y por instrumento); percentil = porcentaje de repeticiones con una media de placebo menor que la media real.
+8. **Costos descriptivos de H5.1.** Ida y vuelta en puntos = 2 × (spread / 2 + 0,1 × spread + 1 tick), con el spread de `config/instruments.toml` en contado y el de `[program5] out_of_session_spread` fuera (US100 2,5; US500 1,6), y el tick de `config/instruments.toml`; × 1 y × 1,5. La diferencia en puntos de un evento = `r_8` real × ATR[i] − media de sus placebos de `r_8` × ATR[s − 1].
+9. **Operaciones de H5.2.** Las de la estrategia en uso en cada una de las 51 ventanas de validación como bloque (capital inicial 10.000, calentamiento de `config/evaluation.toml`, noticias como el `diagnostico`, `evaluate_period_with`), con los dos escenarios de financiación (los CSV de `docs/analysis/2026-11-eur-eonia-estr.csv` y `2026-11-usd-effr-sofr.csv`). **R neto** = P/L neto / (tamaño × |entrada ejecutada − stop|), en la moneda del instrumento, como el `diagnostico`. **R antes de costos** = P/L a precio medio / el mismo riesgo. **Costos × 1,5** = (P/L a precio medio − 1,5 × costos totales) / riesgo, sobre las **mismas** operaciones (como los programas Nasdaq y 4). Mitades por la hora de la decisión.
+10. **Prueba de H5.2.** Welch unilateral: `t = (m_F − m_R) / √(s_F²/n_F + s_R²/n_R)` con los grados de libertad de Welch-Satterthwaite; F y R juntan las operaciones de US100 y US500. Los criterios 2 a 4 comparan las medias de F y de R en cada subconjunto.
+11. **"+1 de FVG u order block".** Una operación lo tuvo si su desglose del puntaje tiene el componente `FvgOrOrderBlock` con valor > 0.
+12. **Test de suerte de H5.2.** Un flujo SplitMix64 nuevo con la semilla 20261125 por escenario (EUR y luego USD). Cada repetición sortea, sin reposición (Fisher-Yates parcial: se intercambia la posición `k` con `k + índice en [0, n − k)`), tantas operaciones de US100 como F tiene US100 y luego lo mismo en US500; estadístico = R neto medio de las sorteadas juntas; percentil = porcentaje de repeticiones con un valor menor que el de F.
+13. **Estrategia filtrada (§5.4, descriptivo).** Se repite el recorrido de cada bloque permitiendo entradas solo en velas que son toque de un evento real (de cualquier dirección); si alguna operación abre en contra de todos los eventos de su vela, esa vela se quita y se repite, hasta que todas las operaciones son F. Retorno de cada operación = P/L neto (o con costos × 1,5 o × 2) en la moneda de la cuenta / capital del bloque al abrirla; retornos mensuales compuestos por mes de cierre; los 5 criterios de `alpha_verdict` contra comprar y mantener el CFD (como el programa 4 §7), con N = 361. No vota.
+14. **Terciles de tamaño** (descriptivo): los del motor, es decir, los cortes de los terciles de `size_atr` de los eventos reales de cada instrumento y timeframe.

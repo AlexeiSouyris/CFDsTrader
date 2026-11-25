@@ -155,3 +155,27 @@ fn a_trade_is_f_only_on_the_touch_candle_and_in_the_same_direction() {
     assert!(!is_fvg_trade(&touches, bars[26].end(), Side::Long));
     assert!(!is_fvg_trade(&touches, bars[24].end(), Side::Long));
 }
+
+#[test]
+fn the_frozen_program5_config_is_parsed() {
+    let c = cfds_backtest::research::ResearchConfig::from_toml(include_str!(
+        "../../../../config/research.toml"
+    ))
+    .unwrap();
+    let (r, p) = (c.rule_program5, c.program5);
+    assert_eq!(r.alpha, Decimal::new(25, 3));
+    assert_eq!(r.dsr_trials, 361);
+    assert_eq!(r.cost_stress, Decimal::new(15, 1));
+    assert_eq!(r.second_half_from.to_string(), "2021-01-01");
+    assert_eq!(p.instruments, ["US100", "US500"]);
+    assert_eq!(
+        (p.timeframe.as_str(), p.descriptive_timeframe.as_str()),
+        ("15m", "1h")
+    );
+    assert_eq!((p.horizon, p.consistency_horizon), (8, 4));
+    assert_eq!((p.placebos_per_event, p.newey_west_lags), (5, 3));
+    assert_eq!((p.min_events, p.min_f_trades), (1000, 100));
+    assert_eq!((p.luck_simulations, p.luck_seed), (1000, 20261125));
+    assert_eq!(p.out_of_session_spread["US100"], Decimal::new(25, 1));
+    assert_eq!(p.out_of_session_spread["US500"], Decimal::new(16, 1));
+}
