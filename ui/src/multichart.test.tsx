@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { exampleChart } from '@/test/example-chart'
 import App from '@/App'
 import { MultichartView } from '@/views/multichart'
 
@@ -66,8 +67,9 @@ describe('multigráfico (#540)', () => {
     expect(slots()).toHaveLength(2)
   })
 
-  it('el panel activo se resalta y la barra de dibujo actúa solo sobre él', () => {
+  it('el panel activo se resalta y la barra de dibujo actúa solo sobre él', async () => {
     render(<MultichartView />)
+    await exampleChart()
     expect(slots()[0]).toHaveAttribute('data-active', 'true')
     // marca sutil (#570): punto en el encabezado y aria-current, sin anillo alrededor del panel
     expect(slots()[0]).toHaveAttribute('aria-current', 'true')
@@ -105,8 +107,9 @@ describe('multigráfico (#540)', () => {
     expect(hidden()).toEqual([true, true, false, true])
   })
 
-  it('con más de un gráfico, modo compacto: los controles del activo van a la barra de arriba (#545)', () => {
+  it('con más de un gráfico, modo compacto: los controles del activo van a la barra de arriba (#545)', async () => {
     render(<MultichartView />)
+    await exampleChart()
     const bar = () => screen.getByRole('toolbar', { name: 'Gráfico activo' })
     const first = () => slots()[0] as HTMLElement
     // el panel: solo el gráfico con su encabezado mínimo (US100 15 m trae datos de ejemplo)
@@ -140,8 +143,9 @@ describe('multigráfico (#540)', () => {
     )
   })
 
-  it('con un solo gráfico, la vista completa de siempre', () => {
+  it('con un solo gráfico, la vista completa de siempre', async () => {
     render(<MultichartView />)
+    await exampleChart()
     fireEvent.click(layoutBtn('1'))
     const only = slots()[0] as HTMLElement
     expect(only.querySelector('[data-chart-compact]')).toBeNull()

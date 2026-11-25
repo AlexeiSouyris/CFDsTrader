@@ -4,6 +4,7 @@
  * números que mandó el motor; `Number()` se usa solo para ubicar cada cosa en pantalla. Los
  * análogos son resultados pasados, nunca un pronóstico.
  */
+import { StaleNote } from '@/components/ui/data-honesty'
 import { AlertTriangle } from 'lucide-react'
 
 import { roundedText } from '@/components/ui/rounded-text'
@@ -24,7 +25,7 @@ export function SentimentGauge({ index }: { index: SentimentIndex }) {
           {signed(roundedText(index.value))}
         </strong>
         <span className="text-[11px] text-muted-foreground">
-          al {dateTimeUtc(index.published_at)}
+          al {dateTimeUtc(index.published_at)} <StaleNote at={index.published_at} />
         </span>
       </div>
       <div
@@ -144,7 +145,8 @@ export function AnalogDistribution({ report }: { report: AnalogReport }) {
     <div className="grid gap-3">
       <p className="text-[11.5px] text-muted-foreground">
         Ventana de {report.window} sesiones al {dateUtc(report.as_of)} ·{' '}
-        {report.source === 'futures' ? 'diarias de futuros' : 'diarias de IG'}
+        {report.source === 'futures' ? 'diarias de futuros' : 'diarias de IG'}{' '}
+        <StaleNote at={report.as_of} />
       </p>
       {!all || all.count === 0 ? (
         <p className="text-[12.5px]">No hay vecinos para esta ventana.</p>

@@ -85,9 +85,10 @@ describe('fondo del motor (fase 6b, #312)', () => {
     expect(rows[0]).toHaveTextContent('+10,00 €')
     expect(rows[1]).toHaveTextContent('+5,00 €')
     expect(rows[2]).toHaveTextContent('+0,00 €')
-    // Solo los pedidos pendientes siguen de ejemplo (el motor no los publica todavía).
-    const marked = screen.getAllByText('(ejemplo)').map((el) => el.closest('h2')?.textContent)
-    expect(marked).toEqual([expect.stringMatching(/^Movimientos pendientes/)])
+    // Con gateway no queda nada de ejemplo: los pedidos pendientes (el motor no los publica
+    // todavía) no se muestran (#577).
+    expect(document.querySelector('[data-example-badge]')).toBeNull()
+    expect(screen.getByText(/no publica los pedidos del lunes/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /^Cada miembro/ })).toHaveTextContent('del motor')
   })
 
@@ -118,10 +119,13 @@ describe('fondo del motor (fase 6b, #312)', () => {
     expect(await screen.findByText('999,99 €')).toBeInTheDocument()
   })
 
-  it('sin gateway muestra el ejemplo, marcado "(ejemplo)"', async () => {
+  it('sin gateway muestra el ejemplo, con el sello EJEMPLO', async () => {
     gateway(false)
     const { container } = render(<FundView />)
-    await waitFor(() => expect(screen.getAllByText('(ejemplo)').length).toBeGreaterThanOrEqual(2))
+    // cada miembro, historial y pedidos pendientes llevan el sello (#577)
+    await waitFor(() =>
+      expect(container.querySelectorAll('[data-example-badge]').length).toBeGreaterThanOrEqual(3),
+    )
     expect(container.querySelector('[data-fund-source="example"]')).not.toBeNull()
     expect(screen.getByText('Datos de ejemplo')).toBeInTheDocument()
     expect(within(members()).getAllByRole('row')).toHaveLength(FUND_EXAMPLE.members.length + 1)

@@ -457,7 +457,7 @@ export function TerminalView({ member }: { member: Member }) {
     Órdenes: 'las enviadas desde esta pestaña',
     Historial: 'sin ruta en el gateway',
     Actividad: 'eventos del broker y alertas',
-    Propuestas: 'datos de ejemplo · vencen a los 10 minutos',
+    Propuestas: 'de ejemplo: el motor todavía no las publica acá',
   }
 
   return (
@@ -618,6 +618,7 @@ export function TerminalView({ member }: { member: Member }) {
                   item={p}
                   canApprove={member.id === RESPONSIBLE_ID}
                   locked={locked}
+                  example
                 />
               ))}
             </section>

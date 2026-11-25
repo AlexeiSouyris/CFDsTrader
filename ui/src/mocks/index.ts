@@ -133,30 +133,6 @@ export const HEATMAP: HeatmapCompany[] = [
   ['QCOM', 'Qualcomm', '0.17', '1.05', '158.90'],
 ].map(([sym, name, cap, chg, price]) => ({ sym, name, cap, chg, price }))
 
-export type BookLevel = { price: string; size: string; total: string }
-export type OrderBook = { mid: string; spread: string; bids: BookLevel[]; asks: BookLevel[] }
-
-function book(): OrderBook {
-  const r = rng(77)
-  const mid = 28365.3
-  const make = (side: 1 | -1) => {
-    let total = 0
-    return Array.from({ length: 16 }, (_, i) => {
-      const size = 2 + r() * 9 + i * 0.6
-      total += size
-      return {
-        price: (mid + side * (0.6 + i * 1.4)).toFixed(1),
-        size: size.toFixed(2),
-        total: total.toFixed(2),
-      }
-    })
-  }
-  return { mid: mid.toFixed(1), spread: '1.2', bids: make(-1), asks: make(1) }
-}
-
-/** Profundidad de mercado de ejemplo. Los totales acumulados vienen dados, como del proveedor. */
-export const US100_BOOK = book()
-
 export type TradeRow = {
   id: string
   at: string
@@ -401,8 +377,8 @@ export type ProposalExtras = {
 }
 export type PendingProposal = { proposal: Proposal; extras: ProposalExtras }
 
-// Las horas de ejemplo se arman alrededor de "ahora" para que el vencimiento se vea correr.
-const quarter = Math.floor(Date.now() / 900_000) * 900_000
+// Horas fijas (#577): un ejemplo no se hace pasar por una señal de recién emitida.
+const quarter = Date.parse('2026-11-20T14:00:00Z')
 const iso = (ms: number) => new Date(ms).toISOString().replace('.000Z', 'Z')
 
 /** Propuestas pendientes de ejemplo (paper). Los números los arma el motor, no la UI. */
@@ -430,7 +406,7 @@ export const PROPOSALS: PendingProposal[] = [
       triggers: ['sweep'],
     },
     extras: {
-      expiresAt: iso(Date.now() + 8 * 60_000),
+      expiresAt: iso(quarter + 10 * 60_000),
       probability: { status: 'ok', pct: '58', lowPct: '49', highPct: '66', cases: 84 },
     },
   },
@@ -457,7 +433,7 @@ export const PROPOSALS: PendingProposal[] = [
       triggers: ['candle_pattern', 'level_rejection'],
     },
     extras: {
-      expiresAt: iso(Date.now() + 4 * 60_000),
+      expiresAt: iso(quarter + 10 * 60_000),
       probability: { status: 'insufficient', cases: 21, needed: 30 },
     },
   },

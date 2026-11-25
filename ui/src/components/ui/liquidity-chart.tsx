@@ -32,6 +32,7 @@
  * Cursor sincronizado (#544, prop `syncCursor`, `sync-cursor.tsx`): avisa la hora UTC de la vela
  * bajo el cursor y marca con una línea vertical la del cursor de otro gráfico. Sin zoom compartido.
  */
+import { StaleNote } from '@/components/ui/data-honesty'
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Trash2 } from 'lucide-react'
@@ -578,7 +579,8 @@ export function LiquidityChart({
             />
             {lastClose && (
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Última vela cerrada: {dateTimeUtc(lastClose.toISOString())}
+                Última vela cerrada: {dateTimeUtc(lastClose.toISOString())}{' '}
+                <StaleNote at={lastClose.toISOString()} />
               </p>
             )}
           </div>

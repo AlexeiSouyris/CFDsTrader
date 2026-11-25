@@ -10,11 +10,51 @@ const DATE_TIME = new Intl.DateTimeFormat('es-ES', {
   minute: '2-digit',
   timeZone: 'UTC',
 })
+const DATE_TIME_YEAR = new Intl.DateTimeFormat('es-ES', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'UTC',
+})
 const DATE = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', timeZone: 'UTC' })
+const DATE_YEAR = new Intl.DateTimeFormat('es-ES', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+})
 
-/** "20 nov, 15:45 UTC": la hora interna es UTC (spec §2). */
-export const dateTimeUtc = (iso: string) => `${DATE_TIME.format(new Date(iso))} UTC`
-export const dateUtc = (iso: string) => DATE.format(new Date(iso))
+/** Si la fecha no es del año en curso (UTC), se muestra el año: "21 nov 2024" no pasa por hoy (#577). */
+const otherYear = (d: Date, now: number) => d.getUTCFullYear() !== new Date(now).getUTCFullYear()
+
+/** "20 nov, 15:45 UTC" (con el año si no es el de hoy): la hora interna es UTC (spec §2). */
+export const dateTimeUtc = (iso: string, now = Date.now()) => {
+  const d = new Date(iso)
+  return `${(otherYear(d, now) ? DATE_TIME_YEAR : DATE_TIME).format(d)} UTC`
+}
+/** "20 nov" (con el año si no es el de hoy). */
+export const dateUtc = (iso: string, now = Date.now()) => {
+  const d = new Date(iso)
+  return (otherYear(d, now) ? DATE_YEAR : DATE).format(d)
+}
+
+/**
+ * Desde cuántos días un dato es viejo y se avisa "datos de hace N días" (#577). Tres días cubren un
+ * fin de semana normal (el cierre del viernes visto el lunes no es viejo); más que eso, el dato ya
+ * no es de esta semana y se dice.
+ */
+export const STALE_AFTER_DAYS = 3
+const DAY_MS = 86_400_000
+
+/** Los días enteros desde `iso` si pasan `STALE_AFTER_DAYS`; si no (o si la fecha no sirve), `null`. */
+export function staleDays(iso: string | null | undefined, now = Date.now()): number | null {
+  const t = iso ? Date.parse(iso) : NaN
+  if (Number.isNaN(t)) return null
+  const days = Math.floor((now - t) / DAY_MS)
+  return days >= STALE_AFTER_DAYS ? days : null
+}
 const TIME = new Intl.DateTimeFormat('es-ES', {
   hour: '2-digit',
   minute: '2-digit',

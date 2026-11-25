@@ -2,10 +2,14 @@
  * Una propuesta del motor para que la apruebe el responsable (spec §6, fase 10, #171).
  * Muestra lo que trae `proposal.v1` y lo que todavía no trae (vencimiento y probabilidad de §13).
  * No calcula nada: ni el riesgo, ni el tamaño, ni la probabilidad. Aprobar es una maqueta.
+ *
+ * Con `example` (#577) es una propuesta de ejemplo: lleva el sello "EJEMPLO", no corre el
+ * vencimiento y no se puede aprobar ni rechazar.
  */
 import { Check, Clock, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { ExampleBadge } from '@/components/ui/data-honesty'
 import { Term } from '@/components/ui/term'
 import { dateTimeUtc, decimal } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -38,9 +42,12 @@ export function ProposalCard({
   item,
   canApprove,
   locked,
+  example = false,
 }: {
   item: PendingProposal
   canApprove: boolean
+  /** propuesta de ejemplo: sello "EJEMPLO", sin vencimiento ni botones */
+  example?: boolean
   /** motivo por el que no se puede aprobar (por ejemplo, kill switch activo) */
   locked?: string
 }) {
@@ -54,6 +61,7 @@ export function ProposalCard({
   return (
     <article
       aria-label={`Propuesta ${p.instrument_id} ${long ? 'largo' : 'corto'}`}
+      data-example={example || undefined}
       className="glass relative @container min-w-0 rounded-[20px] p-4 sm:p-5"
     >
       <header className="flex flex-wrap items-center gap-2">
@@ -71,18 +79,22 @@ export function ProposalCard({
         <span className="text-[11px] text-muted-foreground tabular-nums">
           señal {dateTimeUtc(p.signal_at)} · {p.source === 'paper' ? 'simulación' : p.source}
         </span>
-        <span
-          className={cn(
-            'ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold whitespace-nowrap tabular-nums',
-            expired ? 'bg-down/10 text-down' : 'glass-strong',
-          )}
-          aria-live="off"
-        >
-          <Clock className="size-3.5" aria-hidden="true" />
-          {expired
-            ? 'Vencida'
-            : `vence en ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`}
-        </span>
+        {example ? (
+          <ExampleBadge className="ml-auto" />
+        ) : (
+          <span
+            className={cn(
+              'ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold whitespace-nowrap tabular-nums',
+              expired ? 'bg-down/10 text-down' : 'glass-strong',
+            )}
+            aria-live="off"
+          >
+            <Clock className="size-3.5" aria-hidden="true" />
+            {expired
+              ? 'Vencida'
+              : `vence en ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`}
+          </span>
+        )}
       </header>
 
       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl border border-border p-3 @md:grid-cols-3 @2xl:grid-cols-5">
@@ -171,6 +183,11 @@ export function ProposalCard({
           </p>
         ) : locked ? (
           <p className="text-[12px] font-semibold text-down">{locked}</p>
+        ) : example ? (
+          <p className="text-[12px] text-muted-foreground">
+            Propuesta de ejemplo: no se puede aprobar ni rechazar. El motor todavía no publica
+            propuestas acá.
+          </p>
         ) : canApprove ? (
           <>
             <button
