@@ -28,6 +28,7 @@ export type Rejection =
   | 'stop_wrong_side'
   | 'no_recent_candles'
   | 'missing_fx_rate'
+  | 'group_risk_limit'
 
 /** `order.v1`: una orden de mercado. El tamaño no va: lo decide el módulo de riesgo. */
 export type Order = {
@@ -124,4 +125,6 @@ export const REJECTION_LABEL: Record<Rejection, string> = {
     'Sin velas en vivo suficientes para calcular el ATR (puede faltar cupo de IG). No se opera hasta que lleguen.',
   missing_fx_rate:
     'Falta el tipo de cambio EUR/USD de este momento para un contrato en dólares. No se opera sin él.',
+  group_risk_limit:
+    'Los instrumentos que se mueven juntos con este (por ejemplo, los índices de EE. UU.) ya usan todo su riesgo permitido.',
 }

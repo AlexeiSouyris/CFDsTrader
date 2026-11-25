@@ -2,7 +2,10 @@
 
 use cfds_core::InstrumentId;
 use cfds_market_data::Catalog;
-use cfds_risk::{Account, InstrumentLimits, Rejection, Request, RiskConfig, Sizing, check};
+use cfds_risk::{
+    Account, CorrelationGroup, InstrumentLimits, OpenPosition, Rejection, Request, RiskConfig,
+    Sizing, check,
+};
 use rust_decimal::{Decimal, dec};
 
 fn cfg() -> RiskConfig {
@@ -11,6 +14,14 @@ fn cfg() -> RiskConfig {
 
 fn id(s: &str) -> InstrumentId {
     s.parse().unwrap()
+}
+
+/// Posición abierta en `s` que arriesga `risk` (moneda de la cuenta).
+fn pos(s: &str, risk: Decimal) -> OpenPosition {
+    OpenPosition {
+        instrument: id(s),
+        risk,
+    }
 }
 
 /// Cuenta de 1.000 sin posiciones ni pérdidas.
@@ -63,6 +74,7 @@ fn risks_one_percent_of_equity() {
             margin: dec!(100),
             risk: dec!(10),
             leverage_capped: false,
+            group_capped: false,
         }
     );
 }
@@ -184,7 +196,9 @@ fn daily_loss_of_3_percent_stops_new_entries() {
 
 #[test]
 fn at_most_5_open_positions() {
-    let others = |n: usize| -> Vec<InstrumentId> { (0..n).map(|i| id(&format!("X{i}"))).collect() };
+    let others = |n: usize| -> Vec<OpenPosition> {
+        (0..n).map(|i| pos(&format!("X{i}"), dec!(10))).collect()
+    };
     let five = Account {
         open_positions: others(5),
         ..account()
@@ -203,7 +217,7 @@ fn at_most_5_open_positions() {
 #[test]
 fn one_position_per_instrument() {
     let acc = Account {
-        open_positions: vec![id("AAPL")],
+        open_positions: vec![pos("AAPL", dec!(10))],
         ..account()
     };
     assert_eq!(
@@ -382,4 +396,183 @@ fn outside_the_backtest_the_kill_switch_never_resets_by_itself() {
             Err(Rejection::KillSwitchActive)
         );
     }
+}
+
+// ---------- Grupos correlacionados y gaps (#670) ----------
+
+/// Config del repositorio con un grupo AAPL/MSFT/NVDA con tope del 1,5 % (15 sobre 1.000).
+fn with_group() -> RiskConfig {
+    RiskConfig {
+        groups: vec![CorrelationGroup {
+            name: "tech".into(),
+            max_risk_pct: dec!(1.5),
+            instruments: vec![id("AAPL"), id("MSFT"), id("NVDA")],
+        }],
+        ..cfg()
+    }
+}
+
+fn with_open(open: Vec<OpenPosition>) -> Account {
+    Account {
+        open_positions: open,
+        ..account()
+    }
+}
+
+#[test]
+fn the_group_cap_has_room_for_a_full_trade() {
+    // 4 abiertos en el grupo + 10 nuevos = 14 ≤ 15: tamaño completo.
+    let s = check(
+        &request(),
+        &with_open(vec![pos("MSFT", dec!(4))]),
+        &limits(),
+        &with_group(),
+    )
+    .unwrap();
+    assert_eq!((s.size, s.risk, s.group_capped), (dec!(5), dec!(10), false));
+}
+
+#[test]
+fn the_group_cap_reduces_the_size_to_the_room_left() {
+    // 9 abiertos: quedan 6 de 15 → tamaño 3 (R = 2).
+    let s = check(
+        &request(),
+        &with_open(vec![pos("MSFT", dec!(5)), pos("NVDA", dec!(4))]),
+        &limits(),
+        &with_group(),
+    )
+    .unwrap();
+    assert_eq!((s.size, s.risk, s.group_capped), (dec!(3), dec!(6), true));
+    assert!(!s.leverage_capped);
+}
+
+#[test]
+fn a_full_group_rejects_with_its_own_reason() {
+    for used in [dec!(15), dec!(20)] {
+        assert_eq!(
+            check(
+                &request(),
+                &with_open(vec![pos("MSFT", used)]),
+                &limits(),
+                &with_group()
+            ),
+            Err(Rejection::GroupRiskLimit),
+            "{used}"
+        );
+    }
+    // Justo por debajo del tope todavía entra, achicada.
+    let s = check(
+        &request(),
+        &with_open(vec![pos("MSFT", dec!(14))]),
+        &limits(),
+        &with_group(),
+    )
+    .unwrap();
+    assert_eq!((s.size, s.risk, s.group_capped), (dec!(0.5), dec!(1), true));
+}
+
+#[test]
+fn positions_outside_the_group_do_not_count() {
+    let acc = with_open(vec![pos("DE40", dec!(50)), pos("XAUUSD", dec!(50))]);
+    let s = check(&request(), &acc, &limits(), &with_group()).unwrap();
+    assert_eq!((s.size, s.group_capped), (dec!(5), false));
+    // Un instrumento sin grupo no mira los grupos aunque estén llenos.
+    let req = Request {
+        instrument: id("DE40"),
+        ..request()
+    };
+    let full = with_open(vec![pos("MSFT", dec!(100))]);
+    assert_eq!(
+        check(&req, &full, &limits(), &with_group()).map(|s| s.size),
+        Ok(dec!(5))
+    );
+}
+
+#[test]
+fn the_fullest_group_wins() {
+    // AAPL está en dos grupos: el de tech tiene 6 libres, el de "mega" 2 → manda el de 2.
+    let mut cfg = with_group();
+    cfg.groups.push(CorrelationGroup {
+        name: "mega".into(),
+        max_risk_pct: dec!(1),
+        instruments: vec![id("AAPL"), id("GOOG")],
+    });
+    let acc = with_open(vec![pos("MSFT", dec!(9)), pos("GOOG", dec!(8))]);
+    let s = check(&request(), &acc, &limits(), &cfg).unwrap();
+    assert_eq!((s.risk, s.group_capped), (dec!(2), true));
+}
+
+#[test]
+fn the_group_room_is_in_the_account_currency() {
+    // 1.000 EUR a 1,10: quedan 6 EUR de lugar = 6,6 USD → tamaño 3,3 USD por punto.
+    let req = Request {
+        account_to_instrument: dec!(1.1),
+        ..request()
+    };
+    let acc = with_open(vec![pos("MSFT", dec!(9))]);
+    let s = check(&req, &acc, &limits(), &with_group()).unwrap();
+    assert_eq!((s.size, s.risk), (dec!(3.3), dec!(6.6)));
+}
+
+#[test]
+fn the_group_cap_still_respects_the_other_limits() {
+    // Con lugar parcial, el mínimo del broker sigue mandando.
+    let lim = InstrumentLimits {
+        min_deal_size: Some(dec!(4)),
+        ..limits()
+    };
+    let acc = with_open(vec![pos("MSFT", dec!(9))]);
+    assert_eq!(
+        check(&request(), &acc, &lim, &with_group()),
+        Err(Rejection::BelowMinDealSize)
+    );
+    // Y los límites de la cuenta se miran antes que el grupo.
+    let killed = Account {
+        kill_switch: true,
+        ..with_open(vec![pos("MSFT", dec!(100))])
+    };
+    assert_eq!(
+        check(&request(), &killed, &limits(), &with_group()),
+        Err(Rejection::KillSwitchActive)
+    );
+}
+
+#[test]
+fn a_negative_open_risk_is_invalid() {
+    let acc = with_open(vec![pos("MSFT", dec!(-1))]);
+    assert!(matches!(
+        check(&request(), &acc, &limits(), &with_group()),
+        Err(Rejection::InvalidInput(_))
+    ));
+}
+
+#[test]
+fn the_gap_allowance_shrinks_the_size_and_counts_in_the_risk() {
+    // R = 2 y ATR = 2; colchón de 0,5 ATR = 1 → 10 / 3 por punto; el riesgo total sigue en 10.
+    let cfg = RiskConfig {
+        gap_atr: dec!(0.5),
+        ..cfg()
+    };
+    let s = check(&request(), &account(), &limits(), &cfg).unwrap();
+    assert_eq!(s.size, dec!(10) / dec!(3));
+    assert_eq!(s.risk.round_dp(10), dec!(10));
+    // La distancia al stop sigue siendo la misma para los límites en ATR.
+    let far = Request {
+        stop: dec!(97),
+        atr: dec!(1),
+        ..request()
+    };
+    assert!(check(&far, &account(), &limits(), &cfg).is_ok());
+}
+
+#[test]
+fn gap_and_group_combine() {
+    // Colchón 0,5 ATR (por unidad 3) y 9 abiertos: lugar 6 → tamaño 2, riesgo 6.
+    let cfg = RiskConfig {
+        gap_atr: dec!(0.5),
+        ..with_group()
+    };
+    let acc = with_open(vec![pos("MSFT", dec!(9))]);
+    let s = check(&request(), &acc, &limits(), &cfg).unwrap();
+    assert_eq!((s.size, s.risk, s.group_capped), (dec!(2), dec!(6), true));
 }

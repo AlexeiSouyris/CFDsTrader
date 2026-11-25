@@ -111,11 +111,14 @@ pub enum OrderRejection {
     /// El contrato está en otra moneda que la cuenta (el oro, en USD) y no hay tipo de cambio
     /// publicado a la hora de la señal (ADR 0013, #418): no se inventa uno.
     MissingFxRate,
+    /// Un grupo correlacionado del instrumento (por ejemplo, los índices de EE. UU.) ya llegó a su
+    /// tope de riesgo abierto (`config/risk.toml`, #670).
+    GroupRiskLimit,
 }
 
 impl OrderRejection {
     /// Todos, en el orden del contrato.
-    pub const ALL: [OrderRejection; 16] = [
+    pub const ALL: [OrderRejection; 17] = [
         Self::InvalidInput,
         Self::KillSwitchActive,
         Self::DrawdownLimit,
@@ -132,6 +135,7 @@ impl OrderRejection {
         Self::StopWrongSide,
         Self::NoRecentCandles,
         Self::MissingFxRate,
+        Self::GroupRiskLimit,
     ];
 }
 

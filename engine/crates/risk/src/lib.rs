@@ -8,7 +8,7 @@ use cfds_core::InstrumentId;
 use cfds_market_data::InstrumentSpec;
 use rust_decimal::Decimal;
 
-pub use config::RiskConfig;
+pub use config::{CorrelationGroup, RiskConfig};
 
 /// Lo que el módulo necesita saber de un instrumento.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,8 +43,17 @@ pub struct Account {
     pub day_start_equity: Decimal,
     pub free_margin: Decimal,
     pub kill_switch: bool,
-    /// Instrumento de cada posición abierta.
-    pub open_positions: Vec<InstrumentId>,
+    /// Cada posición abierta (también las que esperan su fill).
+    pub open_positions: Vec<OpenPosition>,
+}
+
+/// Una posición abierta, para los límites de cantidad y el tope por grupo correlacionado.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpenPosition {
+    pub instrument: InstrumentId,
+    /// Lo que todavía se puede perder hasta su stop, en la moneda de la cuenta (0 si el stop ya
+    /// está en ganancia). Solo lo usa el tope por grupo (#670); nunca negativo.
+    pub risk: Decimal,
 }
 
 /// Una operación que la estrategia quiere abrir.
@@ -68,10 +77,13 @@ pub struct Sizing {
     /// Nocional / capital, ya con el tope aplicado.
     pub leverage: Decimal,
     pub margin: Decimal,
-    /// Lo que se pierde si salta el stop (sin gaps ni costos).
+    /// Lo que se pierde si salta el stop, más el colchón por gaps de `config/risk.toml`
+    /// (`gap_atr`, #670; con 0 es solo la distancia al stop). Sin costos.
     pub risk: Decimal,
     /// `true` si el tope de apalancamiento redujo el tamaño (el riesgo queda por debajo del 1 %).
     pub leverage_capped: bool,
+    /// `true` si el tope de un grupo correlacionado redujo el tamaño (#670).
+    pub group_capped: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,6 +102,8 @@ pub enum Rejection {
     BelowMinDealSize,
     /// El mínimo del broker no está confirmado todavía: no se abre (no se inventa).
     MinDealSizeUnknown,
+    /// Un grupo correlacionado del instrumento ya llegó a su tope de riesgo abierto (#670).
+    GroupRiskLimit,
 }
 
 fn pct(x: Decimal) -> Decimal {
@@ -117,6 +131,13 @@ pub fn check(
     if let Some((_, what)) = positive.iter().find(|(v, _)| *v <= Decimal::ZERO) {
         return Err(Rejection::InvalidInput(what));
     }
+    if account
+        .open_positions
+        .iter()
+        .any(|p| p.risk < Decimal::ZERO)
+    {
+        return Err(Rejection::InvalidInput("riesgo de una posición abierta"));
+    }
 
     // Límites de la cuenta (§10), del más grave al menos grave.
     if account.kill_switch {
@@ -136,7 +157,7 @@ pub fn check(
     let same = account
         .open_positions
         .iter()
-        .filter(|i| **i == req.instrument)
+        .filter(|p| p.instrument == req.instrument)
         .count();
     if same >= cfg.max_positions_per_instrument {
         return Err(Rejection::InstrumentAlreadyOpen);
@@ -154,10 +175,39 @@ pub fn check(
         return Err(Rejection::StopTooFar);
     }
 
-    // Tamaño (§8), todo en la moneda del instrumento.
+    // Tope por grupo correlacionado (#670), en la moneda de la cuenta: lo que queda libre en el
+    // grupo más lleno del instrumento. Sin lugar, se rechaza.
+    let room = cfg
+        .groups_of(&req.instrument)
+        .map(|g| {
+            let used: Decimal = account
+                .open_positions
+                .iter()
+                .filter(|p| g.instruments.contains(&p.instrument))
+                .map(|p| p.risk)
+                .sum();
+            pct(g.max_risk_pct) * account.equity - used
+        })
+        .min();
+    if room.is_some_and(|room| room <= Decimal::ZERO) {
+        return Err(Rejection::GroupRiskLimit);
+    }
+
+    // Tamaño (§8), todo en la moneda del instrumento. El colchón por gaps se suma a la distancia
+    // al stop: con gaps, el tamaño baja para que el riesgo total quede en el presupuesto.
     let fx = req.account_to_instrument;
     let equity = account.equity * fx;
-    let mut size = pct(cfg.risk_per_trade_pct) * equity / r;
+    // Con 0 no se suma nada (ni siquiera la escala decimal del cero): el tamaño es el de siempre.
+    let per_unit = if cfg.gap_atr.is_zero() {
+        r
+    } else {
+        r + cfg.gap_atr * req.atr
+    };
+    let mut size = pct(cfg.risk_per_trade_pct) * equity / per_unit;
+    let group_capped = room.is_some_and(|room| size * per_unit > room * fx);
+    if let Some(room) = room.filter(|_| group_capped) {
+        size = room * fx / per_unit;
+    }
     let max_size = limits.max_leverage * equity / req.entry;
     let leverage_capped = size > max_size;
     if leverage_capped {
@@ -178,7 +228,8 @@ pub fn check(
         notional,
         leverage: notional / equity,
         margin,
-        risk: size * r,
+        risk: size * per_unit,
         leverage_capped,
+        group_capped,
     })
 }
