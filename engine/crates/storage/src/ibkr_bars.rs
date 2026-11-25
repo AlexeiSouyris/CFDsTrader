@@ -5,17 +5,41 @@
 //!
 //! Lecturas para el gateway (#551): solo velas **cerradas** a un instante (`start + tamaño <=
 //! at`), de una sola serie (un contrato, un tamaño y un precio): nunca se mezclan contratos.
+//!
+//! Correcciones (#563, #575): `ibkr_bar_corrections` (de solo agregar) guarda el OHLC correcto de
+//! velas mal guardadas. **Todas las lecturas** de este módulo devuelven la vela con su corrección
+//! más reciente, si tiene; `insert_ibkr_bars` sigue comparando con lo guardado en `ibkr_bars`.
 
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 
 use crate::{InsertReport, PgStore, StorageError};
 
-/// Columnas de [`IbkrBarRow`], en orden.
+/// Columnas de [`IbkrBarRow`], en orden, con la corrección más reciente si hay (ver
+/// `from_bars!`). Una corrección sin volumen deja el volumen en NULL (no se conoce).
 macro_rules! columns {
     () => {
-        "source, instrument_id, kind, contract, bar_size, what_to_show, start_at, \
-         open, high, low, close, volume"
+        "b.source, b.instrument_id, b.kind, b.contract, b.bar_size, b.what_to_show, b.start_at, \
+         COALESCE(c.c_open, b.open), COALESCE(c.c_high, b.high), COALESCE(c.c_low, b.low), \
+         COALESCE(c.c_close, b.close), \
+         CASE WHEN c.c_open IS NULL THEN b.volume ELSE c.c_volume END"
+    };
+}
+
+/// `ibkr_bars` (alias `b`) con la corrección más reciente de cada vela (alias `c`, columnas
+/// `c_…`; todo NULL si no tiene).
+macro_rules! from_bars {
+    () => {
+        " FROM ibkr_bars b LEFT JOIN LATERAL (
+             SELECT x.open AS c_open, x.high AS c_high, x.low AS c_low, x.close AS c_close,
+                    x.volume AS c_volume
+             FROM ibkr_bar_corrections x
+             WHERE x.source = b.source AND x.instrument_id = b.instrument_id
+               AND x.contract = b.contract AND x.bar_size = b.bar_size
+               AND x.what_to_show = b.what_to_show AND x.start_at = b.start_at
+             ORDER BY x.corrected_at DESC, x.id DESC
+             LIMIT 1
+         ) c ON true "
     };
 }
 
@@ -50,6 +74,25 @@ pub struct IbkrBarRow {
     pub low: Decimal,
     pub close: Decimal,
     pub volume: Option<Decimal>,
+}
+
+/// Una corrección de una vela ya guardada (`ibkr_bar_corrections`, #563): la clave de la vela,
+/// el OHLC correcto, el motivo y de dónde sale. `volume` `None`: no se conoce.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IbkrBarCorrection {
+    pub source: String,
+    pub instrument_id: String,
+    pub contract: String,
+    pub bar_size: String,
+    pub what_to_show: String,
+    pub start: DateTime<Utc>,
+    pub open: Decimal,
+    pub high: Decimal,
+    pub low: Decimal,
+    pub close: Decimal,
+    pub volume: Option<Decimal>,
+    pub reason: String,
+    pub correction_source: String,
 }
 
 /// Qué serie: todas las velas de un contrato, un tamaño y un precio de una fuente.
@@ -165,6 +208,43 @@ impl PgStore {
         Ok(report)
     }
 
+    /// Guarda correcciones en una sola transacción, todas con la misma `corrected_at` (la hora de la
+    /// base): o entran todas, o ninguna. De solo agregar: nunca toca `ibkr_bars`. Cada una tiene que
+    /// apuntar a una vela guardada (si no, falla la clave foránea y no entra ninguna).
+    pub async fn insert_ibkr_bar_corrections(
+        &self,
+        rows: &[IbkrBarCorrection],
+    ) -> Result<u64, StorageError> {
+        let mut tx = self.pool().begin().await?;
+        let mut inserted = 0;
+        for r in rows {
+            inserted += sqlx::query(
+                "INSERT INTO ibkr_bar_corrections (source, instrument_id, contract, bar_size,
+                     what_to_show, start_at, open, high, low, close, volume, reason,
+                     correction_source)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
+            )
+            .bind(&r.source)
+            .bind(&r.instrument_id)
+            .bind(&r.contract)
+            .bind(&r.bar_size)
+            .bind(&r.what_to_show)
+            .bind(r.start)
+            .bind(r.open)
+            .bind(r.high)
+            .bind(r.low)
+            .bind(r.close)
+            .bind(r.volume)
+            .bind(&r.reason)
+            .bind(&r.correction_source)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
+        }
+        tx.commit().await?;
+        Ok(inserted)
+    }
+
     /// Inicio de la última vela guardada de la serie, si hay alguna (para seguir desde ahí).
     pub async fn last_ibkr_bar_start(
         &self,
@@ -198,8 +278,8 @@ impl PgStore {
         let row: Option<Row> = sqlx::query_as(concat!(
             "SELECT ",
             columns!(),
-            " FROM ibkr_bars
-             WHERE source = $1 AND instrument_id = $2 AND ($3::text IS NULL OR bar_size = $3)
+            from_bars!(),
+            "WHERE source = $1 AND instrument_id = $2 AND ($3::text IS NULL OR bar_size = $3)
                AND ",
             end_at!(),
             " <= $4
@@ -229,8 +309,8 @@ impl PgStore {
         let mut rows: Vec<Row> = sqlx::query_as(concat!(
             "SELECT ",
             columns!(),
-            " FROM ibkr_bars
-             WHERE source = $1 AND instrument_id = $2 AND contract = $3 AND bar_size = $4
+            from_bars!(),
+            "WHERE source = $1 AND instrument_id = $2 AND contract = $3 AND bar_size = $4
                AND what_to_show = $5 AND ",
             end_at!(),
             " <= $6
@@ -261,8 +341,8 @@ impl PgStore {
         let rows: Vec<Row> = sqlx::query_as(concat!(
             "SELECT ",
             columns!(),
-            " FROM ibkr_bars
-             WHERE source = $1 AND instrument_id = $2 AND contract = $3 AND bar_size = $4
+            from_bars!(),
+            "WHERE source = $1 AND instrument_id = $2 AND contract = $3 AND bar_size = $4
                AND what_to_show = $5 AND start_at >= $6 AND start_at < $7
              ORDER BY start_at"
         ))
@@ -310,8 +390,8 @@ impl PgStore {
         let row: Option<Row> = sqlx::query_as(concat!(
             "SELECT ",
             columns!(),
-            " FROM ibkr_bars
-             WHERE source = $1 AND instrument_id = $2 AND contract = $3 AND bar_size = $4
+            from_bars!(),
+            "WHERE source = $1 AND instrument_id = $2 AND contract = $3 AND bar_size = $4
                AND what_to_show = $5 AND start_at < $6
              ORDER BY start_at DESC
              LIMIT 1"

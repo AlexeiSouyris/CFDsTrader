@@ -85,8 +85,11 @@ export function nextLiveState(prev: IbkrLiveState, msg: IbkrLiveMessage): IbkrLi
 
 /**
  * Las velas para dibujar: las históricas, las que llegaron cerradas por streaming y todavía no
- * están en la historia, y al final la vela en formación. Las históricas mandan (una vela con el
- * mismo inicio queda la de `ibkr_bars`). Solo si el contrato es el mismo que el de la historia.
+ * están en la historia, y al final la vela en formación. Entre cerradas, las históricas mandan
+ * (una vela con el mismo inicio queda la de `ibkr_bars`). La vela en formación va después de la
+ * última; si la última es del mismo período (#575: la historia la trae, por ejemplo a medias por
+ * el atraso de los datos), la reemplaza, porque el período sigue abierto. Una en formación más
+ * vieja que la última no se dibuja. Solo si el contrato es el mismo que el de la historia.
  * Ubica velas que manda el motor por su inicio; no calcula ninguna. Función pura.
  */
 export function withLiveBars(
@@ -101,10 +104,11 @@ export function withLiveBars(
   const lastStart = Date.parse(history[history.length - 1].start)
   const extra = live.closed.filter((b) => Date.parse(b.start) > lastStart)
   const bars = extra.length ? [...history, ...extra] : history
+  if (!msg.forming || !msg.bar) return { bars, forming: null }
   const tail = Date.parse(bars[bars.length - 1].start)
-  if (msg.forming && msg.bar && Date.parse(msg.bar.start) > tail) {
-    return { bars: [...bars, toChart(msg.bar)], forming: msg }
-  }
+  const start = Date.parse(msg.bar.start)
+  if (start > tail) return { bars: [...bars, toChart(msg.bar)], forming: msg }
+  if (start === tail) return { bars: [...bars.slice(0, -1), toChart(msg.bar)], forming: msg }
   return { bars, forming: null }
 }
 

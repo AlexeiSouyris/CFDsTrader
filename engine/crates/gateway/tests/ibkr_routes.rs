@@ -12,13 +12,14 @@ use serde_json::Value;
 
 const GATEWAY: &str = include_str!("../../../../config/gateway.toml");
 const TERMINAL: &str = include_str!("../../../../config/terminal.toml");
+const IBKR: &str = include_str!("../../../../config/ibkr.toml");
 
 fn t(s: &str) -> DateTime<Utc> {
     s.parse().unwrap()
 }
 
 fn cfg() -> IbkrViewConfig {
-    IbkrViewConfig::from_toml(GATEWAY, TERMINAL).unwrap()
+    IbkrViewConfig::from_toml(GATEWAY, TERMINAL, IBKR).unwrap()
 }
 
 fn contracts() -> PathBuf {
@@ -223,7 +224,8 @@ fn fake() -> Fake {
             dec!(20110.5),
             Some(dec!(6)),
         ),
-        // En curso a las 12:00:30 (cierra 12:01): no se ve.
+        // A las 12:15 cerró hace 14 minutos (12:01) y es la última de la serie: puede tener datos a
+        // medias por el atraso de IBKR (15 min en config/ibkr.toml), no se sirve (#575).
         bar(
             "MNQ",
             "future",
@@ -275,7 +277,7 @@ fn fake() -> Fake {
 }
 
 fn now() -> DateTime<Utc> {
-    t("2026-11-25T12:00:30Z")
+    t("2026-11-25T12:15:00Z")
 }
 
 async fn get<S: IbkrBarSource>(s: &S, method: &str, path: &str, q: Option<&str>) -> (u16, Value) {
@@ -299,14 +301,14 @@ async fn bars_are_closed_from_one_contract_and_follow_the_contract() {
     assert_eq!(status, 200);
     assert_valid("gateway_ibkr_bars.v1.schema.json", &body);
     assert_eq!(body["series"]["contract"], "MNQZ6");
-    assert_eq!(body["as_of"], "2026-11-25T12:00:30Z");
+    assert_eq!(body["as_of"], "2026-11-25T12:15:00Z");
     let starts: Vec<&str> = body["bars"]
         .as_array()
         .unwrap()
         .iter()
         .map(|b| b["start"].as_str().unwrap())
         .collect();
-    // Sin la vela en curso ni la del otro vencimiento, en orden.
+    // Sin la vela a medias ni la del otro vencimiento, en orden.
     assert_eq!(
         starts,
         [
@@ -349,7 +351,7 @@ async fn bars_are_closed_from_one_contract_and_follow_the_contract() {
         Some("instrument=MNQ&timeframe=1m&before=2030-01-01T00:00:00Z"),
     )
     .await;
-    assert_eq!(future["as_of"], "2026-11-25T12:00:30Z");
+    assert_eq!(future["as_of"], "2026-11-25T12:15:00Z");
 
     // Sin datos: series null y sin velas, válido.
     let (status, empty) = get(
@@ -385,7 +387,7 @@ async fn watchlist_last_close_delay_and_previous_session() {
     assert_eq!(mnq["last"], "20110.5");
     assert_eq!(mnq["bar_start"], "2026-11-25T11:59:00Z");
     assert_eq!(mnq["bar_end"], "2026-11-25T12:00:00Z");
-    assert_eq!(mnq["delay_seconds"], 30);
+    assert_eq!(mnq["delay_seconds"], 900);
     assert_eq!(mnq["session"], "2026-11-25");
     // La referencia es del mismo contrato (MNQU6 tiene otra vela a las 21:59).
     assert_eq!(mnq["previous_session"], "2026-11-24");
@@ -402,7 +404,109 @@ async fn watchlist_last_close_delay_and_previous_session() {
     assert_eq!(qqq["previous_close"], "501");
     assert_eq!(qqq["change"], "-6");
     assert_eq!(qqq["change_pct"], "-1.20");
-    assert_eq!(qqq["delay_seconds"], 7230);
+    assert_eq!(qqq["delay_seconds"], 8100);
+}
+
+/// QA del 25-11-2026 (#575): a las 04:04 la ruta servía como cerrada la vela de 15m de las 03:45
+/// armada con solo 5 velas de 1m (03:45 a 03:49; los datos de IBKR llegan con ~10 min de atraso), y
+/// la watchlist tomaba su cierre. Ahora, con el criterio de la carga (`complete_prefix_by`), la
+/// última vela de una serie se sirve solo si cerró hace al menos `[load].data_delay_secs`.
+#[tokio::test]
+async fn regression_575_a_bar_with_partial_data_is_not_served_as_closed() {
+    let mut rows = Vec::new();
+    for m in 30..50 {
+        rows.push(bar(
+            "MNQ",
+            "future",
+            "MNQZ6",
+            "1m",
+            &format!("2026-11-25T03:{m:02}:00Z"),
+            Decimal::from(26000 + m),
+            Some(dec!(1)),
+        ));
+    }
+    rows.push(bar(
+        "MNQ",
+        "future",
+        "MNQZ6",
+        "15m",
+        "2026-11-25T03:30:00Z",
+        dec!(26044),
+        Some(dec!(15)),
+    ));
+    // A medias: el cierre es el de la 1m de las 03:49.
+    rows.push(bar(
+        "MNQ",
+        "future",
+        "MNQZ6",
+        "15m",
+        "2026-11-25T03:45:00Z",
+        dec!(26049),
+        Some(dec!(5)),
+    ));
+    let f = Fake(rows);
+    let ask = |q: &'static str, at: &'static str| {
+        let f = &f;
+        async move {
+            let r = respond_ibkr(f, &cfg(), "GET", "/api/v1/ibkr/bars", Some(q), t(at)).await;
+            let body: Value = serde_json::from_str(&r.body).unwrap();
+            assert_valid("gateway_ibkr_bars.v1.schema.json", &body);
+            body["bars"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|b| b["start"].as_str().unwrap().to_owned())
+                .collect::<Vec<String>>()
+        }
+    };
+    let q15 = "instrument=MNQ&timeframe=15m";
+    assert_eq!(
+        ask(q15, "2026-11-25T04:04:00Z").await,
+        ["2026-11-25T03:30:00Z"]
+    );
+    // `limit` cuenta solo las que se sirven.
+    assert_eq!(
+        ask(
+            "instrument=MNQ&timeframe=15m&limit=1",
+            "2026-11-25T04:04:00Z"
+        )
+        .await,
+        ["2026-11-25T03:30:00Z"]
+    );
+    // Cerró hace 15 minutos: ya se sirve.
+    assert_eq!(
+        ask(q15, "2026-11-25T04:15:00Z").await,
+        ["2026-11-25T03:30:00Z", "2026-11-25T03:45:00Z"]
+    );
+    // En 1m: la última (03:49) espera; las anteriores tienen una vela después.
+    let m1 = ask(
+        "instrument=MNQ&timeframe=1m&limit=2",
+        "2026-11-25T04:04:00Z",
+    )
+    .await;
+    assert_eq!(m1, ["2026-11-25T03:47:00Z", "2026-11-25T03:48:00Z"]);
+
+    // La watchlist: la última vela completa (1m de las 03:48), no el cierre de la de 15m a medias.
+    let r = respond_ibkr(
+        &f,
+        &cfg(),
+        "GET",
+        "/api/v1/ibkr/watchlist",
+        None,
+        t("2026-11-25T04:04:00Z"),
+    )
+    .await;
+    let body: Value = serde_json::from_str(&r.body).unwrap();
+    assert_valid("gateway_ibkr_watchlist.v1.schema.json", &body);
+    let mnq = &body["instruments"][0]["quote"];
+    assert_eq!(
+        (&mnq["timeframe"], &mnq["bar_start"], &mnq["last"]),
+        (
+            &Value::from("1m"),
+            &Value::from("2026-11-25T03:48:00Z"),
+            &Value::from("26048")
+        )
+    );
 }
 
 #[test]
@@ -520,7 +624,7 @@ async fn the_store_reads_closed_bars_and_the_previous_session() {
     }
     store.insert_ibkr_bars(&rows).await.unwrap();
 
-    let at = now();
+    let at = t("2026-11-25T12:00:30Z");
     let last = store
         .latest_closed_ibkr_bar("ibkr", &id, None, at)
         .await
@@ -568,14 +672,14 @@ async fn the_store_reads_closed_bars_and_the_previous_session() {
         "GET",
         "/api/v1/ibkr/bars",
         Some(&format!("instrument={id}&timeframe=1m&limit=2")),
-        at,
+        now(),
     )
     .await;
     assert_eq!(r.status, 200);
     let body: Value = serde_json::from_str(&r.body).unwrap();
     assert_valid("gateway_ibkr_bars.v1.schema.json", &body);
     assert_eq!(body["bars"][1]["close"], "20110.5");
-    let r = respond_ibkr(&store, &c, "GET", "/api/v1/ibkr/watchlist", None, at).await;
+    let r = respond_ibkr(&store, &c, "GET", "/api/v1/ibkr/watchlist", None, now()).await;
     let body: Value = serde_json::from_str(&r.body).unwrap();
     assert_valid("gateway_ibkr_watchlist.v1.schema.json", &body);
     assert_eq!(body["instruments"][0]["quote"]["change"], "100.25");
