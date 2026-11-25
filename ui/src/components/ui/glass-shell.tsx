@@ -235,51 +235,64 @@ export function GlassShell({
           )}
           {popover === 'settings' && (
             <Popover title="Ajustes" panelRef={popPanel} onClose={() => setPopover(null)}>
-              <p className="mb-2 text-[11px] font-semibold text-muted-foreground">
-                Vidrio del Inicio y del Fondo
-              </p>
-              <div className="mb-3 flex gap-1.5">
-                {PRESETS.map((p) => (
-                  <button
-                    key={p.name}
-                    type="button"
-                    onClick={() => onGlassChange(p.value)}
-                    className="flex-1 rounded-lg border border-border py-1.5 text-[11px] font-semibold hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
-                  >
-                    {p.name}
-                  </button>
-                ))}
-              </div>
-              <Range
-                label="Desenfoque"
-                value={glass.blur}
-                min={0}
-                max={36}
-                step={1}
-                text={`${glass.blur} px`}
-                onChange={(blur) => onGlassChange({ ...glass, blur })}
-              />
-              <Range
-                label="Opacidad"
-                value={glass.opacity}
-                min={0.08}
-                max={0.92}
-                step={0.01}
-                text={`${Math.round(glass.opacity * 100)} %`}
-                onChange={(opacity) => onGlassChange({ ...glass, opacity })}
-              />
-              {onReplayIntro && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPopover(null)
-                    onReplayIntro()
-                  }}
-                  className="flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-border text-[12px] font-semibold hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
+              {/*
+               * Un formulario por grupos (#647, patrón *Settings Sidebar Layout* / *Form layout* de
+               * 21st.dev, reescrito): cada grupo con su título y para qué sirve, y los controles en
+               * filas separadas por líneas finas. Sin cajas dentro del popover.
+               */}
+              <SettingsGroup
+                title="Vidrio del Inicio y del Fondo"
+                hint="Solo se ve en el Inicio, el ingreso y el Fondo. Las demás secciones van lisas."
+              >
+                <div
+                  role="group"
+                  aria-label="Vidrio predefinido"
+                  className="flex gap-0.5 rounded-full border border-border p-0.5"
                 >
-                  <Play className="size-4" aria-hidden="true" />
-                  Ver la intro otra vez
-                </button>
+                  {PRESETS.map((p) => (
+                    <button
+                      key={p.name}
+                      type="button"
+                      onClick={() => onGlassChange(p.value)}
+                      className="min-h-7 flex-1 rounded-full text-[11px] font-semibold hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
+                <Range
+                  label="Desenfoque"
+                  value={glass.blur}
+                  min={0}
+                  max={36}
+                  step={1}
+                  text={`${glass.blur} px`}
+                  onChange={(blur) => onGlassChange({ ...glass, blur })}
+                />
+                <Range
+                  label="Opacidad"
+                  value={glass.opacity}
+                  min={0.08}
+                  max={0.92}
+                  step={0.01}
+                  text={`${Math.round(glass.opacity * 100)} %`}
+                  onChange={(opacity) => onGlassChange({ ...glass, opacity })}
+                />
+              </SettingsGroup>
+              {onReplayIntro && (
+                <SettingsGroup title="Intro" hint="La animación del comienzo, una vez más.">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPopover(null)
+                      onReplayIntro()
+                    }}
+                    className="flex min-h-9 items-center gap-2 text-[12px] font-semibold text-foreground underline-offset-4 hover:underline"
+                  >
+                    <Play className="size-4" aria-hidden="true" />
+                    Ver la intro otra vez
+                  </button>
+                </SettingsGroup>
               )}
             </Popover>
           )}
@@ -484,6 +497,27 @@ function Popover({
   )
 }
 
+/** Un grupo de ajustes: título, para qué sirve y sus controles, con una línea fina arriba. */
+function SettingsGroup({
+  title,
+  hint,
+  children,
+}: {
+  title: string
+  hint: string
+  children: ReactNode
+}) {
+  return (
+    <section className="grid gap-3 border-t border-border py-3 first:border-t-0 first:pt-0 last:pb-0">
+      <div className="grid gap-0.5">
+        <h3 className="text-[12px] font-bold">{title}</h3>
+        <p className="text-[11px] leading-snug text-muted-foreground">{hint}</p>
+      </div>
+      {children}
+    </section>
+  )
+}
+
 function Range({
   label,
   value,
@@ -502,7 +536,7 @@ function Range({
   onChange: (v: number) => void
 }) {
   return (
-    <label className="mb-3 block text-[11px] font-semibold">
+    <label className="block text-[11px] font-semibold">
       <span className="flex justify-between">
         {label}
         <output className="text-muted-foreground">{text}</output>
