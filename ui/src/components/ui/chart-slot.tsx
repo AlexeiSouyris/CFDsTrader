@@ -26,6 +26,7 @@ export function SlotChart({
   draw,
   onDraw,
   syncCursor,
+  ohlc,
 }: {
   slot: SlotData
   height: number
@@ -42,6 +43,8 @@ export function SlotChart({
   onDraw?: (t: DrawTool) => void
   /** cursor sincronizado del Multigráfico (#544): ver `LiquidityChart` */
   syncCursor?: CursorSync
+  /** OHLC de la vela bajo el cursor en la cabecera (#581): ver `LiquidityChart` */
+  ohlc?: boolean
 }) {
   const { sel, view, ibkr } = slot
   const ibkrSel = sel.feed === 'ibkr'
@@ -86,6 +89,7 @@ export function SlotChart({
       drawTool={draw}
       onDrawToolChange={onDraw}
       syncCursor={syncCursor}
+      ohlc={ohlc}
     />
   )
   if (slot.source !== 'ejemplo') return chart

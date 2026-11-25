@@ -49,7 +49,7 @@ export function OpsKillSwitchBanner({ status }: { status: OpsStatus }) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.25 }}
-          className="flex flex-wrap items-start gap-3 rounded-[20px] bg-down p-4 text-white shadow-lg"
+          className="flex flex-wrap items-start gap-3 rounded-section bg-down p-4 text-white shadow-lg"
         >
           <OctagonAlert className="mt-0.5 size-6 shrink-0" aria-hidden="true" />
           <div className="min-w-0 flex-1">
@@ -80,7 +80,7 @@ export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
       <section
         aria-label="Estado de la operación"
         data-ops-status="offline"
-        className="glass flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[20px] px-4 py-3 text-[12px] text-muted-foreground"
+        className="glass flex flex-wrap items-center gap-x-3 gap-y-2 rounded-section px-4 py-3 text-[12px] text-muted-foreground"
       >
         <Chip className="border-border">Sin conexión con el gateway</Chip>
         <span className="min-w-0">
@@ -96,7 +96,7 @@ export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
     <section
       aria-label="Estado de la operación"
       data-ops-status={status.gate}
-      className="glass relative grid gap-3 rounded-[20px] px-4 py-3 sm:px-5"
+      className="glass relative grid gap-3 rounded-section px-4 py-3 sm:px-5"
     >
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
         <div className="flex flex-wrap items-center gap-2">

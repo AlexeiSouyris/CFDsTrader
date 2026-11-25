@@ -183,6 +183,7 @@ export function LiquidityChart({
   drawTool,
   onDrawToolChange,
   syncCursor,
+  ohlc = false,
   className,
 }: {
   instrument: string
@@ -252,6 +253,8 @@ export function LiquidityChart({
    * marca la del cursor de los otros gráficos que comparten el mismo `CursorSync`.
    */
   syncCursor?: CursorSync
+  /** OHLC de la vela bajo el cursor en la cabecera (#581, Terminal); sin esto, como siempre */
+  ohlc?: boolean
   className?: string
 }) {
   const ranges = RANGES[timeframe]
@@ -604,6 +607,7 @@ export function LiquidityChart({
               rangeLabel={range || `${count} ${TF_LABEL[timeframe].long[count === 1 ? 0 : 1]}`}
               from={va}
               to={vb - 1}
+              ohlc={ohlc ? all : undefined}
             />
             {lastClose && (
               <p className="mt-1 text-[11px] text-muted-foreground">

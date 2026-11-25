@@ -113,6 +113,22 @@
   --radius: 4px;
   --section-bg: #0b0c0e;
   --accent: #f0b429;
+  /* el ámbar va en los controles (pestaña o botón activo, foco), nunca en los datos */
+  --primary: var(--accent);
+  --primary-foreground: #121316;
+  --ring: var(--accent);
+  /* superficies lisas casi negras, sin vidrio; las esquinas de los componentes siguen a --radius */
+  --card: #0f1012;
+  --surface: #15171a;
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius);
+  --radius-2xl: var(--radius);
+}
+
+/* Terminal: todo número en mono con cifras tabulares (#581) */
+[data-section='terminal'] :is(.tabular-nums, td) {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Gráficos: lienzo, acento azul de análisis */

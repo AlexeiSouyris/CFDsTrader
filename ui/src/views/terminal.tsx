@@ -19,6 +19,11 @@
  *   de ejemplo (`proposal.v1`).
  * En el celular, Gráfico, Mercados y Ticket se ven de a uno, con un selector.
  *
+ * Estilo (#581, `data-section="terminal"`): casi negra y siempre oscura, sin vidrio, paneles
+ * separados por líneas de 1 px, números en mono con cifras tabulares y el ámbar solo en los
+ * controles. En la pantalla ancha, la lista de mercados y el ticket se agrandan o achican con los
+ * divisores (mouse o teclado) y sus anchos quedan en `localStorage`.
+ *
  * Si el gateway no responde, se ven los datos de ejemplo de `mocks/terminal.ts` y no se envía
  * nada. La disposición de los gráficos queda en `localStorage`.
  *
@@ -27,11 +32,12 @@
  * del catálogo sin velas se ven deshabilitados. "Simulación" queda fijo arriba en una franja angosta
  * y opaca que no tapa el contenido al quedar quieta.
  */
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 
 import { ChartDrawBar } from '@/components/ui/chart-draw-bar'
 import { NO_TOOLS, type ChartTools } from '@/lib/chart-drawings'
 import { SlotChart } from '@/components/ui/chart-slot'
+import { PaneResizer } from '@/components/ui/pane-resizer'
 import { OpsEventFeed, OpsKillSwitchBanner, OpsStatusBar } from '@/components/ui/ops-status'
 import { ProposalCard } from '@/components/ui/proposal-card'
 import { Segmented } from '@/components/ui/segmented'
@@ -88,10 +94,12 @@ function Panel({
   className?: string
 }) {
   return (
-    <section className={cn('glass relative min-w-0 rounded-[20px] p-3 sm:p-4', className)}>
-      <header className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h2 className="text-[14px] font-extrabold tracking-tight">{title}</h2>
-        {aside && <span className="text-[11px] text-muted-foreground">{aside}</span>}
+    <section className={cn('relative min-w-0 bg-section p-density', className)}>
+      <header className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h2 className="text-[11px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
+          {title}
+        </h2>
+        {aside && <span className="text-[10.5px] text-muted-foreground">{aside}</span>}
       </header>
       {children}
     </section>
@@ -143,6 +151,39 @@ function saveLayout(saved: Saved) {
   }
 }
 
+/** Anchos de la lista de mercados y del ticket (px), con sus límites (#581). */
+const PANES_KEY = 'cfdstrader.terminal.panes'
+const WIDTH = {
+  left: { initial: 200, min: 160, max: 360 },
+  right: { initial: 320, min: 272, max: 480 },
+} as const
+type Widths = { left: number; right: number }
+
+const clampWidth = (side: keyof Widths, px: unknown) => {
+  const { initial, min, max } = WIDTH[side]
+  return typeof px === 'number' && Number.isFinite(px)
+    ? Math.round(Math.min(max, Math.max(min, px)))
+    : initial
+}
+
+/** Lee los anchos guardados; si no hay, están rotos o el navegador no deja leer, los de siempre. */
+function loadWidths(): Widths {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PANES_KEY) ?? 'null') as Partial<Widths> | null
+    return { left: clampWidth('left', raw?.left), right: clampWidth('right', raw?.right) }
+  } catch {
+    return { left: WIDTH.left.initial, right: WIDTH.right.initial }
+  }
+}
+
+function saveWidths(w: Widths) {
+  try {
+    localStorage.setItem(PANES_KEY, JSON.stringify(w))
+  } catch {
+    // sin almacenamiento: los divisores andan igual, solo no se recuerdan
+  }
+}
+
 function ChartSlot({
   index,
   sel,
@@ -179,7 +220,7 @@ function ChartSlot({
   return (
     <Panel
       title={`Gráfico ${index + 1}`}
-      className={cn('ring-offset-0', active ? 'ring-2 ring-primary/70' : 'ring-1 ring-transparent')}
+      className={cn(active && 'ring-1 ring-accent ring-inset')}
       aside={
         slot.source === 'motor'
           ? 'velas del motor'
@@ -192,7 +233,7 @@ function ChartSlot({
               : undefined
       }
     >
-      <div className="mb-3 flex flex-wrap gap-2">
+      <div className="mb-2 flex flex-wrap gap-2">
         <div className="max-w-full overflow-x-auto">
           <Segmented
             label={`Instrumento del gráfico ${index + 1}`}
@@ -224,6 +265,7 @@ function ChartSlot({
         onDraw={(draw) => onTools({ draw })}
         mode={tools.mode}
         onMode={(mode) => onTools({ mode })}
+        ohlc
       />
     </Panel>
   )
@@ -250,7 +292,7 @@ function Activity() {
 /** Sin ruta de historial en el gateway: se dice y se muestra lo único que hay, del motor. */
 function History({ account, live }: { account: PaperAccount; live: boolean }) {
   return (
-    <div className="grid gap-2 rounded-xl border border-dashed border-border px-4 py-5 text-[13px]">
+    <div className="grid gap-2 rounded-xl border border-dashed border-border px-3 py-4 text-[13px]">
       <p>
         <strong className="font-bold">P/L realizado hoy</strong>{' '}
         <span className="font-bold tabular-nums">
@@ -297,6 +339,8 @@ export function TerminalView({ member }: { member: Member }) {
 
   const [saved, setSaved] = useState(() => withInstrument(loadLayout(), focusedInstrument()))
   useEffect(() => saveLayout(saved), [saved])
+  const [widths, setWidths] = useState(loadWidths)
+  useEffect(() => saveWidths(widths), [widths])
   const [active, setActive] = useState(0)
   const [tools, setTools] = useState<ChartTools[]>(() => Array.from({ length: 4 }, () => NO_TOOLS))
   useEffect(() => {
@@ -359,14 +403,14 @@ export function TerminalView({ member }: { member: Member }) {
     setTools((all) => all.map((t, k) => (k === i ? { ...t, ...patch } : t)))
 
   const charts = (
-    <div className="grid min-w-0 gap-3 lg:grid-cols-[auto_minmax(0,1fr)]">
+    <div className="grid min-w-0 gap-2 p-density lg:grid-cols-[auto_minmax(0,1fr)]">
       <ChartDrawBar
         label={`Herramientas de dibujo del gráfico ${current + 1}`}
         tools={tools[current]}
         onChange={(patch) => patchTools(current, patch)}
         instrument={activeSel.instrument}
       />
-      <div className="grid min-w-0 gap-3">
+      <div className="grid min-w-0 gap-2">
         {count > 1 && (
           <div className="flex items-center gap-2 lg:hidden" data-chart-switcher>
             <span className="text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
@@ -382,7 +426,10 @@ export function TerminalView({ member }: { member: Member }) {
         )}
         <div
           data-chart-layout={saved.layout}
-          className={cn('grid min-w-0 gap-3', count > 1 && 'lg:grid-cols-2')}
+          className={cn(
+            'grid min-w-0 overflow-hidden rounded-section',
+            count > 1 && 'gap-px border border-border bg-border lg:grid-cols-2',
+          )}
         >
           {saved.slots.slice(0, count).map((sel, i) => (
             <div
@@ -424,7 +471,7 @@ export function TerminalView({ member }: { member: Member }) {
         <p
           role="note"
           data-ibkr-not-tradable
-          className="mb-3 rounded-xl border border-[var(--chart-signal)]/50 px-3 py-2 text-[12px] leading-snug"
+          className="mb-2 rounded-xl border border-[var(--chart-signal)]/50 px-3 py-2 text-[12px] leading-snug"
         >
           <strong className="block font-bold">
             {activeSel.instrument} (IBKR): solo datos, no operable.
@@ -490,7 +537,11 @@ export function TerminalView({ member }: { member: Member }) {
   }
 
   return (
-    <div className="grid min-w-0 gap-3" data-terminal>
+    <div
+      className="grid min-w-0 gap-2 rounded-section bg-section p-2 text-foreground sm:p-3"
+      data-terminal
+      data-section="terminal"
+    >
       {/*
        * Lo único fijo arriba (#578): una franja angosta y opaca con "simulación". Ocupa su propio
        * lugar (no flota encima de la cuenta ni del gráfico) y, al bajar, el contenido pasa por
@@ -564,63 +615,104 @@ export function TerminalView({ member }: { member: Member }) {
         </div>
       </div>
 
+      {/*
+       * Mercados | gráficos | ticket, separados por líneas de 1 px. Los divisores viven en la
+       * columna del gráfico (la más alta), sobre esas líneas; el orden de los hijos no cambia.
+       */}
       <div
         data-terminal-desk
-        className="grid min-w-0 items-start gap-3 lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[12.5rem_minmax(0,1fr)_20rem]"
+        style={
+          {
+            '--w-left': `${widths.left}px`,
+            '--w-right': `${widths.right}px`,
+          } as CSSProperties
+        }
+        className="grid min-w-0 rounded-section border border-border lg:grid-cols-[var(--w-left)_minmax(0,1fr)] xl:grid-cols-[var(--w-left)_minmax(0,1fr)_var(--w-right)] [&_.glass]:border-transparent [&_.glass]:bg-transparent"
       >
-        <div className={cn('min-w-0 lg:sticky lg:top-12', pane !== 'Mercados' && 'max-lg:hidden')}>
-          <Watchlist
-            groups={[
-              {
-                id: 'broker',
-                title: 'Broker simulado',
-                sourceLabel: summaries.label,
-                rows: summaries.rows,
-                loading: summaries.status === 'loading',
-              },
-              {
-                id: 'ibkr',
-                title: 'IBKR',
-                sourceLabel: 'solo datos, no operable',
-                rows: ibkr.rows,
-                feed: 'ibkr',
-                badge: 'IBKR',
-                loading: ibkr.status === 'loading',
-                note:
-                  ibkr.status === 'error'
-                    ? 'Sin conexión con el gateway: no hay datos de IBKR.'
-                    : ibkr.status === 'loading'
-                      ? 'Pidiendo los datos de IBKR…'
-                      : ibkr.rows.length === 0
-                        ? 'El gateway no tiene instrumentos de IBKR configurados.'
-                        : 'Datos con atraso, tal como los manda el gateway. Precios del pasado, no promesas.',
-              },
-            ]}
-            names={names}
-            selected={selKey(activeSel)}
-            onSelect={pickMarket}
+        <div
+          id="terminal-markets"
+          className={cn(
+            'min-w-0 border-border lg:border-r',
+            pane !== 'Mercados' && 'max-lg:hidden',
+          )}
+        >
+          <div className="lg:sticky lg:top-12">
+            <Watchlist
+              groups={[
+                {
+                  id: 'broker',
+                  title: 'Broker simulado',
+                  sourceLabel: summaries.label,
+                  rows: summaries.rows,
+                  loading: summaries.status === 'loading',
+                },
+                {
+                  id: 'ibkr',
+                  title: 'IBKR',
+                  sourceLabel: 'solo datos, no operable',
+                  rows: ibkr.rows,
+                  feed: 'ibkr',
+                  badge: 'IBKR',
+                  loading: ibkr.status === 'loading',
+                  note:
+                    ibkr.status === 'error'
+                      ? 'Sin conexión con el gateway: no hay datos de IBKR.'
+                      : ibkr.status === 'loading'
+                        ? 'Pidiendo los datos de IBKR…'
+                        : ibkr.rows.length === 0
+                          ? 'El gateway no tiene instrumentos de IBKR configurados.'
+                          : 'Datos con atraso, tal como los manda el gateway. Precios del pasado, no promesas.',
+                },
+              ]}
+              names={names}
+              selected={selKey(activeSel)}
+              onSelect={pickMarket}
+            />
+          </div>
+        </div>
+        <div className={cn('relative min-w-0', pane !== 'Gráfico' && 'max-lg:hidden')}>
+          <PaneResizer
+            label="Ancho de la lista de mercados"
+            controls="terminal-markets"
+            side="left"
+            value={widths.left}
+            min={WIDTH.left.min}
+            max={WIDTH.left.max}
+            onChange={(left) => setWidths((w) => ({ ...w, left }))}
+            className="-left-[5px] hidden lg:block"
+          />
+          {charts}
+          <PaneResizer
+            label="Ancho del ticket"
+            controls="terminal-ticket"
+            side="right"
+            value={widths.right}
+            min={WIDTH.right.min}
+            max={WIDTH.right.max}
+            onChange={(right) => setWidths((w) => ({ ...w, right }))}
+            className="-right-[4px] hidden xl:block"
           />
         </div>
-        <div className={cn('min-w-0', pane !== 'Gráfico' && 'max-lg:hidden')}>{charts}</div>
         <div
+          id="terminal-ticket"
           className={cn(
-            'min-w-0 lg:col-span-2 xl:sticky xl:top-12 xl:col-span-1',
+            'min-w-0 border-border lg:col-span-2 lg:border-t xl:col-span-1 xl:border-t-0 xl:border-l',
             pane !== 'Ticket' && 'max-lg:hidden',
           )}
         >
-          {ticket}
+          <div className="xl:sticky xl:top-12">{ticket}</div>
         </div>
       </div>
 
       <section
         aria-label="Actividad de la cuenta"
-        className="glass min-w-0 rounded-[20px] p-3 sm:p-4"
+        className="min-w-0 rounded-section border border-border bg-section p-density"
       >
-        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-2">
+        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-2">
           <div
             role="tablist"
             aria-label="Paneles de la cuenta"
-            className="flex max-w-full gap-1 overflow-x-auto"
+            className="flex max-w-full gap-1 overflow-x-auto border-b border-border"
           >
             {TABS.map((t) => (
               <button
@@ -632,10 +724,10 @@ export function TerminalView({ member }: { member: Member }) {
                 aria-controls="terminal-tabpanel"
                 onClick={() => setTab(t)}
                 className={cn(
-                  'min-h-9 shrink-0 rounded-full px-3 text-[12px] font-bold whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-ring',
+                  '-mb-px min-h-8 shrink-0 border-b-2 px-2.5 text-[11px] font-bold tracking-[0.06em] whitespace-nowrap uppercase transition-colors focus-visible:outline-2 focus-visible:outline-ring',
                   t === tab
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:text-foreground',
+                    ? 'border-accent text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground',
                 )}
               >
                 {tabLabel[t]}
