@@ -117,7 +117,9 @@ export function ProposalCard({
       </dl>
 
       <div className="mt-4 grid gap-4 @xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <section aria-label="Desglose del puntaje">
+        <section
+          aria-label={`Desglose del puntaje, ${p.instrument_id} ${long ? 'largo' : 'corto'}`}
+        >
           <h4 className="mb-2 flex items-baseline justify-between text-[12px] font-bold">
             Puntaje <span className="text-[20px] font-extrabold tabular-nums">{p.score}</span>
           </h4>
@@ -149,7 +151,10 @@ export function ProposalCard({
           </ul>
         </section>
 
-        <section aria-label="Probabilidad" className="rounded-2xl border border-border p-3">
+        <section
+          aria-label={`Probabilidad, ${p.instrument_id} ${long ? 'largo' : 'corto'}`}
+          className="rounded-2xl border border-border p-3"
+        >
           <h4 className="text-[12px] font-bold">
             <Term id="probabilidad">Probabilidad</Term> de tocar TP1 antes que el stop
           </h4>

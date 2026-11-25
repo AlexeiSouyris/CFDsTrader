@@ -4,6 +4,7 @@
  * | Ruta | Contrato |
  * |---|---|
  * | `GET /api/v1/news` | `gateway_news.v1`: las últimas noticias, con sus interpretaciones |
+ * | `GET /api/v1/news?before=<UTC>` | `gateway_news.v1`: la página siguiente, desde `next_before` |
  * | `GET /api/v1/calendar` | `gateway_calendar.v1`: desde ayer hasta dentro de dos semanas |
  */
 import { REFRESH_MS, useRemote } from '@/lib/liquidity-api'
@@ -16,6 +17,10 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
 }
 
 export const fetchNews = (signal?: AbortSignal) => getJson<GatewayNews>('/api/v1/news', signal)
+
+/** Las noticias más viejas que `before` (el `next_before` de la página anterior). */
+export const fetchNewsBefore = (before: string, signal?: AbortSignal) =>
+  getJson<GatewayNews>(`/api/v1/news?before=${encodeURIComponent(before)}`, signal)
 
 export const fetchCalendar = (signal?: AbortSignal) =>
   getJson<GatewayCalendar>('/api/v1/calendar', signal)

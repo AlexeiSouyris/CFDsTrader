@@ -105,7 +105,7 @@ Orden que cierra la operación automáticamente al llegar a la ganancia objetivo
 
 <a id="trailing-stop"></a>
 ### Trailing stop
-Stop que se va moviendo a favor a medida que el precio avanza, para asegurar ganancia.
+Stop que se va moviendo a favor a medida que el precio avanza, para proteger parte de lo ganado. No lo garantiza: con un gap el precio puede saltarlo.
 *Ejemplo:* stop a 50 puntos del máximo alcanzado. Si el precio sube a 26.900, el stop pasa a 26.850.
 
 <a id="riesgo-por-operacion"></a>

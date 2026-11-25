@@ -71,7 +71,8 @@
   --chart-down: #a52d30;
   --chart-line: #2b3036;
   --chart-accent: #3a55c9;
-  --chart-signal: #9a6500;
+  /* el sello EJEMPLO usa este color sobre su ficha al 10 %: AA también sobre el fondo gris (#605) */
+  --chart-signal: #7a5000;
   --chart-grid: rgb(23 25 28 / 9%);
   --chart-ema: #7238bd;
   --chart-fib: #8a5a00;
@@ -214,7 +215,8 @@ main:has([data-section='research']) > header h1 {
 }
 [data-theme='light'] [data-section='trophies'],
 [data-theme='light'][data-section='trophies'] {
-  --accent: #7a5b00;
+  /* AA (#605) también sobre la ficha del trofeo ganado (acento al 7 % y al 15 % encima) */
+  --accent: #614800;
 }
 
 @theme inline {

@@ -18,10 +18,11 @@ import { AnalogDistribution, SentimentGauge } from '@/components/ui/market-conte
 import { Segmented } from '@/components/ui/segmented'
 import { Term } from '@/components/ui/term'
 import { dateTimeUtc, dateUtc } from '@/lib/format'
-import { useCalendar, useNews } from '@/lib/news-api'
+import { fetchNewsBefore, useCalendar, useNews } from '@/lib/news-api'
 import type {
   EconomicEvent,
   GatewayCalendar,
+  GatewayNews,
   NewsInterpretation,
   OfficialRelease,
 } from '@/lib/news-contracts'
@@ -153,7 +154,12 @@ function ContextBlock({ title, children }: { title: ReactNode; children: ReactNo
 
 function CalendarList({ rows }: { rows: CalendarRow[] }) {
   return (
-    <ol className="grid max-h-[32rem] gap-2.5 overflow-y-auto pr-1 [scrollbar-width:thin]">
+    // la lista se desplaza sola: con `tabIndex` se puede recorrer también con el teclado (#605)
+    <ol
+      tabIndex={0}
+      aria-label="Calendario económico"
+      className="grid max-h-[32rem] gap-2.5 overflow-y-auto pr-1 [scrollbar-width:thin] outline-accent focus-visible:outline-2 focus-visible:outline-offset-2"
+    >
       {rows.map((e) => (
         <li key={e.key} className="grid gap-0.5">
           <When at={e.at} className="text-[11.5px] text-muted-foreground" />
@@ -314,18 +320,44 @@ export function NewsView() {
   const news = useNews()
   // Del motor si el gateway respondió; si no, las de ejemplo con su sello.
   const real = news.status === 'ok'
+  // "Cargar más" (#605): las páginas viejas se piden con `next_before` y se suman abajo. La
+  // primera página se sigue refrescando sola; las viejas quedan como llegaron.
+  const [older, setOlder] = useState<GatewayNews['items']>([])
+  const [cursor, setCursor] = useState<string | null | undefined>(undefined)
+  const [more, setMore] = useState<'idle' | 'loading' | 'error'>('idle')
+  const nextBefore = cursor === undefined ? (real ? news.data.next_before : null) : cursor
+  const loadMore = async () => {
+    if (!nextBefore || more === 'loading') return
+    setMore('loading')
+    try {
+      const page = await fetchNewsBefore(nextBefore)
+      setOlder((prev) => [...prev, ...page.items])
+      setCursor(page.next_before)
+      setMore('idle')
+    } catch {
+      setMore('error')
+    }
+  }
+  const seen = new Set<string>()
   const stories: Story[] = real
-    ? news.data.items.map(({ item, interpretations }) => ({
-        key: `${item.source}:${item.item_id}`,
-        source: item.source,
-        feed: item.feed,
-        title: item.title,
-        published_at: item.published_at,
-        retrieved_at: item.retrieved_at,
-        url: item.url,
-        interpretations,
-        folders: [],
-      }))
+    ? [...news.data.items, ...older]
+        .filter(({ item }) => {
+          const key = `${item.source}:${item.item_id}`
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+        .map(({ item, interpretations }) => ({
+          key: `${item.source}:${item.item_id}`,
+          source: item.source,
+          feed: item.feed,
+          title: item.title,
+          published_at: item.published_at,
+          retrieved_at: item.retrieved_at,
+          url: item.url,
+          interpretations,
+          folders: [],
+        }))
     : EXAMPLE_STORIES
   const [folder, setFolder] = useState(ALL)
   const items = real || folder === ALL ? stories : stories.filter((n) => n.folders.includes(folder))
@@ -430,6 +462,20 @@ export function NewsView() {
                 )
               })}
             </ol>
+          )}
+          {real && nextBefore && (
+            <div className="grid gap-2 pt-3">
+              <button
+                type="button"
+                onClick={() => void loadMore()}
+                disabled={more === 'loading'}
+                className="min-h-11 rounded-section border border-border px-3.5 text-[12.5px] font-semibold text-foreground transition-colors outline-accent hover:bg-foreground/5 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60"
+              >
+                {more === 'loading' ? 'Cargando…' : 'Cargar más'}
+              </button>
+              {more === 'error' &&
+                quiet('No se pudieron leer las noticias anteriores. Probá de nuevo.', 'alert')}
+            </div>
           )}
         </nav>
 
