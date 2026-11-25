@@ -19,6 +19,7 @@ Lista de todos los contratos, generada desde `contracts/*.schema.json` (`title` 
 | [`backtest_run.v1`](backtest_run.v1.schema.json) | Backtest run v1 | Una corrida de backtest del diario (spec §15b, #200) |
 | [`backtest_run_curve.v1`](backtest_run_curve.v1.schema.json) | Backtest run curve v1 | La curva de una corrida de backtest (#299) |
 | [`backtest_run_detail.v1`](backtest_run_detail.v1.schema.json) | Backtest run detail v1 | El detalle de una corrida de backtest que devuelve el gateway en GET /api/v1/backtest_runs/{run_id} (#299) |
+| [`calendar_estimate.v1`](calendar_estimate.v1.schema.json) | Calendar estimate v1 | Una instantánea del pronóstico ('forecast') y del dato anterior ('previous') de un evento del calendario, tal como se veían en la fuente (ADR 0018 §1) |
 | [`candle.v1`](candle.v1.schema.json) | Candle v1 | Una vela OHLC |
 | [`candle_spread.v1`](candle_spread.v1.schema.json) | Candle spread v1 | Spread (ask − bid) al cierre de una vela, tal como lo dio la fuente (#95) |
 | [`change_proposal.v1`](change_proposal.v1.schema.json) | Change proposal v1 | Una propuesta de cambio de un informe de aprendizaje (learning_report.v1, fase 8b, #327), guardada como nació |
@@ -71,6 +72,7 @@ Lista de todos los contratos, generada desde `contracts/*.schema.json` (`title` 
 | [`position.v1`](position.v1.schema.json) | Position v1 | Una posición abierta del broker simulado (fase 7, #278), valuada al cierre de la última vela (as_of) |
 | [`proposal.v1`](proposal.v1.schema.json) | Proposal v1 | Una propuesta de operación del diario (spec §15b) |
 | [`reference_rate.v1`](reference_rate.v1.schema.json) | Reference rate v1 | Un valor diario de un tipo de referencia de la financiación nocturna (#79), tal como lo publicó la fuente |
+| [`release_actual.v1`](release_actual.v1.schema.json) | Release actual v1 | El dato real de una serie oficial para un mes de referencia, tal como lo daba la fuente oficial al leerlo (ADR 0018 §2) |
 | [`sentiment.v1`](sentiment.v1.schema.json) | Sentiment index v1 | Índice de sentimiento v1 de un instrumento (spec §9.1, #213) |
 | [`sentiment_observation.v1`](sentiment_observation.v1.schema.json) | Sentiment observation v1 | Un dato crudo de una fuente de sentimiento (#25, #27), tal como lo publicó la fuente |
 | [`ticket_verdict.v1`](ticket_verdict.v1.schema.json) | Ticket verdict v1 | Lo que respondería el módulo de riesgo a una orden (order.v1) **sin enviarla** (fase 7, #278) |
@@ -264,6 +266,21 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - **`published_at` (anti look-ahead, ADR 0016 §4):** una reunión programada, desde el comunicado del calendario tentativo que la anunció con sus fechas exactas (sin hora en la página, el final de ese día ET); una no programada (`unscheduled`, por ejemplo las de marzo de 2020), desde su propio comunicado (`published_at = scheduled_at`). Una reunión que no se puede documentar queda fuera. `CHECK published_at <= scheduled_at`.
 - Tabla de **solo agregar** (`infra/migrations/0046_official_releases.sql`, trigger), clave natural `(source, series, reference_period, status, scheduled_at)` con `NULLS NOT DISTINCT`. Una segunda carga no agrega nada; una fila guardada con otros datos es un error (no se pisa).
 - Para leerla sin mirar el futuro: `published_at <= as_of` (`cfds_intel.calendar.official.store.releases_known_at`).
+
+### Pronóstico y dato real del calendario (ADR 0018, #695)
+
+| Contrato | Tabla | Contenido |
+|---|---|---|
+| `calendar_estimate.v1` | `calendar_estimates` | Una instantánea del `forecast` y el `previous` de un evento de Forex Factory: el evento (`source`, `event`, `country`, `scheduled_at`, como en `economic_event.v1`), el texto tal cual (`forecast_raw`, `previous_raw`), el número como string decimal solo si se interpreta sin ambigüedad (`forecast_value`, `previous_value`), su `unit` común y `seen_at` en UTC. |
+| `release_actual.v1` | `release_actuals` | El dato real oficial de una serie para un mes: `source` (`bls`), `series_id` (ID oficial), `reference_period` (`AAAA-MM`), `value` (string decimal exacto), `unit`, `vintage` (`first` o `revised`), `released_at` (hora de embargo, de `official_releases`), `retrieved_at` (cuándo lo leímos) y `source_url`. |
+
+- Aparte de `economic_event.v1` a propósito (ADR 0018 §3): ese contrato y el filtro §7.2 no cambian. Los escribe Python: las instantáneas en la misma lectura del feed de Forex Factory, sin pedidos extra (#696); el dato real, de la API pública v1 del BLS (#697). Cita del dato real: U.S. Bureau of Labor Statistics, con la fecha de `retrieved_at`.
+- **El `forecast` es el que mostraba Forex Factory**, no el consenso de una encuesta (ADR 0018 §1.5). Un estudio que lo use lo dice.
+- **Instantáneas:** hay fila nueva solo cuando el par (`forecast_raw`, `previous_raw`) cambia respecto de la última instantánea del mismo evento; `seen_at` es la primera lectura con ese valor. La clave es `(source, event, country, scheduled_at, seen_at)` y no el par de valores, para que un valor que va de A a B y vuelve a A quede como tres filas.
+- **Anti look-ahead:** para la sorpresa vale la **última instantánea con `seen_at` estrictamente anterior a `scheduled_at`**. Las vistas después se guardan (sirven para ver revisiones del `previous`) pero no cuentan. El dato real existe desde `released_at` para un estudio que simula operar en tiempo real y desde `retrieved_at` para una decisión en vivo (`CHECK retrieved_at >= released_at`).
+- **`first` y `revised`:** la API del BLS da el valor vigente. Es `first` solo si se leyó antes de la publicación siguiente de la misma serie; si no, `revised`, y no entra en la sorpresa. Un solo `first` por serie y mes (índice único parcial).
+- **La sorpresa no se guarda:** la calcula Rust (#698) al leer las dos tablas.
+- Tablas de **solo agregar** (`infra/migrations/0051_calendar_surprise.sql`, triggers). Clave natural de `release_actuals`: `(source, series_id, reference_period, vintage, value)`.
 
 ### Histórico de futuros (#247, ADR 0011 en propuesta)
 
