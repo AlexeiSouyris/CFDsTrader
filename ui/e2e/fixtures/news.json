@@ -1,0 +1,216 @@
+{
+ "as_of": "2026-11-25T16:00:00Z",
+ "generated_at": "2026-11-25T16:00:00Z",
+ "feed": null,
+ "items": [
+  {
+   "item": {
+    "source": "fed",
+    "feed": "speeches",
+    "item_id": "https://www.federalreserve.gov/newsevents/speech/bowman20261125a.htm",
+    "title": "Bowman, Modernizing Banking Supervision: A Shared Agenda for the Americas",
+    "url": "https://www.federalreserve.gov/newsevents/speech/bowman20261125a.htm",
+    "published_at": "2026-11-25T12:25:00Z",
+    "retrieved_at": "2026-11-25T12:30:01.295942Z"
+   },
+   "interpretations": []
+  },
+  {
+   "item": {
+    "source": "ecb",
+    "feed": "press",
+    "item_id": "https://www.ecb.europa.eu//press/pr/date/2026/html/ecb.pr261125~26d1ade228.en.html",
+    "title": "Card payments edge past cash in shops; euro area consumers want both",
+    "url": "https://www.ecb.europa.eu//press/pr/date/2026/html/ecb.pr261125~26d1ade228.en.html",
+    "published_at": "2026-11-25T10:00:00Z",
+    "retrieved_at": "2026-11-25T10:15:01.758002Z"
+   },
+   "interpretations": []
+  },
+  {
+   "item": {
+    "source": "fed",
+    "feed": "press_monetary",
+    "item_id": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20261124a.htm",
+    "title": "Minutes of the Board's discount rate meetings on October 19 and October 28, 2026",
+    "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20261124a.htm",
+    "published_at": "2026-11-24T19:00:00Z",
+    "retrieved_at": "2026-11-24T19:15:01.881834Z"
+   },
+   "interpretations": []
+  },
+  {
+   "item": {
+    "source": "ecb",
+    "feed": "press",
+    "item_id": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp261124~17928e5456.en.html",
+    "title": "Boris Vujčić: Resilience in an age of shocks: lessons from central and eastern Europe",
+    "url": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp261124~17928e5456.en.html",
+    "published_at": "2026-11-24T11:00:00Z",
+    "retrieved_at": "2026-11-24T11:15:02.119929Z"
+   },
+   "interpretations": []
+  },
+  {
+   "item": {
+    "source": "ecb",
+    "feed": "press",
+    "item_id": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp261123~b5816801a0.en.pdf",
+    "title": "Philip R. Lane: Climate change and monetary policy",
+    "url": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp261123~b5816801a0.en.pdf",
+    "published_at": "2026-11-23T14:30:00Z",
+    "retrieved_at": "2026-11-23T14:50:12.867058Z"
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "0dba5684a571b4737428881633d93d34e1f4cde912907c86bb49f5543ad93972",
+     "source": "ecb",
+     "item_id": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp261123~b5816801a0.en.pdf",
+     "published_at": "2026-11-23T14:30:00Z",
+     "interpreted_at": "2026-11-23T14:51:07.353652Z",
+     "interpreter": {
+      "name": "ollama",
+      "version": "p2.tcf220cf4.me82944924720",
+      "model": "hf.co/mistralai/Ministral-3-8B-Instruct-2512-GGUF:Q4_K_M@e8294492472089284eff74350fbd8f076baee56577a125dd6f32205feba144e8",
+      "prompt_sha256": "59fb9a76a9c824950a128e60c6dd2c16646037670f987a9aea63d156b174b23f"
+     },
+     "summary_es": "El discurso del vicepresidente del BCE, Philip R. Lane, sobre el cambio climático y su posible impacto en la política monetaria genera incertidumbre moderada, sin señales concretas de cambios inmediatos en las tasas o medidas de estímulo, lo que podría presionar ligeramente a la baja en mercados de riesgo.",
+     "impacts": [
+      {
+       "instrument_id": "US500",
+       "sentiment": "-0.10",
+       "relevance": "0.30"
+      },
+      {
+       "instrument_id": "US100",
+       "sentiment": "-0.05",
+       "relevance": "0.25"
+      },
+      {
+       "instrument_id": "US30",
+       "sentiment": "-0.05",
+       "relevance": "0.20"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "item": {
+    "source": "ecb",
+    "feed": "press",
+    "item_id": "https://www.ecb.europa.eu//press/pr/date/2026/html/ecb.pr261123~76b6f57b74.en.html",
+    "title": "ECB expands acceptance of DLT-based assets as eligible Eurosystem collateral",
+    "url": "https://www.ecb.europa.eu//press/pr/date/2026/html/ecb.pr261123~76b6f57b74.en.html",
+    "published_at": "2026-11-23T10:00:00Z",
+    "retrieved_at": "2026-11-23T14:50:12.867058Z"
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "bb5f8fdeba77e6fd0964a32efd5b8203c9d2fef0a4c943b39f3799eebfcea40d",
+     "source": "ecb",
+     "item_id": "https://www.ecb.europa.eu//press/pr/date/2026/html/ecb.pr261123~76b6f57b74.en.html",
+     "published_at": "2026-11-23T10:00:00Z",
+     "interpreted_at": "2026-11-23T14:50:39.057052Z",
+     "interpreter": {
+      "name": "ollama",
+      "version": "p2.tcf220cf4.me82944924720",
+      "model": "hf.co/mistralai/Ministral-3-8B-Instruct-2512-GGUF:Q4_K_M@e8294492472089284eff74350fbd8f076baee56577a125dd6f32205feba144e8",
+      "prompt_sha256": "59fb9a76a9c824950a128e60c6dd2c16646037670f987a9aea63d156b174b23f"
+     },
+     "summary_es": "El BCE amplía la aceptación de activos basados en tecnología DLT como garantía para operaciones de crédito del Eurosistema, avanzando en la integración de la tokenización en los mercados financieros europeos, lo que podría impulsar la innovación y la confianza en la infraestructura tecnológica, especialmente en mercados más orientados a la tecnología y la innovación financiera.",
+     "impacts": [
+      {
+       "instrument_id": "US500",
+       "sentiment": "0.30",
+       "relevance": "0.65"
+      },
+      {
+       "instrument_id": "US30",
+       "sentiment": "0.25",
+       "relevance": "0.55"
+      },
+      {
+       "instrument_id": "US100",
+       "sentiment": "0.20",
+       "relevance": "0.50"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "item": {
+    "source": "fed",
+    "feed": "press_all",
+    "item_id": "https://www.federalreserve.gov/newsevents/pressreleases/other20261120b.htm",
+    "title": "Federal Reserve announces College Fed Challenge winners",
+    "url": "https://www.federalreserve.gov/newsevents/pressreleases/other20261120b.htm",
+    "published_at": "2026-11-20T21:15:00Z",
+    "retrieved_at": "2026-11-21T20:42:24.863931Z"
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "a44a971c6db01dc8d29c0d3f7e4c1534b54027ce05364725ee55d201846e7e7c",
+     "source": "fed",
+     "item_id": "https://www.federalreserve.gov/newsevents/pressreleases/other20261120b.htm",
+     "published_at": "2026-11-20T21:15:00Z",
+     "interpreted_at": "2026-11-23T07:45:06.461216Z",
+     "interpreter": {
+      "name": "ollama",
+      "version": "p2.tcf220cf4.me82944924720",
+      "model": "hf.co/mistralai/Ministral-3-8B-Instruct-2512-GGUF:Q4_K_M@e8294492472089284eff74350fbd8f076baee56577a125dd6f32205feba144e8",
+      "prompt_sha256": "59fb9a76a9c824950a128e60c6dd2c16646037670f987a9aea63d156b174b23f"
+     },
+     "summary_es": "El comunicado es un anuncio institucional sobre los ganadores del *College Fed Challenge*, un concurso educativo de la Fed sin implicaciones en política monetaria activa ni datos económicos relevantes para los mercados.",
+     "impacts": []
+    }
+   ]
+  },
+  {
+   "item": {
+    "source": "fed",
+    "feed": "speeches",
+    "item_id": "https://www.federalreserve.gov/newsevents/speech/cook20261120a.htm",
+    "title": "Cook, The U.S. Economy in Global Context",
+    "url": "https://www.federalreserve.gov/newsevents/speech/cook20261120a.htm",
+    "published_at": "2026-11-20T17:15:00Z",
+    "retrieved_at": "2026-11-21T20:42:25.121161Z"
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "eafa3a11bc825e7b0ec2fc688c9cf228a8b97e0e840022a8bc20563a8c047350",
+     "source": "fed",
+     "item_id": "https://www.federalreserve.gov/newsevents/speech/cook20261120a.htm",
+     "published_at": "2026-11-20T17:15:00Z",
+     "interpreted_at": "2026-11-23T07:44:39.246948Z",
+     "interpreter": {
+      "name": "ollama",
+      "version": "p2.tcf220cf4.me82944924720",
+      "model": "hf.co/mistralai/Ministral-3-8B-Instruct-2512-GGUF:Q4_K_M@e8294492472089284eff74350fbd8f076baee56577a125dd6f32205feba144e8",
+      "prompt_sha256": "59fb9a76a9c824950a128e60c6dd2c16646037670f987a9aea63d156b174b23f"
+     },
+     "summary_es": "El discurso de la gobernadora Cook de la Fed destaca los riesgos globales para la economía estadounidense, como tensiones geopolíticas (guerra en Ucrania y Medio Oriente), incertidumbre en el comercio internacional y la posible volatilidad en precios de energía y commodities, además de señalar el impacto global de la inversión en infraestructura de IA, que podría generar desequilibrios en cadenas de suministro y mercados laborales, con efectos indirectos en los mercados financieros.",
+     "impacts": [
+      {
+       "instrument_id": "US500",
+       "sentiment": "-0.15",
+       "relevance": "0.75"
+      },
+      {
+       "instrument_id": "US30",
+       "sentiment": "-0.10",
+       "relevance": "0.65"
+      },
+      {
+       "instrument_id": "US100",
+       "sentiment": "-0.12",
+       "relevance": "0.60"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "next_before": null
+}

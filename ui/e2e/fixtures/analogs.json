@@ -1,0 +1,662 @@
+[
+ {
+  "instrument_id": "DE40.FUT",
+  "source": "futures",
+  "window_end_day": "2026-11-20",
+  "as_of": "2026-11-20T23:00:00Z",
+  "computed_at": "2026-11-24T21:40:02Z",
+  "window": 20,
+  "min_neighbors": 20,
+  "context": {
+   "vol": null,
+   "rates": "sube"
+  },
+  "neighbors": [
+   {
+    "instrument_id": "US30.FUT",
+    "end_day": "2012-12-28",
+    "distance": "5.095931"
+   },
+   {
+    "instrument_id": "US2000.FUT",
+    "end_day": "2022-06-16",
+    "distance": "5.573182"
+   },
+   {
+    "instrument_id": "US2000.FUT",
+    "end_day": "2018-02-02",
+    "distance": "5.575033"
+   },
+   {
+    "instrument_id": "US30.FUT",
+    "end_day": "2014-12-12",
+    "distance": "5.593633"
+   },
+   {
+    "instrument_id": "US100.FUT",
+    "end_day": "2014-03-14",
+    "distance": "5.630260"
+   },
+   {
+    "instrument_id": "US100.FUT",
+    "end_day": "2020-02-26",
+    "distance": "5.631656"
+   },
+   {
+    "instrument_id": "US30.FUT",
+    "end_day": "2014-03-14",
+    "distance": "5.742989"
+   },
+   {
+    "instrument_id": "US500.FUT",
+    "end_day": "2012-12-28",
+    "distance": "5.759133"
+   },
+   {
+    "instrument_id": "US100.FUT",
+    "end_day": "2014-12-15",
+    "distance": "5.845906"
+   },
+   {
+    "instrument_id": "US100.FUT",
+    "end_day": "2025-02-27",
+    "distance": "5.908789"
+   },
+   {
+    "instrument_id": "US500.FUT",
+    "end_day": "2024-07-25",
+    "distance": "5.924047"
+   },
+   {
+    "instrument_id": "US30.FUT",
+    "end_day": "2015-03-11",
+    "distance": "5.999045"
+   },
+   {
+    "instrument_id": "US30.FUT",
+    "end_day": "2024-05-30",
+    "distance": "6.007835"
+   },
+   {
+    "instrument_id": "US500.FUT",
+    "end_day": "2014-12-12",
+    "distance": "6.032725"
+   },
+   {
+    "instrument_id": "US100.FUT",
+    "end_day": "2018-02-05",
+    "distance": "6.093353"
+   },
+   {
+    "instrument_id": "US100.FUT",
+    "end_day": "2015-03-11",
+    "distance": "6.118403"
+   },
+   {
+    "instrument_id": "US30.FUT",
+    "end_day": "2022-08-26",
+    "distance": "6.203239"
+   },
+   {
+    "instrument_id": "XAUUSD.FUT",
+    "end_day": "2016-11-11",
+    "distance": "6.245021"
+   },
+   {
+    "instrument_id": "XAUUSD.FUT",
+    "end_day": "2014-10-30",
+    "distance": "6.333304"
+   },
+   {
+    "instrument_id": "US100.FUT",
+    "end_day": "2013-10-09",
+    "distance": "6.373653"
+   }
+  ],
+  "groups": [
+   {
+    "group": "all",
+    "count": 20,
+    "insufficient": false,
+    "horizons": [
+     {
+      "horizon": 1,
+      "percentiles": [
+       {
+        "p": 10,
+        "return": "-0.0501390955554117875396260594"
+       },
+       {
+        "p": 25,
+        "return": "-0.0052142740752810819618706208"
+       },
+       {
+        "p": 50,
+        "return": "0.005801137022856479870054531"
+       },
+       {
+        "p": 75,
+        "return": "0.013364351229205287581936922"
+       },
+       {
+        "p": 90,
+        "return": "0.019149445463975105720896832"
+       }
+      ],
+      "positive_pct": "55.00"
+     },
+     {
+      "horizon": 5,
+      "percentiles": [
+       {
+        "p": 10,
+        "return": "-0.0442517953030989195833602898"
+       },
+       {
+        "p": 25,
+        "return": "-0.0163760795176796480364999185"
+       },
+       {
+        "p": 50,
+        "return": "0.020489506134396213489443856"
+       },
+       {
+        "p": 75,
+        "return": "0.031899555448756458007929833"
+       },
+       {
+        "p": 90,
+        "return": "0.041729833240245751216787681"
+       }
+      ],
+      "positive_pct": "75.00"
+     },
+     {
+      "horizon": 20,
+      "percentiles": [
+       {
+        "p": 10,
+        "return": "-0.0879216539717083786724700762"
+       },
+       {
+        "p": 25,
+        "return": "-0.0311269431621290877588358596"
+       },
+       {
+        "p": 50,
+        "return": "0.005376344086021505376344086"
+       },
+       {
+        "p": 75,
+        "return": "0.034551355878965553345199456"
+       },
+       {
+        "p": 90,
+        "return": "0.076837149924200111705098540"
+       }
+      ],
+      "positive_pct": "55.00"
+     }
+    ],
+    "hits": {
+     "up": 9,
+     "down": 11,
+     "none": 0
+    },
+    "without_atr": 0
+   },
+   {
+    "group": "same_context",
+    "count": 0,
+    "insufficient": true,
+    "horizons": [],
+    "hits": {
+     "up": 0,
+     "down": 0,
+     "none": 0
+    },
+    "without_atr": 0
+   }
+  ]
+ },
+ {
+  "instrument_id": "US100.FUT",
+  "source": "futures",
+  "window_end_day": "2026-11-20",
+  "as_of": "2026-11-20T23:00:00Z",
+  "computed_at": "2026-11-24T21:40:02Z",
+  "window": 20,
+  "min_neighbors": 20,
+  "context": {
+   "vol": "high",
+   "rates": null
+  },
+  "neighbors": [
+   {
+    "instrument_id": "US100.FUT",
+    "end_day": "2019-05-29",
+    "distance": "3.634025"
+   },
+   {
+    "instrument_id": "US500.FUT",
+    "end_day": "2019-05-29",
+    "distance": "3.681053"
+   },
+   {
+    "instrument_id": "US30.FUT",
+    "end_day": "2019-05-29",
+    "distance": "4.155828"
+   },
+   {
+    "instrument_id": "US100.FUT",
+    "end_day": "2018-10-25",
+    "distance": "4.186420"
+   },
+   {
+    "instrument_id": "XAUUSD.FUT",
+    "end_day": "2026-06-24",
+    "distance": "4.195966"
+   },
+   {
+    "instrument_id": "US30.FUT",
+    "end_day": "2026-03-06",
+    "distance": "4.202635"
+   },
+   {
+    "instrument_id": "US100.FUT",
+    "end_day": "2022-05-12",
+    "distance": "4.327114"
+   },
+   {
+    "instrument_id": "XAUUSD.FUT",
+    "end_day": "2021-02-17",
+    "distance": "4.386477"
+   },
+   {
+    "instrument_id": "XAUUSD.FUT",
+    "end_day": "2018-07-17",
+    "distance": "4.447087"
+   },
+   {
+    "instrument_id": "US100.FUT",
+    "end_day": "2020-03-16",
+    "distance": "4.595565"
+   },
+   {
+    "instrument_id": "US30.FUT",
+    "end_day": "2020-03-16",
+    "distance": "4.662206"
+   },
+   {
+    "instrument_id": "US2000.FUT",
+    "end_day": "2025-11-20",
+    "distance": "4.715107"
+   },
+   {
+    "instrument_id": "US500.FUT",
+    "end_day": "2020-03-16",
+    "distance": "4.855424"
+   },
+   {
+    "instrument_id": "US2000.FUT",
+    "end_day": "2018-10-24",
+    "distance": "4.961833"
+   },
+   {
+    "instrument_id": "XAUUSD.FUT",
+    "end_day": "2012-12-20",
+    "distance": "5.065911"
+   },
+   {
+    "instrument_id": "US500.FUT",
+    "end_day": "2022-05-12",
+    "distance": "5.103243"
+   },
+   {
+    "instrument_id": "US100.FUT",
+    "end_day": "2022-01-25",
+    "distance": "5.177063"
+   },
+   {
+    "instrument_id": "US500.FUT",
+    "end_day": "2021-10-04",
+    "distance": "5.241335"
+   },
+   {
+    "instrument_id": "XAUUSD.FUT",
+    "end_day": "2016-12-15",
+    "distance": "5.248598"
+   },
+   {
+    "instrument_id": "US2000.FUT",
+    "end_day": "2026-09-30",
+    "distance": "5.258379"
+   }
+  ],
+  "groups": [
+   {
+    "group": "all",
+    "count": 20,
+    "insufficient": false,
+    "horizons": [
+     {
+      "horizon": 1,
+      "percentiles": [
+       {
+        "p": 10,
+        "return": "-0.0002816742718720072108613599"
+       },
+       {
+        "p": 25,
+        "return": "0.003138163437236731255265375"
+       },
+       {
+        "p": 50,
+        "return": "0.006188944845579758509799163"
+       },
+       {
+        "p": 75,
+        "return": "0.013904624575136471315274488"
+       },
+       {
+        "p": 90,
+        "return": "0.028645925090729713540749093"
+       }
+      ],
+      "positive_pct": "85.00"
+     },
+     {
+      "horizon": 5,
+      "percentiles": [
+       {
+        "p": 10,
+        "return": "-0.0705530950664332063034298074"
+       },
+       {
+        "p": 25,
+        "return": "-0.0024475028376844494892167991"
+       },
+       {
+        "p": 50,
+        "return": "0.002217832761548324496655924"
+       },
+       {
+        "p": 75,
+        "return": "0.016280772914202016787786604"
+       },
+       {
+        "p": 90,
+        "return": "0.024083344608307400892977946"
+       }
+      ],
+      "positive_pct": "60.0"
+     },
+     {
+      "horizon": 20,
+      "percentiles": [
+       {
+        "p": 10,
+        "return": "-0.0312269927633823555818922947"
+       },
+       {
+        "p": 25,
+        "return": "-0.0099620893007582139848357203"
+       },
+       {
+        "p": 50,
+        "return": "0.026272677628784661124931740"
+       },
+       {
+        "p": 75,
+        "return": "0.063965318941873838803857383"
+       },
+       {
+        "p": 90,
+        "return": "0.165659126365054602184087363"
+       }
+      ],
+      "positive_pct": "65.00"
+     }
+    ],
+    "hits": {
+     "up": 9,
+     "down": 10,
+     "none": 1
+    },
+    "without_atr": 0
+   },
+   {
+    "group": "same_context",
+    "count": 0,
+    "insufficient": true,
+    "horizons": [],
+    "hits": {
+     "up": 0,
+     "down": 0,
+     "none": 0
+    },
+    "without_atr": 0
+   }
+  ]
+ },
+ {
+  "instrument_id": "US2000.FUT",
+  "source": "futures",
+  "window_end_day": "2026-11-20",
+  "as_of": "2026-11-20T23:00:00Z",
+  "computed_at": "2026-11-24T21:40:03Z",
+  "window": 20,
+  "min_neighbors": 20,
+  "context": {
+   "vol": "high",
+   "rates": null
+  },
+  "neighbors": [
+   {
+    "instrument_id": "XAUUSD.FUT",
+    "end_day": "2020-03-18",
+    "distance": "4.941322"
+   },
+   {
+    "instrument_id": "US30.FUT",
+    "end_day": "2016-01-11",
+    "distance": "5.037616"
+   },
+   {
+    "instrument_id": "XAUUSD.FUT",
+    "end_day": "2026-03-19",
+    "distance": "5.092371"
+   },
+   {
+    "instrument_id": "DE40.FUT",
+    "end_day": "2025-11-20",
+    "distance": "5.349268"
+   },
+   {
+    "instrument_id": "US30.FUT",
+    "end_day": "2014-01-27",
+    "distance": "5.508568"
+   },
+   {
+    "instrument_id": "US2000.FUT",
+    "end_day": "2025-04-08",
+    "distance": "5.525834"
+   },
+   {
+    "instrument_id": "US30.FUT",
+    "end_day": "2023-08-17",
+    "distance": "5.541383"
+   },
+   {
+    "instrument_id": "US500.FUT",
+    "end_day": "2014-12-16",
+    "distance": "5.562799"
+   },
+   {
+    "instrument_id": "US2000.FUT",
+    "end_day": "2017-11-13",
+    "distance": "5.584789"
+   },
+   {
+    "instrument_id": "XAUUSD.FUT",
+    "end_day": "2021-06-18",
+    "distance": "5.740314"
+   },
+   {
+    "instrument_id": "US500.FUT",
+    "end_day": "2023-02-28",
+    "distance": "5.750409"
+   },
+   {
+    "instrument_id": "XAUUSD.FUT",
+    "end_day": "2015-02-12",
+    "distance": "5.819149"
+   },
+   {
+    "instrument_id": "US500.FUT",
+    "end_day": "2024-04-19",
+    "distance": "5.822407"
+   },
+   {
+    "instrument_id": "US30.FUT",
+    "end_day": "2024-08-07",
+    "distance": "5.852079"
+   },
+   {
+    "instrument_id": "US2000.FUT",
+    "end_day": "2025-03-03",
+    "distance": "5.964428"
+   },
+   {
+    "instrument_id": "US100.FUT",
+    "end_day": "2018-12-24",
+    "distance": "5.972347"
+   },
+   {
+    "instrument_id": "XAUUSD.FUT",
+    "end_day": "2013-06-27",
+    "distance": "5.979118"
+   },
+   {
+    "instrument_id": "US500.FUT",
+    "end_day": "2025-11-20",
+    "distance": "5.979175"
+   },
+   {
+    "instrument_id": "US30.FUT",
+    "end_day": "2022-01-25",
+    "distance": "6.025265"
+   },
+   {
+    "instrument_id": "US100.FUT",
+    "end_day": "2014-03-28",
+    "distance": "6.027828"
+   }
+  ],
+  "groups": [
+   {
+    "group": "all",
+    "count": 20,
+    "insufficient": false,
+    "horizons": [
+     {
+      "horizon": 1,
+      "percentiles": [
+       {
+        "p": 10,
+        "return": "-0.0106998654104979811574697174"
+       },
+       {
+        "p": 25,
+        "return": "-0.0013584188005161991441961557"
+       },
+       {
+        "p": 50,
+        "return": "0.005260942760942760942760943"
+       },
+       {
+        "p": 75,
+        "return": "0.012713893847694518221796491"
+       },
+       {
+        "p": 90,
+        "return": "0.029"
+       }
+      ],
+      "positive_pct": "75.00"
+     },
+     {
+      "horizon": 5,
+      "percentiles": [
+       {
+        "p": 10,
+        "return": "-0.0426719651811902734411959504"
+       },
+       {
+        "p": 25,
+        "return": "-0.0122779733158713268396496685"
+       },
+       {
+        "p": 50,
+        "return": "0.018666666666666666666666667"
+       },
+       {
+        "p": 75,
+        "return": "0.037965362865221489161168709"
+       },
+       {
+        "p": 90,
+        "return": "0.062309127926705123854767560"
+       }
+      ],
+      "positive_pct": "65.00"
+     },
+     {
+      "horizon": 20,
+      "percentiles": [
+       {
+        "p": 10,
+        "return": "-0.0418677263695713880215725234"
+       },
+       {
+        "p": 25,
+        "return": "-0.0060325476992143658810325477"
+       },
+       {
+        "p": 50,
+        "return": "0.027552582345937978343443506"
+       },
+       {
+        "p": 75,
+        "return": "0.053862417491749174917491749"
+       },
+       {
+        "p": 90,
+        "return": "0.129669458908761602897894499"
+       }
+      ],
+      "positive_pct": "75.00"
+     }
+    ],
+    "hits": {
+     "up": 11,
+     "down": 9,
+     "none": 0
+    },
+    "without_atr": 0
+   },
+   {
+    "group": "same_context",
+    "count": 0,
+    "insufficient": true,
+    "horizons": [],
+    "hits": {
+     "up": 0,
+     "down": 0,
+     "none": 0
+    },
+    "without_atr": 0
+   }
+  ]
+ }
+]

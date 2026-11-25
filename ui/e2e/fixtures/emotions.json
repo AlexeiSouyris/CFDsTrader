@@ -1,0 +1,98 @@
+[
+ {
+  "instrument_id": "DE40",
+  "source": "price",
+  "basis": "15m",
+  "as_of": "2026-11-23T08:15:00Z",
+  "states": []
+ },
+ {
+  "instrument_id": "DE40.FUT",
+  "source": "price",
+  "basis": "15m",
+  "as_of": "2026-11-20T21:15:00Z",
+  "states": []
+ },
+ {
+  "instrument_id": "DE40.FUT",
+  "source": "price",
+  "basis": "1h",
+  "as_of": "2026-11-20T21:00:00Z",
+  "states": [
+   {
+    "state": "selling_climax",
+    "values": {
+     "atr": "122.2632",
+     "atr_multiple": "3",
+     "close": "24619",
+     "ema": "25026.5913",
+     "lookback": "20",
+     "stretch": "-3.3337"
+    }
+   }
+  ]
+ },
+ {
+  "instrument_id": "US100.FUT",
+  "source": "price",
+  "basis": "15m",
+  "as_of": "2026-11-23T00:00:00Z",
+  "states": []
+ },
+ {
+  "instrument_id": "US100.FUT",
+  "source": "price",
+  "basis": "1h",
+  "as_of": "2026-11-23T00:00:00Z",
+  "states": []
+ },
+ {
+  "instrument_id": "US100.FUT",
+  "source": "sentiment",
+  "basis": "sentiment_index",
+  "as_of": "2026-11-21T20:42:30.461332Z",
+  "states": []
+ },
+ {
+  "instrument_id": "US30.FUT",
+  "source": "price",
+  "basis": "15m",
+  "as_of": "2026-11-23T00:00:00Z",
+  "states": []
+ },
+ {
+  "instrument_id": "US30.FUT",
+  "source": "price",
+  "basis": "1h",
+  "as_of": "2026-11-23T00:00:00Z",
+  "states": []
+ },
+ {
+  "instrument_id": "US30.FUT",
+  "source": "sentiment",
+  "basis": "sentiment_index",
+  "as_of": "2026-11-21T20:42:30.461332Z",
+  "states": []
+ },
+ {
+  "instrument_id": "US500.FUT",
+  "source": "price",
+  "basis": "15m",
+  "as_of": "2026-11-23T00:00:00Z",
+  "states": []
+ },
+ {
+  "instrument_id": "US500.FUT",
+  "source": "price",
+  "basis": "1h",
+  "as_of": "2026-11-23T00:00:00Z",
+  "states": []
+ },
+ {
+  "instrument_id": "US500.FUT",
+  "source": "sentiment",
+  "basis": "sentiment_index",
+  "as_of": "2026-11-21T20:42:30.461332Z",
+  "states": []
+ }
+]

@@ -46,7 +46,7 @@ describe('armazón', () => {
   it('el logo lleva a la vista de inicio que dice su enlace', () => {
     history.replaceState(null, '', '/#terminal')
     render(<App initialStage="app" />)
-    const logo = screen.getByRole('link', { name: 'CFDsTrader: ir a Inicio' })
+    const logo = screen.getByRole('link', { name: /^CFDsTrader.*ir a Inicio$/ })
     expect(logo).toHaveAttribute('href', '#inicio')
     fireEvent.click(logo)
     expect(location.hash).toBe('#inicio')

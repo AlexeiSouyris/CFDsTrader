@@ -1,0 +1,71 @@
+{
+ "default_instrument": "DE40",
+ "default_timeframe": "1d",
+ "timeframes": [
+  "15m",
+  "1h",
+  "1d"
+ ],
+ "instruments": [
+  {
+   "id": "DE40",
+   "name": "Alemania 40",
+   "asset_class": "index",
+   "currency": "EUR",
+   "exchange_timezone": "Europe/Berlin"
+  },
+  {
+   "id": "US100",
+   "name": "EEUU Tech 100",
+   "asset_class": "index",
+   "currency": "EUR",
+   "exchange_timezone": "America/New_York"
+  },
+  {
+   "id": "US2000",
+   "name": "EE. UU. Russell 2000",
+   "asset_class": "index",
+   "currency": "EUR",
+   "exchange_timezone": "America/New_York"
+  },
+  {
+   "id": "US30",
+   "name": "Wall Street",
+   "asset_class": "index",
+   "currency": "EUR",
+   "exchange_timezone": "America/New_York"
+  },
+  {
+   "id": "US500",
+   "name": "US 500",
+   "asset_class": "index",
+   "currency": "EUR",
+   "exchange_timezone": "America/New_York"
+  },
+  {
+   "id": "XAUUSD",
+   "name": "Oro al contado",
+   "asset_class": "commodity",
+   "currency": "USD",
+   "exchange_timezone": "America/Chicago"
+  }
+ ],
+ "sources": [
+  {
+   "id": "auto",
+   "label": "automática (IG; sin velas de IG, futuros)"
+  },
+  {
+   "id": "ig",
+   "label": "IG CFD"
+  },
+  {
+   "id": "futures",
+   "label": "futuros CME/Eurex (base distinta al CFD)"
+  },
+  {
+   "id": "ibkr",
+   "label": "futuros micro CME de IBKR (~10 min de atraso; base distinta al CFD)"
+  }
+ ]
+}

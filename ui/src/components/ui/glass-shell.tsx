@@ -152,7 +152,6 @@ export function GlassShell({
       <header className="glass relative z-20 grid grid-cols-[1fr_auto] items-center gap-3 rounded-[22px] px-3 py-2 md:grid-cols-[1fr_minmax(220px,380px)_1fr] md:rounded-full">
         <a
           href={`#${home}`}
-          aria-label={`${brand}: ir a ${homeLabel}`}
           className="flex min-w-0 items-center gap-2.5"
           onClick={(e) => {
             if (e.metaKey || e.ctrlKey || e.shiftKey) return
@@ -168,6 +167,8 @@ export function GlassShell({
               {brand}
             </strong>
             <small className="block text-[10px] text-muted-foreground">Simulación · paper</small>
+            {/* el nombre accesible sale del texto visible (WCAG 2.5.3, axe, #661) */}
+            <span className="sr-only">: ir a {homeLabel}</span>
           </span>
         </a>
 

@@ -1,0 +1,98 @@
+[
+ {
+  "run_id": "de40-fut-2026-11-23c",
+  "instruments": [
+   "DE40.FUT"
+  ],
+  "timeframe": "15m",
+  "from": "2025-03-10T00:00:00Z",
+  "to": "2026-11-01T00:00:00Z",
+  "config_sha256": "59668e7b627e851a34d7072e50a0f8ebe79f003445c2863ea7de8e8e95e13479",
+  "initial_equity": "10000",
+  "costs": {
+   "slippage_spread_fraction": "0.1",
+   "slippage_ticks": "1",
+   "instruments": [
+    {
+     "instrument_id": "DE40.FUT",
+     "spread": "1.8",
+     "tick": "0.1",
+     "commission": {
+      "kind": "none"
+     },
+     "funding_admin_fee_pct": "2.5",
+     "funding_day_count": "360"
+    }
+   ],
+   "spread_source": "config"
+  },
+  "news": {
+   "interpreter_name": "ollama",
+   "interpreter_version": "p2",
+   "interpreter_model": "hf.co/mistralai/Ministral-3-8B-Instruct-2512-GGUF:Q4_K_M@e8294492472089284eff74350fbd8f076baee56577a125dd6f32205feba144e8",
+   "published_from": "2025-12-03T00:00:00Z",
+   "interpretations": 0
+  },
+  "metrics": {
+   "trades": 177,
+   "final_equity": "10569.960122906848456839332355",
+   "total_return": "0.0569960122906848456839332355",
+   "max_drawdown": "0.139965897824036612467800339",
+   "sharpe": "0.2905577246602008677263657102",
+   "sortino": "0.4634421759942386852233515006",
+   "win_rate": "0.4011299435028248587570621469",
+   "profit_factor": "1.0469094709864451501153659258",
+   "exposure": "0.0557642802476866346622138732"
+  },
+  "started_at": "2026-11-23T14:24:33.355061Z",
+  "finished_at": "2026-11-23T14:24:41.781593Z"
+ },
+ {
+  "run_id": "de40-fut-2026-11-23b",
+  "instruments": [
+   "DE40.FUT"
+  ],
+  "timeframe": "15m",
+  "from": "2025-03-10T00:00:00Z",
+  "to": "2026-11-01T00:00:00Z",
+  "config_sha256": "c68f868a49ac0a1b81c07854493ebf930f62fe4a235326f281b061549efaddd4",
+  "initial_equity": "10000",
+  "costs": {
+   "slippage_spread_fraction": "0.1",
+   "slippage_ticks": "1",
+   "instruments": [
+    {
+     "instrument_id": "DE40.FUT",
+     "spread": "1.8",
+     "tick": "0.1",
+     "commission": {
+      "kind": "none"
+     },
+     "funding_admin_fee_pct": "2.5",
+     "funding_day_count": "360"
+    }
+   ],
+   "spread_source": "config"
+  },
+  "news": {
+   "interpreter_name": "ollama",
+   "interpreter_version": "p2",
+   "interpreter_model": "hf.co/mistralai/Ministral-3-8B-Instruct-2512-GGUF:Q4_K_M@e8294492472089284eff74350fbd8f076baee56577a125dd6f32205feba144e8",
+   "published_from": "2025-12-03T00:00:00Z",
+   "interpretations": 0
+  },
+  "metrics": {
+   "trades": 174,
+   "final_equity": "10376.930101031018523033953667",
+   "total_return": "0.0376930101031018523033953667",
+   "max_drawdown": "0.1399658978240366124678003389",
+   "sharpe": "0.2205886750832096655396172783",
+   "sortino": "0.3489614442386829614909765163",
+   "win_rate": "0.3965517241379310344827586207",
+   "profit_factor": "1.0318271638433147891069530703",
+   "exposure": "0.0551902873443261671189034996"
+  },
+  "started_at": "2026-11-23T13:20:54.260598Z",
+  "finished_at": "2026-11-23T13:21:02.764192Z"
+ }
+]
