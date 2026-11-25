@@ -526,6 +526,7 @@ export function NewsView() {
                         href={open.url}
                         target="_blank"
                         rel="noreferrer"
+                        data-inline-hit
                         className="font-semibold text-accent underline underline-offset-2"
                       >
                         Leer en {sourceName(open.source)}

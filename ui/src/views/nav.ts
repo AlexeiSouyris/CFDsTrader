@@ -165,9 +165,24 @@ const PARENT: Record<string, string> = {
 export const sectionOf = (id: string) => PARENT[id] ?? id
 
 /**
+ * "Todas las vistas" (#618): cada sección del mapa con las vistas que viven adentro, en el orden de
+ * `VIEWS`. Lo abre "Más": con la barra (lateral o la de abajo) cualquier vista queda a dos toques.
+ */
+export const MENU_GROUPS = NAV_SECTIONS.map((id) => ({
+  id,
+  children: VIEWS.filter((v) => PARENT[v.id] === id).map((v) => v.id),
+}))
+
+/**
  * Las pestañas principales (#286, #581), en orden: Inicio · Terminal · Gráficos · Investigación.
  * El gesto del trackpad y los atajos de teclado pasan de una a la siguiente (desde una vista de
  * adentro, como `#performance`, cuenta la de su sección). Cada una tiene su hash y entra en el
  * historial del navegador.
  */
 export const MAIN_TABS = ['inicio', 'terminal', 'graficos', 'investigacion'] as const
+
+/**
+ * La barra de abajo del celular (#618): las cuatro pestañas principales y "Más". Entran sin
+ * desplazarse en 320 px; el resto de las secciones y las vistas de adentro están en "Más".
+ */
+export const BAR_VIEWS = MAIN_TABS

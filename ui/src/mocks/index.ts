@@ -434,10 +434,10 @@ export const KPIS: Kpi[] = [
   {
     id: 'dd',
     label: 'Drawdown máximo',
-    value: '-3.10',
+    // sin signo, como lo manda el motor (`max_drawdown`) y lo muestra Performance (#612)
+    value: '3.10',
     unit: '%',
-    detail: 'en la simulación',
-    tone: 'down',
+    detail: 'caída más grande desde un máximo, en la simulación',
   },
   { id: 'props', label: 'Propuestas', value: '2', unit: '', detail: 'esperando al responsable' },
 ]

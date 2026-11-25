@@ -36,7 +36,7 @@ export function SortHeader<K extends string>({
         onClick={() => onSort(column)}
         title={`Ordenar por ${label.toLowerCase()}`}
         className={cn(
-          'inline-flex items-center gap-1 rounded-sm uppercase hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+          'inline-flex min-h-6 items-center gap-1 rounded-sm uppercase hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
           right && 'flex-row-reverse',
           dir && 'text-accent',
         )}
