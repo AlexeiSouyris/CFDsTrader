@@ -57,12 +57,16 @@ describe('armazón', () => {
     for (const v of VIEWS) expect(v.short).toBe(v.label)
     render(<App initialStage="app" />)
     const nav = screen.getByRole('navigation', { name: 'Vistas' })
-    expect(within(nav).getByText('Diario')).toBeInTheDocument()
-    expect(within(nav).getByText('Trofeos')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Más vistas' }))
-    const dialog = screen.getByRole('dialog', { name: 'Paleta de comandos' })
-    // con el campo vacío lista todas las vistas
-    expect(within(dialog).getAllByRole('option').length).toBeGreaterThanOrEqual(VIEWS.length)
+    // las cuatro pestañas principales, sin desplazarse (#618); el resto, en "Más"
+    expect(
+      within(nav)
+        .getAllByRole('link')
+        .map((a) => a.textContent),
+    ).toEqual(['Inicio', 'Terminal', 'Gráficos', 'Investigación'])
+    expect(within(nav).queryByText('Diario')).toBeNull()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Más vistas' }).at(-1)!)
+    const dialog = screen.getByRole('dialog', { name: 'Todas las vistas' })
+    expect(within(dialog).getAllByRole('link')).toHaveLength(VIEWS.length)
   })
 
   it('los deslizadores del vidrio tienen nombre y el popover se cierra con un clic afuera', () => {
