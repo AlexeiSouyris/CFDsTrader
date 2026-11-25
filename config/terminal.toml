@@ -1,0 +1,54 @@
+# Terminal de precios "bolsa" (#541): tabla de precios y mini gráfico de velas de IBKR paper, solo
+# lectura y solo presentación (no calcula indicadores ni señales). Lo lee engine/crates/terminal y se
+# valida al arrancar. La conexión (host, puerto, guardas, contratos) sale de config/ibkr.toml.
+# Cómo correrlo: docs/guides/terminal-bolsa.md.
+
+[gateway]
+# Identificador propio de esta conexión ante IB Gateway: distinto del de config/ibkr.toml (17), del de
+# ibkr_probe (18) y del que use una carga de velas en paralelo.
+client_id = 19
+
+[display]
+# Instrumentos de la tabla, en orden. Cada uno tiene que estar en config/ibkr.toml. EURUSD no va: la
+# cuenta no tiene el permiso de datos de IDEALPRO (docs/analysis/2026-11-ibkr-medicion-historia.md).
+instruments = ["MNQ", "MES", "QQQ"]
+# Timeframes del gráfico, en el orden en que se recorren con ← y →: "1m", "15m", "1h" o "1d".
+timeframes = ["1m", "15m", "1h", "1d"]
+# Con cuál arranca el gráfico (tiene que estar en la lista de arriba).
+initial_timeframe = "15m"
+
+[session]
+# Para la variación y el rango del día: a qué día de sesión pertenece una vela de 1 minuto, como la
+# fecha de (inicio de la vela en UTC + corrimiento). IBKR fecha las diarias por día de sesión.
+# Acciones de EE.UU. (QQQ, horario extendido 04:00–20:00 ET): -5 h deja toda la sesión en su día,
+# con horario de verano o sin él.
+stock_offset_hours = -5
+# Futuros de CME (abren 17:00 CT del día anterior y fechan la sesión por el día en que cierran) y el
+# resto: +2 h.
+other_offset_hours = 2
+
+[refresh]
+# Pausa mínima entre dos pedidos de velas, para todo el programa. Con 15 s son como mucho 40 pedidos
+# en 10 minutos (IBKR: no más de 60). No puede ser menor que 11 s (54 pedidos en 10 minutos).
+min_request_gap_secs = 15
+# Cada cuánto se vuelve a pedir el último precio (vela de 1 minuto) de cada instrumento.
+quote_secs = 60
+# Cada cuánto se vuelve a pedir el gráfico que se está mirando.
+chart_secs = 60
+# Cada cuánto se vuelven a pedir las velas diarias (para la variación del día).
+daily_secs = 1800
+# Cada cuánto se redibuja la pantalla (la demora que se muestra avanza sola).
+redraw_millis = 1000
+
+[lookback]
+# Hacia atrás desde ahora, en el primer pedido del último precio (velas de 1 minuto, máximo 24 h por
+# la tabla de duraciones de IBKR). Después se pide solo desde la última vela vista.
+quote_hours = 24
+# Ventana de cada gráfico, dentro de la tabla de duraciones de IBKR (1 min: hasta 24 h; 15 min: hasta
+# 168 h; 1 h: hasta 720 h; 1 día: hasta 365 días).
+chart_1m_hours = 24
+chart_15m_hours = 72
+chart_1h_hours = 240
+chart_1d_days = 200
+# Velas diarias que se piden para la variación del día.
+daily_days = 10
