@@ -165,12 +165,11 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
 - **Verificar:** `cd engine && cargo test -p cfds-broker`
 - **Aprobación:** aprobada por el dueño para avanzar (24-11-2026), [#419](https://github.com/AlexeiSouyris/CFDsTrader/issues/419). El Issue #278 sigue abierto.
 - **Criterio pendiente:** "funciona igual contra el simulador y contra la cuenta demo del broker" (falta la cuenta demo).
-- **Oro (XAUUSD, ADR 0013, #418), solo en paper:** ya están la clase `commodity` (#422), la sesión de 23 h de CME (#428), la fórmula de financiación de IG para materias primas (#429), el EUR/USD del BCE (#431), XAUUSD en el catálogo con tope 10:1 (#436) y la conversión con el tipo vigente en el backtest (#445). El broker simulado también convierte con el tipo vigente (#450): sin tipo publicado a la hora de la señal, rechaza la orden (`missing_fx_rate`). **Hoy el oro no opera.** Falta:
-  1. las **horas de entrada** (`config/trading_window.toml`), que elige el dueño: sin ellas no se abre nada;
-  2. los **datos de IG** que siguen `pending` en `config/instruments.toml`: epic, spread típico, valor por punto, tamaño mínimo, tick y horario real;
-  3. la **base de la financiación**: qué futuros usa IG, qué lado la paga y cómo cuenta los fines de semana;
-  4. la **comisión de IG por convertir USD a EUR**;
-  5. con eso, el estudio en backtest y walk-forward del ADR.
+- **Oro (XAUUSD, ADR 0013, #418), solo en paper:** ya están la clase `commodity` (#422), la sesión de 23 h de CME (#428), la fórmula de financiación de IG para materias primas (#429), el EUR/USD del BCE (#431), XAUUSD en el catálogo con tope 10:1 (#436) y la conversión con el tipo vigente en el backtest (#445). El broker simulado también convierte con el tipo vigente (#450): sin tipo publicado a la hora de la señal, rechaza la orden (`missing_fx_rate`). Las **horas de entrada** ya están: de 07:00 a 16:00 UTC (Londres + Nueva York), elegidas por el dueño el 25-11-2026 en #418 («dale, la (a) para el oro»), en `config/trading_window.toml`. **Hoy el oro no opera.** Falta:
+  1. los **datos de IG** que siguen `pending` en `config/instruments.toml`: epic, spread típico, valor por punto, tamaño mínimo, tick y horario real;
+  2. la **base de la financiación**: qué futuros usa IG, qué lado la paga y cómo cuenta los fines de semana;
+  3. la **comisión de IG por convertir USD a EUR**;
+  4. con eso, el estudio en backtest y walk-forward del ADR.
 - **Estado:** **aprobada para avanzar; criterio pendiente.** Sigue **bloqueado por decisión:** ¿se habilitan órdenes contra la cuenta **demo** de IG (sin dinero real, con un ADR), o se cambia el criterio para aprobar solo con el simulador?
 
 ## Fase 8: Paper trading
@@ -244,7 +243,6 @@ Los comandos se corren desde la raíz del repo. Los que leen la base necesitan `
 4. **Acceso desde la red local o el celular:** el gateway escucha en `127.0.0.1:8787` (`config/gateway.toml`). Abrirlo pide decidir cómo, por ejemplo LAN con el token o una VPN.
 5. **Telegram:** las alertas están listas (`config/alerts.toml`); falta decidir si se activan y crear el bot (`TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`).
 6. **Cuentas para votar:** quién vota y cómo se identifica cada uno (spec §1.2). Hace falta para las votaciones de la fase 8b y para las cuentas con 2FA de la fase 10.
-7. **Oro, horas de entrada:** `[entries.hours.CMEGLOBEX_METALS]` en `config/trading_window.toml`. Sin ellas el oro no opera (#418).
 
 ## Decisiones tomadas el 24-11-2026
 
