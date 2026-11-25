@@ -42,8 +42,8 @@ afterEach(() => vi.unstubAllGlobals())
 
 const openSearch = () => {
   render(<App initialStage="app" />)
-  fireEvent.click(screen.getByRole('button', { name: /Buscar una vista o un instrumento/ }))
-  return screen.getByRole('dialog', { name: 'Buscar una vista o un instrumento' })
+  fireEvent.click(screen.getByRole('button', { name: /Buscar o elegir un comando/ }))
+  return screen.getByRole('dialog', { name: 'Paleta de comandos' })
 }
 const input = () => screen.getByRole('combobox', { name: 'Buscar' })
 const options = () => within(screen.getByRole('listbox')).getAllByRole('option')
@@ -173,6 +173,6 @@ describe('buscador del encabezado (#362)', () => {
     act(() => {
       fireEvent.click(screen.getByRole('button', { name: 'Buscar una vista o un instrumento' }))
     })
-    expect(screen.getByRole('dialog', { name: 'Buscar una vista o un instrumento' })).toBeVisible()
+    expect(screen.getByRole('dialog', { name: 'Paleta de comandos' })).toBeVisible()
   })
 })
