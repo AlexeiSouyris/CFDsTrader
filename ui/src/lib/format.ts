@@ -133,3 +133,19 @@ export function signedPercent(fraction: string, digits = 1): string {
   if (/^0(,0*)?$/.test(body)) return body
   return `${text.startsWith('-') ? '−' : '+'}${body}`
 }
+
+/**
+ * Un precio escrito a mano como decimal del contrato ("24800.5"), o `null` si no es un número
+ * positivo (#578). Acepta coma decimal ("24800,5") y separador de miles ("24.800,5" o
+ * "24,800.5"); un solo punto o una sola coma seguidos de 1, 2 o más de 3 cifras son decimales. Solo
+ * lee el texto: no redondea ni hace cuentas.
+ */
+export function parseDecimalInput(text: string): string | null {
+  const t = text.trim().replace(/\s/g, '')
+  let out: string
+  if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(t)) out = t.replace(/\./g, '').replace(',', '.')
+  else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(t)) out = t.replace(/,/g, '')
+  else if (/^\d+([.,]\d+)?$/.test(t)) out = t.replace(',', '.')
+  else return null
+  return /[1-9]/.test(out) ? out : null
+}
