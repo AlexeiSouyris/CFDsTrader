@@ -23,6 +23,15 @@ describe('multigráfico (#540)', () => {
     expect(drawBar()).toBeInTheDocument()
   })
 
+  it('Gráficos lleva al Multigráfico (vive dentro de su sección)', () => {
+    history.replaceState(null, '', '/#graficos')
+    render(<App initialStage="app" />)
+    expect(screen.getByRole('link', { name: 'Multigráfico' })).toHaveAttribute(
+      'href',
+      '#multigrafico',
+    )
+  })
+
   it('por defecto, dos gráficos lado a lado; con 4, una cuadrícula de 2 × 2', () => {
     render(<MultichartView />)
     const grid = () => document.querySelector('[data-chart-layout]')!

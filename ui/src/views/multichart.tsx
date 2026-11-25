@@ -33,7 +33,7 @@
  * con un solo gráfico (`single`). La paleta de comandos cambia el timeframe del gráfico activo.
  */
 import { StaleNote } from '@/components/ui/data-honesty'
-import { Crosshair } from 'lucide-react'
+import { Crosshair, LayoutGrid } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { ChartCanvas, FloatingBar } from '@/components/ui/chart-canvas'
@@ -262,6 +262,16 @@ export function MultichartView({ single = false }: { single?: boolean }) {
           <span className="text-[11px] text-muted-foreground max-sm:hidden">
             {SOURCE[current.source]}
           </span>
+        )}
+        {single && (
+          // el Multigráfico vive dentro de Gráficos (#581): se llega desde acá
+          <a
+            href="#multigrafico"
+            className="inline-flex h-8 items-center gap-1.5 rounded-section border border-border px-2.5 text-[12px] font-bold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <LayoutGrid className="size-3.5" aria-hidden />
+            Multigráfico
+          </a>
         )}
         {count > 1 && (
           <button
