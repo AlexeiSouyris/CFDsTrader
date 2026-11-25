@@ -26,7 +26,7 @@ const HeadingLevel = createContext<2 | 3>(2)
 function Card({ title, children }: { title?: ReactNode; children: ReactNode }) {
   const Heading = useContext(HeadingLevel) === 3 ? 'h3' : 'h2'
   return (
-    <section className="glass relative min-w-0 rounded-[20px] p-4 has-[[role=dialog]]:z-30">
+    <section className="glass relative min-w-0 rounded-[20px] p-4">
       {title && <Heading className="mb-3 text-[14px] font-bold">{title}</Heading>}
       {children}
     </section>

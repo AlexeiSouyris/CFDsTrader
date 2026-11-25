@@ -256,12 +256,13 @@ export function MultichartView() {
               key={i}
               data-chart-slot={i}
               data-active={i === active || undefined}
+              aria-current={i === active ? 'true' : undefined}
               aria-label={`Gráfico ${i + 1}: ${saved.slots[i].instrument} ${saved.slots[i].timeframe}`}
               onPointerDownCapture={() => setActive(i)}
               onFocusCapture={() => setActive(i)}
+              // el activo se marca con el punto del encabezado (#570), sin borde alrededor del panel
               className={cn(
-                'glass relative min-w-0 rounded-[20px] p-3 ring-offset-0 transition-shadow has-[[role=dialog]]:z-30',
-                i === active ? 'ring-2 ring-primary' : 'ring-1 ring-transparent',
+                'glass relative min-w-0 rounded-[20px] p-3',
                 i !== active && 'max-lg:hidden',
               )}
             >
@@ -275,8 +276,23 @@ export function MultichartView() {
                   type="button"
                   aria-pressed={i === active}
                   onClick={() => setActive(i)}
-                  className="shrink-0 rounded-md text-[13px] font-extrabold tracking-tight focus-visible:outline-2 focus-visible:outline-ring"
+                  className={cn(
+                    'inline-flex shrink-0 items-center gap-1.5 rounded-md text-[13px] font-extrabold tracking-tight transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+                    i === active
+                      ? 'text-foreground'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
                 >
+                  <span
+                    aria-hidden
+                    data-active-dot
+                    className={cn(
+                      'size-2 rounded-full transition-colors',
+                      i === active
+                        ? 'bg-[var(--chart-accent)] shadow-[0_0_0_3px_color-mix(in_srgb,var(--chart-accent)_22%,transparent)]'
+                        : 'border border-muted-foreground/50',
+                    )}
+                  />
                   Gráfico {i + 1}
                   <span className="sr-only">{i === active ? ' (activo)' : ', activar'}</span>
                 </button>

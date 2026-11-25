@@ -54,7 +54,7 @@ export function ProposalCard({
   return (
     <article
       aria-label={`Propuesta ${p.instrument_id} ${long ? 'largo' : 'corto'}`}
-      className="glass relative @container min-w-0 rounded-[20px] p-4 has-[[role=dialog]]:z-30 sm:p-5"
+      className="glass relative @container min-w-0 rounded-[20px] p-4 sm:p-5"
     >
       <header className="flex flex-wrap items-center gap-2">
         <h3 className="text-[18px] leading-none font-extrabold tracking-tight">
