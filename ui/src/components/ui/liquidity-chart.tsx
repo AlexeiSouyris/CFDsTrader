@@ -24,9 +24,14 @@
  * Multigráfico. Los controles (niveles, rango, herramientas y, si no se maneja desde afuera, el
  * tipo de gráfico) se dibujan en `controlsTarget` —la barra de arriba del Multigráfico— solo
  * cuando el gráfico es el activo. Sin `compact`, el gráfico se ve como siempre.
+ *
+ * Dibujos del usuario (#543, prop `drawTool`, `chart-drawings.tsx`): línea horizontal, línea de
+ * tendencia y rectángulo, anclados a hora UTC y precio, guardados en el navegador por instrumento.
+ * Son solo visuales. Sin `drawTool`, el gráfico no muestra ni toma dibujos.
  */
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Trash2 } from 'lucide-react'
 
 import {
   CHART_MODES,
@@ -36,6 +41,7 @@ import {
   useChartMeasure,
   type ChartMode,
 } from '@/components/ui/chart-measure'
+import { DrawingInput, DrawingShapes } from '@/components/ui/chart-drawings'
 import { ChartFollower } from '@/components/ui/chart-follower'
 import { ChartNavBar, ViewportLive } from '@/components/ui/chart-nav-bar'
 import { matchRange, useChartNav, useViewport, type HistoryState } from '@/components/ui/chart-nav'
@@ -55,6 +61,15 @@ import {
   MARKER_TOOL,
   VIX_LABEL,
 } from '@/lib/analysis-layers'
+import {
+  drawingStore,
+  posAt,
+  timeAt,
+  useDrawings,
+  type Anchor,
+  type Drawing,
+  type DrawTool,
+} from '@/lib/chart-drawings'
 import { niceTicks, renderWindow, timeTicks, visibleRange } from '@/lib/chart-viewport'
 import { dateTimeUtc, decimal, timeTickLabel } from '@/lib/format'
 import { fvgKey, levelKey, levelName, levelShort, STATE_LABEL } from '@/lib/liquidity-labels'
@@ -119,6 +134,8 @@ const trimZeros = (t: string) => (t.includes('.') ? t.replace(/\.?0+$/, '') : t)
 /** Un rótulo del eje de precio: un nivel de liquidez o una línea de una herramienta. */
 type AxisLabel = { key: string; text: string; title: string; color: string; y: number }
 
+const NO_DRAWINGS: readonly Drawing[] = []
+
 const STATE_STYLE: Record<LevelState, { stroke: string; dash?: string; opacity: number }> = {
   intact: { stroke: 'var(--chart-accent)', opacity: 0.95 },
   swept: { stroke: 'var(--chart-signal)', dash: '5 3', opacity: 0.95 },
@@ -142,6 +159,8 @@ export function LiquidityChart({
   onModeChange,
   compact = false,
   controlsTarget,
+  drawTool,
+  onDrawToolChange,
   className,
 }: {
   instrument: string
@@ -185,6 +204,13 @@ export function LiquidityChart({
    * esto (un gráfico que no es el activo), no se dibujan.
    */
   controlsTarget?: HTMLElement | null
+  /**
+   * Dibujos del usuario (#543): la herramienta elegida (`none` = navegar y seleccionar). Con
+   * esto, el gráfico muestra los dibujos guardados del instrumento y deja dibujar; al terminar un
+   * dibujo avisa con `onDrawToolChange('none')`. Sin esto, no hay capa de dibujos.
+   */
+  drawTool?: DrawTool
+  onDrawToolChange?: (t: DrawTool) => void
   className?: string
 }) {
   const ranges = RANGES[timeframe]
@@ -318,6 +344,22 @@ export function LiquidityChart({
   /** borde derecho de las velas que cerraron a esa hora, en lo dibujado */
   const xAt = (iso: string | null) => (idxAt(iso) - base.start) * slot
   const lastClose = n ? new Date(ends[n - 1]) : null
+
+  // Dibujos del usuario (#543): cada punto es una hora UTC y un precio; se ubican en el eje de
+  // índices con las velas que hay (también los de otro timeframe del mismo instrumento).
+  const drawOn = drawTool !== undefined
+  const saved = useDrawings(instrument)
+  const drawings: readonly Drawing[] = drawOn && n > 0 ? saved : NO_DRAWINGS
+  const [picked, setPicked] = useState<string | null>(null)
+  const selected = drawings.some((d) => d.id === picked) ? picked : null
+  const startMs = useMemo(() => all.map((bar) => Date.parse(bar.start)), [all])
+  const anchorX = (p: Anchor, m: { start: number; slot: number }) =>
+    (posAt(startMs, ends, Date.parse(p.t)) - m.start) * m.slot
+  const focusChart = () => svgRef.current?.focus({ preventScroll: true })
+  const removeSelected = () => {
+    if (selected) drawingStore.remove(instrument, selected)
+    setPicked(null)
+  }
 
   // Activo = intacto y sin vencer (`expired_at` de liquidity_level.v1). Los vencidos se dibujan
   // atenuados hasta la vela en que vencieron.
@@ -499,7 +541,19 @@ export function LiquidityChart({
             ruler ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing',
           )}
           {...nav.handlers}
-          onKeyDown={nav.onKeyDown}
+          onPointerDown={(e) => {
+            // un clic fuera de los dibujos deja de seleccionar
+            if (selected) setPicked(null)
+            nav.handlers.onPointerDown(e)
+          }}
+          onKeyDown={(e) => {
+            if (selected && (e.key === 'Delete' || e.key === 'Backspace')) {
+              e.preventDefault()
+              return removeSelected()
+            }
+            if (selected && e.key === 'Escape') setPicked(null)
+            nav.onKeyDown(e)
+          }}
         >
           <defs>
             <clipPath id={clipPrice}>
@@ -839,6 +893,22 @@ export function LiquidityChart({
                   </g>
                 )
               })}
+
+              {/* dibujos del usuario (#543): siguen al encuadre con la capa de precio */}
+              {drawOn && (
+                <DrawingShapes
+                  drawings={drawings}
+                  xy={(p) => ({ x: anchorX(p, baseMap), y: yP(p.p) })}
+                  span={[-5 * width, 6 * width]}
+                  digits={digits}
+                  selected={selected}
+                  selectable={drawTool === 'none' && !ruler}
+                  onSelect={(id) => {
+                    setPicked(id)
+                    focusChart()
+                  }}
+                />
+              )}
             </g>
           </g>
 
@@ -893,7 +963,47 @@ export function LiquidityChart({
           </g>
 
           <ChartFollower store={measure.store} plot={measure.plot} />
+
+          {drawOn && drawTool !== 'none' && !ruler && n > 0 && (
+            <DrawingInput
+              key={drawTool}
+              tool={drawTool}
+              svgRef={svgRef}
+              width={width}
+              height={height}
+              plotW={plotW}
+              top={top}
+              bottom={top + plotH}
+              toAnchor={(x, y) => {
+                const m = vp.link.geo().m
+                const t = timeAt(startMs, ends, m.start + x / m.slot)
+                const p = m.lo + (1 - (y - m.top) / m.h) * (m.hi - m.lo)
+                if (!Number.isFinite(t) || !Number.isFinite(p)) return null
+                return { t: new Date(t).toISOString(), p }
+              }}
+              xy={(p) => {
+                const m = vp.link.geo().m
+                return { x: anchorX(p, m), y: m.y(p.p) }
+              }}
+              onCreate={(d) => {
+                drawingStore.add(instrument, d)
+                setPicked(d.id)
+                onDrawToolChange?.('none')
+                focusChart()
+              }}
+            />
+          )}
         </svg>
+        {selected && (
+          <button
+            type="button"
+            onClick={removeSelected}
+            className="absolute top-2 left-2 inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-background/90 px-3 text-[11.5px] font-bold text-foreground shadow-sm focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <Trash2 className="size-3.5" aria-hidden />
+            Borrar dibujo
+          </button>
+        )}
         <ChartNavBar
           vp={vp}
           ruler={ruler}

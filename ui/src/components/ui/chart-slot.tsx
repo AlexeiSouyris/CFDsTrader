@@ -5,6 +5,7 @@
  * (`liquidity_view.v1`); acá no se calcula nada.
  */
 import type { ChartMode } from '@/components/ui/chart-measure'
+import type { DrawTool } from '@/lib/chart-drawings'
 import { LiquidityChart } from '@/components/ui/liquidity-chart'
 import type { SlotData } from '@/lib/chart-slots'
 import { fetchOlderBars } from '@/lib/liquidity-api'
@@ -21,6 +22,8 @@ export function SlotChart({
   onMode,
   compact,
   controlsTarget,
+  draw,
+  onDraw,
 }: {
   slot: SlotData
   height: number
@@ -32,6 +35,9 @@ export function SlotChart({
   /** modo compacto del Multigráfico (#545): ver `LiquidityChart` */
   compact?: boolean
   controlsTarget?: HTMLElement | null
+  /** dibujos del usuario (#543): ver `LiquidityChart`; sin esto, no hay capa de dibujos */
+  draw?: DrawTool
+  onDraw?: (t: DrawTool) => void
 }) {
   const { sel, data, live } = slot
   if (!data)
@@ -69,6 +75,8 @@ export function SlotChart({
       onModeChange={onMode}
       compact={compact}
       controlsTarget={controlsTarget}
+      drawTool={draw}
+      onDrawToolChange={onDraw}
     />
   )
 }
