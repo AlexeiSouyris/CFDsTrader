@@ -248,7 +248,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         let spread_source = match source {
             CandleSource::Ig => cfds_journal::SpreadSource::Measured,
-            CandleSource::Futures => cfds_journal::SpreadSource::Config,
+            // IBKR (#630): `prepare` ya lo rechaza; sin spread medido, como los futuros.
+            CandleSource::Futures | CandleSource::Ibkr => cfds_journal::SpreadSource::Config,
         };
         let run = run_record(
             run_id,

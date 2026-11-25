@@ -200,6 +200,7 @@ impl PgStore {
                 self.futures_candles(source, base, timeframe, from, to)
                     .await?
             }
+            CandleFeed::Ibkr(f) => self.ibkr_candles(&f, timeframe, from, to).await?,
         };
         for c in &mut candles {
             c.instrument_id = out.clone();
@@ -227,6 +228,18 @@ impl PgStore {
             .bind(before)
             .fetch_one(self.pool())
             .await?),
+            CandleFeed::Ibkr(f) => Ok(sqlx::query_scalar(
+                "SELECT max(start_at) FROM ibkr_bars
+                 WHERE source = $1 AND instrument_id = $2 AND what_to_show = $3
+                   AND bar_size = $4 AND start_at <= $5",
+            )
+            .bind(f.source)
+            .bind(f.instrument)
+            .bind(f.what_to_show)
+            .bind(timeframe.as_str())
+            .bind(before)
+            .fetch_one(self.pool())
+            .await?),
         }
     }
 }
@@ -237,4 +250,14 @@ impl PgStore {
 pub enum CandleFeed<'a> {
     Ig,
     Futures(&'a str),
+    /// Las barras de IBKR de un instrumento de `ibkr_bars` (#630), por ejemplo MNQ.
+    Ibkr(IbkrFeed<'a>),
+}
+
+/// Qué barras de `ibkr_bars` (#630): fuente, instrumento (por ejemplo `MNQ`) y precio.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IbkrFeed<'a> {
+    pub source: &'a str,
+    pub instrument: &'a str,
+    pub what_to_show: &'a str,
 }
