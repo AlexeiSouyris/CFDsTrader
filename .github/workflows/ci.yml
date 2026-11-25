@@ -174,12 +174,44 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  # Las tablas generadas (registro de módulos y índice de contratos) tienen que estar al día (#669).
+  docs:
+    name: docs (tablas generadas)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 tools/docs_index.py --check
+
+  # Aviso (no bloquea) si el PR pasa las 400 líneas de CLAUDE.md §2 sin contar tests, fixtures,
+  # lockfiles, datos ni docs/modules (#669). No entra en `CI ok`.
+  pr-size:
+    name: tamaño del PR (aviso)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 tools/pr_size.py "$BASE" "$HEAD"
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+
   # Un solo resultado para decidir el merge: falla si algún job falló o se canceló, y pasa si
   # los que no hacían falta quedaron salteados (#584).
   ci-ok:
     name: CI ok
     if: always()
-    needs: [changes, engine, engine-integration, intelligence, ui]
+    needs: [changes, engine, engine-integration, intelligence, ui, docs]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

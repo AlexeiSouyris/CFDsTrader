@@ -68,9 +68,9 @@ Monorepo híbrido. Decisión registrada en `docs/decisions/0001-arquitectura-hib
 
 ## 3. Registro de módulos (evita duplicados)
 
-`docs/ARCHITECTURE.md` tiene una tabla **Registro de módulos**. Reglas:
-- Si tu PR **crea** un módulo nuevo, agregá su fila en el mismo PR (nombre, ruta, responsabilidad, estado).
-- Si tu PR **cambia la responsabilidad** de un módulo, actualizá su fila.
+`docs/ARCHITECTURE.md` tiene una tabla **Registro de módulos**, generada desde una ficha por módulo en `docs/modules/<módulo>.md` (formato en `docs/modules/README.md`). Reglas:
+- Si tu PR **crea** un módulo nuevo, agregá su ficha en el mismo PR (nombre, ruta, responsabilidad, estado) y regenerá la tabla con `python3 tools/docs_index.py`.
+- Si tu PR **cambia la responsabilidad** de un módulo, actualizá su ficha (y regenerá la tabla).
 - Antes de crear un archivo o módulo nuevo, verificá que su responsabilidad no esté ya en la tabla.
 
 ## 4. Calidad (todo PR debe pasar)
