@@ -129,4 +129,14 @@ describe('Trofeos de proceso sin datos todavía (#616)', () => {
     const text = container.textContent ?? ''
     expect(text).not.toMatch(/€|\d R\b|ganador|ganancia (segura|garantizada)|logrado el/i)
   })
+
+  it('van en una grilla de líneas finas, cada una con su medalla, no en tarjetas (#632)', () => {
+    render(<CompetitionView />)
+    const badges = within(screen.getByRole('list', { name: 'Trofeos' })).getAllByRole('listitem')
+    for (const b of badges) {
+      expect(b.className).not.toMatch(/rounded-section|\bpanel\b/)
+      expect(b.querySelector('svg')).not.toBeNull()
+      expect(b).toHaveTextContent(/sin datos/i)
+    }
+  })
 })
