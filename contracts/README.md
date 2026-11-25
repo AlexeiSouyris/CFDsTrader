@@ -279,7 +279,7 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - **Instantáneas:** hay fila nueva solo cuando el par (`forecast_raw`, `previous_raw`) cambia respecto de la última instantánea del mismo evento; `seen_at` es la primera lectura con ese valor. La clave es `(source, event, country, scheduled_at, seen_at)` y no el par de valores, para que un valor que va de A a B y vuelve a A quede como tres filas.
 - **Anti look-ahead:** para la sorpresa vale la **última instantánea con `seen_at` estrictamente anterior a `scheduled_at`**. Las vistas después se guardan (sirven para ver revisiones del `previous`) pero no cuentan. El dato real existe desde `released_at` para un estudio que simula operar en tiempo real y desde `retrieved_at` para una decisión en vivo (`CHECK retrieved_at >= released_at`).
 - **`first` y `revised`:** la API del BLS da el valor vigente. Es `first` solo si se leyó antes de la publicación siguiente de la misma serie; si no, `revised`, y no entra en la sorpresa. Un solo `first` por serie y mes (índice único parcial).
-- **La sorpresa no se guarda:** la calcula Rust (#698) al leer las dos tablas.
+- **La sorpresa no se guarda:** la calcula Rust (`cfds_market_data::surprise`, #698) al leer las dos tablas. Rust las lee con `cfds_core::CalendarEstimate` y `cfds_core::ReleaseActual`, que aceptan lo mismo que los contratos (y `ReleaseActual` exige además `retrieved_at >= released_at`, como la tabla).
 - Tablas de **solo agregar** (`infra/migrations/0051_calendar_surprise.sql`, triggers). Clave natural de `release_actuals`: `(source, series_id, reference_period, vintage, value)`.
 
 ### Histórico de futuros (#247, ADR 0011 en propuesta)
