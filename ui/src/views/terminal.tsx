@@ -738,10 +738,32 @@ export function TerminalView({ member }: { member: Member }) {
         className="min-w-0 rounded-section border border-border bg-section p-density"
       >
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-2">
+          {/*
+           * Pestañas con el patrón de WAI-ARIA (#617): solo la elegida entra con Tab; las flechas,
+           * Inicio y Fin pasan a otra y la eligen. La línea de abajo es una sombra (no un borde con
+           * margen negativo) para que la lista no muestre una barra de desplazamiento suelta.
+           */}
           <div
             role="tablist"
             aria-label="Paneles de la cuenta"
-            className="flex max-w-full gap-1 overflow-x-auto border-b border-border"
+            onKeyDown={(e) => {
+              const i = TABS.indexOf(tab)
+              const next =
+                e.key === 'ArrowRight'
+                  ? (i + 1) % TABS.length
+                  : e.key === 'ArrowLeft'
+                    ? (i - 1 + TABS.length) % TABS.length
+                    : e.key === 'Home'
+                      ? 0
+                      : e.key === 'End'
+                        ? TABS.length - 1
+                        : null
+              if (next === null) return
+              e.preventDefault()
+              setTab(TABS[next])
+              document.getElementById(`terminal-tab-${TABS[next]}`)?.focus()
+            }}
+            className="flex max-w-full gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_var(--border)]"
           >
             {TABS.map((t) => (
               <button
@@ -751,9 +773,10 @@ export function TerminalView({ member }: { member: Member }) {
                 id={`terminal-tab-${t}`}
                 aria-selected={t === tab}
                 aria-controls="terminal-tabpanel"
+                tabIndex={t === tab ? 0 : -1}
                 onClick={() => setTab(t)}
                 className={cn(
-                  '-mb-px min-h-8 shrink-0 border-b-2 px-2.5 text-[11px] font-bold tracking-[0.06em] whitespace-nowrap uppercase transition-colors focus-visible:outline-2 focus-visible:outline-ring',
+                  'min-h-8 shrink-0 border-b-2 px-2.5 text-[11px] font-bold tracking-[0.06em] whitespace-nowrap uppercase transition-colors focus-visible:outline-2 focus-visible:outline-ring',
                   t === tab
                     ? 'border-accent text-foreground'
                     : 'border-transparent text-muted-foreground hover:text-foreground',
