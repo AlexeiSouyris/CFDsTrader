@@ -12,6 +12,7 @@ import { MetricBento, type Metric } from '@/components/ui/metric-bento'
 import type { BacktestRun } from '@/lib/backtest-contracts'
 import { REGISTRY, registryPrograms, type RegistryRow } from '@/lib/results-registry'
 import { dayYear, signedPct, tone } from '@/lib/run-format'
+import { cn } from '@/lib/utils'
 
 const ALL = 'Todas'
 const STRATEGY_KEY = 'cfds.home.strategy'
@@ -101,26 +102,52 @@ export function RecentResults({
             motor.
           </p>
         </div>
-        <label
-          htmlFor={selectId}
-          className="grid gap-1 text-[11px] font-bold text-muted-foreground"
-        >
-          Estrategia en pantalla
-          <select
-            id={selectId}
-            value={strategy}
-            onChange={(e) => onStrategy(e.target.value)}
-            className="glass-strong max-w-[min(20rem,85vw)] rounded-full px-3 py-2 text-[13px] font-semibold text-foreground"
-          >
-            <option value={ALL}>{ALL}</option>
-            {programs.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
+      {/*
+       * Elegir la estrategia en pantalla (#645, patrón *Glass Radio Group* de 21st.dev,
+       * https://21st.dev/@ravikatiyar162/components/glass-radio-group, reescrito): píldoras de
+       * vidrio con radios de verdad (flechas del teclado y lector de pantalla), en una fila que se
+       * desliza si no entra. Solo filtra lo que se ve.
+       */}
+      <fieldset className="glass min-w-0 rounded-full p-1">
+        <legend className="sr-only">Estrategia en pantalla</legend>
+        <div
+          role="presentation"
+          className="flex min-w-0 gap-1 overflow-x-auto [mask-image:linear-gradient(to_right,#000_calc(100%-2.5rem),transparent)] pr-8 [scrollbar-width:none]"
+        >
+          {[ALL, ...programs].map((p) => {
+            const on = p === strategy
+            return (
+              <label
+                key={p}
+                className={cn(
+                  'relative flex min-h-9 shrink-0 cursor-pointer items-center rounded-full px-3.5 text-[12.5px] font-semibold whitespace-nowrap transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2 has-[:focus-visible]:outline-ring',
+                  on
+                    ? 'glass-strong text-foreground'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <input
+                  type="radio"
+                  name={selectId}
+                  value={p}
+                  checked={on}
+                  onChange={(e) => {
+                    onStrategy(p)
+                    // con las flechas, la píldora elegida entra en la fila visible
+                    e.currentTarget.parentElement?.scrollIntoView?.({
+                      block: 'nearest',
+                      inline: 'nearest',
+                    })
+                  }}
+                  className="sr-only"
+                />
+                {p}
+              </label>
+            )
+          })}
+        </div>
+      </fieldset>
       <p className="px-1 text-[11px] text-muted-foreground">
         El selector solo filtra lo que se ve. Qué estrategia corre en simulación lo decide y lo
         valida el motor.

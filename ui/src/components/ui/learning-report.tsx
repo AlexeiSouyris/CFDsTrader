@@ -168,14 +168,14 @@ export function LearningReportView({
         {r.change_proposals.length === 0 ? (
           <p className="text-[12px] text-muted-foreground">El informe no propone cambios.</p>
         ) : (
-          <ul className="grid gap-2" aria-label="Propuestas de cambio">
+          <ul className="grid" aria-label="Propuestas de cambio">
             {r.change_proposals.map((p) => {
               const vote = voteStatus?.(p.change_id) ?? PENDING
               return (
                 <li
                   key={p.change_id}
                   data-change={p.change_id}
-                  className="grid gap-1 rounded-xl border border-border px-3 py-2 text-[12px]"
+                  className="grid gap-1 border-b border-border px-1 py-2 text-[12px] first:border-t"
                 >
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="font-bold">{KIND_LABEL[p.kind]}</span>

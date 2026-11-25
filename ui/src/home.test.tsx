@@ -121,8 +121,8 @@ describe('puertas a las secciones', () => {
 
   it('el atajo no salta mientras se usa un control ni con modificadores', () => {
     render(<App initialStage="app" />)
-    const select = screen.getByRole('combobox', { name: 'Estrategia en pantalla' })
-    fireEvent.keyDown(select, { key: '1' })
+    const radio = screen.getByRole('radio', { name: 'Todas' })
+    fireEvent.keyDown(radio, { key: '1' })
     fireEvent.keyDown(window, { key: '1', ctrlKey: true })
     expect(heading()).toHaveTextContent('Inicio')
   })
@@ -166,8 +166,9 @@ describe('resultados recientes y selector de estrategia', () => {
 
   it('el selector solo filtra lo que se ve y se recuerda', () => {
     const { unmount } = render(<App initialStage="app" />)
-    const select = screen.getByRole('combobox', { name: 'Estrategia en pantalla' })
-    fireEvent.change(select, { target: { value: 'ML' } })
+    // píldoras de vidrio con radios de verdad (#645), agrupadas bajo "Estrategia en pantalla"
+    const group = screen.getByRole('group', { name: 'Estrategia en pantalla' })
+    fireEvent.click(within(group).getByRole('radio', { name: 'ML' }))
     const ml = REGISTRY.filter((r) => r.programa === 'ML')
     const items = within(registry()).getAllByRole('listitem')
     expect(items).toHaveLength(Math.min(5, ml.length))
@@ -182,7 +183,8 @@ describe('resultados recientes y selector de estrategia', () => {
     ).toHaveLength(BACKTEST_RUNS.length)
     unmount()
     render(<App initialStage="app" />)
-    expect(screen.getByRole('combobox', { name: 'Estrategia en pantalla' })).toHaveValue('ML')
+    expect(screen.getByRole('radio', { name: 'ML' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Todas' })).not.toBeChecked()
   })
 
   it('las corridas: de ejemplo con sello sin motor; del motor, en el orden en que llegan', async () => {
