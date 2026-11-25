@@ -110,6 +110,13 @@ export function priceDigits(texts: readonly string[]): number {
  */
 export const price = (text: string, digits: number) => decimal(text, digits)
 
+/**
+ * El apalancamiento del motor como "5,15:1"; sin posiciones el motor manda 0 y se muestra "—"
+ * (decía "0:1", QA terminal #20). Solo formato.
+ */
+export const leverageText = (text: string) =>
+  /^0*(\.0*)?$/.test(text.trim()) ? '—' : `${decimal(text)}:1`
+
 export const isNegative = (text: string) => text.trim().startsWith('-')
 
 /**

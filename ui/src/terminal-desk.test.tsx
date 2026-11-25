@@ -161,7 +161,7 @@ describe('terminal de trading completa (#552)', () => {
   it('la lista de mercados muestra el último cierre del gateway, sin inventar variación', async () => {
     gateway()
     render(<TerminalView member={CURRENT_MEMBER} />)
-    const de40 = await within(markets()).findByText('100,5')
+    const de40 = await within(markets()).findByText('100,50')
     const row = de40.closest('button')!
     expect(row).toHaveTextContent('DE40')
     expect(row).toHaveTextContent('Alemania 40')

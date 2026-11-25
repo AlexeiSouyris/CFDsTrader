@@ -163,7 +163,7 @@ describe('Terminal con IBKR (#556)', () => {
     expect(mnq).toHaveTextContent('−0,48 %')
     // la hora del cierre de la vela, de otro día: con la fecha
     expect(mnq).toHaveTextContent(/24\/11 .*UTC/)
-    expect(within(mnq).getByText('IBKR · ~14 min de atraso')).toBeInTheDocument()
+    expect(within(mnq).getByText('IBKR · cerró hace ~14 min')).toBeInTheDocument()
     const mes = within(ibkrGroup()).getByText('MES').closest('button')!
     expect(mes).not.toHaveTextContent('%')
     const qqq = within(ibkrGroup()).getByText('QQQ').closest('button')!
@@ -180,7 +180,9 @@ describe('Terminal con IBKR (#556)', () => {
     render(<TerminalView member={CURRENT_MEMBER} />)
     fireEvent.click(await within(ibkrGroup()).findByText('MNQ'))
     await waitFor(() => expect(gw.urls).toContain('/api/v1/ibkr/bars?instrument=MNQ&timeframe=15m'))
-    expect(await screen.findByText(/IBKR · MNQZ6 · ~14 min de atraso · solo datos/)).toBeVisible()
+    expect(
+      await screen.findByText(/IBKR · MNQZ6 · última vela hace ~14 min · solo datos/),
+    ).toBeVisible()
     expect(screen.getByText('MNQ · 15 m · IBKR · MNQZ6 · solo datos')).toBeInTheDocument()
 
     const note = document.querySelector('[data-ibkr-not-tradable]')!

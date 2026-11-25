@@ -27,6 +27,24 @@ export const DEFAULT_SLOTS: ChartSel[] = [
   { instrument: 'US30', timeframe: '1h' },
 ]
 
+/**
+ * Con el gateway en vivo, si los lugares siguen como vienen (nadie los cambió) y IBKR tiene
+ * instrumentos, abren los de IBKR: hoy son los únicos con velas reales y frescas, y los del
+ * broker simulado arrancaban vacíos (QA terminal #23, #275). Los primeros en 15 m y el resto en
+ * 1 h. `null` si no hay que cambiar nada. Sin gateway no se llama: queda el ejemplo de siempre.
+ */
+export function preferIbkr(slots: readonly ChartSel[], ibkr: readonly string[]): ChartSel[] | null {
+  const untouched = slots.every(
+    (s, i) => selKey(s) === selKey(DEFAULT_SLOTS[i]) && s.timeframe === DEFAULT_SLOTS[i].timeframe,
+  )
+  if (!untouched || ibkr.length === 0) return null
+  return DEFAULT_SLOTS.map((_, i) => ({
+    instrument: ibkr[i % ibkr.length],
+    timeframe: i < ibkr.length ? '15m' : '1h',
+    feed: 'ibkr' as const,
+  }))
+}
+
 const timeframesOf = (feed?: 'ibkr'): readonly ChartTimeframe[] =>
   feed === 'ibkr' ? IBKR_TIMEFRAMES : TIMEFRAMES
 

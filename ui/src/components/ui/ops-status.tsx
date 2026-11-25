@@ -8,7 +8,7 @@ import { OctagonAlert } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 
 import { Term } from '@/components/ui/term'
-import { dateTimeUtc, decimal } from '@/lib/format'
+import { dateTimeUtc, decimal, leverageText } from '@/lib/format'
 import type { Gate, OpsEvent, OpsStatus } from '@/lib/ops-api'
 import { cn } from '@/lib/utils'
 
@@ -109,7 +109,7 @@ export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
               className={a.kill_switch.active ? 'border-down bg-down text-white' : 'border-border'}
             >
               <Term id="kill-switch">Kill switch</Term>{' '}
-              {a.kill_switch.active ? 'ACTIVO' : 'apagado'}
+              {a.kill_switch.active ? 'ACTIVO' : 'inactivo'}
             </Chip>
           )}
         </div>
@@ -151,7 +151,7 @@ export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
             </div>
             <p className="text-[11.5px] text-muted-foreground tabular-nums sm:whitespace-nowrap">
               <Term id="apalancamiento">Apalancamiento</Term>{' '}
-              <strong className="font-bold text-foreground">{decimal(a.leverage)}:1</strong> ·{' '}
+              <strong className="font-bold text-foreground">{leverageText(a.leverage)}</strong> ·{' '}
               {a.open_positions} de {a.max_positions} posiciones
             </p>
           </>

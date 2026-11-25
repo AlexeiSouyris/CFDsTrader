@@ -100,7 +100,7 @@ describe('estado de la operación (#314)', () => {
     render(<TerminalView member={CURRENT_MEMBER} />)
     await waitFor(() => expect(bar()).toHaveAttribute('data-ops-status', 'ready'))
     expect(bar()).toHaveTextContent('Acepta órdenes')
-    expect(bar()).toHaveTextContent('Kill switch apagado')
+    expect(bar()).toHaveTextContent('Kill switch inactivo')
     expect(bar()).toHaveTextContent('40,0 % del máximo (3 % del capital)')
     expect(bar()).toHaveTextContent('1,35:1')
     expect(bar()).toHaveTextContent('Reconciliación al arrancar: limpia (3 coinciden)')
