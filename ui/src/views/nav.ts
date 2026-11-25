@@ -37,7 +37,8 @@ export const VIEWS: ShellView[] = [
     label: 'Terminal',
     short: 'Terminal',
     icon: CandlestickChart,
-    description: 'Gráfico, propuestas, ticket y posiciones. Solo simulación, con datos de ejemplo.',
+    description:
+      'Mercados, gráfico, ticket, posiciones, órdenes y actividad. Solo simulación: no se envía ninguna orden real.',
   },
   {
     id: 'propuestas',

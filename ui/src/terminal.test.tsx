@@ -105,6 +105,7 @@ describe('terminal de trading (fase 10, #275)', () => {
   it('con el kill switch activo avisa y no deja operar ni aprobar', () => {
     render(<TerminalView member={MEMBERS[0]} />)
     fireEvent.click(screen.getByRole('button', { name: 'Kill switch activo' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Propuestas' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Kill switch activo')
     expect(within(ticket()).getByRole('button', { name: /Validar con el motor/ })).toBeDisabled()
     expect(screen.queryByRole('button', { name: /Aprobar/ })).not.toBeInTheDocument()
@@ -113,6 +114,7 @@ describe('terminal de trading (fase 10, #275)', () => {
 
   it('las propuestas muestran la probabilidad con su rango, nunca como certeza', () => {
     render(<TerminalView member={CURRENT_MEMBER} />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Propuestas' }))
     const props = screen.getByRole('region', { name: 'Propuestas' })
     expect(props).toHaveTextContent(/rango \d+–\d+ %/)
     expect(props).toHaveTextContent('no una promesa')
