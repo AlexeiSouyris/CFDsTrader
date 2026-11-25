@@ -23,7 +23,7 @@
 use cfds_core::NewsInterpretation;
 use cfds_core::{Candle, InstrumentId};
 use cfds_indicators::wilder_atr;
-use cfds_risk::{Account, Rejection, Request, check};
+use cfds_risk::{Account, OpenPosition, Rejection, Request, check};
 use cfds_strategy::{Analysis, Side, news_adjustment};
 use chrono::{DateTime, Datelike, NaiveDate, Utc, Weekday};
 use rust_decimal::Decimal;
@@ -295,8 +295,23 @@ pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioErr
             kill_switch: false,
             open_positions: open
                 .iter()
-                .map(|o| markets[o.market].setup.instrument.clone())
-                .collect(),
+                .map(|o| {
+                    let s = &markets[o.market].setup;
+                    // Hasta el stop original con el tamaño completo: cota conservadora para el
+                    // tope por grupo correlacionado (#670); sin grupos no se usa.
+                    let adverse = match o.record.side {
+                        Side::Long => o.record.entry_price - o.record.stop,
+                        Side::Short => o.record.stop - o.record.entry_price,
+                    }
+                    .max(Decimal::ZERO);
+                    Ok(OpenPosition {
+                        instrument: s.instrument.clone(),
+                        risk: o.record.size * adverse / fx(s, now)?,
+                    })
+                })
+                .collect::<Result<Vec<_>, PortfolioError>>()?,
+            // Volatilidad objetivo apagada en la config (#671): se conecta cuando se apruebe.
+            realized_vol_pct: None,
         };
         let request = Request {
             instrument: setup.instrument.clone(),

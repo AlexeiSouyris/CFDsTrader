@@ -445,7 +445,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let calendar = cfds_market_data::ExchangeCalendar::load(&config_dir(), catalog.exchange_map())?;
     let broker_cfg = BrokerConfig::from_toml(
         BROKER,
-        risk,
+        risk.clone(),
         backtest.costs,
         backtest.exits,
         backtest.day_tz,

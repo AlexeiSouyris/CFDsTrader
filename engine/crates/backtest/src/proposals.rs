@@ -128,6 +128,7 @@ pub fn proposals(
         free_margin: rules.equity,
         kill_switch: false,
         open_positions: Vec::new(),
+        realized_vol_pct: None,
     };
     let mut report = ProposalReport::default();
     let mut busy_until = 0usize;

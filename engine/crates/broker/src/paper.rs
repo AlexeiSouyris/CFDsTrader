@@ -44,7 +44,9 @@ use cfds_core::{
 };
 use cfds_indicators::{AtrSeed, wilder_atr, wilder_atr_after};
 use cfds_market_data::{ExchangeCalendar, Session, trading_window};
-use cfds_risk::{Account, InstrumentLimits, Rejection, Request, RiskConfig, Sizing, check};
+use cfds_risk::{
+    Account, InstrumentLimits, OpenPosition, Rejection, Request, RiskConfig, Sizing, check,
+};
 use cfds_strategy::Side;
 use chrono::{DateTime, NaiveTime, TimeDelta, Utc};
 use chrono_tz::Tz;
@@ -369,6 +371,7 @@ pub fn rejection_code(r: &Rejection) -> OrderRejection {
         Rejection::InsufficientMargin => OrderRejection::InsufficientMargin,
         Rejection::BelowMinDealSize => OrderRejection::BelowMinDealSize,
         Rejection::MinDealSizeUnknown => OrderRejection::MinDealSizeUnknown,
+        Rejection::GroupRiskLimit => OrderRejection::GroupRiskLimit,
     }
 }
 
@@ -1063,6 +1066,46 @@ impl PaperBroker {
             .collect()
     }
 
+    /// Las posiciones abiertas para el riesgo. Lo que arriesga cada una (en EUR, hasta su stop
+    /// original, con la fracción que sigue abierta: cota conservadora) solo lo usa el tope por
+    /// grupo correlacionado (#670). Sin grupos en `config/risk.toml` va 0 y no se pide ningún tipo
+    /// de cambio: el comportamiento de siempre. Con grupos, sin tipo no se inventa uno.
+    fn open_positions(&self, now: DateTime<Utc>) -> Result<Vec<OpenPosition>, OrderRejection> {
+        self.touch_sealed(now, true);
+        let need_risk = !self.cfg.risk.groups.is_empty();
+        let mut out = Vec::new();
+        for t in &self.trades {
+            let pending = t.opened_at > now;
+            let fraction = if pending {
+                Decimal::ONE
+            } else {
+                self.valuate(t, now).open_fraction
+            };
+            if !pending && fraction <= Decimal::ZERO {
+                continue;
+            }
+            let risk = if need_risk {
+                let adverse = match t.side {
+                    OrderSide::Long => t.entry_fill - t.stop,
+                    OrderSide::Short => t.stop - t.entry_fill,
+                }
+                .max(Decimal::ZERO);
+                let fx = self
+                    .fx_at(&t.instrument, now)
+                    .or_else(|| self.fx_at(&t.instrument, t.opened_at))
+                    .ok_or(OrderRejection::MissingFxRate)?;
+                t.size * fraction * adverse / fx
+            } else {
+                Decimal::ZERO
+            };
+            out.push(OpenPosition {
+                instrument: t.instrument.clone(),
+                risk,
+            });
+        }
+        Ok(out)
+    }
+
     fn assess(&mut self, order: &Order) -> Assessment {
         let now = order.created_at;
         let Some(m) = self.markets.get(&order.instrument_id) else {
@@ -1125,13 +1168,19 @@ impl PaperBroker {
         let (day_start_equity, _, _) = self.equity_at(day_start);
         // Un corte sin tasa de referencia es un error de datos: kill switch antes de decidir.
         self.flag_missing_rate();
+        let open_positions = match self.open_positions(as_of) {
+            Ok(p) => p,
+            Err(r) => return fail(r),
+        };
         let account = Account {
             equity,
             peak_equity: self.peak_equity,
             day_start_equity,
             free_margin: equity - margin_used,
             kill_switch: self.kill_switch.is_some(),
-            open_positions: self.open_instruments(as_of),
+            open_positions,
+            // Volatilidad objetivo apagada en la config (#671): se conecta cuando se apruebe.
+            realized_vol_pct: None,
         };
         match check(&req, &account, &limits, &self.cfg.risk) {
             Ok(sizing) => Assessment {
