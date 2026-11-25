@@ -39,7 +39,7 @@ pub use config::{
 };
 pub use live::{BarUpdate, LiveBar, LiveDataType, LiveTimeframe, QuoteEvent, QuoteState};
 pub use session::{
-    AccountSummary, ApiError, BarSize, BarsRequest, BarsResponse, ContractChoice, IbkrApi,
-    QuoteRequest, RawBar, ReadOnlySession, SessionError, SourcedBars, SourcedCandles, SummaryItem,
-    Trip,
+    AccountSummary, ApiError, BarSize, BarsRequest, BarsResponse, ContractChoice, DetailsQuery,
+    FutureDetails, IbkrApi, QuoteRequest, RawBar, ReadOnlySession, SessionError, SourcedBars,
+    SourcedCandles, SummaryItem, Trip,
 };

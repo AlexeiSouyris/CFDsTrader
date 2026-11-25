@@ -8,7 +8,7 @@ use std::time::Duration;
 use cfds_core::{InstrumentId, KillSwitch, Timeframe};
 use cfds_ibkr::{
     ApiError, BarSize, BarsRequest, BarsResponse, ConnectError, ContractChoice, ContractKind,
-    IbkrApi, IbkrConfig, IbkrConfigError, PaperAccountError, PaperAccountId, RawBar,
+    DetailsQuery, IbkrApi, IbkrConfig, IbkrConfigError, PaperAccountError, PaperAccountId, RawBar,
     ReadOnlySession, SessionError, SummaryItem, WhatToShow, connect,
 };
 use cfds_obs::AlertKind;
@@ -627,4 +627,27 @@ fn load_health_config_is_validated() {
     let end = start + CONFIG[start..].find("[live]").unwrap();
     let without = format!("{}{}", &CONFIG[..start], &CONFIG[end..]);
     assert_eq!(IbkrConfig::from_toml(&without).unwrap().load_health, None);
+}
+
+// ---- Ficha de contratos (#672): solo lectura, con las mismas guardas ----
+
+#[tokio::test]
+async fn future_details_goes_through_the_kill_switch() {
+    let fake = Fake::with_accounts(&[PAPER]);
+    let s = ReadOnlySession::open(&fake, cfg(), paper(), t(10))
+        .await
+        .unwrap();
+    let q = DetailsQuery {
+        symbol: "ES".into(),
+        exchange: "CME".into(),
+        currency: "USD".into(),
+    };
+    // El cliente falso no implementa la ficha: el rechazo no activa el kill switch.
+    let err = s.future_details(&q, t(10)).await.unwrap_err();
+    assert!(matches!(err, SessionError::Rejected(_)));
+    assert!(matches!(s.kill_switch(), KillSwitch::Inactive));
+    // Con la conexión caída, no se pide nada y se activa el kill switch.
+    fake.disconnected.store(true, Ordering::SeqCst);
+    let err = s.future_details(&q, t(11)).await.unwrap_err();
+    assert!(matches!(err, SessionError::KillSwitch(ref tr) if tr.kind == AlertKind::Disconnect));
 }

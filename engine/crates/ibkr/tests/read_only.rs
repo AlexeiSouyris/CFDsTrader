@@ -1,7 +1,7 @@
 //! Guarda 3 del ADR 0017 §2: la etapa 1 es solo lectura. El código del crate (y su ejemplo) no
 //! usa ninguna función de `ibapi` que envíe, modifique o cancele órdenes, ni su módulo de órdenes.
 
-const SOURCES: [(&str, &str); 9] = [
+const SOURCES: [(&str, &str); 10] = [
     ("src/lib.rs", include_str!("../src/lib.rs")),
     ("src/account.rs", include_str!("../src/account.rs")),
     ("src/client.rs", include_str!("../src/client.rs")),
@@ -12,6 +12,10 @@ const SOURCES: [(&str, &str); 9] = [
     (
         "examples/ibkr_live.rs",
         include_str!("../examples/ibkr_live.rs"),
+    ),
+    (
+        "examples/ibkr_probe.rs",
+        include_str!("../examples/ibkr_probe.rs"),
     ),
     (
         "examples/ibkr_read.rs",
