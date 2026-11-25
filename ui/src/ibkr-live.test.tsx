@@ -155,11 +155,11 @@ describe('vela en formación de IBKR: armado puro (#558)', () => {
   })
 
   it('la etiqueta dice el tipo de dato y el atraso que informa el motor', () => {
-    expect(liveLabel({ data_type: 'delayed', delay_seconds: 600 })).toBe('IBKR · delayed ~10 min')
-    expect(liveLabel({ data_type: 'delayed', delay_seconds: null })).toBe('IBKR · delayed')
+    expect(liveLabel({ data_type: 'delayed', delay_seconds: 600 })).toBe('IBKR · ~10 min de atraso')
+    expect(liveLabel({ data_type: 'delayed', delay_seconds: null })).toBe('IBKR · con atraso')
     expect(liveLabel({ data_type: 'live', delay_seconds: 0 })).toBe('en vivo')
     expect(liveLabel({ data_type: 'delayed_frozen', delay_seconds: 30 })).toBe(
-      'IBKR · delayed frozen ~1 min',
+      'IBKR · con atraso, congelado · ~1 min de atraso',
     )
   })
 })
@@ -237,7 +237,9 @@ describe('vela en formación en el gráfico de la Terminal (#558)', () => {
     await screen.findByText('MNQ · 15 m · IBKR · MNQZ6 · solo datos')
     const sse = open().find((s) => s.url.includes('instrument=MNQ'))!
     act(() => sse.emit(message({ bar: { ...message().bar!, partial: true } })))
-    expect(await screen.findByText('En formación · IBKR · delayed ~10 min · parcial')).toBeVisible()
+    expect(
+      await screen.findByText('En formación · IBKR · ~10 min de atraso · parcial'),
+    ).toBeVisible()
     expect(
       document.querySelector('[data-forming][data-candle="2026-11-24T15:00:00Z"]'),
     ).not.toBeNull()

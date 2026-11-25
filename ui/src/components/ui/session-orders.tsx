@@ -4,6 +4,7 @@
  * órdenes (`/api/v1/paper/orders` solo acepta `POST`), así que la lista es de la sesión: se pierde
  * al recargar. Solo muestra lo que llegó; no calcula nada.
  */
+import { ScrollRegion } from '@/components/ui/scroll-region'
 import { dateTimeUtc, decimal } from '@/lib/format'
 import { REJECTION_LABEL, type Order, type OrderReport } from '@/lib/paper-contracts'
 import { cn } from '@/lib/utils'
@@ -29,7 +30,7 @@ export function SessionOrders({ orders }: { orders: SentOrder[] }) {
     )
   const cell = 'px-2 py-2.5'
   return (
-    <div className="overflow-x-auto">
+    <ScrollRegion label="Órdenes de la sesión">
       <table className="w-full min-w-[640px] text-[12.5px]">
         <caption className="sr-only">Órdenes de la sesión</caption>
         <thead>
@@ -108,6 +109,6 @@ export function SessionOrders({ orders }: { orders: SentOrder[] }) {
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollRegion>
   )
 }

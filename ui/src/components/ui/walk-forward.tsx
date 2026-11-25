@@ -6,6 +6,7 @@
  * signo los calcula el motor. La sensibilidad **no elige ningún valor**: solo muestra qué tan
  * estables son las métricas. Es simulación con datos del pasado: no anticipa resultados.
  */
+import { ScrollRegion } from '@/components/ui/scroll-region'
 import type { WalkForwardReport, WfPeriod } from '@/lib/walk-forward-api'
 import { useWalkForward } from '@/lib/walk-forward-api'
 import { dateTimeUtc } from '@/lib/format'
@@ -44,7 +45,7 @@ const SUB = ['Retorno', 'Drawdown', 'Sharpe', 'Op.', 'Comprar y mantener']
 function Folds({ r }: { r: WalkForwardReport }) {
   const a = r.test_aggregate
   return (
-    <div className="overflow-x-auto">
+    <ScrollRegion label="Ventanas walk-forward">
       <table aria-label="Ventanas walk-forward" className="w-full min-w-[760px] text-[12px]">
         <thead className="text-[10.5px] text-muted-foreground uppercase">
           <tr>
@@ -96,7 +97,7 @@ function Folds({ r }: { r: WalkForwardReport }) {
         {pctOrDash(a.worst_drawdown)}, Sharpe medio {numOrDash(a.mean_sharpe)}. Superan a comprar y
         mantener {a.beat_buy_and_hold} de {a.with_buy_and_hold}.
       </p>
-    </div>
+    </ScrollRegion>
   )
 }
 
@@ -108,7 +109,7 @@ function Stability({ r }: { r: WalkForwardReport }) {
       </p>
     )
   return (
-    <div className="overflow-x-auto">
+    <ScrollRegion label="Estabilidad de los parámetros">
       <table
         aria-label="Estabilidad de los parámetros"
         className="w-full min-w-[620px] text-[12px]"
@@ -161,7 +162,7 @@ function Stability({ r }: { r: WalkForwardReport }) {
         Solo con el entrenamiento de cada ventana. Mide la estabilidad: no elige ningún valor ni
         cambia la estrategia.
       </p>
-    </div>
+    </ScrollRegion>
   )
 }
 
@@ -219,7 +220,7 @@ export function WalkForwardReportView({ report: r }: { report: WalkForwardReport
       <p className="text-[11.5px] [overflow-wrap:anywhere] text-muted-foreground">
         {r.instrument_id} · velas {r.candle_source === 'futures' ? 'de futuros' : 'de IG'} ·{' '}
         {r.split.train_months} meses de entrenamiento, {r.split.validation_months} de prueba, paso{' '}
-        {r.split.step_months} · calculado el {dateTimeUtc(r.computed_at)} · {r.report_id}
+        {r.split.step_months} · calculado el {dateTimeUtc(r.computed_at)}
       </p>
       <Folds r={r} />
       <div>
@@ -253,8 +254,7 @@ export function WalkForwardLive({ instrument }: { instrument: string }) {
   if (wf.data === null)
     return (
       <p data-walk-forward="none" className="text-[12.5px] text-muted-foreground">
-        Todavía no hay un reporte de walk-forward para {instrument}. Lo genera el ejemplo{' '}
-        <code>walk_forward</code> del motor con un <code>report_id</code>.
+        Todavía no hay un reporte de walk-forward para {instrument}: el motor todavía no lo calculó.
       </p>
     )
   return <WalkForwardReportView report={wf.data} />

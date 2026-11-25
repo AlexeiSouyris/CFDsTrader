@@ -4,6 +4,7 @@
  * gateway (#312) y, sin gateway, es el de ejemplo. Nada se calcula acá. Lo que es de ejemplo lleva
  * el sello "EJEMPLO" (#577).
  */
+import { ScrollRegion } from '@/components/ui/scroll-region'
 import { Search } from 'lucide-react'
 import { useDeferredValue, useState, type ReactNode } from 'react'
 
@@ -104,7 +105,7 @@ export function FundView() {
             Todavía no hay aportes liquidados.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <ScrollRegion label="Cada miembro">
             <table className="w-full min-w-[520px] text-[13px]" aria-label="Cada miembro">
               <thead>
                 <tr className="border-b border-border text-left text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
@@ -138,7 +139,7 @@ export function FundView() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollRegion>
         )}
       </section>
 
@@ -155,7 +156,7 @@ export function FundView() {
             Todavía no hay movimientos.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <ScrollRegion label="Movimientos del fondo">
             <table className="w-full min-w-[520px] text-[12px]" aria-label="Movimientos del fondo">
               <thead>
                 <tr className="border-b border-border text-left text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
@@ -186,7 +187,7 @@ export function FundView() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollRegion>
         )}
       </section>
 
@@ -252,7 +253,7 @@ export function GlossaryView() {
         />
       </label>
       <p className="text-[11px] text-muted-foreground" aria-live="polite">
-        {found.length} de {GLOSSARY.length} términos · fuente: docs/GLOSARIO.md
+        {found.length} de {GLOSSARY.length} términos
       </p>
       <div className="grid gap-3 md:grid-cols-2">
         {found.map((e) => (

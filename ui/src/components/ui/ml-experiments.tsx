@@ -4,6 +4,7 @@
  * métricas de B0, B1 y M1, la calibración por grupos (#433) y la fecha. Solo presenta: no calcula métricas ni decide nada, y el
  * modelo no decide operaciones.
  */
+import { ScrollRegion } from '@/components/ui/scroll-region'
 import { dateTimeUtc } from '@/lib/format'
 import {
   ML_MODELS,
@@ -21,7 +22,7 @@ const td = 'py-2 pr-3 tabular-nums whitespace-nowrap'
 
 const MODEL_LABEL: Record<MlModel, string> = {
   B0: 'frecuencia global',
-  B1: 'tabla de §13 (lo que se muestra hoy)',
+  B1: 'tabla de frecuencias (lo que se muestra hoy)',
   M1: 'regresión logística',
 }
 
@@ -155,7 +156,7 @@ function Calibration({ calibration }: { calibration: MlCalibration }) {
                 <span className="text-[11px] text-muted-foreground">{MODEL_LABEL[m]}</span>
               </h4>
               <CalibrationChart model={m} bins={bins} />
-              <div className="overflow-x-auto">
+              <ScrollRegion label={`Grupos de ${m}`}>
                 <table className="w-full text-[11px]" aria-label={`Grupos de ${m}`}>
                   <thead>
                     <tr className="border-b border-border">
@@ -189,7 +190,7 @@ function Calibration({ calibration }: { calibration: MlCalibration }) {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </ScrollRegion>
             </section>
           )
         })}
@@ -201,11 +202,31 @@ function Calibration({ calibration }: { calibration: MlCalibration }) {
 /** Cuántos motivos distintos de las ventanas sin entrenar se listan (los más frecuentes). */
 const SHOWN_REASONS = 3
 
-/** Las ventanas que no entrenaron, agrupadas por su motivo tal como lo escribió Python. */
+/**
+ * El motivo de Python en palabras de usuario (#580): "53 propuestas, el mínimo es 300" cambia en
+ * cada ventana y se leía como un error. Queda "menos de 300 propuestas"; el texto original va en
+ * el `title`. Si no se reconoce, se muestra tal cual.
+ */
+function reasonText(raw: string): string {
+  const few = /^\d+ propuestas, el mínimo es (\d+)$/.exec(raw)
+  if (few) return `menos de ${few[1]} propuestas`
+  const cls = /con TP1 .*el mínimo es (\d+) de cada clase$/.exec(raw)
+  if (cls) return `menos de ${cls[1]} casos con y sin TP1`
+  return raw
+}
+
+/** Las ventanas que no entrenaron, agrupadas por su motivo (en palabras de usuario). */
 function skippedReasons(e: MlExperimentEntry['experiment']) {
-  const by = new Map<string, number>()
-  for (const w of e.windows) if (w.skipped) by.set(w.skipped, (by.get(w.skipped) ?? 0) + 1)
-  return [...by].sort((a, b) => b[1] - a[1])
+  const by = new Map<string, { n: number; raw: Set<string> }>()
+  for (const w of e.windows) {
+    if (!w.skipped) continue
+    const key = reasonText(w.skipped)
+    const g = by.get(key) ?? { n: 0, raw: new Set<string>() }
+    g.n += 1
+    g.raw.add(w.skipped)
+    by.set(key, g)
+  }
+  return [...by].sort((a, b) => b[1].n - a[1].n)
 }
 
 function Experiment({ entry }: { entry: MlExperimentEntry }) {
@@ -254,10 +275,10 @@ function Experiment({ entry }: { entry: MlExperimentEntry }) {
           {trained} de {e.windows.length}{' '}
           {e.windows.length === 1 ? 'ventana entrenó' : 'ventanas entrenaron'}
           {reasons.length > 0 && ' · sin entrenar: '}
-          {reasons.slice(0, SHOWN_REASONS).map(([why, n], i) => (
-            <span key={why}>
+          {reasons.slice(0, SHOWN_REASONS).map(([why, g], i) => (
+            <span key={why} title={[...g.raw].join('\n')}>
               {i > 0 && '; '}
-              {why} ({n})
+              {why} ({g.n} {g.n === 1 ? 'ventana' : 'ventanas'})
             </span>
           ))}
           {reasons.length > SHOWN_REASONS &&
@@ -270,7 +291,7 @@ function Experiment({ entry }: { entry: MlExperimentEntry }) {
           Sin métricas: ninguna validación entró en la medición conjunta.
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <ScrollRegion label="Métricas por modelo">
           <table className="w-full text-[12px]" aria-label="Métricas por modelo">
             <thead>
               <tr className="border-b border-border">
@@ -299,7 +320,7 @@ function Experiment({ entry }: { entry: MlExperimentEntry }) {
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       )}
       {e.calibration ? (
         <Calibration calibration={e.calibration} />

@@ -8,6 +8,7 @@
  */
 import {
   Bell,
+  Ellipsis,
   LineChart,
   Moon,
   Search,
@@ -24,12 +25,14 @@ import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
+  type RefObject,
 } from 'react'
 
 import { CandlestickIcon } from '@/components/ui/animated-icons'
 import { PRESETS, type GlassSettings } from '@/components/ui/glass-settings'
 import { useInstruments } from '@/lib/liquidity-api'
 import type { InstrumentInfo } from '@/lib/liquidity-contracts'
+import { useDismiss } from '@/lib/floating'
 import { focusInstrument, OPEN_SEARCH_EVENT } from '@/lib/terminal-focus'
 import { cn } from '@/lib/utils'
 
@@ -47,6 +50,7 @@ type Popover = 'notices' | 'glass' | null
 export function GlassShell({
   brand = 'CFDsTrader',
   views,
+  home = views[0].id,
   tabs = [],
   active,
   onSelect,
@@ -61,6 +65,8 @@ export function GlassShell({
 }: {
   brand?: string
   views: ShellView[]
+  /** la vista de inicio: a la que lleva el logo */
+  home?: string
   /** pestañas principales (#286): van arriba de cada vista, con su hash */
   tabs?: ShellView[]
   active: string
@@ -79,6 +85,11 @@ export function GlassShell({
   const [searching, setSearching] = useState(false)
   const [seen, setSeen] = useState(false)
   const current = heading ?? views.find((v) => v.id === active) ?? views[0]
+  const homeLabel = views.find((v) => v.id === home)?.label ?? home
+  const popButtons = useRef<HTMLDivElement>(null)
+  const popPanel = useRef<HTMLElement>(null)
+  // los popovers del encabezado se cierran también con un toque afuera (#579)
+  useDismiss(popover !== null, () => setPopover(null), [popButtons, popPanel])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -107,13 +118,21 @@ export function GlassShell({
         } as CSSProperties
       }
     >
+      <a
+        href="#contenido"
+        className="sr-only z-50 rounded-full bg-primary px-4 py-2 text-[13px] font-bold text-primary-foreground focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+      >
+        Saltar al contenido
+      </a>
       <header className="glass relative z-20 grid grid-cols-[1fr_auto] items-center gap-3 rounded-[22px] px-3 py-2 md:grid-cols-[1fr_minmax(220px,380px)_1fr] md:rounded-full">
         <a
-          href="#panel"
+          href={`#${home}`}
+          aria-label={`${brand}: ir a ${homeLabel}`}
           className="flex min-w-0 items-center gap-2.5"
           onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey) return
             e.preventDefault()
-            onSelect(views[0].id)
+            onSelect(home)
           }}
         >
           <span className="grid size-9 place-items-center rounded-full bg-primary text-primary-foreground">
@@ -139,7 +158,7 @@ export function GlassShell({
           </kbd>
         </button>
 
-        <div className="relative flex items-center justify-end gap-1.5">
+        <div ref={popButtons} className="relative flex items-center justify-end gap-1.5">
           <IconButton
             label="Ajustar el vidrio"
             expanded={popover === 'glass'}
@@ -174,7 +193,7 @@ export function GlassShell({
           </span>
 
           {popover === 'notices' && (
-            <Popover title="Avisos" onClose={() => setPopover(null)}>
+            <Popover title="Avisos" panelRef={popPanel} onClose={() => setPopover(null)}>
               {notices.length === 0 ? (
                 <p className="text-[12px] text-muted-foreground">No hay avisos nuevos.</p>
               ) : (
@@ -190,7 +209,7 @@ export function GlassShell({
             </Popover>
           )}
           {popover === 'glass' && (
-            <Popover title="Vidrio" onClose={() => setPopover(null)}>
+            <Popover title="Vidrio" panelRef={popPanel} onClose={() => setPopover(null)}>
               <div className="mb-3 flex gap-1.5">
                 {PRESETS.map((p) => (
                   <button
@@ -228,7 +247,11 @@ export function GlassShell({
 
       <div className="relative mt-3 flex flex-1 gap-3">
         <Dock views={views} active={active} onSelect={onSelect} side />
-        <main className="glass min-w-0 flex-1 rounded-[28px] p-4 sm:p-7">
+        <main
+          id="contenido"
+          tabIndex={-1}
+          className="glass min-w-0 flex-1 rounded-[28px] p-4 outline-none sm:p-7"
+        >
           <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
             <div>
               <h1 className="text-[clamp(26px,3vw,42px)] leading-none font-bold tracking-[-0.05em]">
@@ -250,7 +273,7 @@ export function GlassShell({
           </p>
         </main>
       </div>
-      <Dock views={views} active={active} onSelect={onSelect} />
+      <Dock views={views} active={active} onSelect={onSelect} onMore={() => setSearching(true)} />
 
       {searching && (
         <ViewSearch
@@ -349,16 +372,19 @@ function IconButton({
 
 function Popover({
   title,
+  panelRef,
   onClose,
   children,
 }: {
   title: string
+  panelRef: RefObject<HTMLElement | null>
   onClose: () => void
   children: ReactNode
 }) {
   const id = useId()
   return (
     <section
+      ref={panelRef}
       aria-labelledby={id}
       className="glass-strong absolute top-[calc(100%+10px)] right-0 z-30 w-[min(300px,calc(100vw-24px))] rounded-2xl p-4"
     >
@@ -366,7 +392,12 @@ function Popover({
         <h2 id={id} className="text-[14px] font-bold">
           {title}
         </h2>
-        <button type="button" aria-label="Cerrar" onClick={onClose} className="rounded-full p-1">
+        <button
+          type="button"
+          aria-label={`Cerrar ${title.toLowerCase()}`}
+          onClick={onClose}
+          className="rounded-full p-1"
+        >
           <X className="size-4" />
         </button>
       </header>
@@ -400,12 +431,14 @@ function Range({
       </span>
       <input
         type="range"
+        aria-label={label}
+        aria-valuetext={text}
         min={min}
         max={max}
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-2 w-full accent-[var(--primary)]"
+        className="mt-2 block h-6 w-full accent-[var(--primary)]"
       />
     </label>
   )
@@ -415,16 +448,21 @@ function Dock({
   views,
   active,
   onSelect,
+  onMore,
   side = false,
 }: {
   views: ShellView[]
   active: string
   onSelect: (id: string) => void
+  /** en el celular: abre la lista completa de vistas (el buscador) */
+  onMore?: () => void
   side?: boolean
 }) {
   // En el teléfono la barra se desplaza en horizontal: la vista activa se trae a la vista, si no
   // al llegar por el buscador o el deslizamiento quedaba fuera de la barra (#415).
   const bar = useRef<HTMLElement>(null)
+  // hay más vistas a un costado: ese borde se desvanece (#579), así se nota que la barra se desliza
+  const [more, setMore] = useState({ left: false, right: false })
   useEffect(() => {
     const nav = bar.current
     const on = nav?.querySelector<HTMLElement>('[aria-current="page"]')
@@ -432,16 +470,38 @@ function Dock({
     const left = on.offsetLeft - (nav.clientWidth - on.offsetWidth) / 2
     nav.scrollTo?.({ left: Math.max(0, left) })
   }, [active, side])
-  return (
+  useEffect(() => {
+    const nav = bar.current
+    if (side || !nav) return
+    const update = () => {
+      const left = nav.scrollLeft > 1
+      const right = nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 1
+      setMore((p) => (p.left === left && p.right === right ? p : { left, right }))
+    }
+    update()
+    nav.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('resize', update)
+    return () => {
+      nav.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [side])
+  const mask =
+    more.left || more.right
+      ? `linear-gradient(to right, ${more.left ? 'transparent' : '#000'}, #000 24px, #000 calc(100% - 24px), ${more.right ? 'transparent' : '#000'})`
+      : undefined
+
+  const links = (
     <nav
       ref={bar}
       aria-label={side ? 'Accesos' : 'Vistas'}
       className={cn(
-        'glass z-20 flex gap-1 rounded-full p-1.5',
+        'flex gap-1',
         side
-          ? 'sticky top-6 hidden h-fit flex-col self-start md:flex'
-          : 'fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] justify-between overflow-x-auto [scrollbar-width:none] md:hidden',
+          ? 'glass sticky top-6 z-20 hidden h-fit flex-col self-start rounded-full p-1.5 md:flex'
+          : 'min-w-0 flex-1 justify-between overflow-x-auto [scrollbar-width:none]',
       )}
+      style={side ? undefined : { maskImage: mask, WebkitMaskImage: mask }}
     >
       {views.map(({ id, label, short, icon: Icon }) => {
         const on = id === active
@@ -473,6 +533,22 @@ function Dock({
         )
       })}
     </nav>
+  )
+  if (side) return links
+  return (
+    <div className="glass fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-20 flex items-stretch gap-1 rounded-full p-1.5 md:hidden">
+      {links}
+      <button
+        type="button"
+        aria-label="Más vistas"
+        title="Todas las vistas"
+        onClick={onMore}
+        className="flex min-h-11 min-w-[52px] shrink-0 flex-col items-center justify-center gap-1 rounded-full border-l border-border px-2 py-1 text-[10px] font-bold hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
+      >
+        <Ellipsis className="size-[17px]" aria-hidden="true" />
+        <span>Más</span>
+      </button>
+    </div>
   )
 }
 
@@ -511,6 +587,11 @@ function ViewSearch({
   onSelect: (id: string) => void
 }) {
   const ref = useRef<HTMLDialogElement>(null)
+  // al cerrar, el foco vuelve a donde estaba (el botón del buscador o "Más vistas"). Se toma al
+  // renderizar, antes de que `autoFocus` lo pase al campo.
+  const [back] = useState(() =>
+    document.activeElement instanceof HTMLElement ? document.activeElement : null,
+  )
   const base = useId()
   const listId = `${base}-list`
   const optionId = (i: number) => `${base}-opt-${i}`
@@ -531,7 +612,30 @@ function ViewSearch({
     // jsdom (tests) no implementa showModal: ahí se abre sin modo modal
     if (d?.showModal && !d.open) d.showModal()
     else d?.setAttribute('open', '')
-  }, [])
+    return () => back?.focus?.()
+  }, [back])
+
+  // trampa de foco (#579): Tab y Mayús+Tab dan la vuelta dentro del diálogo. `showModal` ya deja
+  // inerte lo de atrás; esto lo asegura también donde no hay modo modal.
+  const trapTab = (e: ReactKeyboardEvent<HTMLDialogElement>) => {
+    if (e.key !== 'Tab' || !ref.current) return
+    const items = [
+      ...ref.current.querySelectorAll<HTMLElement>(
+        'input, button, [href], select, textarea, [tabindex]:not([tabindex="-1"])',
+      ),
+    ].filter((el) => !el.hasAttribute('disabled'))
+    if (items.length === 0) return
+    const first = items[0]
+    const last = items[items.length - 1]
+    const at = document.activeElement
+    if (e.shiftKey && (at === first || !ref.current.contains(at))) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && (at === last || !ref.current.contains(at))) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
 
   const words = q.toLowerCase().split(/\s+/).filter(Boolean)
   const matches = (text: string) => words.every((w) => text.toLowerCase().includes(w))
@@ -602,7 +706,10 @@ function ViewSearch({
   return (
     <dialog
       ref={ref}
+      role="dialog"
+      aria-modal="true"
       aria-label="Buscar una vista o un instrumento"
+      onKeyDown={trapTab}
       onClose={onClose}
       onCancel={(e) => {
         e.preventDefault()
@@ -617,27 +724,37 @@ function ViewSearch({
       }}
       className="glass-strong m-auto w-[min(480px,calc(100%-24px))] rounded-3xl p-4 text-foreground backdrop:bg-black/40 backdrop:backdrop-blur-sm"
     >
-      <label className="flex items-center gap-2 rounded-xl border border-border px-3">
-        <Search className="size-4 text-muted-foreground" aria-hidden="true" />
-        <input
-          autoFocus
-          role="combobox"
-          aria-label="Buscar"
-          aria-expanded={items.length > 0}
-          aria-controls={listId}
-          aria-autocomplete="list"
-          aria-activedescendant={active >= 0 ? optionId(active) : undefined}
-          placeholder="Vista o instrumento: US100, noticias…"
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value)
-            setMark(0)
-            waiting.current = false
-          }}
-          onKeyDown={onKeyDown}
-          className="min-h-11 flex-1 bg-transparent text-[14px] outline-none"
-        />
-      </label>
+      <div className="flex items-center gap-2">
+        <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-border px-3">
+          <Search className="size-4 text-muted-foreground" aria-hidden="true" />
+          <input
+            autoFocus
+            role="combobox"
+            aria-label="Buscar"
+            aria-expanded={items.length > 0}
+            aria-controls={listId}
+            aria-autocomplete="list"
+            aria-activedescendant={active >= 0 ? optionId(active) : undefined}
+            placeholder="Vista o instrumento: US100, noticias…"
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value)
+              setMark(0)
+              waiting.current = false
+            }}
+            onKeyDown={onKeyDown}
+            className="min-h-11 min-w-0 flex-1 bg-transparent text-[14px] outline-none"
+          />
+        </label>
+        <button
+          type="button"
+          aria-label="Cerrar el buscador"
+          onClick={onClose}
+          className="grid size-11 shrink-0 place-items-center rounded-full border border-border hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
+        >
+          <X className="size-4" aria-hidden="true" />
+        </button>
+      </div>
       <ul
         id={listId}
         role="listbox"

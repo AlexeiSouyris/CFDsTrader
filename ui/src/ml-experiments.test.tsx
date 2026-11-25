@@ -61,7 +61,7 @@ describe('Modelo (informativo) (#426)', () => {
     expect(within(us500).getByText('En suspenso: se sigue mostrando B1')).toBeInTheDocument()
     expect(us500).toHaveTextContent('No hubo datos suficientes para evaluar M1 contra B1.')
     expect(us500).toHaveTextContent(
-      '0 de 3 ventanas entrenaron · sin entrenar: 0 propuestas, el mínimo es 300 (2); sin propuestas de validación (1)',
+      '0 de 3 ventanas entrenaron · sin entrenar: menos de 300 propuestas (2 ventanas); sin propuestas de validación (1 ventana)',
     )
     expect(us500).toHaveTextContent('etiquetas sin P/L')
     expect(us500).not.toHaveTextContent('Log loss de M1 menos')
@@ -79,7 +79,7 @@ describe('Modelo (informativo) (#426)', () => {
     render(<MlExperimentsSection />)
     const card = await screen.findByRole('article', { name: 'Modelo de US500.FUT' })
     expect(card).toHaveTextContent(
-      '0 de 8 ventanas entrenaron · sin entrenar: motivo c (3); motivo b (2); motivo a (1) y 2 motivos más',
+      '0 de 8 ventanas entrenaron · sin entrenar: motivo c (3 ventanas); motivo b (2 ventanas); motivo a (1 ventana) y 2 motivos más',
     )
   })
 

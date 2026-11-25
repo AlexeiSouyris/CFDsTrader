@@ -48,6 +48,9 @@ const INTRO = (
   </p>
 )
 
+/** Por qué 1d no se puede elegir con la fuente de futuros. */
+const NO_DAILY_FUTURES = { '1d': 'Los futuros no tienen velas diarias.' }
+
 const TF_TEXT: Record<ViewTimeframe, [string, string]> = {
   '15m': ['vela de 15 m', 'velas de 15 m'],
   '1h': ['vela de 1 h', 'velas de 1 h'],
@@ -80,8 +83,7 @@ function Unreachable({ message }: { message: string }) {
   return (
     <Card title="No se pudo leer al motor">
       <p role="alert" className="text-[13px]">
-        El gateway no respondió ({message}). Para verlo en vivo hay que levantarlo con{' '}
-        <code>infra/scripts/ui_liquidez.sh</code>. Se vuelve a intentar cada minuto.
+        No se pudo conectar con el motor ({message}). Se vuelve a intentar cada minuto.
       </p>
     </Card>
   )
@@ -123,6 +125,7 @@ function LiveLiquidity() {
     )
   // Las fuentes las manda el motor; sin ellas (gateway anterior) solo existe la del CFD.
   const sources = catalog.data.sources ?? []
+  const futuresSel = sel?.source === 'futures'
   const controls = sel && (
     <div className="flex min-w-0 flex-wrap gap-2">
       <ScrollRow>
@@ -139,6 +142,7 @@ function LiveLiquidity() {
           options={catalog.data.timeframes}
           value={sel.timeframe}
           onChange={(tf) => setPicked({ ...sel, timeframe: tf as ViewTimeframe })}
+          disabled={futuresSel ? NO_DAILY_FUTURES : undefined}
         />
       </ScrollRow>
       {sources.length > 1 && (
@@ -147,9 +151,15 @@ function LiveLiquidity() {
             label="Fuente"
             options={sources.map((s) => s.label)}
             value={(sources.find((s) => s.id === (sel.source ?? 'ig')) ?? sources[0]).label}
-            onChange={(label) =>
-              setPicked({ ...sel, source: sources.find((s) => s.label === label)?.id ?? 'ig' })
-            }
+            onChange={(label) => {
+              const source = sources.find((s) => s.label === label)?.id ?? 'ig'
+              // los futuros no tienen velas diarias: con 1d se pasa al primer timeframe que sí
+              const timeframe =
+                source === 'futures' && sel.timeframe === '1d'
+                  ? (catalog.data.timeframes.find((t) => t !== '1d') ?? sel.timeframe)
+                  : sel.timeframe
+              setPicked({ ...sel, source, timeframe })
+            }}
           />
         </ScrollRow>
       )}
@@ -173,8 +183,8 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
     return (
       <Card title="Sin datos todavía">
         <p className="text-[13px]">
-          El motor todavía no tiene {TF_TEXT[tf][1]} de {data.instrument_id} guardadas (fuente:{' '}
-          {source}).{' '}
+          El motor todavía no tiene {TF_TEXT[tf][1]} de {data.instrument_id} guardadas. Fuente:{' '}
+          {source}.{' '}
           {futures && tf === '1d'
             ? 'Los futuros no tienen velas diarias.'
             : 'La vista se llena sola cuando lleguen.'}
@@ -240,14 +250,14 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
       <div className="grid gap-3 2xl:grid-cols-2">
         <Card title={`FVG abiertos (${open.length})`}>
           {open.length ? (
-            <FvgTable fvgs={open} />
+            <FvgTable fvgs={open} label="FVG abiertos" />
           ) : (
             <p className="text-[12.5px]">No hay FVG abiertos.</p>
           )}
         </Card>
         <Card title={`FVG llenos o vencidos (${closed.length})`}>
           {closed.length ? (
-            <FvgTable fvgs={closed} />
+            <FvgTable fvgs={closed} label="FVG llenos o vencidos" />
           ) : (
             <p className="text-[12.5px]">Ningún FVG se llenó todavía.</p>
           )}

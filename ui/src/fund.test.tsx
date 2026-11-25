@@ -84,10 +84,13 @@ describe('fondo del motor (fase 6b, #312)', () => {
     expect(rows[0]).toHaveTextContent('110,00 €')
     expect(rows[0]).toHaveTextContent('+10,00 €')
     expect(rows[1]).toHaveTextContent('+5,00 €')
-    expect(rows[2]).toHaveTextContent('+0,00 €')
+    // el cero va sin signo (#580)
+    expect(rows[2]).toHaveTextContent('0,00 €')
+    expect(rows[2]).not.toHaveTextContent('+0,00')
     // Con gateway no queda nada de ejemplo: los pedidos pendientes (el motor no los publica
     // todavía) no se muestran (#577).
     expect(document.querySelector('[data-example-badge]')).toBeNull()
+    expect(screen.queryByText('(ejemplo)')).toBeNull()
     expect(screen.getByText(/no publica los pedidos del lunes/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /^Cada miembro/ })).toHaveTextContent('del motor')
   })

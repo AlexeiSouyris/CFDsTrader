@@ -6,6 +6,7 @@
  * mantener los calcula el motor. `Number` se usa solo para ubicar los puntos en el dibujo.
  * Es simulación con datos del pasado: no anticipa resultados.
  */
+import { ScrollRegion } from '@/components/ui/scroll-region'
 import { X } from 'lucide-react'
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 
@@ -79,7 +80,7 @@ function Curves({ detail }: { detail: Detail }) {
   if (points.length === 0)
     return (
       <p className="text-[12.5px] text-muted-foreground">
-        Esta corrida no guardó su curva (es anterior a #299).
+        Esta corrida no guardó su curva: es de una versión anterior del motor.
       </p>
     )
   const axis = 64
@@ -286,7 +287,7 @@ function Trades({ detail }: { detail: Detail }) {
   const rest = total - shown
   return (
     <>
-      <div className="overflow-x-auto max-md:overflow-visible">
+      <ScrollRegion label="Operaciones de la corrida" className="max-md:overflow-visible">
         <table
           aria-label="Operaciones de la corrida"
           className="w-full text-[12.5px] md:min-w-[600px] max-md:block"
@@ -361,7 +362,7 @@ function Trades({ detail }: { detail: Detail }) {
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] text-muted-foreground">
           P/L neto en la moneda de cada instrumento, con spread, slippage, comisión y financiación.
@@ -530,11 +531,10 @@ export function RunDetailView({
         de cada instrumento de la corrida, tal cual lo manda el motor. Con los datos de ejemplo no
         se inventa ninguno.
       */}
-      <Block title="Walk-forward / fuera de muestra" aside="fase 5">
+      <Block title="Walk-forward / fuera de muestra">
         {example ? (
           <p data-walk-forward="pending" className="text-[12.5px] text-muted-foreground">
-            Los datos de ejemplo no tienen walk-forward: llega del motor con la fase 5, desde su
-            propio contrato.
+            Los datos de ejemplo no tienen walk-forward: solo las corridas del motor lo traen.
           </p>
         ) : (
           <div className="grid gap-4">

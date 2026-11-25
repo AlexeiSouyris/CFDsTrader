@@ -51,7 +51,7 @@ import { Segmented } from '@/components/ui/segmented'
 import { CursorSync } from '@/lib/cursor-sync'
 import { useIbkrInstruments } from '@/lib/ibkr-api'
 import type { ChartTimeframe } from '@/lib/liquidity-bars'
-import { dateTimeUtc, decimal } from '@/lib/format'
+import { closedAt, price, priceDigits } from '@/lib/format'
 import { useChartTools } from '@/lib/use-chart-tools'
 import { cn } from '@/lib/utils'
 
@@ -333,13 +333,23 @@ export function MultichartView() {
   )
 }
 
+/** La última vela cerrada del lugar: la vela en formación (#558) no cuenta, como en el gráfico. */
+function lastClosed(slot: SlotData) {
+  const n = slot.bars.length
+  const formingLast = n > 0 && slot.forming?.start === slot.bars[n - 1].start
+  return slot.bars.at(formingLast ? -2 : -1)
+}
+
+/** Los decimales del instrumento, según sus últimos precios (como en el gráfico). */
+const slotDigits = (slot: SlotData) => priceDigits(slot.bars.slice(-50).map((b) => b.close))
+
 /**
  * El encabezado mínimo de un panel en modo compacto (#545): instrumento, timeframe y el cierre de
  * la última vela, tal cual llega del motor (solo con formato de pantalla).
  */
 function CompactHeading({ slot }: { slot: SlotData }) {
   const { sel, view, ibkr } = slot
-  const last = slot.bars.at(-1)
+  const last = lastClosed(slot)
   return (
     <p
       data-compact-heading
@@ -350,12 +360,9 @@ function CompactHeading({ slot }: { slot: SlotData }) {
         {view?.timeframe ?? ibkr?.timeframe ?? sel.timeframe}
       </span>
       {last && (
-        <span
-          className="font-bold tabular-nums"
-          title={`Última vela cerrada: ${dateTimeUtc(last.end)}`}
-        >
+        <span className="font-bold tabular-nums" title={`Última vela: ${closedAt(last.end)}`}>
           <span className="sr-only">Último cierre: </span>
-          {decimal(last.close)}
+          {price(last.close, slotDigits(slot))}
         </span>
       )}
     </p>
@@ -365,7 +372,8 @@ function CompactHeading({ slot }: { slot: SlotData }) {
 /** Panel lateral: lo que el motor manda del gráfico activo, tal cual llega. */
 function SlotInfo({ index, slot }: { index: number; slot: SlotData }) {
   const { sel, view, ibkr } = slot
-  const last = slot.bars.at(-1)
+  const last = lastClosed(slot)
+  const digits = slotDigits(slot)
   const rows: [string, string][] = [
     ['Instrumento', sel.feed === 'ibkr' ? `${sel.instrument} (IBKR)` : sel.instrument],
     ['Timeframe', sel.timeframe],
@@ -373,11 +381,11 @@ function SlotInfo({ index, slot }: { index: number; slot: SlotData }) {
   ]
   if (last) {
     rows.push(
-      ['Última vela cerrada', dateTimeUtc(last.end)],
-      ['Apertura', decimal(last.open)],
-      ['Máximo', decimal(last.high)],
-      ['Mínimo', decimal(last.low)],
-      ['Cierre', decimal(last.close)],
+      ['Última vela', closedAt(last.end)],
+      ['Apertura', price(last.open, digits)],
+      ['Máximo', price(last.high, digits)],
+      ['Mínimo', price(last.low, digits)],
+      ['Cierre', price(last.close, digits)],
     )
   }
   if (view)

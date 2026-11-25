@@ -39,8 +39,8 @@ import { Trash2 } from 'lucide-react'
 
 import {
   CHART_MODES,
+  groupLabels,
   LABEL_GAP,
-  placeLabels,
   rangeTrend,
   useChartMeasure,
   type ChartMode,
@@ -77,7 +77,7 @@ import {
 } from '@/lib/chart-drawings'
 import type { CursorSync } from '@/lib/cursor-sync'
 import { niceTicks, renderWindow, timeTicks, visibleRange } from '@/lib/chart-viewport'
-import { dateTimeUtc, decimal, timeTickLabel } from '@/lib/format'
+import { closedAt, decimal, price, priceDigits, timeTickLabel } from '@/lib/format'
 import { fvgKey, levelKey, levelName, levelShort, STATE_LABEL } from '@/lib/liquidity-labels'
 import { useChartTools } from '@/lib/use-chart-tools'
 import { useCoarsePointer } from '@/lib/use-coarse-pointer'
@@ -137,8 +137,20 @@ const VIX_STYLE: Record<VixRegime, string> = {
 /** "28.440000" → "28.44": solo quita ceros de más del texto, no redondea. */
 const trimZeros = (t: string) => (t.includes('.') ? t.replace(/\.?0+$/, '') : t)
 
-/** Un rótulo del eje de precio: un nivel de liquidez o una línea de una herramienta. */
-type AxisLabel = { key: string; text: string; title: string; color: string; y: number }
+/**
+ * Un rótulo del eje de precio: un nivel de liquidez o una línea de una herramienta. `rank` menor
+ * encabeza el grupo cuando varios se pisan (#580).
+ */
+type AxisLabel = {
+  key: string
+  text: string
+  title: string
+  color: string
+  y: number
+  rank: number
+}
+
+const isRound = (l: LiquidityLevel) => l.kind === 'round_high' || l.kind === 'round_low'
 
 const NO_DRAWINGS: readonly Drawing[] = []
 
@@ -404,7 +416,22 @@ export function LiquidityChart({
       Date.parse(l.exists_from) <= lastClose.getTime() &&
       idxAt(levelEnd(l)) > 0,
   )
-  const axisLevels = shownLevels.filter((l) => l.state === 'intact' && !expired(l))
+  // En el eje, de los números redondos (uno cada tantos puntos) solo van los dos más cercanos al
+  // último cierre, uno arriba y otro abajo: si no, tapaban todos los precios del eje (#580).
+  const lastCloseValue = closedN ? Number(all[closedN - 1].close) : NaN
+  const nearRound = new Set<LiquidityLevel>()
+  for (const side of [1, -1]) {
+    let best: LiquidityLevel | null = null
+    for (const l of shownLevels) {
+      if (!isRound(l) || l.state !== 'intact' || expired(l)) continue
+      const d = (Number(l.price) - lastCloseValue) * side
+      if (d >= 0 && (best === null || d < (Number(best.price) - lastCloseValue) * side)) best = l
+    }
+    if (best) nearRound.add(best)
+  }
+  const axisLevels = shownLevels.filter(
+    (l) => l.state === 'intact' && !expired(l) && (!isRound(l) || nearRound.has(l)),
+  )
   const fvgEnd = (f: FvgEvent) => f.fill?.at ?? f.expiry?.at ?? null
   const shownFvgs = fvgs.filter((f) => idxAt(fvgEnd(f)) > 0)
   const [tools, toggleTool] = useChartTools()
@@ -415,8 +442,9 @@ export function LiquidityChart({
   const fibLegs = tools.fibonacci && layers?.fibonacci.length ? layers.fibonacci.slice(-1) : []
   /** centro de la vela que cerró a esa hora */
   const cx = (iso: string) => xAt(iso) - slot / 2
-  const last = all[n - 1]
-  const digits = (last?.close.split('.')[1] ?? '').length
+  // los decimales del instrumento: los de los últimos cierres (un cierre "26006" no los pierde);
+  // los mismos que usa la cabecera (`ChartReadout`)
+  const digits = useMemo(() => priceDigits(closeTexts.slice(-50)), [closeTexts])
   const trend = rangeTrend(closes.slice(va, vb), digits)
   const measure = useChartMeasure(svgRef, {
     width,
@@ -579,7 +607,7 @@ export function LiquidityChart({
             />
             {lastClose && (
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Última vela cerrada: {dateTimeUtc(lastClose.toISOString())}{' '}
+                Última vela: {closedAt(lastClose.toISOString())}{' '}
                 <StaleNote at={lastClose.toISOString()} />
               </p>
             )}
@@ -589,20 +617,6 @@ export function LiquidityChart({
       )}
 
       <div ref={boxRef} className="chart-enter relative w-full">
-        {forming && (
-          <span
-            data-forming-label
-            title={
-              forming.partial
-                ? 'La vela empezó a armarse a mitad de su período: apertura, máximo y mínimo pueden ser parciales.'
-                : 'Vela en curso, solo visual: cambia hasta que cierra su período.'
-            }
-            className="pointer-events-none absolute top-1 left-1 z-10 inline-flex h-5 items-center rounded-full border border-border bg-background/85 px-2 text-[10.5px] font-bold text-muted-foreground"
-          >
-            En formación · {forming.label}
-            {forming.partial ? ' · parcial' : ''}
-          </span>
-        )}
         <svg
           ref={svgRef}
           width={width}
@@ -611,7 +625,7 @@ export function LiquidityChart({
           role="img"
           tabIndex={0}
           data-swipe-ignore
-          aria-label={`${instrument}, ${count} ${TF_LABEL[timeframe].long[count === 1 ? 0 : 1]} con ${shownLevels.length} niveles de liquidez y ${shownFvgs.length} FVG. ${coarse ? 'Deslizá un dedo en horizontal para moverte en el tiempo y pellizcá con dos para acercar o alejar' : 'Arrastrá para moverte en el tiempo y usá la rueda para acercar o alejar'}; con el foco, flechas para desplazar y + y − para el zoom.`}
+          aria-label={`${instrument}, ${count} ${TF_LABEL[timeframe].long[count === 1 ? 0 : 1]} con ${shownLevels.length} niveles de liquidez y ${shownFvgs.length} FVG. ${coarse ? 'Deslizá un dedo en horizontal para moverte en el tiempo y pellizcá con dos para acercar o alejar' : 'Arrastrá para moverte en el tiempo y usá Ctrl o ⌘ más la rueda (o la rueda después de un clic) para acercar o alejar'}; con el foco, flechas para desplazar y + y − para el zoom.`}
           className={cn(
             'block w-full touch-pan-y select-none focus-visible:outline-2 focus-visible:outline-ring',
             ruler ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing',
@@ -651,9 +665,10 @@ export function LiquidityChart({
                 return {
                   key: levelKey(l),
                   text: `${levelShort(l)}${arrow}`,
-                  title: `${levelName(l)}: ${decimal(l.price)}`,
+                  title: `${levelName(l)}: ${price(l.price, digits)}`,
                   color: 'var(--chart-accent)',
                   y: m.y(v),
+                  rank: isRound(l) ? 2 : 0,
                 }
               })
               // Herramientas (#501): las líneas del tramo y de los pivotes que valen en la última
@@ -667,9 +682,10 @@ export function LiquidityChart({
                   items.push({
                     key: `fib-${f.kind}-${f.ratio}`,
                     text: `F ${decimal(f.ratio)}`,
-                    title: `Fibonacci ${decimal(f.ratio)}: ${decimal(f.price)}`,
+                    title: `Fibonacci ${decimal(f.ratio)}: ${price(f.price, digits)}`,
                     color: 'var(--chart-fib)',
                     y: m.y(v),
+                    rank: 1,
                   })
               }
               const piv = layers && tools.pivots ? activeAt(layers.pivots, lastSeen) : null
@@ -679,12 +695,13 @@ export function LiquidityChart({
                   items.push({
                     key: `pivot-${p.name}`,
                     text: p.name,
-                    title: `Punto pivote ${p.name} (del día ${piv!.day}): ${decimal(p.price)}`,
+                    title: `Punto pivote ${p.name} (del día ${piv!.day}): ${price(p.price, digits)}`,
                     color: 'var(--chart-pivot)',
                     y: m.y(v),
+                    rank: 1,
                   })
               }
-              const labels = placeLabels(items, top + LABEL_UP, top + plotH - LABEL_DOWN)
+              const labels = groupLabels(items, top + LABEL_UP, top + plotH - LABEL_DOWN)
               const { ticks, digits: td } = niceTicks(m.lo, m.hi)
               return (
                 <>
@@ -710,8 +727,12 @@ export function LiquidityChart({
                       </g>
                     )
                   })}
-                  {labels.map(({ key, text, title, color, y }) => (
-                    <g key={key} data-level-label={y.toFixed(1)}>
+                  {labels.map(({ key, text, title, color, y, count }) => (
+                    <g
+                      key={key}
+                      data-level-label={y.toFixed(1)}
+                      data-label-count={count > 1 ? count : undefined}
+                    >
                       <rect
                         x={plotW + 1}
                         y={y - LABEL_UP}
@@ -798,7 +819,7 @@ export function LiquidityChart({
                       fill="var(--chart-fib)"
                       opacity={0.18}
                     >
-                      <title>{`Golden pocket: ${decimal(f.pocket.low)} – ${decimal(f.pocket.high)}`}</title>
+                      <title>{`Golden pocket: ${price(f.pocket.low, digits)} – ${price(f.pocket.high, digits)}`}</title>
                     </rect>
                     <line
                       x1={cx(f.start.at)}
@@ -825,7 +846,7 @@ export function LiquidityChart({
                           strokeDasharray={l.kind === 'extension' ? '4 3' : undefined}
                           vectorEffect={THIN}
                         >
-                          <title>{`Fibonacci ${decimal(l.ratio)}: ${decimal(l.price)}`}</title>
+                          <title>{`Fibonacci ${decimal(l.ratio)}: ${price(l.price, digits)}`}</title>
                         </line>
                       )
                     })}
@@ -856,7 +877,7 @@ export function LiquidityChart({
                             strokeDasharray={l.name === 'P' ? undefined : '3 3'}
                             vectorEffect={THIN}
                           >
-                            <title>{`Punto pivote ${l.name} (del día ${p.day}): ${decimal(l.price)}`}</title>
+                            <title>{`Punto pivote ${l.name} (del día ${p.day}): ${price(l.price, digits)}`}</title>
                           </line>
                         )
                       })}
@@ -1083,15 +1104,35 @@ export function LiquidityChart({
             />
           )}
         </svg>
-        {selected && (
-          <button
-            type="button"
-            onClick={removeSelected}
-            className="absolute top-2 left-2 inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-background/90 px-3 text-[11.5px] font-bold text-foreground shadow-sm focus-visible:outline-2 focus-visible:outline-ring"
-          >
-            <Trash2 className="size-3.5" aria-hidden />
-            Borrar dibujo
-          </button>
+        {/* arriba a la izquierda, uno debajo del otro: la etiqueta de la vela en formación y el
+            botón de borrar el dibujo elegido (antes se pisaban, #580) */}
+        {(forming || selected) && (
+          <div className="pointer-events-none absolute top-1 left-1 z-10 flex flex-col items-start gap-1">
+            {forming && (
+              <span
+                data-forming-label
+                title={
+                  forming.partial
+                    ? 'La vela empezó a armarse a mitad de su período: apertura, máximo y mínimo pueden ser parciales.'
+                    : 'Vela en curso, solo visual: cambia hasta que cierra su período.'
+                }
+                className="inline-flex h-5 items-center rounded-full border border-border bg-background/85 px-2 text-[10.5px] font-bold text-muted-foreground"
+              >
+                En formación · {forming.label}
+                {forming.partial ? ' · parcial' : ''}
+              </span>
+            )}
+            {selected && (
+              <button
+                type="button"
+                onClick={removeSelected}
+                className="pointer-events-auto inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-background/90 px-3 text-[11.5px] font-bold text-foreground shadow-sm focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                <Trash2 className="size-3.5" aria-hidden />
+                Borrar dibujo
+              </button>
+            )}
+          </div>
         )}
         <ChartNavBar
           vp={vp}
@@ -1101,6 +1142,7 @@ export function LiquidityChart({
           bottom={top + plotH}
           history={history}
           onRetry={() => loadMore(true)}
+          wheelHint={nav.wheelHint}
         />
       </div>
 
@@ -1162,8 +1204,8 @@ export function LiquidityChart({
           ) : (
             <>
               <li>
-                Arrastrá para moverte en el tiempo · rueda: zoom · eje de precio: arrastrá para
-                estirarlo, doble clic vuelve a automático
+                Arrastrá para moverte en el tiempo · Ctrl/⌘ + rueda (o clic y rueda): zoom · eje de
+                precio: arrastrá para estirarlo, doble clic vuelve a automático
               </li>
               <li>Shift + arrastrar (o la regla) mide; un clic o Esc borra la medición</li>
             </>

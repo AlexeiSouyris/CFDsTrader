@@ -28,8 +28,9 @@ export const LEVEL_SHORT: Record<LevelKind, string> = {
   pwl: 'PWL',
   session_high: 'máx',
   session_low: 'mín',
-  round_high: 'red↑',
-  round_low: 'red↓',
+  // "red↑" no se entendía sin pasar el mouse (#580): el nombre entero entra en el eje
+  round_high: 'Redondo',
+  round_low: 'Redondo',
 }
 
 export const SESSION_LABEL: Record<TradingSession, string> = {
