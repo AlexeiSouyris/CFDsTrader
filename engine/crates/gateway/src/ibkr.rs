@@ -5,8 +5,12 @@
 //! | `GET /api/v1/ibkr/bars?instrument=<id>&timeframe=1m\|15m\|1h[&limit=<n>][&before=<UTC>]` | `gateway_ibkr_bars.v1` |
 //! | `GET /api/v1/ibkr/watchlist` | `gateway_ibkr_watchlist.v1` |
 //!
-//! Lee `ibkr_bars` (#536) tal como está guardada: solo velas **cerradas** y de una sola serie (un
-//! contrato, un tamaño y un precio), nunca mezcla contratos. El resumen de la watchlist es
+//! Lee `ibkr_bars` (#536) con sus correcciones (`ibkr_bar_corrections`, #563): solo velas
+//! **cerradas** y de una sola serie (un contrato, un tamaño y un precio), nunca mezcla contratos.
+//! "Cerrada" es lo mismo que para la carga (`cfds_ibkr::load::complete_prefix_by`, #575): además de
+//! que pasó su hora de cierre, la última vela de la serie tiene que haber cerrado hace al menos el
+//! atraso de los datos de IBKR (`[load].data_delay_secs` de `config/ibkr.toml`), salvo que ya haya
+//! una vela guardada después. Así una vela a medias nunca se sirve como cerrada. El resumen de la watchlist es
 //! presentación de dos precios (último y cierre de una sesión anterior); el día de sesión es el de
 //! [`cfds_market_data::session_day`], el mismo de la terminal `bolsa`. No calcula indicadores ni
 //! señales, no envía órdenes ni escribe en la base.
@@ -14,6 +18,8 @@
 use std::future::Future;
 
 use cfds_core::InstrumentId;
+use cfds_ibkr::BarSize;
+use cfds_ibkr::load::complete_prefix_by;
 use cfds_market_data::SessionOffsets;
 use cfds_market_data::session_day::{change, change_pct, session_date, session_start};
 use cfds_storage::{IbkrBarRow, IbkrSeries, PgStore};
@@ -39,7 +45,7 @@ pub fn bar_length(size: &str) -> Option<TimeDelta> {
 }
 
 /// `[ibkr]` de `config/gateway.toml`, más el día de sesión de `[session]` de
-/// `config/terminal.toml`.
+/// `config/terminal.toml` y el atraso de los datos de `[load]` de `config/ibkr.toml`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IbkrViewConfig {
     pub source: String,
@@ -54,10 +60,14 @@ pub struct IbkrViewConfig {
     pub live_max_clients: usize,
     /// Cada cuánto va un comentario SSE para que la conexión no se corte sin mensajes.
     pub live_heartbeat: std::time::Duration,
+    /// Atraso de los datos de IBKR (`[load].data_delay_secs`, #563/#575): la última vela guardada
+    /// de una serie se sirve como cerrada solo si cerró hace al menos esto.
+    pub data_delay: TimeDelta,
 }
 
 impl IbkrViewConfig {
-    pub fn from_toml(gateway: &str, terminal: &str) -> Result<Self, String> {
+    /// `ibkr`: el texto de `config/ibkr.toml` (se valida entero, como lo valida la carga).
+    pub fn from_toml(gateway: &str, terminal: &str, ibkr: &str) -> Result<Self, String> {
         #[derive(Deserialize)]
         struct Raw {
             ibkr: RawIbkr,
@@ -104,7 +114,12 @@ impl IbkrViewConfig {
         if !(1..=60).contains(&r.live_heartbeat_secs) {
             return Err("ibkr.live_heartbeat_secs: entre 1 y 60".into());
         }
+        let data_delay = cfds_ibkr::IbkrConfig::from_toml(ibkr)
+            .map_err(|e| format!("config/ibkr.toml {e}"))?
+            .load
+            .data_delay;
         Ok(Self {
+            data_delay,
             live: r.live,
             live_max_clients: r.live_max_clients,
             live_heartbeat: std::time::Duration::from_secs(r.live_heartbeat_secs),
@@ -347,6 +362,55 @@ fn internal(e: String) -> Reply {
     text(500, "error interno")
 }
 
+/// Las velas completas a `at` de `rows` (de una sola serie, en orden; cerradas por reloj): las
+/// del principio que la carga habría guardado (`complete_prefix_by`, #575). Una vela de tamaño
+/// desconocido no se sirve.
+pub fn complete(mut rows: Vec<IbkrBarRow>, at: DateTime<Utc>, delay: TimeDelta) -> Vec<IbkrBarRow> {
+    let Some(size) = rows
+        .first()
+        .and_then(|r| r.bar_size.parse::<BarSize>().ok())
+    else {
+        return Vec::new();
+    };
+    let n = complete_prefix_by(&rows, |r| r.start, size, at, delay);
+    rows.truncate(n);
+    rows
+}
+
+/// La última vela **completa** a `at` de un instrumento, de cualquier tamaño: la que cierra más
+/// tarde y, a igual cierre, la más chica (como `latest_closed`). Por tamaño, la última de la serie
+/// vigente y la anterior, para ver si la última está completa.
+async fn latest_complete<S: IbkrBarSource>(
+    store: &S,
+    cfg: &IbkrViewConfig,
+    instrument: &str,
+    at: DateTime<Utc>,
+) -> Result<Option<IbkrBarRow>, String> {
+    let mut best: Option<IbkrBarRow> = None;
+    for tf in TIMEFRAMES {
+        let Some(last) = store
+            .latest_closed(&cfg.source, instrument, Some(tf), at)
+            .await?
+        else {
+            continue;
+        };
+        let rows = complete(
+            store.closed_by(&series(&last), at, 2).await?,
+            at,
+            cfg.data_delay,
+        );
+        let Some(row) = rows.into_iter().last() else {
+            continue;
+        };
+        let end = |r: &IbkrBarRow| r.start + bar_length(&r.bar_size).unwrap_or_default();
+        // TIMEFRAMES va del más chico al más grande: a igual cierre queda el primero.
+        if best.as_ref().is_none_or(|b| end(&row) > end(b)) {
+            best = Some(row);
+        }
+    }
+    Ok(best)
+}
+
 /// Atiende las rutas de IBKR. Solo `GET`.
 pub async fn respond_ibkr<S: IbkrBarSource>(
     store: &S,
@@ -400,15 +464,23 @@ pub async fn respond_ibkr<S: IbkrBarSource>(
     };
     let (series_out, bars) = match &last {
         None => (None, Vec::new()),
-        Some(l) => match store.closed_by(&series(l), at, limit).await {
-            Ok(rows) => (
-                Some(SeriesOut {
-                    contract: l.contract.clone(),
-                    kind: l.kind.clone(),
-                    what_to_show: l.what_to_show.clone(),
-                }),
-                rows.into_iter().map(BarOut::from).collect(),
-            ),
+        // Una de más: si la última está a medias, igual salen `limit`.
+        Some(l) => match store
+            .closed_by(&series(l), at, limit.saturating_add(1))
+            .await
+        {
+            Ok(rows) => {
+                let rows = complete(rows, at, cfg.data_delay);
+                let skip = rows.len().saturating_sub(limit as usize);
+                (
+                    Some(SeriesOut {
+                        contract: l.contract.clone(),
+                        kind: l.kind.clone(),
+                        what_to_show: l.what_to_show.clone(),
+                    }),
+                    rows.into_iter().skip(skip).map(BarOut::from).collect(),
+                )
+            }
             Err(e) => return internal(e),
         },
     };
@@ -426,10 +498,7 @@ pub async fn respond_ibkr<S: IbkrBarSource>(
 async fn watchlist<S: IbkrBarSource>(store: &S, cfg: &IbkrViewConfig, now: DateTime<Utc>) -> Reply {
     let mut instruments = Vec::with_capacity(cfg.instruments.len());
     for id in &cfg.instruments {
-        let last = match store
-            .latest_closed(&cfg.source, id.as_str(), None, now)
-            .await
-        {
+        let last = match latest_complete(store, cfg, id.as_str(), now).await {
             Ok(l) => l,
             Err(e) => return internal(e),
         };
@@ -467,7 +536,7 @@ mod tests {
 
     #[test]
     fn reads_the_repo_config_and_matches_config_ibkr() {
-        let c = IbkrViewConfig::from_toml(GATEWAY, TERMINAL).unwrap();
+        let c = IbkrViewConfig::from_toml(GATEWAY, TERMINAL, IBKR).unwrap();
         let ibkr: toml::Table = toml::from_str(IBKR).unwrap();
         // La fuente es la que guarda la carga (`[load] source`).
         assert_eq!(
@@ -490,7 +559,7 @@ mod tests {
 
     #[test]
     fn rejects_bad_config() {
-        let ok = IbkrViewConfig::from_toml(GATEWAY, TERMINAL).unwrap();
+        let ok = IbkrViewConfig::from_toml(GATEWAY, TERMINAL, IBKR).unwrap();
         for (from, to) in [
             ("max_bars = 5000", "max_bars = 0"),
             ("default_bars = 500", "default_bars = 0"),
@@ -507,10 +576,17 @@ mod tests {
         ] {
             let bad = GATEWAY.replace(from, to);
             assert_ne!(bad, GATEWAY, "{from}");
-            assert!(IbkrViewConfig::from_toml(&bad, TERMINAL).is_err(), "{to}");
+            assert!(
+                IbkrViewConfig::from_toml(&bad, TERMINAL, IBKR).is_err(),
+                "{to}"
+            );
         }
         assert_eq!(ok.max_bars, 5000);
         let bad_session = TERMINAL.replace("stock_offset_hours = -5", "stock_offset_hours = 20");
-        assert!(IbkrViewConfig::from_toml(GATEWAY, &bad_session).is_err());
+        assert!(IbkrViewConfig::from_toml(GATEWAY, &bad_session, IBKR).is_err());
+        assert_eq!(ok.data_delay, TimeDelta::seconds(900));
+        let bad_delay = IBKR.replace("data_delay_secs = 900", "data_delay_secs = 5");
+        assert_ne!(bad_delay, IBKR);
+        assert!(IbkrViewConfig::from_toml(GATEWAY, TERMINAL, &bad_delay).is_err());
     }
 }

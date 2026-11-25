@@ -81,10 +81,23 @@ pub fn complete_prefix(
     now: DateTime<Utc>,
     delay: TimeDelta,
 ) -> usize {
+    complete_prefix_by(bars, |b| b.start, size, now, delay)
+}
+
+/// [`complete_prefix`] para velas de cualquier tipo, dado su inicio (`start`). El gateway la usa
+/// con las velas guardadas en `ibkr_bars` (#575), para no servir como cerrada una vela que la carga
+/// no hubiera guardado: mismo criterio, una sola función.
+pub fn complete_prefix_by<B>(
+    bars: &[B],
+    start: impl Fn(&B) -> DateTime<Utc>,
+    size: BarSize,
+    now: DateTime<Utc>,
+    delay: TimeDelta,
+) -> usize {
     bars.iter()
         .enumerate()
         .take_while(|(i, b)| {
-            let end = b.start + size.duration();
+            let end = start(b) + size.duration();
             let has_later = i + 1 < bars.len();
             end <= now && (has_later || end <= now - delay)
         })
@@ -313,6 +326,20 @@ mod tests {
         // También en 1m: la última de 1m puede estar a medias.
         let m = vec![flat(t(2, 0)), flat(t(2, 1))];
         assert_eq!(complete_prefix(&m, BarSize::M1, t(2, 5), DELAY), 1);
+    }
+
+    #[test]
+    fn complete_prefix_by_takes_any_bar_with_a_start() {
+        // Las mismas velas, como inicios sueltos: mismo resultado (#575, el gateway).
+        let got = [flat(t(2, 0)), flat(t(2, 15))];
+        let starts: Vec<DateTime<Utc>> = got.iter().map(|b| b.start).collect();
+        for now in [t(2, 10), t(2, 16), t(2, 31), t(2, 45)] {
+            assert_eq!(
+                complete_prefix_by(&starts, |s| *s, BarSize::M15, now, DELAY),
+                complete_prefix(&got, BarSize::M15, now, DELAY),
+                "{now}"
+            );
+        }
     }
 
     #[test]

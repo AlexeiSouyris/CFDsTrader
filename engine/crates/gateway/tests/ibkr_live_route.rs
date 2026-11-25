@@ -17,6 +17,7 @@ use serde_json::Value;
 
 const GATEWAY: &str = include_str!("../../../../config/gateway.toml");
 const TERMINAL: &str = include_str!("../../../../config/terminal.toml");
+const IBKR: &str = include_str!("../../../../config/ibkr.toml");
 
 fn contracts() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../contracts")
@@ -103,7 +104,7 @@ async fn next(body: &mut SseBody) -> Value {
 fn route_and_config() {
     assert!(is_ibkr_live_route("/api/v1/ibkr/live"));
     assert!(!is_ibkr_live_route("/api/v1/ibkr/bars"));
-    let cfg = IbkrViewConfig::from_toml(GATEWAY, TERMINAL).unwrap();
+    let cfg = IbkrViewConfig::from_toml(GATEWAY, TERMINAL, IBKR).unwrap();
     // El dueño la prendió en config/gateway.toml (#566); el test solo verifica que la clave se lee.
     let _ = cfg.live;
     assert!(cfg.live_max_clients >= 4);

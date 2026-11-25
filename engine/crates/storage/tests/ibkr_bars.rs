@@ -2,7 +2,7 @@
 //! (`cfds_test…`); está marcado `#[ignore]` y el CI lo corre con `-- --ignored`. La tabla es de
 //! solo agregar: cada corrida usa un instrumento propio.
 
-use cfds_storage::{IbkrBarRow, IbkrSeries, PgStore, StorageError};
+use cfds_storage::{IbkrBarCorrection, IbkrBarRow, IbkrSeries, PgStore, StorageError};
 use chrono::{DateTime, Utc};
 use rust_decimal::{Decimal, dec};
 
@@ -146,4 +146,118 @@ async fn ibkr_bars_between_and_series_list_one_series_in_order() {
             ("MNQZ6".to_owned(), "1m".to_owned()),
         ]
     );
+}
+
+fn correction(b: &IbkrBarRow, close: Decimal, volume: Option<Decimal>) -> IbkrBarCorrection {
+    IbkrBarCorrection {
+        source: b.source.clone(),
+        instrument_id: b.instrument_id.clone(),
+        contract: b.contract.clone(),
+        bar_size: b.bar_size.clone(),
+        what_to_show: b.what_to_show.clone(),
+        start: b.start,
+        open: b.open,
+        high: close + dec!(5),
+        low: b.low,
+        close,
+        volume,
+        reason: "test #563".into(),
+        correction_source: "ibkr_1m_aggregate".into(),
+    }
+}
+
+/// #563/#575: `ibkr_bar_corrections` es de solo agregar, apunta a una vela guardada y todas las
+/// lecturas devuelven la corrección más reciente; `ibkr_bars` no cambia.
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn reads_use_the_latest_correction_and_corrections_are_append_only() {
+    let s = store().await;
+    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
+    let id = format!("ITIC{nanos}");
+    let bars = vec![
+        row(&id, "MNQZ6", "15m", "2026-11-25T03:30:00Z", dec!(26044)),
+        row(&id, "MNQZ6", "15m", "2026-11-25T03:45:00Z", dec!(26049)),
+    ];
+    s.insert_ibkr_bars(&bars).await.unwrap();
+    let series = IbkrSeries {
+        source: "ibkr",
+        instrument_id: &id,
+        contract: "MNQZ6",
+        bar_size: "15m",
+        what_to_show: "TRADES",
+    };
+    let at: DateTime<Utc> = "2026-11-25T05:00:00Z".parse().unwrap();
+
+    // Sin corrección: lo guardado.
+    let read = s.ibkr_bars_closed_by(&series, at, 10).await.unwrap();
+    assert_eq!(read, bars);
+
+    assert_eq!(
+        s.insert_ibkr_bar_corrections(&[correction(&bars[1], dec!(26060), Some(dec!(15)))])
+            .await
+            .unwrap(),
+        1
+    );
+    // Una segunda corrección (otra transacción, más tarde) gana; sin volumen, se lee NULL.
+    s.insert_ibkr_bar_corrections(&[correction(&bars[1], dec!(26061.25), None)])
+        .await
+        .unwrap();
+
+    let read = s.ibkr_bars_closed_by(&series, at, 10).await.unwrap();
+    assert_eq!(read[0], bars[0], "la vela sin corrección no cambia");
+    assert_eq!(
+        (read[1].close, read[1].high, read[1].volume),
+        (dec!(26061.25), dec!(26066.25), None)
+    );
+    assert_eq!(read[1].open, bars[1].open);
+    let between = s
+        .ibkr_bars_between(&series, bars[0].start, at)
+        .await
+        .unwrap();
+    assert_eq!(between, read);
+    let latest = s
+        .latest_closed_ibkr_bar("ibkr", &id, Some("15m"), at)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(latest.close, dec!(26061.25));
+    let before = s
+        .last_ibkr_bar_starting_before(&series, at)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(before.close, dec!(26061.25));
+
+    // `ibkr_bars` sigue igual: volver a cargar la vela original no es conflicto.
+    let again = s.insert_ibkr_bars(&bars).await.unwrap();
+    assert_eq!(again.unchanged, 2);
+
+    // Una corrección de una vela que no existe no entra (ni las demás del lote).
+    let mut ghost = correction(&bars[0], dec!(26050), None);
+    ghost.start = "2026-11-25T04:00:00Z".parse().unwrap();
+    assert!(
+        s.insert_ibkr_bar_corrections(&[correction(&bars[0], dec!(26045), None), ghost])
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        s.ibkr_bars_closed_by(&series, at, 10).await.unwrap()[0],
+        bars[0]
+    );
+
+    // De solo agregar: ni UPDATE ni DELETE.
+    let pool = sqlx::PgPool::connect(&cfds_storage::test_db::test_database_url())
+        .await
+        .unwrap();
+    for sql in [
+        "UPDATE ibkr_bar_corrections SET close = 1 WHERE instrument_id = $1",
+        "DELETE FROM ibkr_bar_corrections WHERE instrument_id = $1",
+    ] {
+        let err = sqlx::query(sql).bind(&id).execute(&pool).await.unwrap_err();
+        assert!(err.to_string().contains("solo agregar"), "{sql}: {err}");
+    }
+    // Un OHLC imposible no entra.
+    let mut bad = correction(&bars[0], dec!(26045), None);
+    bad.low = dec!(30000);
+    assert!(s.insert_ibkr_bar_corrections(&[bad]).await.is_err());
 }
