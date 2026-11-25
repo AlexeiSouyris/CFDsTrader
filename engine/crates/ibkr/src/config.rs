@@ -1,0 +1,258 @@
+//! `config/ibkr.toml`: conexión a IB Gateway paper, puertos prohibidos e instrumentos. Se valida
+//! al arrancar (ADR 0017 §2.1).
+
+use std::net::IpAddr;
+use std::time::Duration;
+
+use cfds_core::{InstrumentId, Timeframe};
+use serde::Deserialize;
+
+/// Puertos de sesión real que la lista de `forbidden_ports` tiene que incluir siempre: TWS real
+/// (7496) e IB Gateway real (4001). Sacarlos de la configuración no los habilita.
+pub const REQUIRED_FORBIDDEN_PORTS: [u16; 2] = [7496, 4001];
+
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum IbkrConfigError {
+    #[error("config/ibkr.toml no es TOML válido: {0}")]
+    Parse(String),
+    #[error("config/ibkr.toml, {field}: {problem}")]
+    Invalid {
+        field: &'static str,
+        problem: String,
+    },
+}
+
+/// Qué precio piden las velas.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WhatToShow {
+    Trades,
+    Midpoint,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FutureSpec {
+    pub id: InstrumentId,
+    pub symbol: String,
+    pub exchange: String,
+    pub currency: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IbkrConfig {
+    pub host: String,
+    pub port: u16,
+    pub client_id: i32,
+    pub connect_timeout: Duration,
+    pub request_timeout: Duration,
+    pub watch_interval: Duration,
+    pub forbidden_ports: Vec<u16>,
+    pub paper_account_env: String,
+    pub timeframe: Timeframe,
+    pub lookback: chrono::TimeDelta,
+    pub what_to_show: WhatToShow,
+    pub regular_hours_only: bool,
+    pub source: String,
+    pub instruments: Vec<FutureSpec>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Raw {
+    gateway: RawGateway,
+    account: RawAccount,
+    history: RawHistory,
+    instruments: Vec<RawInstrument>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawGateway {
+    host: String,
+    port: u16,
+    client_id: i32,
+    connect_timeout_secs: u64,
+    request_timeout_secs: u64,
+    watch_interval_secs: u64,
+    forbidden_ports: Vec<u16>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawAccount {
+    paper_account_env: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawHistory {
+    timeframe: String,
+    lookback_hours: u32,
+    what_to_show: String,
+    regular_hours_only: bool,
+    source: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawInstrument {
+    id: String,
+    symbol: String,
+    exchange: String,
+    currency: String,
+}
+
+fn invalid(field: &'static str, problem: impl Into<String>) -> IbkrConfigError {
+    IbkrConfigError::Invalid {
+        field,
+        problem: problem.into(),
+    }
+}
+
+fn secs(field: &'static str, v: u64, max: u64) -> Result<Duration, IbkrConfigError> {
+    if (1..=max).contains(&v) {
+        Ok(Duration::from_secs(v))
+    } else {
+        Err(invalid(field, format!("tiene que estar entre 1 y {max}")))
+    }
+}
+
+fn plain(field: &'static str, v: &str) -> Result<String, IbkrConfigError> {
+    let ok = (1..=16).contains(&v.len()) && v.chars().all(|c| c.is_ascii_alphanumeric());
+    if ok {
+        Ok(v.to_owned())
+    } else {
+        Err(invalid(field, format!("{v:?}: 1-16 letras o números")))
+    }
+}
+
+/// Puerto prohibido: está en la lista de la configuración o es uno de los reales fijos.
+pub fn is_forbidden_port(port: u16, forbidden: &[u16]) -> bool {
+    forbidden.contains(&port) || REQUIRED_FORBIDDEN_PORTS.contains(&port)
+}
+
+impl IbkrConfig {
+    pub fn from_toml(text: &str) -> Result<Self, IbkrConfigError> {
+        let r: Raw = toml::from_str(text).map_err(|e| IbkrConfigError::Parse(e.to_string()))?;
+        let g = r.gateway;
+        let loopback =
+            g.host == "localhost" || g.host.parse::<IpAddr>().is_ok_and(|ip| ip.is_loopback());
+        if !loopback {
+            return Err(invalid(
+                "gateway.host",
+                "solo se permite esta máquina (127.0.0.1, ::1 o localhost)",
+            ));
+        }
+        for p in REQUIRED_FORBIDDEN_PORTS {
+            if !g.forbidden_ports.contains(&p) {
+                return Err(invalid(
+                    "gateway.forbidden_ports",
+                    format!("tiene que incluir {p} (sesión real)"),
+                ));
+            }
+        }
+        if is_forbidden_port(g.port, &g.forbidden_ports) {
+            return Err(invalid(
+                "gateway.port",
+                format!("{} es un puerto de sesión real: no se conecta", g.port),
+            ));
+        }
+        if g.port == 0 {
+            return Err(invalid("gateway.port", "no puede ser 0"));
+        }
+        if g.client_id < 0 {
+            return Err(invalid("gateway.client_id", "no puede ser negativo"));
+        }
+        let env = r.account.paper_account_env;
+        let env_ok = !env.is_empty()
+            && env
+                .chars()
+                .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_');
+        if !env_ok {
+            return Err(invalid(
+                "account.paper_account_env",
+                "nombre de variable: mayúsculas, números y '_'",
+            ));
+        }
+        let h = r.history;
+        let timeframe = match h.timeframe.as_str() {
+            "15m" => Timeframe::M15,
+            "1h" => Timeframe::H1,
+            other => {
+                return Err(invalid(
+                    "history.timeframe",
+                    format!("{other:?}: solo \"15m\" o \"1h\""),
+                ));
+            }
+        };
+        let what_to_show = match h.what_to_show.as_str() {
+            "TRADES" => WhatToShow::Trades,
+            "MIDPOINT" => WhatToShow::Midpoint,
+            other => {
+                return Err(invalid(
+                    "history.what_to_show",
+                    format!("{other:?}: solo \"TRADES\" o \"MIDPOINT\""),
+                ));
+            }
+        };
+        if !(1..=24 * 30).contains(&h.lookback_hours) {
+            return Err(invalid(
+                "history.lookback_hours",
+                "tiene que estar entre 1 y 720",
+            ));
+        }
+        if h.source.trim().is_empty() {
+            return Err(invalid("history.source", "no puede estar vacío"));
+        }
+        if r.instruments.is_empty() {
+            return Err(invalid("instruments", "hace falta al menos uno"));
+        }
+        let mut instruments = Vec::with_capacity(r.instruments.len());
+        for i in r.instruments {
+            let id =
+                i.id.parse::<InstrumentId>()
+                    .map_err(|e| invalid("instruments.id", e.to_string()))?;
+            if instruments.iter().any(|s: &FutureSpec| s.id == id) {
+                return Err(invalid("instruments.id", format!("{id} repetido")));
+            }
+            instruments.push(FutureSpec {
+                id,
+                symbol: plain("instruments.symbol", &i.symbol)?,
+                exchange: plain("instruments.exchange", &i.exchange)?,
+                currency: plain("instruments.currency", &i.currency)?,
+            });
+        }
+        Ok(Self {
+            host: g.host,
+            port: g.port,
+            client_id: g.client_id,
+            connect_timeout: secs("gateway.connect_timeout_secs", g.connect_timeout_secs, 120)?,
+            request_timeout: secs("gateway.request_timeout_secs", g.request_timeout_secs, 600)?,
+            watch_interval: secs("gateway.watch_interval_secs", g.watch_interval_secs, 300)?,
+            forbidden_ports: g.forbidden_ports,
+            paper_account_env: env,
+            timeframe,
+            lookback: chrono::TimeDelta::hours(i64::from(h.lookback_hours)),
+            what_to_show,
+            regular_hours_only: h.regular_hours_only,
+            source: h.source,
+            instruments,
+        })
+    }
+
+    /// Vuelve a mirar el puerto justo antes de abrir el socket (la configuración es pública y se
+    /// puede haber cambiado después de validarla).
+    pub fn check_port(&self) -> Result<(), IbkrConfigError> {
+        if is_forbidden_port(self.port, &self.forbidden_ports) {
+            Err(invalid(
+                "gateway.port",
+                format!("{} es un puerto de sesión real: no se conecta", self.port),
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn instrument(&self, id: &InstrumentId) -> Option<&FutureSpec> {
+        self.instruments.iter().find(|s| &s.id == id)
+    }
+}

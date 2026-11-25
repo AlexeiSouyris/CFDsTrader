@@ -1,0 +1,54 @@
+# IBKR, cuenta paper, solo lectura (ADR 0017 etapa 1, #534). Lo lee engine/crates/ibkr y se valida al
+# arrancar: si algo no cumple, el adaptador no se conecta.
+#
+# El login lo hace el dueño a mano en IB Gateway, eligiendo "Paper Trading". El proyecto nunca guarda
+# ni pide el usuario o la contraseña de IBKR. El ID de la cuenta paper va solo en .env (ver
+# [account].paper_account_env y .env.example).
+
+[gateway]
+# Solo esta máquina: se rechaza cualquier host que no sea de loopback.
+host = "127.0.0.1"
+# IB Gateway en modo paper (verificado por el dueño el 25-11-2026, #533).
+port = 4002
+# Identificador de esta conexión ante IB Gateway (otro programa conectado no puede usar el mismo).
+client_id = 17
+connect_timeout_secs = 15
+request_timeout_secs = 30
+# Cada cuánto se mira si la conexión sigue viva con --watch.
+watch_interval_secs = 5
+# Puertos de sesión real: el adaptador se niega a conectarse a ellos. Tiene que incluir, como mínimo,
+# 7496 (TWS real) y 4001 (IB Gateway real, a confirmar en la documentación oficial, ADR 0017).
+# 7497 (TWS paper) y 4002 (IB Gateway paper) NO van acá.
+forbidden_ports = [7496, 4001]
+
+[account]
+# Variable de .env con el ID de la cuenta paper. Sin ella, el adaptador no se conecta. Si alguna
+# cuenta de la sesión es otra, se desconecta y activa el kill switch.
+paper_account_env = "IBKR_PAPER_ACCOUNT_ID"
+
+[history]
+# Velas que se piden: "15m" o "1h". Solo se devuelven velas cerradas.
+timeframe = "1h"
+# Ventana del comando de prueba, hacia atrás desde ahora.
+lookback_hours = 24
+# Qué precio: "TRADES" (operaciones) o "MIDPOINT" (medio entre compra y venta).
+what_to_show = "TRADES"
+# false: incluye el horario extendido de la sesión (los futuros de CME operan casi 23 h).
+regular_hours_only = false
+# Fuente que acompaña a cada vela.
+source = "ibkr_paper"
+
+# Futuros micro (ADR 0017). La bolsa y la moneda son a confirmar con la respuesta de IBKR
+# (contract_details): si no encuentra el contrato, el comando lo dice y no inventa nada. Se usa el
+# vencimiento vigente más cercano que informe IBKR.
+[[instruments]]
+id = "MNQ"
+symbol = "MNQ"
+exchange = "CME"
+currency = "USD"
+
+[[instruments]]
+id = "MES"
+symbol = "MES"
+exchange = "CME"
+currency = "USD"
