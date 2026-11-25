@@ -8,6 +8,7 @@ import {
   FolderOpen,
   Gauge,
   LayoutDashboard,
+  LayoutGrid,
   ListChecks,
   Trophy,
   Wallet,
@@ -51,6 +52,14 @@ export const VIEWS: ShellView[] = [
     short: 'Gráficos',
     icon: BarChart3,
     description: 'Precio con volumen, RSI y MACD, y la profundidad del mercado.',
+  },
+  {
+    id: 'multigrafico',
+    label: 'Multigráfico',
+    short: 'Multi',
+    icon: LayoutGrid,
+    description:
+      'Hasta cuatro gráficos a la vez, cada uno con su instrumento y timeframe. Solo para mirar: sin órdenes.',
   },
   {
     id: 'liquidez',

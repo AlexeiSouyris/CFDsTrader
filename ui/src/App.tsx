@@ -19,6 +19,7 @@ import { CURRENT_MEMBER, NOTICES } from '@/mocks'
 import { ChartsView, CompetitionView, JournalView, NewsView } from '@/views'
 import { useTabSwipe } from '@/lib/use-tab-swipe'
 import { LiquidityView } from '@/views/liquidity'
+import { MultichartView } from '@/views/multichart'
 import { PanelView } from '@/views/panel'
 import { PerformanceView } from '@/views/performance'
 import { TerminalView } from '@/views/terminal'
@@ -138,6 +139,7 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
               {view === 'propuestas' && <ProposalsView member={CURRENT_MEMBER} />}
               {view === 'terminal' && <TerminalView member={CURRENT_MEMBER} />}
               {view === 'graficos' && <ChartsView />}
+              {view === 'multigrafico' && <MultichartView />}
               {view === 'liquidez' && <LiquidityView />}
               {view === 'noticias' && <NewsView />}
               {view === 'operaciones' && <JournalView />}

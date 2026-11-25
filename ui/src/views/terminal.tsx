@@ -14,7 +14,14 @@
  */
 import { useEffect, useState, type ReactNode } from 'react'
 
-import { LiquidityChart } from '@/components/ui/liquidity-chart'
+import {
+  DEFAULT_SLOTS,
+  parseSlots,
+  useChartCatalog,
+  useChartSlot,
+  type ChartSel,
+} from '@/lib/chart-slots'
+import { SlotChart } from '@/components/ui/chart-slot'
 import { OpsKillSwitchBanner, OpsStatusBar } from '@/components/ui/ops-status'
 import { ProposalCard } from '@/components/ui/proposal-card'
 import { Segmented } from '@/components/ui/segmented'
@@ -24,16 +31,12 @@ import {
   OrderTicket,
   PositionsTable,
 } from '@/components/ui/trading-terminal'
-import { fetchOlderBars, useInstruments, useLiquidityView } from '@/lib/liquidity-api'
-import { chartBars } from '@/lib/liquidity-bars'
 import { useOpsStatus } from '@/lib/ops-api'
 import { clearFocusedInstrument, FOCUS_EVENT, focusedInstrument } from '@/lib/terminal-focus'
-import type { LiquidityViewData, ViewTimeframe } from '@/lib/liquidity-contracts'
+import type { ViewTimeframe } from '@/lib/liquidity-contracts'
 import { previewOrder, submitOrder, usePaperAccount, usePaperPositions } from '@/lib/paper-api'
 import { cn } from '@/lib/utils'
 import {
-  CHART_SIGNALS,
-  LIQUIDITY_US100,
   mockPreview,
   PAPER_ACCOUNT,
   PAPER_ACCOUNT_HALTED,
@@ -69,15 +72,6 @@ const SCENARIOS = ['Normal', 'Kill switch activo'] as const
 
 const LAYOUTS = ['1', '2', '4'] as const
 type Layout = (typeof LAYOUTS)[number]
-type ChartSel = { instrument: string; timeframe: ViewTimeframe }
-const TIMEFRAMES: ViewTimeframe[] = ['15m', '1h', '1d']
-/** Lo que abre cada lugar de la grilla la primera vez. */
-const DEFAULT_SLOTS: ChartSel[] = [
-  { instrument: 'US100', timeframe: '15m' },
-  { instrument: 'DE40', timeframe: '15m' },
-  { instrument: 'US500', timeframe: '1h' },
-  { instrument: 'US30', timeframe: '1h' },
-]
 const STORAGE_KEY = 'cfdstrader.terminal.charts'
 const CHART_HEIGHT: Record<Layout, number> = { '1': 400, '2': 360, '4': 300 }
 
@@ -89,11 +83,7 @@ function loadLayout(): Saved {
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Partial<Saved> | null
     if (!raw || !LAYOUTS.includes(raw.layout as Layout)) return fallback
-    const slots = DEFAULT_SLOTS.map((d, i) => {
-      const s = raw.slots?.[i]
-      return s && typeof s.instrument === 'string' && TIMEFRAMES.includes(s.timeframe) ? s : d
-    })
-    return { layout: raw.layout as Layout, slots }
+    return { layout: raw.layout as Layout, slots: parseSlots(raw.slots) }
   } catch {
     return fallback
   }
@@ -128,18 +118,17 @@ function ChartSlot({
   timeframes: ViewTimeframe[]
   height: number
 }) {
-  const remote = useLiquidityView(sel)
-  const example =
-    sel.instrument === LIQUIDITY_US100.instrument_id && sel.timeframe === '15m'
-      ? LIQUIDITY_US100
-      : null
-  const live: LiquidityViewData | null =
-    remote.status === 'ok' && remote.data.candles.length > 0 ? remote.data : null
-  const data = live ?? example
+  const slot = useChartSlot(sel)
   return (
     <Panel
       title={`Gráfico ${index + 1}`}
-      aside={live ? 'velas del motor' : example ? 'datos de ejemplo' : undefined}
+      aside={
+        slot.source === 'motor'
+          ? 'velas del motor'
+          : slot.source === 'ejemplo'
+            ? 'datos de ejemplo'
+            : undefined
+      }
     >
       <div className="mb-3 flex flex-wrap gap-2">
         <Segmented
@@ -155,36 +144,7 @@ function ChartSlot({
           onChange={(tf) => onChange({ timeframe: tf as ViewTimeframe })}
         />
       </div>
-      {data ? (
-        <LiquidityChart
-          key={`${sel.instrument}|${sel.timeframe}`}
-          instrument={data.instrument_id}
-          timeframe={data.timeframe ?? sel.timeframe}
-          bars={chartBars(data)}
-          levels={data.levels}
-          fvgs={data.fvgs}
-          imbalance={data.imbalance}
-          signals={data === example ? CHART_SIGNALS : []}
-          analysis={data.analysis}
-          loadOlder={
-            live
-              ? (before) =>
-                  fetchOlderBars(live.instrument_id, live.timeframe ?? sel.timeframe, before)
-              : undefined
-          }
-          height={height}
-        />
-      ) : (
-        <p
-          role="status"
-          className="grid place-items-center rounded-xl border border-dashed border-border px-4 text-center text-[12.5px] text-muted-foreground"
-          style={{ minHeight: height }}
-        >
-          {remote.status === 'loading'
-            ? `Pidiendo ${sel.instrument} (${sel.timeframe}) al motor…`
-            : `Sin velas de ${sel.instrument} en ${sel.timeframe}: el gateway no respondió o todavía no las tiene.`}
-        </p>
-      )}
+      <SlotChart slot={slot} height={height} />
     </Panel>
   )
 }
@@ -225,10 +185,7 @@ export function TerminalView({ member }: { member: Member }) {
     window.addEventListener(FOCUS_EVENT, onFocus)
     return () => window.removeEventListener(FOCUS_EVENT, onFocus)
   }, [])
-  const catalog = useInstruments()
-  const instruments =
-    catalog.status === 'ok' ? catalog.data.instruments.map((i) => i.id) : TERMINAL_INSTRUMENTS
-  const timeframes = catalog.status === 'ok' ? catalog.data.timeframes : TIMEFRAMES
+  const { instruments, timeframes } = useChartCatalog()
   const count = Number(saved.layout)
   // En el celular (menos de `lg`) se ve un gráfico por vez, con un selector de índice (#307).
   const visible = Math.min(shown, count - 1)
