@@ -22,7 +22,7 @@ Issue #561 · 25-11-2026 · regla congelada en `2026-11-programa-4-preregistro.m
 
 ### Registro de corridas
 
-| # | Hora (UTC) | Comando (desde `engine/`, código del commit `c471bfb` de la rama, antes del squash) | Nota |
+| # | Hora (UTC) | Comando (desde `engine/`, código del commit `c471bfb` de la rama, `ef354f1` después del rebase, antes del squash) | Nota |
 |---|---|---|---|
 | 1 | 25-11-2026 12:06:19 | `programa_4_h43 US100 --escenario-financiacion EUR=../docs/analysis/2026-11-eur-eonia-estr.csv --salida … --operaciones …` | primera y única corrida EUR |
 | 2 | 25-11-2026 12:06:58 | `programa_4_h43 US100 --escenario-financiacion USD=../docs/analysis/2026-11-usd-effr-sofr.csv --salida …` | primera y única corrida USD |
