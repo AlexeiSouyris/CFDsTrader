@@ -252,6 +252,8 @@ pub struct ResearchConfig {
     pub program5: Program5Config,
     /// Monte Carlo por bloques de las caídas y el riesgo de ruina (#662).
     pub montecarlo: MonteCarloConfig,
+    /// Particiones `S` del PBO por CSCV (#664): par, entre 2 y `pbo::MAX_PARTITIONS`.
+    pub pbo_partitions: usize,
 }
 
 impl ResearchConfig {
@@ -345,6 +347,12 @@ impl ResearchConfig {
             rule_program5: Rule,
             program5: Program5,
             montecarlo: MonteCarlo,
+            pbo: PboRaw,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct PboRaw {
+            partitions: usize,
         }
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
@@ -748,6 +756,12 @@ impl ResearchConfig {
             ruin_threshold: dec(&raw.montecarlo.ruin_threshold, "montecarlo.ruin_threshold")?,
         };
         montecarlo.validate()?;
+        let pbo_partitions = raw.pbo.partitions;
+        if !pbo_partitions.is_multiple_of(2)
+            || !(2..=super::pbo::MAX_PARTITIONS).contains(&pbo_partitions)
+        {
+            return Err("pbo.partitions tiene que ser par y estar entre 2 y 20".into());
+        }
         Ok(Self {
             orb: OrbConfig {
                 range_candles: raw.orb.range_candles,
@@ -797,6 +811,7 @@ impl ResearchConfig {
             rule_program5: rule(&raw.rule_program5, "rule_program5")?,
             program5,
             montecarlo,
+            pbo_partitions,
         })
     }
 }
