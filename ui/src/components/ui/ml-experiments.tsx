@@ -132,7 +132,7 @@ function Calibration({ calibration }: { calibration: MlCalibration }) {
   const models = ML_MODELS.filter((m) => calibration.pooled[m]?.length)
   if (models.length === 0) return null
   return (
-    <details className="group rounded-xl border border-border px-3 py-2" data-calibration>
+    <details className="group border-y border-border px-1 py-2" data-calibration>
       <summary className="min-h-6 cursor-pointer text-[12px] font-bold">
         Calibración por grupos
         <span className="font-normal text-muted-foreground">
@@ -241,7 +241,7 @@ function Experiment({ entry }: { entry: MlExperimentEntry }) {
     <article
       aria-label={`Modelo de ${entry.instrument_id}`}
       data-experiment={e.experiment_id}
-      className="grid gap-3 rounded-xl border border-border p-3"
+      className="grid gap-3 border-t border-foreground/70 pt-3"
     >
       <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 className="text-[13px] font-bold">{entry.instrument_id}</h3>
@@ -287,7 +287,7 @@ function Experiment({ entry }: { entry: MlExperimentEntry }) {
       </div>
 
       {models.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border px-3 py-2 text-[12px] text-muted-foreground">
+        <p className="border-l-2 border-accent py-1 pl-3 text-[12px] text-muted-foreground">
           Sin métricas: ninguna validación entró en la medición conjunta.
         </p>
       ) : (
