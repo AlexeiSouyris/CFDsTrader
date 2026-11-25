@@ -1,0 +1,3 @@
+# El registro de resultados solo agrega filas (nunca se editan las viejas): si dos ramas agregan
+# filas a la vez, git conserva las dos en vez de marcar conflicto (#669).
+docs/analysis/registro-de-resultados.csv merge=union

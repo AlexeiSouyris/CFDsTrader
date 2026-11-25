@@ -8,6 +8,76 @@ Todo mensaje o tabla que cruza entre **Rust (engine)**, **Python (intelligence)*
 - Precios y montos van como **string decimal** (por ejemplo `"26747.80"`), nunca como número flotante.
 - Timestamps en **ISO 8601 UTC**.
 
+## Índice de contratos
+
+Lista de todos los contratos, generada desde `contracts/*.schema.json` (`title` y `description`). Al agregar o cambiar un contrato, regenerala con `python3 tools/docs_index.py` (el CI falla si no está al día). Dónde viaja cada uno y sus reglas se explican en las secciones de abajo.
+
+<!-- indice-de-contratos:inicio (generado por `python3 tools/docs_index.py`; no editar a mano) -->
+| Contrato | Título | Qué es (primera oración de `description`) |
+|---|---|---|
+| [`analog_report.v1`](analog_report.v1.schema.json) | Analog report v1 | Análogos históricos de la última ventana de un índice (spec §13, #148, #294) |
+| [`backtest_run.v1`](backtest_run.v1.schema.json) | Backtest run v1 | Una corrida de backtest del diario (spec §15b, #200) |
+| [`backtest_run_curve.v1`](backtest_run_curve.v1.schema.json) | Backtest run curve v1 | La curva de una corrida de backtest (#299) |
+| [`backtest_run_detail.v1`](backtest_run_detail.v1.schema.json) | Backtest run detail v1 | El detalle de una corrida de backtest que devuelve el gateway en GET /api/v1/backtest_runs/{run_id} (#299) |
+| [`candle.v1`](candle.v1.schema.json) | Candle v1 | Una vela OHLC |
+| [`candle_spread.v1`](candle_spread.v1.schema.json) | Candle spread v1 | Spread (ask − bid) al cierre de una vela, tal como lo dio la fuente (#95) |
+| [`change_proposal.v1`](change_proposal.v1.schema.json) | Change proposal v1 | Una propuesta de cambio de un informe de aprendizaje (learning_report.v1, fase 8b, #327), guardada como nació |
+| [`change_vote.v1`](change_vote.v1.schema.json) | Change vote v1 | El voto de un miembro sobre una propuesta de cambio (change_proposal.v1, fase 8b, #327) |
+| [`change_vote_status.v1`](change_vote_status.v1.schema.json) | Change vote status v1 | Estado de una propuesta de cambio (change_proposal.v1) en un momento, contando sus votos (change_vote.v1) con las reglas de config/votes.toml (spec §1.2) |
+| [`chart_export.v1`](chart_export.v1.schema.json) | Chart export v1 | Lo que el motor exporta para la verificación visual y la comparación con una referencia (ROADMAP 3b, #81) |
+| [`daily_candle.v1`](daily_candle.v1.schema.json) | Daily candle v1 | Vela diaria de un instrumento (#103), para los análogos v1 y las medidas propias de sentimiento (ADR 0004 y 0005) |
+| [`daily_drawdown.v1`](daily_drawdown.v1.schema.json) | Daily drawdown v1 | Caída desde el máximo de una vela diaria cerrada de un instrumento (#213, spec §9.1) |
+| [`daily_indicator.v1`](daily_indicator.v1.schema.json) | Daily indicator v1 | Indicadores de una vela diaria cerrada de un instrumento (#148, spec §13) |
+| [`daily_vol_tercile.v1`](daily_vol_tercile.v1.schema.json) | Daily volatility tercile v1 | Tercio de la volatilidad realizada de una vela diaria cerrada frente a su propia historia (spec §13 y spec ML §3) |
+| [`economic_event.v1`](economic_event.v1.schema.json) | Economic event v1 | Un evento del calendario económico (#91) |
+| [`emotional_state.v1`](emotional_state.v1.schema.json) | Emotional state v1 | Estados emocionales de la spec §9.1 (#220) de un instrumento en un momento |
+| [`fund_movement.v1`](fund_movement.v1.schema.json) | Fund movement v1 | Un aporte o retiro del fondo del grupo ya liquidado (spec §14, #179) |
+| [`fund_summary.v1`](fund_summary.v1.schema.json) | Fund summary v1 | Resumen del fondo del grupo (spec §14, #312) |
+| [`futures_bar.v1`](futures_bar.v1.schema.json) | Futures bar v1 | Una barra de 1 minuto de un futuro, tal como la publica la fuente (ADR 0011, #247; hoy Databento, esquema ohlcv-1m) |
+| [`futures_bar_1d.v1`](futures_bar_1d.v1.schema.json) | Futures daily bar v1 | Una vela diaria de un futuro tal como la publica la fuente (#522; hoy Databento, esquema ohlcv-1d) |
+| [`fvg_event.v1`](fvg_event.v1.schema.json) | FVG event v1 | Un fair value gap (definición de la spec §5.4) con su creación, toque, mitad, llenado, vencimiento y reacción, evaluado con velas cerradas hasta as_of (spec §5… |
+| [`fx_rate.v1`](fx_rate.v1.schema.json) | FX rate v1 | Un tipo de cambio diario de referencia, tal como lo publicó la fuente (ADR 0013 §4 |
+| [`gateway_calendar.v1`](gateway_calendar.v1.schema.json) | Gateway calendar v1 | Respuesta de GET /api/v1/calendar[?from=<UTC>][&to=<UTC>] del gateway (#600) |
+| [`gateway_ibkr_bars.v1`](gateway_ibkr_bars.v1.schema.json) | Gateway IBKR bars v1 | Respuesta de GET /api/v1/ibkr/bars?instrument=<id>&timeframe=<tf>[&limit=<n>][&before=<UTC>] del gateway (#551) |
+| [`gateway_ibkr_watchlist.v1`](gateway_ibkr_watchlist.v1.schema.json) | Gateway IBKR watchlist v1 | Respuesta de GET /api/v1/ibkr/watchlist del gateway (#551) |
+| [`gateway_instruments.v1`](gateway_instruments.v1.schema.json) | Gateway instruments v1 | Respuesta de GET /api/v1/instruments del gateway (#231) |
+| [`gateway_journal.v1`](gateway_journal.v1.schema.json) | Gateway journal v1 | El diario de paper que devuelve el gateway en GET /api/v1/journal (#615) para la vista Diario de la UI |
+| [`gateway_news.v1`](gateway_news.v1.schema.json) | Gateway news v1 | Respuesta de GET /api/v1/news[?limit=<n>][&before=<UTC>][&feed=<feed>] del gateway (#600) |
+| [`ibkr_bar.v1`](ibkr_bar.v1.schema.json) | IBKR bar v1 | Una vela CERRADA tal como la da IBKR como fuente de datos (#536) |
+| [`ibkr_live_bar.v1`](ibkr_live_bar.v1.schema.json) | IBKR live bar v1 | Cada mensaje (campo data de un evento SSE) de GET /api/v1/ibkr/live?instrument=<id>&timeframe=<tf> del gateway (#558) |
+| [`imbalance.v1`](imbalance.v1.schema.json) | Imbalance v1 | Desequilibrio aproximado desde el precio al cierre de una vela (spec §5.4.1, #231) |
+| [`instrument.v1`](instrument.v1.schema.json) | Instrument v1 | Un instrumento operable o de contexto |
+| [`learning_report.v1`](learning_report.v1.schema.json) | Learning report v1 | Informe de aprendizaje continuo (fase 8b, spec §15b, #327), armado solo con el diario (proposal.v1 + outcome.v1) de un período |
+| [`liquidity_level.v1`](liquidity_level.v1.schema.json) | Liquidity level v1 | Un nivel del mapa de liquidez (spec §5.4.1, #231) |
+| [`liquidity_stats.v1`](liquidity_stats.v1.schema.json) | Liquidity stats v1 | Agregados de FVG (fvg_event.v1) o de gaps de apertura (opening_gap.v1) de un grupo |
+| [`liquidity_view.v1`](liquidity_view.v1.schema.json) | Liquidity view v1 | Respuesta de GET /api/v1/liquidity?instrument=<id>[&timeframe=15m\|1h\|1d][&source=ig\|futures\|ibkr\|auto][&before=<UTC>] del gateway (#231) |
+| [`ml_experiment.v1`](ml_experiment.v1.schema.json) | ML experiment v1 | Un entrenamiento y evaluación walk-forward del modelo de ML v1 (docs/spec/ml-v1.md §7, ADR 0003 §D) |
+| [`ml_experiment_entry.v1`](ml_experiment_entry.v1.schema.json) | ML experiment entry v1 | Respuesta del gateway en GET /api/v1/ml/experiments (#426) |
+| [`ml_features.v1`](ml_features.v1.schema.json) | ML features v1 | Variables de una propuesta para el modelo de ML v1 que no viajan en proposal.v1 (docs/spec/ml-v1.md §3, #158) |
+| [`ml_label.v1`](ml_label.v1.schema.json) | ML label v1 | Etiqueta de una propuesta para el modelo de ML v1, sin P/L (docs/spec/ml-v1.md §1, #399, opción C del dueño) |
+| [`ml_label_run.v1`](ml_label_run.v1.schema.json) | ML label run v1 | Una corrida de etiquetas sin P/L (#399) |
+| [`news_interpretation.v1`](news_interpretation.v1.schema.json) | News interpretation v1 | Interpretación automática de una noticia de news_item.v1 (spec §9, #122) |
+| [`news_item.v1`](news_item.v1.schema.json) | News item v1 | Una noticia de una fuente aprobada (ADR 0006), tal como la publicó la fuente (#109) |
+| [`official_release.v1`](official_release.v1.schema.json) | Official release v1 | Una publicación oficial programada o no programada (ADR 0016) |
+| [`opening_gap.v1`](opening_gap.v1.schema.json) | Opening gap v1 | Un gap de apertura diario (spec §5.4.1, #231) |
+| [`ops_event.v1`](ops_event.v1.schema.json) | Ops event v1 | Un evento de la operación (#314) |
+| [`ops_status.v1`](ops_status.v1.schema.json) | Ops status v1 | Estado de la operación y del riesgo del broker simulado (fase 9, #314), para la UI |
+| [`order.v1`](order.v1.schema.json) | Order v1 | Una orden de mercado para el broker (fase 7, #278) |
+| [`order_report.v1`](order_report.v1.schema.json) | Order report v1 | Qué pasó con una orden (order.v1) en el broker simulado (fase 7, #278) |
+| [`outcome.v1`](outcome.v1.schema.json) | Outcome v1 | El resultado de una propuesta del diario (spec §15b) |
+| [`paper_account.v1`](paper_account.v1.schema.json) | Paper account v1 | Estado de la cuenta del broker simulado (fase 7, #278) al cierre de la última vela (as_of) |
+| [`paper_comparison.v1`](paper_comparison.v1.schema.json) | Paper comparison v1 | Comparación de paper trading (registro del broker simulado) contra el backtest del mismo período, sobre las mismas velas cerradas y la misma config (fase 8, #3… |
+| [`position.v1`](position.v1.schema.json) | Position v1 | Una posición abierta del broker simulado (fase 7, #278), valuada al cierre de la última vela (as_of) |
+| [`proposal.v1`](proposal.v1.schema.json) | Proposal v1 | Una propuesta de operación del diario (spec §15b) |
+| [`reference_rate.v1`](reference_rate.v1.schema.json) | Reference rate v1 | Un valor diario de un tipo de referencia de la financiación nocturna (#79), tal como lo publicó la fuente |
+| [`sentiment.v1`](sentiment.v1.schema.json) | Sentiment index v1 | Índice de sentimiento v1 de un instrumento (spec §9.1, #213) |
+| [`sentiment_observation.v1`](sentiment_observation.v1.schema.json) | Sentiment observation v1 | Un dato crudo de una fuente de sentimiento (#25, #27), tal como lo publicó la fuente |
+| [`ticket_verdict.v1`](ticket_verdict.v1.schema.json) | Ticket verdict v1 | Lo que respondería el módulo de riesgo a una orden (order.v1) **sin enviarla** (fase 7, #278) |
+| [`treasury_yield.v1`](treasury_yield.v1.schema.json) | Treasury yield v1 | Un rendimiento diario de la curva par del Tesoro de EE |
+| [`vix_daily.v1`](vix_daily.v1.schema.json) | VIX daily v1 | Un día del Cboe Volatility Index (VIX) |
+| [`walk_forward_report.v1`](walk_forward_report.v1.schema.json) | Walk-forward report v1 | Evaluación de la Fase 5 (ROADMAP, #298) de un instrumento |
+<!-- indice-de-contratos:fin -->
+
 ## Dónde viajan los mensajes
 
 ### Redis Streams (tiempo real)
