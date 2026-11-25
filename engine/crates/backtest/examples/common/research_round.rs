@@ -28,6 +28,8 @@ use super::study;
 pub struct FamilyResult {
     pub trades: Vec<StudyTrade>,
     pub rejected: BTreeMap<String, usize>,
+    /// Planes con objetivo no operados porque la entrada abrió del lado del stop.
+    pub through_stop: usize,
     pub monthly: Vec<f64>,
     pub monthly_stress: Vec<f64>,
     pub min_deal: Decimal,
@@ -127,6 +129,7 @@ pub fn run_family(
     let p = &l.p;
     let mut trades = Vec::new();
     let mut rejected: BTreeMap<String, usize> = BTreeMap::new();
+    let mut through_stop = 0;
     for w in &l.split.windows {
         let run = run_plans(
             plans,
@@ -140,6 +143,7 @@ pub fn run_family(
         for r in run.rejected {
             *rejected.entry(format!("{:?}", r.reason)).or_default() += 1;
         }
+        through_stop += run.through_stop.len();
         trades.extend(run.trades);
     }
     let returns = |s: Decimal| -> Result<Vec<f64>, String> {
@@ -158,6 +162,7 @@ pub fn run_family(
     Ok(FamilyResult {
         trades,
         rejected,
+        through_stop,
         monthly,
         monthly_stress,
         min_deal: p
@@ -203,6 +208,7 @@ pub fn describe(id: &InstrumentId, r: &FamilyResult, equity: Decimal) {
             StudyExit::Stop | StudyExit::StopGap => "stop",
             StudyExit::ForceClose => "cierre forzado",
             StudyExit::Planned => "salida de la definición",
+            StudyExit::Target => "objetivo",
         };
         *exits.entry(k.to_owned()).or_default() += 1;
     }

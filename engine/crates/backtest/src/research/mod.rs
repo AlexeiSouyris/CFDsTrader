@@ -9,7 +9,9 @@
 //!   de la deriva nocturna;
 //! - chequeos descriptivos de la revisión externa (#512, sin voto): `review_checks`;
 //! - programa Nasdaq (#526, `docs/analysis/2026-11-programa-nasdaq-preregistro.md`): H1, deriva
-//!   antes del comunicado del FOMC (`pre_fomc`).
+//!   antes del comunicado del FOMC (`pre_fomc`);
+//! - programa 4 (#561, `docs/analysis/2026-11-programa-4-preregistro.md`): estrategia A de
+//!   Bruni, literal (H4.1) y normalizada (H4.2), con objetivo en R (`program4`).
 //!
 //! Están aparte a propósito: ni el runner, ni el paper, ni la estrategia en uso (la confluencia
 //! de `cfds_strategy`) las usan. Solo las corren los ejemplos `ronda1`, `ronda2` y `ronda3`.
@@ -30,6 +32,7 @@ pub mod intraday_momentum;
 pub mod orb;
 pub mod overnight;
 pub mod pre_fomc;
+pub mod program4;
 pub mod review_checks;
 pub mod round_number;
 pub mod run;
@@ -45,9 +48,9 @@ use rust_decimal::Decimal;
 
 pub use buy_and_hold::buy_and_hold_returns;
 pub use config::{
-    IntradayMomentumConfig, MacroDayConfig, OrbConfig, OvernightDriftConfig, ResearchConfig,
-    ReviewChecksConfig, RoundNumberConfig, RuleConfig, TrendConfig, TurnOfMonthConfig,
-    VolManagedConfig,
+    IntradayMomentumConfig, MacroDayConfig, OrbConfig, OvernightDriftConfig, Program4Config,
+    ResearchConfig, ReviewChecksConfig, RoundNumberConfig, RuleConfig, TrendConfig,
+    TurnOfMonthConfig, VolManagedConfig,
 };
 pub use intraday_momentum::intraday_momentum_plans;
 pub use orb::orb_plans;
@@ -86,6 +89,29 @@ pub struct Plan {
     /// ATR con el que el riesgo mide la distancia al stop.
     pub risk_atr: Decimal,
     pub exit_index: usize,
+    /// Objetivo en múltiplos de R desde el precio medio de la entrada (programa 4): sale al
+    /// tocarlo, y si la apertura de la entrada ya quedó del lado del stop, el plan no se opera.
+    /// `None` = sin objetivo (las rondas 1 a 3).
+    pub target_r: Option<Decimal>,
+}
+
+impl Plan {
+    /// Objetivo para una entrada a `entry` (precio medio): `entry ± target_r × |entry − stop|`.
+    pub fn target_from(&self, entry: Decimal) -> Option<Decimal> {
+        let r = self.target_r? * (entry - self.stop).abs();
+        Some(match self.side {
+            Side::Long => entry + r,
+            Side::Short => entry - r,
+        })
+    }
+
+    /// `true` si una entrada a `open` ya está en el stop o más allá.
+    pub fn open_beyond_stop(&self, open: Decimal) -> bool {
+        match self.side {
+            Side::Long => open <= self.stop,
+            Side::Short => open >= self.stop,
+        }
+    }
 }
 
 /// Índice de la vela que empieza exactamente en `start`, si existe.
