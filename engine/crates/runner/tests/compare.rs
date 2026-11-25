@@ -99,6 +99,15 @@ fn costs() -> InstrumentCosts {
     }
 }
 
+/// `config/risk.toml` (grupo, gaps) sin los puntos de caída gradual: el broker actualiza el
+/// máximo del capital solo al decidir y el backtest en cada vela, y con la caída gradual los
+/// tamaños se separan (#691). Cuando #691 se arregle, vuelve la config completa.
+fn risk_cfg() -> RiskConfig {
+    let mut r = RiskConfig::from_toml(cfg!("risk.toml")).unwrap();
+    r.drawdown_scaling.points.clear();
+    r
+}
+
 fn backtest_cfg() -> BacktestConfig {
     let mut b = BacktestConfig::from_toml(cfg!("backtest.toml")).unwrap();
     // Como en vivo: el kill switch no se reactiva.
@@ -108,14 +117,7 @@ fn backtest_cfg() -> BacktestConfig {
 
 fn broker_cfg() -> BrokerConfig {
     let b = backtest_cfg();
-    BrokerConfig::from_toml(
-        cfg!("broker.toml"),
-        RiskConfig::from_toml(cfg!("risk.toml")).unwrap(),
-        b.costs,
-        b.exits,
-        b.day_tz,
-    )
-    .unwrap()
+    BrokerConfig::from_toml(cfg!("broker.toml"), risk_cfg(), b.costs, b.exits, b.day_tz).unwrap()
 }
 
 fn setup(rate: Decimal) -> Setup {
@@ -129,7 +131,7 @@ fn setup(rate: Decimal) -> Setup {
             cfg!("strategy.toml"),
         )
         .unwrap(),
-        risk: RiskConfig::from_toml(cfg!("risk.toml")).unwrap(),
+        risk: risk_cfg(),
         limits: limits(),
         costs: costs(),
         day_tz: b.day_tz,

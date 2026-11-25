@@ -1,7 +1,8 @@
-//! #670 y #671: con `config/risk.toml` tal como está en el repositorio (gaps en 0, sin grupos, sin
-//! caída gradual y sin volatilidad objetivo), `check`
-//! da exactamente lo mismo que antes, decimal por decimal, también con posiciones abiertas en los
-//! índices de EE. UU. El runner de paper (#382) no cambia hasta que el dueño apruebe valores.
+//! #670 y #671: con la config neutral (`tests/neutral_risk.toml`: gaps en 0, sin grupos, sin caída
+//! gradual y sin volatilidad objetivo), `check` da exactamente lo mismo que antes, decimal por
+//! decimal, también con posiciones abiertas en los índices de EE. UU. Así, apagar todo vuelve al
+//! comportamiento de siempre. `config/risk.toml` ya no es neutral desde #689 (valores aprobados por
+//! el dueño): lo fija `the_repository_config_matches_the_spec` en `src/config.rs`.
 //! `legacy` es copia literal del cálculo anterior a #670.
 
 use cfds_core::InstrumentId;
@@ -95,8 +96,8 @@ fn id(s: &str) -> InstrumentId {
 }
 
 #[test]
-fn the_shipped_config_reproduces_the_previous_behavior_exactly() {
-    let cfg = RiskConfig::from_toml(include_str!("../../../../config/risk.toml")).unwrap();
+fn the_neutral_config_reproduces_the_previous_behavior_exactly() {
+    let cfg = RiskConfig::from_toml(include_str!("neutral_risk.toml")).unwrap();
     let us = ["US100", "US500", "US30", "US2000"];
     let mut cases = 0;
     let mut accepted = 0;

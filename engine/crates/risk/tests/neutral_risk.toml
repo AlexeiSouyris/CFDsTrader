@@ -1,0 +1,29 @@
+# Config de riesgo NEUTRAL, solo para tests: los mismos límites que config/risk.toml pero con todo lo
+# de #670 y #671 apagado (sin gaps, sin grupos, sin caída gradual, sin volatilidad objetivo). Es el
+# comportamiento anterior a #670: `unchanged.rs` lo compara decimal por decimal con la copia literal
+# del cálculo viejo, y los tests de la mecánica parten de acá para prender una cosa por vez.
+# Los valores de verdad (los que usa el runner de paper) están en config/risk.toml (#689).
+
+[limits]
+risk_per_trade_pct = "1"
+max_daily_loss_pct = "3"
+max_drawdown_pct = "15"
+max_open_positions = 5
+max_positions_per_instrument = 1
+
+[stop_distance]
+min_atr = "0.5"
+max_atr = "3"
+
+[gap]
+gap_atr = "0"
+
+[correlation]
+
+[drawdown_scaling]
+mode = "linear"
+
+[vol_target]
+target_annual_pct = "0"
+min_scale = "1"
+max_scale = "1"
