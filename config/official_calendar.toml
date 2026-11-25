@@ -1,9 +1,10 @@
-# Calendario histórico oficial (ADR 0016, #520): comunicados del FOMC de federalreserve.gov.
-# El CPI y el empleo del BLS esperan la elección del dueño (ADR 0016 §1.3): van en una sección
-# [bls] aparte y en la misma tabla `official_releases`.
+# Calendario histórico oficial (ADR 0016): comunicados del FOMC de federalreserve.gov (#520) y
+# CPI y empleo del BLS (#608), en la misma tabla `official_releases`.
 #
-# Fuente: Board of Governors of the Federal Reserve System (dominio público; piden citarla:
-# https://www.federalreserve.gov/disclaimer.htm). La carga se corre UNA sola vez.
+# Fuentes: Board of Governors of the Federal Reserve System (dominio público; piden citarla:
+# https://www.federalreserve.gov/disclaimer.htm) y U.S. Bureau of Labor Statistics (dominio
+# público; piden citarla: https://www.bls.gov/opub/copyright-information.htm). La carga se corre
+# UNA sola vez.
 
 [client]
 # Cliente automático honesto, sin datos personales (como config/news.toml).
@@ -132,3 +133,52 @@ years = [2024]
 [[fed.schedule_announcements]]
 url = "https://www.federalreserve.gov/newsevents/pressreleases/monetary20240809a.htm"
 years = [2025, 2026]
+
+# CPI y empleo (Employment Situation) del BLS (ADR 0016, #608). SIN ROBOT (§1.3, elección del
+# dueño): el dueño guardó a mano desde su navegador, el 25-11-2026, las páginas por año y los
+# avisos de los cortes de fondos ("Webpage, HTML Only"). El código NUNCA pide bls.gov: solo lee
+# esos HTML locales. Están fuera de git (`data/raw/` en .gitignore).
+[bls]
+# Carpeta de los HTML guardados: relativa a la raíz del repo o absoluta (`--bls-dir` la cambia).
+# Cada página se reconoce por su contenido (título y link canónico), no por el nombre del archivo.
+raw_dir = "data/raw/bls"
+first_year = 2011
+last_year = 2026
+# URL oficial de cada página por año ("Prior Years", https://www.bls.gov/bls/archived_sched.htm).
+# Va como `source_url` de cada fila; la página guardada tiene que nombrarla.
+year_url = "https://www.bls.gov/schedule/{year}/home.htm"
+# "All times on calendar are Eastern Time." CPI y empleo a las 08:30 AM: si la página dice otra
+# hora para alguna fila, la carga falla.
+release_time = "08:30"
+timezone = "America/New_York"
+# `time_rule` de las filas con hora del calendario por año o del aviso de cierre.
+time_rule = "bls_calendar_0830_et"
+# `time_rule` de las cancelaciones y de las fechas revisadas cuyo `published_at` sale de la
+# fecha de última modificación del aviso ("Last modified date"), al final de ese día en ET.
+notice_time_rule = "bls_notice_last_modified"
+
+# Avisos de fechas revisadas por cortes de fondos (ADR 0016, tabla del BLS). Se reconocen por su
+# link canónico. Tienen que estar todos en la carpeta.
+[[bls.notices]]
+url = "https://www.bls.gov/bls/updated_release_schedule.htm"
+
+[[bls.notices]]
+url = "https://www.bls.gov/bls/2025-lapse-revised-release-dates.htm"
+
+# Cortes de fondos (días sin publicaciones del BLS). Sirven para saber si el informe anterior de
+# la serie anunció la fecha original o la revisada (ADR 0016 §4) y para detectar una fecha movida
+# por un corte que los avisos no documentan (esa fila queda fuera).
+[[bls.lapses]]
+start = "2013-10-01"
+end = "2013-10-16"
+source = "Aviso del BLS (updated_release_schedule.htm): 'suspended from Oct. 1 through Oct. 16'; ADR 0016"
+
+[[bls.lapses]]
+start = "2025-10-01"
+end = "2025-11-12"
+source = "ADR 0016 (cierre del 1-10 al 12-11-2025; 2025-lapse-revised-release-dates.htm)"
+
+[[bls.lapses]]
+start = "2026-01-31"
+end = "2026-02-03"
+source = "Prensa (CBS News, Bloomberg Government, 2 a 4-2-2026): el corte empezó el 31-1-2026 y terminó con el voto de la Cámara del 3-2-2026; el BLS reprogramó el 4-2. Solo ordena los avisos de 2026 (ningún resultado depende del día exacto entre el 14-1 y el 3-2)"
