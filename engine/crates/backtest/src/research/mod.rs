@@ -12,7 +12,9 @@
 //!   antes del comunicado del FOMC (`pre_fomc`), y H2, días de CPI y empleo (`macro_day`);
 //! - programa 4 (#561, `docs/analysis/2026-11-programa-4-preregistro.md`): estrategia A de
 //!   Bruni, literal (H4.1) y normalizada (H4.2), con objetivo en R (`program4`), y H4.3,
-//!   estrategia C con perfil de volumen de la sesión del CME (`program4_c`).
+//!   estrategia C con perfil de volumen de la sesión del CME (`program4_c`);
+//! - programa 5 (#649, `docs/analysis/2026-11-programa-5-fvg-preregistro.md`): reacción al
+//!   primer toque de un FVG (`program5`, con los eventos que calcula `cfds_liquidity`).
 //!
 //! Están aparte a propósito: ni el runner, ni el paper, ni la estrategia en uso (la confluencia
 //! de `cfds_strategy`) las usan. Solo las corren los ejemplos `ronda1`, `ronda2` y `ronda3`.
@@ -36,6 +38,7 @@ pub mod overnight;
 pub mod pre_fomc;
 pub mod program4;
 pub mod program4_c;
+pub mod program5;
 pub mod review_checks;
 pub mod round_number;
 pub mod run;
@@ -52,8 +55,8 @@ use rust_decimal::Decimal;
 pub use buy_and_hold::buy_and_hold_returns;
 pub use config::{
     ChampionshipConfig, IntradayMomentumConfig, MacroDayConfig, OrbConfig, OvernightDriftConfig,
-    Program4Config, ResearchConfig, ReviewChecksConfig, RoundNumberConfig, RuleConfig, TrendConfig,
-    TurnOfMonthConfig, VolManagedConfig,
+    Program4Config, Program5Config, ResearchConfig, ReviewChecksConfig, RoundNumberConfig,
+    RuleConfig, TrendConfig, TurnOfMonthConfig, VolManagedConfig,
 };
 pub use intraday_momentum::intraday_momentum_plans;
 pub use macro_day::{MacroDayRule, macro_day_windows};
