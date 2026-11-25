@@ -1,8 +1,9 @@
 /**
  * Inicio (#581, etapa 2 de docs/design/2026-11-rediseno-ui.md): la vista de entrada y la única con
  * vidrio. Arriba, la cuenta de simulación tal como la manda el motor; en el centro, las puertas a
- * cada sección, con un dato chico del motor cuando lo hay. La UI no calcula nada (CLAUDE.md §1) y
- * ningún texto promete ganancias.
+ * cada sección; abajo, los resultados recientes del registro y de las corridas del motor, tal como
+ * llegan. El selector de estrategia solo filtra lo que se ve: la estrategia la elige y la valida el
+ * motor. La UI no calcula nada (CLAUDE.md §1) y ningún texto promete ganancias.
  */
 import { useEffect } from 'react'
 
@@ -15,6 +16,7 @@ import { useBacktestRuns, usePaperAccount } from '@/lib/paper-api'
 import { dayYear } from '@/lib/run-format'
 import { BACKTEST_RUNS, PAPER_ACCOUNT } from '@/mocks'
 import { DOORS } from '@/views/home-doors'
+import { RecentResults } from '@/views/home-results'
 
 /** Un atajo de una tecla no debe saltar mientras se escribe o se usa un control. */
 const typing = (t: EventTarget | null) =>
@@ -82,6 +84,8 @@ export function HomeView({ onOpen }: { onOpen: (view: string) => void }) {
           ))}
         </nav>
       </section>
+
+      <RecentResults runs={runs} runsLive={runsLive} onOpen={onOpen} />
     </div>
   )
 }
