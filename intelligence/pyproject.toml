@@ -17,6 +17,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "hypothesis==6.170.15",
     "jsonschema>=4.26.0",
     "mypy>=1.13",
     "pytest>=8.3",
