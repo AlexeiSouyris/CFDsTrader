@@ -6,6 +6,7 @@ use chrono::{NaiveDate, NaiveTime, Timelike};
 use rust_decimal::Decimal;
 use serde::Deserialize;
 
+use super::montecarlo::MonteCarloConfig;
 use super::pre_fomc::PreFomcConfig;
 
 /// Familia C (ruptura del rango de apertura).
@@ -249,6 +250,8 @@ pub struct ResearchConfig {
     pub program4_c: ChampionshipConfig,
     pub rule_program5: RuleConfig,
     pub program5: Program5Config,
+    /// Monte Carlo por bloques de las caídas y el riesgo de ruina (#662).
+    pub montecarlo: MonteCarloConfig,
 }
 
 impl ResearchConfig {
@@ -341,6 +344,15 @@ impl ResearchConfig {
             program4_c: Program4C,
             rule_program5: Rule,
             program5: Program5,
+            montecarlo: MonteCarlo,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct MonteCarlo {
+            paths: usize,
+            block_len: usize,
+            seed: u64,
+            ruin_threshold: String,
         }
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
@@ -729,6 +741,13 @@ impl ResearchConfig {
         {
             return Err("program5.out_of_session_spread: falta un instrumento".into());
         }
+        let montecarlo = MonteCarloConfig {
+            paths: raw.montecarlo.paths,
+            block_len: raw.montecarlo.block_len,
+            seed: raw.montecarlo.seed,
+            ruin_threshold: dec(&raw.montecarlo.ruin_threshold, "montecarlo.ruin_threshold")?,
+        };
+        montecarlo.validate()?;
         Ok(Self {
             orb: OrbConfig {
                 range_candles: raw.orb.range_candles,
@@ -777,6 +796,7 @@ impl ResearchConfig {
             program4_c,
             rule_program5: rule(&raw.rule_program5, "rule_program5")?,
             program5,
+            montecarlo,
         })
     }
 }
