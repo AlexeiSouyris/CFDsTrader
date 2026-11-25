@@ -227,6 +227,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "jsonschema",
+ "proptest",
  "rust_decimal",
  "serde",
  "serde_json",
@@ -362,6 +363,7 @@ version = "0.1.0"
 dependencies = [
  "cfds-core",
  "chrono",
+ "proptest",
  "rust_decimal",
  "serde",
  "serde_json",
@@ -419,6 +421,7 @@ dependencies = [
  "cfds-market-data",
  "cfds-patterns",
  "chrono",
+ "proptest",
  "rust_decimal",
  "serde",
  "toml",
