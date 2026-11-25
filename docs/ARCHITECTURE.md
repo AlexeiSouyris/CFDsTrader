@@ -83,6 +83,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | [treasury](modules/treasury.md) | `intelligence/cfds_intel/treasury` | Python | Curva par diaria del Tesoro de EE. UU. (ADR 0012) con su hora de publicación sin mirar el futuro. | hecho |
 | [universe](modules/universe.md) | `intelligence/cfds_intel/universe.py` | Python | Componentes del NASDAQ 100 en cada fecha, sin sesgo de supervivencia (ADR 0005). | hecho |
 | [vix](modules/vix.md) | `intelligence/cfds_intel/vix` | Python | VIX diario desde el CSV oficial de Cboe (ADR 0012 §2). | hecho |
+| [research-checks](modules/research-checks.md) | `tools/research/` | Python (solo biblioteca estándar) | Chequeos de CI de las reglas de investigación: el último `dsr_trials` cubre las pruebas del registro de resultados. | en curso (#660) |
 | [verify](modules/verify.md) | `tools/verify/` | Python, HTML | Herramientas de verificación (ROADMAP 3b) que leen `chart_export.v1` y comparan con TA-Lib. | hecho |
 | [ui](modules/ui.md) | `ui/` | TypeScript (React + Tailwind) | Interfaz: gráficos, noticias, estrategias, P/L; hoy prototipo integrado, la app real es la fase 10. | en curso |
 <!-- registro-de-modulos:fin -->
