@@ -296,6 +296,8 @@ Todo esto cuenta como una prueba nueva, con su costo en el presupuesto:
 
 ## 12. Puntos abiertos antes de congelar
 
+**Cerrados el 25-11-2026: ver §13.** Se dejan como estaban para que se vea qué se preguntó.
+
 Los decide el dueño. Cada respuesta queda en #561 con sus palabras y la fecha.
 
 1. **Presupuesto total del proyecto:** ¿el 5 % del programa 4 convive con el 5 % que pide el programa 3 (#513), o uno reemplaza al otro? Si conviven, la probabilidad de algún falso positivo en el proyecto sube.
@@ -314,3 +316,43 @@ Los decide el dueño. Cada respuesta queda en #561 con sus palabras y la fecha.
 14. **Conteo de señales antes de congelar:** ¿se autoriza correr **solo el conteo** de señales por año de cada hipótesis (sin P/L ni resultados) para ver si hay muestra suficiente? Si una hipótesis da muy pocas señales, conviene saberlo antes de gastar presupuesto en ella.
 15. **Vencimientos y volumen:** `NQ.c.0` es el contrato más cercano en el calendario; en la semana del vencimiento el volumen se pasa al contrato siguiente y el perfil del NQ se deforma. ¿Se excluyen las sesiones desde la fecha de cambio de contrato habitual del CME (8 días antes del vencimiento) hasta el vencimiento, o se acepta el efecto?
 16. **Congelar:** commitear con fecha, hora y SHA-256, escribir k, agregar `[rule_program4]` y sumar las pruebas al registro.
+
+## 13. Decisiones del dueño
+
+**Aprobación del dueño** (Alexei), 25-11-2026, registrada en #561, textual: **"apruebo las 15"**. Aprueba las recomendaciones de los puntos abiertos 1 a 15 de §12. El punto 16 es el procedimiento de congelado (§11). Cuando una decisión cambia algo escrito más arriba, **manda esta sección**.
+
+| Punto | Decisión |
+|---|---|
+| 1. Presupuesto | Los programas 3 y 4 tienen **presupuestos separados**: el programa 4 usa su 5 % propio (§0) y el programa 3 (#513) pide el suyo aparte. |
+| 2. k de H4.2 | **Calibración por proporción** de velas en 01-11-2024 → 31-10-2025 (§5.1, propuesta principal), sin mirar resultados. La alternativa k = 0,5 queda descartada. |
+| 3. Mitades en H4.1 | **H4.1 literal, sin cambios**: el criterio de las mitades queda igual que en §7. |
+| 4. Mínimo de muestra | **Mínimo de 100 operaciones** en todo el período: con menos, la hipótesis no pasa (§7). |
+| 5. Reserva | **Guardada**, sin asignar. Solo se usa con un pre-registro nuevo y fechado (§8). |
+| 6. δ de la ruptura | **δ = 0**: alcanza con cerrar estrictamente afuera, sin distancia extra (§3). |
+| 7. Velas del impulso | En H4.1 y H4.2 las dos velas del impulso (`t − 1` y `t`) tienen que ser **válidas** (§3: cuerpo > mecha más larga), además de cumplir el cuerpo mínimo. Reemplaza la última frase de "Lo que no se toma del video" en §4. |
+| 8. Periférica en H4.3 | **H4.3 sin periférica**: solo la estructura actual (§6.2, condición 2, como estaba). |
+| 9. Sesión del perfil | **Día del CME completo** (18:00–17:00 ET, §6.1). |
+| 10. Margen m | **6 ticks = 1,5 puntos fijos**, sin escalar con el precio. |
+| 11. Datos fuertes | **Se saltea el día entero** con un dato fuerte (FOMC, CPI o empleo del BLS con hora programada dentro de la sesión de contado). **H4.3 espera** la carga del calendario del BLS. |
+| 12. Media del volumen | **SMA 20** (media simple de 20 velas, §6.2). |
+| 13. Tendencia en H4.3 | **Sesión actual (perfil en desarrollo) contra la anterior**, con POC **y** VAL más altos (§6.2, condición 1). |
+| 14. Conteo de señales | **Autorizado**: antes de congelar se cuentan las señales por año de cada hipótesis, **sin P/L ni ningún resultado**. Si una hipótesis da **menos de 100 señales** en total en el walk-forward, no se congela: se frena y se le informa al dueño. |
+| 15. Vencimientos | **Se excluye solo el día de roll** (no la semana del vencimiento), además del reinicio de §2.5. |
+
+### 13.1 Alcance de las decisiones 11 y 15 en H4.1 y H4.2
+
+- **Decisión 11 (datos fuertes):** se aplica también a H4.1 y H4.2. Así lo leyó la sesión coordinadora (Claude Code) del dueño el 25-11-2026 al pasar la aprobación ("se saltea el día entero con datos fuertes y C espera el calendario del BLS": el día se saltea en todas, y solo C espera). Como hoy `official_releases` tiene **solo el FOMC** (el BLS no está cargado, ADR 0016), **H4.1 y H4.2 se corren salteando solo los días con comunicado programado del FOMC** (`fed_fomc`, `fomc_statement`, estado `scheduled`, con `scheduled_at` dentro de la sesión de contado de ese día). Los días de CPI y empleo **no** se excluyen en H4.1 y H4.2: es una limitación declarada, no una elección después de mirar.
+- **Decisión 15 (día de roll):** se aplica a las tres hipótesis. El **día de roll** es la primera sesión de contado (XNYS) que abre en o después del primer instante del contrato nuevo, según el calendario de vencimientos de la preparación común (`[futures.roll]`, `after_expiry_day` para el NQ). Ese día no hay señales (ninguna vela de ejecución cae en él).
+
+### 13.2 Precisiones de implementación fijadas al congelar
+
+Se escriben **antes** de correr nada y no cambian ninguna regla de arriba; solo dejan escrito lo que la implementación tiene que hacer donde el texto no lo dice.
+
+- **Velas de 15 m:** las de `futures_candles` (NQ.c.0), que ya arma `cfds_market_data::futures_candles` desde `futures_bars_1m` (#259: ventana [k·15 min, (k+1)·15 min) UTC, solo velas cerradas y de un solo contrato). No se arma otra agregación.
+- **ATR:** el de Wilder de 14 (`wilder_atr`) calculado **por tramo de contrato** (se reinicia en cada vencimiento, §2.5). El mismo ATR es el del módulo de riesgo en la vela de la decisión `t`.
+- **Estructura:** las rupturas de §3 se calculan vela a vela desde el último reinicio; la estructura en `t` incluye una ruptura en la propia vela `t` (se conoce al cierre de `t`).
+- **Vela de ejecución** (`t + 1`): empieza en o después de la apertura de la sesión de contado de su día y **antes** del cierre menos 30 minutos; su día no es día de roll ni día excluido por datos fuertes. **Salida planificada:** al cierre de la última vela que termina en o antes del cierre menos 15 minutos (la apertura de la última vela de la sesión); si esa vela no es posterior a `t`, no hay señal.
+- **Objetivo:** con el precio medio de la entrada `E` y el stop `S`, R = |E − S| y el objetivo es E ± 1,5 R. Si la apertura de una vela ya pasó el objetivo, sale al objetivo (no a la apertura). Si en la apertura de `t + 1` el precio ya quedó del lado del stop, no se opera (§2.4) y se cuenta aparte.
+- **Calibración de k (§5.1):** velas de la sesión de contado (empiezan en o después de la apertura y terminan en o antes del cierre) que empiezan en 01-11-2024 → 31-10-2025; para cada vela, cuerpo / ATR de la vela **anterior** (contigua, del mismo tramo de contrato; es el ATR que §5 usa para la primera vela del impulso). q = proporción con cuerpo ≥ 15 puntos; k = el cuantil (1 − q) de los cocientes con la definición de la inversa de la distribución empírica (el valor ordenado número ⌈(1 − q)·n⌉, mínimo 1); redondeo al múltiplo de 0,05 más cercano (las mitades, hacia arriba).
+- **Señales para el conteo (decisión 14):** cada vela `t` que cumple todas las condiciones de la señal, con la decisión dentro de la validación concatenada (01-02-2013 → 01-11-2025), antes de la regla de una posición a la vez y antes del módulo de riesgo.
+- **Test de suerte (§7.2):** generador **SplitMix64** (Steele, Lea y Flood, 2014) con semilla 20261125, un solo flujo para las 1.000 simulaciones en orden. Índice uniforme en [0, n) = (x · n) >> 64 con x de 64 bits; número en [0, 1) = (x >> 11) / 2⁵³. Por simulación y por sesión con `n` operaciones reales: se sortean `n` velas de ejecución distintas entre las permitidas de esa sesión (las mismas condiciones de la vela de ejecución de arriba, con la decisión permitida en la vela anterior), se ordenan y se simulan en orden; una vela que cae antes de la salida de la operación anterior de la misma simulación se descarta (esa simulación tiene una operación menos). Cada operación sorteada usa, en orden, la distancia de stop en puntos (|E − S|) de la operación real con que se empareja, la dirección larga si el número en [0, 1) es menor que la proporción de largos de la estrategia, 1,5 R, la gestión de §2.4 (`simulate_leg`) y los costos de `fill_price`. Se compara el **R neto medio** y el **retorno total** con 1 % de riesgo por operación (∏(1 + 0,01 · R neto) − 1) de la estrategia, medidos igual, contra los de las simulaciones (percentil = porcentaje de simulaciones con un valor menor). No vota.
