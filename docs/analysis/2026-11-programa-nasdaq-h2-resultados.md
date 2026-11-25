@@ -22,7 +22,7 @@ Issue #526 · 25-11-2026 · regla congelada en `2026-11-programa-nasdaq-preregis
 
 ### Registro de corridas
 
-| # | Hora (UTC) | Comando (desde `engine/`, código del commit `f57adaa` de la rama, antes del squash) | Nota |
+| # | Hora (UTC) | Comando (desde `engine/`, código del commit `f57adaa` de la rama, `731b340` después del rebase, antes del squash) | Nota |
 |---|---|---|---|
 | 1 | 25-11-2026 11:45:21 | `programa_nasdaq_h2 US100 US500 US30 --escenario-financiacion EUR=../docs/analysis/2026-11-eur-eonia-estr.csv --salida … --eventos …` | primera y única corrida EUR |
 | 2 | 25-11-2026 11:47:05 | `programa_nasdaq_h2 US100 US500 US30 --escenario-financiacion USD=../docs/analysis/2026-11-usd-effr-sofr.csv --salida … --eventos …` | primera y única corrida USD |
