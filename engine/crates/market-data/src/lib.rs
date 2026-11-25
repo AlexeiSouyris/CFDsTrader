@@ -5,7 +5,8 @@
 //! - catálogo de instrumentos con sus costos (#7);
 //! - trait de proveedores de datos (#28);
 //! - barras de 1 minuto de futuros: agrupación y verificación contra IG (#248);
-//! - día de sesión de una vela intradía y variación contra la sesión anterior (#551).
+//! - día de sesión de una vela intradía y variación contra la sesión anterior (#551);
+//! - sorpresa del calendario: dato real oficial − pronóstico previo (ADR 0018, #698).
 //!
 //! Ninguna vela entra al sistema sin pasar por [`validation::validate_series`].
 
@@ -22,6 +23,7 @@ pub mod provider;
 pub mod session_day;
 pub mod split;
 pub mod spread_filter;
+pub mod surprise;
 pub mod trading_window;
 pub mod validation;
 
