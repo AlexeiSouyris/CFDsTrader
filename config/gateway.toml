@@ -65,6 +65,16 @@ instruments = ["MNQ", "MES", "QQQ"]
 # Velas que devuelve /api/v1/ibkr/bars sin ?limit, y el máximo que acepta ?limit.
 default_bars = 500
 max_bars = 5000
+# Vela en formación (#558, solo visual): GET /api/v1/ibkr/live (SSE, contracts/ibkr_live_bar.v1).
+# Con true, el gateway abre su propia conexión de streaming a IB Gateway paper con [live] de
+# config/ibkr.toml (client_id 21, mismas guardas: puerto, cuenta paper de .env, kill switch). Si IB
+# Gateway está cerrado, el gateway arranca igual y la ruta informa "disconnected". Con false no se
+# conecta nada y la ruta informa "disabled".
+live = false
+# Conexiones SSE abiertas a la vez, como máximo (cada gráfico abierto es una).
+live_max_clients = 16
+# Cada cuánto va un comentario SSE (": ping") para que nada corte una conexión sin mensajes.
+live_heartbeat_secs = 15
 
 # Contexto de mercado del Panel (#294): /api/v1/sentiment y /api/v1/analogs, solo lectura.
 [context]

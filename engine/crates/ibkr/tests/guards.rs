@@ -506,3 +506,67 @@ fn bar_sizes_and_contract_kinds_from_text() {
         })
     ));
 }
+
+// ---- [live]: vela en formación (#558) ----
+
+#[test]
+fn live_config_is_validated() {
+    let live = cfg().live.expect("config/ibkr.toml tiene [live]");
+    assert_ne!(live.client_id, cfg().client_id);
+    assert_eq!(live.client_id, 21);
+    let bad = |from: &str, to: &str| {
+        let text = CONFIG.replace(from, to);
+        assert_ne!(text, CONFIG, "{from:?} no está en config/ibkr.toml");
+        IbkrConfig::from_toml(&text).unwrap_err()
+    };
+    // El mismo client_id que [gateway] (el del cron) no se acepta.
+    assert!(matches!(
+        bad("client_id = 21", "client_id = 17"),
+        IbkrConfigError::Invalid {
+            field: "live.client_id",
+            ..
+        }
+    ));
+    // EURUSD (IDEALPRO) no tiene último operado; un id que no está, tampoco.
+    for to in [
+        r#"instruments = ["MNQ", "EURUSD"]"#,
+        r#"instruments = ["NOPE"]"#,
+    ] {
+        assert!(matches!(
+            bad(r#"instruments = ["MNQ", "MES", "QQQ"]"#, to),
+            IbkrConfigError::Invalid {
+                field: "live.instruments",
+                ..
+            }
+        ));
+    }
+    assert!(matches!(
+        bad(
+            r#"timeframes = ["1m", "5m", "15m", "1h"]"#,
+            r#"timeframes = ["1m", "1d"]"#
+        ),
+        IbkrConfigError::Invalid {
+            field: "live.timeframes",
+            ..
+        }
+    ));
+    assert!(matches!(
+        bad(r#"first_try = "live""#, r#"first_try = "frozen""#),
+        IbkrConfigError::Invalid {
+            field: "live.first_try",
+            ..
+        }
+    ));
+    assert!(matches!(
+        bad("reconnect_max_secs = 300", "reconnect_max_secs = 2"),
+        IbkrConfigError::Invalid {
+            field: "live.reconnect_max_secs",
+            ..
+        }
+    ));
+    // Sin [live], el resto sigue andando (la vela en formación queda apagada).
+    let start = CONFIG.find("[live]").unwrap();
+    let end = start + CONFIG[start..].find("[[instruments]]").unwrap();
+    let without = format!("{}{}", &CONFIG[..start], &CONFIG[end..]);
+    assert_eq!(IbkrConfig::from_toml(&without).unwrap().live, None);
+}

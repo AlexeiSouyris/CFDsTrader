@@ -235,7 +235,8 @@ impl TerminalConfig {
         })
     }
 
-    /// Contra `config/ibkr.toml`: cada instrumento existe allá y el `client_id` es otro.
+    /// Contra `config/ibkr.toml`: cada instrumento existe allá y el `client_id` es otro (que el de
+    /// `[gateway]` y el de `[live]`, #558).
     pub fn check_against(&self, ibkr: &IbkrConfig) -> Result<(), TerminalConfigError> {
         if self.client_id == ibkr.client_id {
             return Err(invalid(
@@ -243,6 +244,15 @@ impl TerminalConfig {
                 format!(
                     "es el mismo que el de config/ibkr.toml ({}): usá uno propio",
                     ibkr.client_id
+                ),
+            ));
+        }
+        if let Some(live) = ibkr.live.as_ref().filter(|l| l.client_id == self.client_id) {
+            return Err(invalid(
+                "gateway.client_id",
+                format!(
+                    "es el mismo que [live] de config/ibkr.toml ({}): usá uno propio",
+                    live.client_id
                 ),
             ));
         }
@@ -360,6 +370,12 @@ mod tests {
         assert!(c.check_against(&ibkr).is_err());
         let c = with("client_id = 19", &format!("client_id = {}", ibkr.client_id)).unwrap();
         assert!(c.check_against(&ibkr).is_err());
+        // Ni el de la vela en formación (#558).
+        let live = ibkr.live.as_ref().expect("[live]").client_id;
+        let c = with("client_id = 19", &format!("client_id = {live}")).unwrap();
+        assert!(c.check_against(&ibkr).is_err());
+        let c = TerminalConfig::from_toml(REAL).unwrap();
+        assert!(c.check_against(&ibkr).is_ok());
     }
 
     #[test]

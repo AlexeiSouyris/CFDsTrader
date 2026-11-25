@@ -17,20 +17,24 @@ use ibapi::accounts::types::AccountGroup;
 use ibapi::accounts::{AccountSummaryResult, AccountSummaryTags};
 use ibapi::contracts::Contract;
 use ibapi::contracts::ContractMonth;
+use ibapi::contracts::tick_types::TickType;
+use ibapi::market_data::MarketDataType;
 use ibapi::market_data::TradingHours;
 use ibapi::market_data::historical::{
     Bar, BarSize as IbSize, BarTimestamp, Duration as IbDuration, WhatToShow as IbWhat,
 };
-use ibapi::prelude::{StreamExt, SubscriptionItemStreamExt};
+use ibapi::market_data::realtime::TickTypes;
+use ibapi::prelude::{StreamExt, SubscriptionItem, SubscriptionItemStreamExt};
 use ibapi::{Client, Error as IbError};
 use rust_decimal::Decimal;
 use time::OffsetDateTime;
 
 use crate::account::{PaperAccountError, PaperAccountId};
 use crate::config::{ContractKind, IbkrConfig, IbkrConfigError, WhatToShow};
+use crate::live::{LiveDataType, QuoteEvent};
 use crate::session::{
-    ApiError, BarSize, BarsRequest, BarsResponse, ContractChoice, IbkrApi, RawBar, ReadOnlySession,
-    SummaryItem, Trip,
+    ApiError, BarSize, BarsRequest, BarsResponse, ContractChoice, IbkrApi, QuoteRequest, RawBar,
+    ReadOnlySession, SummaryItem, Trip,
 };
 
 /// Variables de `ibapi` que graban en disco los mensajes crudos (con cuentas y saldos). Con
@@ -40,6 +44,10 @@ pub const RECORDING_ENV_VARS: [&str; 2] = ["IBAPI_RECORDING_DIR", "IBAPI_RAW_CAP
 /// Avisos de IB Gateway que dicen que perdió la conexión con IBKR (el socket local sigue vivo):
 /// 1100 conectividad perdida, 1300 el puerto del socket se reinició.
 const LOST_CONNECTIVITY_CODES: [i32; 2] = [1100, 1300];
+
+/// Errores de IBKR por falta de permiso de datos (no son una falla): 354 sin suscripción, 420 sin
+/// permiso para ese mercado, 10089-10091 hace falta una suscripción, 10168 sin datos demorados.
+pub const NO_PERMISSION_CODES: [i32; 6] = [354, 420, 10089, 10090, 10091, 10168];
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectError {
@@ -62,6 +70,9 @@ pub struct IbapiClient {
     request_timeout: std::time::Duration,
     /// IB Gateway avisó que perdió la conexión con IBKR.
     lost: Arc<AtomicBool>,
+    /// El tipo de dato (`reqMarketDataType`) es de toda la conexión: se cambia y se suscribe sin
+    /// que otra suscripción se meta en el medio.
+    quotes_setup: tokio::sync::Mutex<()>,
 }
 
 fn address(cfg: &IbkrConfig) -> String {
@@ -116,6 +127,7 @@ pub async fn connect(
         client: Arc::new(client),
         request_timeout: cfg.request_timeout,
         lost,
+        quotes_setup: tokio::sync::Mutex::new(()),
     };
     ReadOnlySession::open(api, cfg, paper, Utc::now())
         .await
@@ -124,6 +136,9 @@ pub async fn connect(
 
 fn map_err(e: IbError) -> ApiError {
     match e {
+        IbError::Notice(n) if NO_PERMISSION_CODES.contains(&n.code) => {
+            ApiError::NoPermission(format!("{}: {}", n.code, n.message))
+        }
         IbError::ConnectionFailed | IbError::Shutdown | IbError::ConnectionReset => {
             ApiError::ConnectionLost(e.to_string())
         }
@@ -176,6 +191,51 @@ pub fn to_raw_bar(b: &Bar, daily: bool) -> Result<RawBar, ApiError> {
         close: to_decimal(b.close, "close")?,
         volume,
     })
+}
+
+fn ib_data_type(t: LiveDataType) -> MarketDataType {
+    match t {
+        LiveDataType::Live => MarketDataType::Realtime,
+        LiveDataType::Frozen => MarketDataType::Frozen,
+        LiveDataType::Delayed => MarketDataType::Delayed,
+        LiveDataType::DelayedFrozen => MarketDataType::DelayedFrozen,
+    }
+}
+
+/// Un tick de `ibapi` → el evento que usa la vela en formación (o nada, si no interesa). Solo el
+/// último precio operado y su hora, en vivo o demorados, y el tipo de dato.
+pub fn quote_event(t: &TickTypes, received: DateTime<Utc>) -> Result<Option<QuoteEvent>, ApiError> {
+    let last = |tick: TickType, price: f64| -> Result<Option<QuoteEvent>, ApiError> {
+        if !matches!(tick, TickType::Last | TickType::DelayedLast) {
+            return Ok(None);
+        }
+        Ok(Some(QuoteEvent::Last {
+            price: to_decimal(price, "last")?,
+            received,
+        }))
+    };
+    match t {
+        TickTypes::Price(p) => last(p.tick_type, p.price),
+        TickTypes::PriceSize(p) => last(p.price_tick_type, p.price),
+        TickTypes::String(s)
+            if matches!(
+                s.tick_type,
+                TickType::LastTimestamp | TickType::DelayedLastTimestamp
+            ) =>
+        {
+            let secs: i64 =
+                s.value.trim().parse().map_err(|_| {
+                    ApiError::Data(format!("hora del último inválida: {:?}", s.value))
+                })?;
+            let at = DateTime::<Utc>::from_timestamp(secs, 0)
+                .ok_or_else(|| ApiError::Data(format!("hora del último fuera de rango: {secs}")))?;
+            Ok(Some(QuoteEvent::LastTime { at, received }))
+        }
+        TickTypes::MarketDataType(m) => {
+            Ok(LiveDataType::from_code(*m as i32).map(QuoteEvent::DataType))
+        }
+        _ => Ok(None),
+    }
 }
 
 /// Mes `AAAAMM` → `ContractMonth`.
@@ -409,6 +469,68 @@ impl IbkrApi for IbapiClient {
             ))
             .await?;
         Ok((name, to_utc(t)?))
+    }
+
+    async fn stream_quotes(
+        &self,
+        req: &QuoteRequest,
+        out: tokio::sync::mpsc::Sender<QuoteEvent>,
+    ) -> Result<(), ApiError> {
+        let now = Utc::now();
+        let contract_req = BarsRequest {
+            spec: req.spec.clone(),
+            contract: ContractChoice::Front,
+            bar_size: BarSize::M1,
+            from: now,
+            to: now,
+            what_to_show: WhatToShow::Trades,
+            regular_hours_only: false,
+        };
+        let (contract, name) = self.contract(&contract_req).await?;
+        let mut sub = {
+            let _setup = self.quotes_setup.lock().await;
+            self.with_timeout(
+                self.client
+                    .switch_market_data_type(ib_data_type(req.data_type)),
+            )
+            .await?;
+            self.with_timeout(self.client.market_data(&contract).subscribe())
+                .await?
+        };
+        if out.send(QuoteEvent::Contract(name)).await.is_err() {
+            sub.cancel().await;
+            return Ok(());
+        }
+        loop {
+            let item = tokio::select! {
+                i = sub.next() => i,
+                () = out.closed() => {
+                    sub.cancel().await;
+                    return Ok(());
+                }
+            };
+            if self.lost.load(Ordering::SeqCst) {
+                return Err(ApiError::ConnectionLost(
+                    "IB Gateway perdió la conexión con IBKR".into(),
+                ));
+            }
+            let tick = match item {
+                None if !self.client.is_connected() => {
+                    return Err(ApiError::ConnectionLost("la suscripción se cortó".into()));
+                }
+                None => return Err(ApiError::Rejected("IBKR terminó la suscripción".into())),
+                Some(Err(e)) => return Err(map_err(e)),
+                // Avisos (por ejemplo 10167 "datos demorados"): no cortan la suscripción.
+                Some(Ok(SubscriptionItem::Notice(_))) => continue,
+                Some(Ok(SubscriptionItem::Data(t))) => t,
+            };
+            if let Some(ev) = quote_event(&tick, Utc::now())?
+                && out.send(ev).await.is_err()
+            {
+                sub.cancel().await;
+                return Ok(());
+            }
+        }
     }
 
     async fn disconnect(&self) {

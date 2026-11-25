@@ -13,21 +13,31 @@
 //!    esos métodos y un test revisa el código fuente).
 //! 4. Desconexión de IB Gateway → kill switch, sin reconexión automática ([`session`], [`client`]).
 //!
+//! Vela en formación (#558, **solo visual**): [`live`] arma, con funciones puras, la vela en curso
+//! de 1m, 5m, 15m y 1h a partir de los precios por streaming (en vivo si la cuenta tiene permiso,
+//! si no demorados, siempre informado), y [`live_feed`] mantiene la suscripción con las mismas
+//! guardas. Nada del motor que decide usa esas velas.
+//!
 //! Como fuente de datos (#536), [`load`] planea la carga incremental de velas cerradas; el
 //! ejemplo `ibkr_load` las guarda en `ibkr_bars` (`ibkr_bar.v1`).
 
 pub mod account;
 pub mod client;
 pub mod config;
+pub mod live;
+pub mod live_feed;
 pub mod load;
 pub mod session;
 
 pub use account::{PaperAccountError, PaperAccountId, check_session_accounts, mask};
 pub use client::{ConnectError, IbapiClient, connect};
 pub use config::{
-    ContractKind, FutureSpec, IbkrConfig, IbkrConfigError, REQUIRED_FORBIDDEN_PORTS, WhatToShow,
+    ContractKind, FutureSpec, IbkrConfig, IbkrConfigError, LiveConfig, REQUIRED_FORBIDDEN_PORTS,
+    WhatToShow,
 };
+pub use live::{BarUpdate, LiveBar, LiveDataType, LiveTimeframe, QuoteEvent, QuoteState};
 pub use session::{
-    AccountSummary, ApiError, BarSize, BarsRequest, BarsResponse, ContractChoice, IbkrApi, RawBar,
-    ReadOnlySession, SessionError, SourcedBars, SourcedCandles, SummaryItem, Trip,
+    AccountSummary, ApiError, BarSize, BarsRequest, BarsResponse, ContractChoice, IbkrApi,
+    QuoteRequest, RawBar, ReadOnlySession, SessionError, SourcedBars, SourcedCandles, SummaryItem,
+    Trip,
 };

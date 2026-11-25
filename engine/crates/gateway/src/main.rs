@@ -30,6 +30,9 @@ use cfds_gateway::context::{ContextConfig, is_context_route, respond_context};
 use cfds_gateway::emotions::{is_emotions_route, respond_emotions};
 use cfds_gateway::fund::{is_fund_route, respond_fund};
 use cfds_gateway::ibkr::{IbkrViewConfig, is_ibkr_route, respond_ibkr};
+use cfds_gateway::ibkr_live::{
+    HubEvent, LiveHub, LiveReply, is_ibkr_live_route, respond_ibkr_live,
+};
 use cfds_gateway::learning::{PgLearning, is_learning_route, respond_learning};
 use cfds_gateway::ml::{is_ml_route, respond_ml};
 use cfds_gateway::ops::url_password;
@@ -41,6 +44,8 @@ use cfds_gateway::status::{
 };
 use cfds_gateway::walk_forward::{is_walk_forward_route, respond_walk_forward};
 use cfds_gateway::{GatewayConfig, PgSource, Reply, ViewAnalysis, read_only_url, respond};
+use cfds_ibkr::IbkrConfig;
+use cfds_ibkr::live_feed::FeedStatus;
 use cfds_journal::votes::VoteRules;
 use cfds_liquidity::StatsConfig;
 use cfds_market_data::{CandleSources, Catalog};
@@ -48,6 +53,7 @@ use cfds_obs::{AlertConfig, AlertKind, Alerter, Level, Logger, ReqwestPost, Tele
 use cfds_risk::RiskConfig;
 use cfds_runner::RunnerConfig;
 use cfds_storage::PgStore;
+use http_body_util::combinators::BoxBody;
 use http_body_util::{BodyExt, Full, Limited};
 use hyper::body::{Bytes, Incoming};
 use hyper::header::{CACHE_CONTROL, CONTENT_TYPE};
@@ -71,6 +77,7 @@ const RUNNER: &str = include_str!("../../../../config/runner.toml");
 const ANALYSIS: &str = include_str!("../../../../config/analysis.toml");
 const PATTERNS: &str = include_str!("../../../../config/patterns.toml");
 const TERMINAL: &str = include_str!("../../../../config/terminal.toml");
+const IBKR: &str = include_str!("../../../../config/ibkr.toml");
 
 /// `config/` del repo (sesiones y feriados del calendario se leen de ahí).
 fn config_dir() -> PathBuf {
@@ -99,6 +106,8 @@ struct State {
     learning: PgLearning,
     /// Velas de IBKR para la terminal de la app (#551), solo lectura.
     ibkr_cfg: IbkrViewConfig,
+    /// Vela en formación de IBKR (#558), solo visual.
+    live_hub: Arc<LiveHub>,
 }
 
 fn header<'a>(req: &'a Request<Incoming>, name: &str) -> Option<&'a str> {
@@ -140,10 +149,48 @@ async fn paper_reply(state: &State, req: Request<Incoming>) -> Reply {
     .await
 }
 
-async fn handle(
-    state: Arc<State>,
-    req: Request<Incoming>,
-) -> Result<Response<Full<Bytes>>, Infallible> {
+type Body = BoxBody<Bytes, Infallible>;
+
+fn no_store(res: &mut Response<Body>, content_type: &'static str) {
+    res.headers_mut().insert(
+        CONTENT_TYPE,
+        hyper::header::HeaderValue::from_static(content_type),
+    );
+    res.headers_mut().insert(
+        CACHE_CONTROL,
+        hyper::header::HeaderValue::from_static("no-store"),
+    );
+}
+
+async fn handle(state: Arc<State>, req: Request<Incoming>) -> Result<Response<Body>, Infallible> {
+    if is_ibkr_live_route(req.uri().path()) {
+        // Vela en formación (#558): SSE, un mensaje por segundo como mucho.
+        let mut res = match respond_ibkr_live(
+            &state.live_hub,
+            req.method().as_str(),
+            req.uri().query(),
+            state.ibkr_cfg.live_max_clients,
+            state.ibkr_cfg.live_heartbeat,
+        ) {
+            LiveReply::Stream(body) => {
+                let mut res = Response::new(body.boxed());
+                no_store(&mut res, "text/event-stream");
+                res
+            }
+            LiveReply::Error { status, body } => {
+                let mut res = Response::new(Full::new(Bytes::from(body)).boxed());
+                *res.status_mut() = hyper::StatusCode::from_u16(status)
+                    .unwrap_or(hyper::StatusCode::INTERNAL_SERVER_ERROR);
+                no_store(&mut res, "text/plain; charset=utf-8");
+                res
+            }
+        };
+        res.headers_mut().insert(
+            "x-accel-buffering",
+            hyper::header::HeaderValue::from_static("no"),
+        );
+        return Ok(res);
+    }
     let reply = if is_paper_route(req.uri().path()) {
         paper_reply(&state, req).await
     } else if is_status_route(req.uri().path()) {
@@ -229,17 +276,10 @@ async fn handle(
     } else {
         liquidity_reply(&state, &req).await
     };
-    let mut res = Response::new(Full::new(Bytes::from(reply.body)));
+    let mut res = Response::new(Full::new(Bytes::from(reply.body)).boxed());
     *res.status_mut() = hyper::StatusCode::from_u16(reply.status)
         .unwrap_or(hyper::StatusCode::INTERNAL_SERVER_ERROR);
-    res.headers_mut().insert(
-        CONTENT_TYPE,
-        hyper::header::HeaderValue::from_static(reply.content_type),
-    );
-    res.headers_mut().insert(
-        CACHE_CONTROL,
-        hyper::header::HeaderValue::from_static("no-store"),
-    );
+    no_store(&mut res, reply.content_type);
     Ok(res)
 }
 
@@ -282,6 +322,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stats = StatsConfig::from_toml(LIQUIDITY)?;
     let paper_cfg = PaperConfig::from_toml(GATEWAY)?;
     let ibkr_cfg = IbkrViewConfig::from_toml(GATEWAY, TERMINAL)?;
+    let ibkr_conn = IbkrConfig::from_toml(IBKR)?;
+    if ibkr_cfg.live && ibkr_conn.live.is_none() {
+        return Err(
+            "[ibkr] live = true en config/gateway.toml pero config/ibkr.toml no tiene [live]"
+                .into(),
+        );
+    }
     let alert_cfg = AlertConfig::from_toml(ALERTS)?;
     let runner_cfg = RunnerConfig::from_toml(RUNNER)?;
     // Si el runner está prendido, toda su config se valida antes de abrir nada.
@@ -415,6 +462,62 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             json!({ "missing_env": paper_cfg.token_env }),
         );
     }
+    // Vela en formación (#558): la conexión de streaming solo con [ibkr] live = true. Si IB Gateway
+    // está cerrado, el gateway sigue y la ruta informa "disconnected" (reintenta solo).
+    let live_hub = {
+        let (instruments, timeframes) = ibkr_conn
+            .live
+            .as_ref()
+            .map(|l| (l.instruments.clone(), l.timeframes.clone()))
+            .unwrap_or_default();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let status = if ibkr_cfg.live {
+            FeedStatus::Connecting
+        } else {
+            FeedStatus::Disabled
+        };
+        let hub = Arc::new(LiveHub::new(
+            &ibkr_cfg.source,
+            instruments,
+            timeframes,
+            status,
+            Some(tx),
+        ));
+        let (log, ops) = (log.clone(), ops.clone());
+        tokio::spawn(async move {
+            while let Some(ev) = rx.recv().await {
+                match ev {
+                    HubEvent::Status(s) => log.log(
+                        if s.reason().is_some() {
+                            Level::Warn
+                        } else {
+                            Level::Info
+                        },
+                        "ibkr_live",
+                        s.as_str(),
+                        json!({ "reason": s.reason() }),
+                    ),
+                    HubEvent::Trip(t) => {
+                        ops.alerts
+                            .raise(
+                                t.kind,
+                                &format!("IBKR vela en formación: {}", t.reason),
+                                t.at,
+                            )
+                            .await;
+                    }
+                }
+            }
+        });
+        if ibkr_cfg.live {
+            tokio::spawn(cfds_ibkr::live_feed::run(
+                ibkr_conn,
+                |k| std::env::var(k).ok(),
+                hub.clone(),
+            ));
+        }
+        hub
+    };
     let fund_cfg = FundConfig::from_toml(FUND)?;
     let fund = PgFund::new(store.pool().clone());
     let state = Arc::new(State {
@@ -433,6 +536,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         token,
         context_cfg: ContextConfig::from_toml(GATEWAY)?,
         ibkr_cfg,
+        live_hub,
         source: PgSource {
             store,
             config: cfg.clone(),

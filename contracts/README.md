@@ -216,6 +216,15 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Precios **sin ajustar**. El futuro continuo de IBKR (CONTFUT) **no entra**: está ajustado por vencimiento y repinta. Tampoco las diarias (IBKR las fecha por sesión, sin hora). Ver `docs/analysis/2026-11-ibkr-medicion-historia.md`.
 - Tabla aparte de `candles` (IG), `futures_bars_1m` y `futures_candles` (Databento): ninguna lectura las mezcla sin querer.
 
+#### Vela en formación de IBKR (#558, solo visual)
+
+| Contrato | Canal | Contenido |
+|---|---|---|
+| `ibkr_live_bar.v1` | SSE `GET /api/v1/ibkr/live?instrument=<id>&timeframe=1m\|5m\|15m\|1h` del gateway (no se guarda) | La vela **en formación** de un instrumento y timeframe, armada por el motor (`cfds_ibkr::live`) con los precios por streaming de IBKR, y el estado: `status` (`disabled`, `connecting`, `disconnected`, `stopped`, `rejected`, `waiting`, `streaming`) con `reason`, `data_type` (`live`, `delayed`, `frozen`, `delayed_frozen`) tal como lo informa IBKR, `delay_seconds` medido, `contract`, `forming` y `bar` (`start`, `end`, OHLC como string decimal, `partial` si empezó a mitad de su período, `ticks`). Como mucho un mensaje por segundo por conexión; la vela cerrada llega una vez con `forming = false`. |
+
+- **Solo visual**: ningún indicador, patrón, señal ni estrategia la usa (un test de `cfds-ibkr` revisa que ningún crate que decide dependa de ella). La vela que vale es la histórica de `ibkr_bars`.
+- IBKR manda muestras del último precio (medido en demorados: una cada ~5 s), no cada operado: al cerrar, la apertura, el máximo y el mínimo pueden quedar adentro del rango de la histórica (ver `docs/analysis/2026-11-ibkr-medicion-historia.md`, #558).
+
 ### Indicadores diarios (#148, #213, #218)
 
 | Contrato | Tabla | Contenido |
