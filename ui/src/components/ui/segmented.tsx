@@ -6,11 +6,14 @@ export function Segmented({
   options,
   value,
   onChange,
+  format,
 }: {
   label: string
   options: readonly string[]
   value: string
   onChange: (v: string) => void
+  /** el texto de cada opción, si no es el valor mismo */
+  format?: (o: string) => string
 }) {
   return (
     <div role="group" aria-label={label} className="flex rounded-full border border-border p-0.5">
@@ -27,7 +30,7 @@ export function Segmented({
               : 'text-muted-foreground hover:text-foreground',
           )}
         >
-          {o}
+          {format ? format(o) : o}
         </button>
       ))}
     </div>

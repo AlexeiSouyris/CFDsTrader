@@ -3,7 +3,10 @@
  * cierre. El gráfico necesita los dos para ubicar cada evento en la vela que ya cerró. Sumar la
  * duración del timeframe al inicio es geometría de pantalla, no un cálculo de trading.
  */
-import type { LiquidityViewData } from '@/lib/liquidity-contracts'
+import type { LiquidityViewData, ViewTimeframe } from '@/lib/liquidity-contracts'
+
+/** Timeframes que dibuja el gráfico: los de la vista de liquidez y `1m`, solo de IBKR (#556). */
+export type ChartTimeframe = ViewTimeframe | '1m'
 
 export type ChartBar = {
   start: string

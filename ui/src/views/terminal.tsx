@@ -6,8 +6,10 @@
  * Disposición, como una terminal de trading:
  * - arriba, la cuenta de simulación (`paper_account.v1`) con el modo simulación siempre a la vista,
  *   y el estado del broker del motor (`ops_status.v1`: conexión, kill switch, pérdida del día);
- * - a la izquierda, la lista de mercados (`lib/market-summary.ts`: hoy el último cierre que ya
- *   sirve el gateway; el resumen de #551 entra ahí cuando exista);
+ * - a la izquierda, la lista de mercados (`lib/market-summary.ts`), en dos grupos: los del broker
+ *   simulado (último cierre que sirve el gateway) y los de IBKR (#556: último, variación, hora y
+ *   atraso del gateway). Los de IBKR abren el gráfico con sus velas, pero son **solo datos**: el
+ *   ticket no los acepta;
  * - al centro, 1, 2 o 4 gráficos (`LiquidityChart`, #286) con la barra de dibujo compartida con el
  *   Multigráfico (#543) sobre el gráfico activo;
  * - a la derecha, el ticket de siempre: validación del riesgo del motor (`ticket_verdict.v1`) y
@@ -38,15 +40,20 @@ import {
 import { Watchlist } from '@/components/ui/watchlist'
 import {
   DEFAULT_SLOTS,
+  parseSelKey,
   parseSlots,
+  selKey,
+  slotTimeframes,
   useChartCatalog,
   useChartSlot,
+  withInstrumentSel,
   type ChartSel,
 } from '@/lib/chart-slots'
 import { signed } from '@/lib/format'
 import { useInstruments } from '@/lib/liquidity-api'
+import type { ChartTimeframe } from '@/lib/liquidity-bars'
 import type { ViewTimeframe } from '@/lib/liquidity-contracts'
-import { useMarketSummaries } from '@/lib/market-summary'
+import { ibkrSummaries, useMarketSummaries, type MarketSummary } from '@/lib/market-summary'
 import { useOpsEvents, useOpsStatus } from '@/lib/ops-api'
 import { previewOrder, submitOrder, usePaperAccount, usePaperPositions } from '@/lib/paper-api'
 import type { PaperAccount } from '@/lib/paper-contracts'
@@ -113,11 +120,21 @@ function loadLayout(): Saved {
   }
 }
 
-/** El instrumento pedido (buscador #362 o lista de mercados) va al gráfico `index`. */
-const withInstrument = (saved: Saved, id: string | null, index = 0): Saved =>
+/**
+ * El instrumento pedido (buscador #362 o lista de mercados) va al gráfico `index`; `feed: 'ibkr'`
+ * si es de IBKR (#556).
+ */
+const withInstrument = (saved: Saved, id: string | null, index = 0, feed?: 'ibkr'): Saved =>
   id
-    ? { ...saved, slots: saved.slots.map((s, i) => (i === index ? { ...s, instrument: id } : s)) }
+    ? {
+        ...saved,
+        slots: saved.slots.map((s, i) => (i === index ? withInstrumentSel(s, id, feed) : s)),
+      }
     : saved
+
+/** "~15 min de atraso", tal como lo declara la fuente, o nada. */
+const delayText = (row: MarketSummary | undefined) =>
+  row?.delay_s != null ? `~${Math.max(1, Math.round(row.delay_s / 60))} min de atraso` : null
 
 function saveLayout(saved: Saved) {
   try {
@@ -132,6 +149,8 @@ function ChartSlot({
   sel,
   onChange,
   instruments,
+  ibkrInstruments,
+  ibkrDelay,
   timeframes,
   height,
   active,
@@ -140,8 +159,12 @@ function ChartSlot({
 }: {
   index: number
   sel: ChartSel
-  onChange: (patch: Partial<ChartSel>) => void
+  onChange: (sel: ChartSel) => void
   instruments: string[]
+  /** los de IBKR (solo datos), para el mismo selector */
+  ibkrInstruments: string[]
+  /** el atraso de IBKR de este instrumento, como lo dice la lista de mercados */
+  ibkrDelay: string | null
   timeframes: ViewTimeframe[]
   height: number
   active: boolean
@@ -149,6 +172,11 @@ function ChartSlot({
   onTools: (patch: Partial<ChartTools>) => void
 }) {
   const slot = useChartSlot(sel)
+  const keys = [
+    ...instruments,
+    ...ibkrInstruments.map((id) => selKey({ instrument: id, feed: 'ibkr' })),
+  ]
+  const current = selKey(sel)
   return (
     <Panel
       title={`Gráfico ${index + 1}`}
@@ -158,25 +186,34 @@ function ChartSlot({
           ? 'velas del motor'
           : slot.source === 'ejemplo'
             ? 'datos de ejemplo'
-            : undefined
+            : slot.source === 'ibkr'
+              ? ['IBKR', slot.ibkr?.series?.contract, ibkrDelay, 'solo datos']
+                  .filter(Boolean)
+                  .join(' · ')
+              : undefined
       }
     >
       <div className="mb-3 flex flex-wrap gap-2">
         <div className="max-w-full overflow-x-auto">
           <Segmented
             label={`Instrumento del gráfico ${index + 1}`}
-            options={
-              instruments.includes(sel.instrument) ? instruments : [sel.instrument, ...instruments]
-            }
-            value={sel.instrument}
-            onChange={(instrument) => onChange({ instrument })}
+            options={keys.includes(current) ? keys : [current, ...keys]}
+            format={(k) => {
+              const p = parseSelKey(k)
+              return p.feed === 'ibkr' ? `${p.instrument} · IBKR` : p.instrument
+            }}
+            value={current}
+            onChange={(k) => {
+              const p = parseSelKey(k)
+              onChange(withInstrumentSel(sel, p.instrument, p.feed))
+            }}
           />
         </div>
         <Segmented
           label={`Timeframe del gráfico ${index + 1}`}
-          options={timeframes}
+          options={slotTimeframes(sel, timeframes)}
           value={sel.timeframe}
-          onChange={(tf) => onChange({ timeframe: tf as ViewTimeframe })}
+          onChange={(tf) => onChange({ ...sel, timeframe: tf as ChartTimeframe })}
         />
       </div>
       <SlotChart
@@ -280,6 +317,9 @@ export function TerminalView({ member }: { member: Member }) {
       ? Object.fromEntries(catalog.data.instruments.map((i) => [i.id, i.name]))
       : {}
   const summaries = useMarketSummaries(instruments)
+  const ibkr = useMarketSummaries([], ibkrSummaries)
+  const ibkrInstruments = ibkr.rows.map((r) => r.instrument_id)
+  const ibkrDelayOf = (id: string) => delayText(ibkr.rows.find((r) => r.instrument_id === id))
 
   const count = Number(saved.layout)
   const current = Math.min(active, count - 1)
@@ -290,9 +330,10 @@ export function TerminalView({ member }: { member: Member }) {
 
   // el ticket arranca con el ejemplo; elegir un mercado lo abre en ese instrumento, sin stop
   const [ticketDraft, setTicketDraft] = useState<TicketDraft>(TICKET_EXAMPLES[0].draft)
-  const pickMarket = (id: string) => {
-    setSaved((prev) => withInstrument(prev, id, current))
-    if (id !== ticketDraft.instrument_id)
+  // los de IBKR (#556) son solo datos: abren el gráfico, el ticket queda como estaba
+  const pickMarket = (id: string, feed?: 'ibkr') => {
+    setSaved((prev) => withInstrument(prev, id, current, feed))
+    if (!feed && id !== ticketDraft.instrument_id)
       setTicketDraft({ instrument_id: id, side: 'long', stop: '', tp1: '' })
     setPane('Gráfico')
   }
@@ -338,6 +379,8 @@ export function TerminalView({ member }: { member: Member }) {
                 index={i}
                 sel={sel}
                 instruments={instruments}
+                ibkrInstruments={ibkrInstruments}
+                ibkrDelay={sel.feed === 'ibkr' ? ibkrDelayOf(sel.instrument) : null}
                 timeframes={timeframes}
                 height={CHART_HEIGHT[saved.layout]}
                 active={count > 1 && i === current}
@@ -346,7 +389,7 @@ export function TerminalView({ member }: { member: Member }) {
                 onChange={(s) =>
                   setSaved((prev) => ({
                     ...prev,
-                    slots: prev.slots.map((old, k) => (k === i ? { ...old, ...s } : old)),
+                    slots: prev.slots.map((old, k) => (k === i ? s : old)),
                   }))
                 }
               />
@@ -360,6 +403,21 @@ export function TerminalView({ member }: { member: Member }) {
   const ticketInstruments = live ? instruments : TERMINAL_INSTRUMENTS
   const ticket = (
     <Panel title="Ticket" aside={live ? 'simulación · broker simulado' : 'simulación · ejemplo'}>
+      {activeSel.feed === 'ibkr' && (
+        <p
+          role="note"
+          data-ibkr-not-tradable
+          className="mb-3 rounded-xl border border-[var(--chart-signal)]/50 px-3 py-2 text-[12px] leading-snug"
+        >
+          <strong className="block font-bold">
+            {activeSel.instrument} (IBKR): solo datos, no operable.
+          </strong>
+          <span className="text-muted-foreground">
+            El gráfico muestra las velas de IBKR; el ticket sigue con los instrumentos del broker
+            simulado.
+          </span>
+        </p>
+      )}
       <OrderTicket
         key={`${live ? 'live' : 'mock'}|${ticketDraft.instrument_id}`}
         instruments={
@@ -478,12 +536,35 @@ export function TerminalView({ member }: { member: Member }) {
       >
         <div className={cn('min-w-0 lg:sticky lg:top-28', pane !== 'Mercados' && 'max-lg:hidden')}>
           <Watchlist
-            rows={summaries.rows}
+            groups={[
+              {
+                id: 'broker',
+                title: 'Broker simulado',
+                sourceLabel: summaries.label,
+                rows: summaries.rows,
+                loading: summaries.status === 'loading',
+              },
+              {
+                id: 'ibkr',
+                title: 'IBKR',
+                sourceLabel: 'solo datos, no operable',
+                rows: ibkr.rows,
+                feed: 'ibkr',
+                badge: 'IBKR',
+                loading: ibkr.status === 'loading',
+                note:
+                  ibkr.status === 'error'
+                    ? 'Sin conexión con el gateway: no hay datos de IBKR.'
+                    : ibkr.status === 'loading'
+                      ? 'Pidiendo los datos de IBKR…'
+                      : ibkr.rows.length === 0
+                        ? 'El gateway no tiene instrumentos de IBKR configurados.'
+                        : 'Datos con atraso, tal como los manda el gateway. Precios del pasado, no promesas.',
+              },
+            ]}
             names={names}
-            selected={activeSel.instrument}
+            selected={selKey(activeSel)}
             onSelect={pickMarket}
-            sourceLabel={summaries.label}
-            loading={summaries.status === 'loading'}
           />
         </div>
         <div className={cn('min-w-0', pane !== 'Gráfico' && 'max-lg:hidden')}>{charts}</div>

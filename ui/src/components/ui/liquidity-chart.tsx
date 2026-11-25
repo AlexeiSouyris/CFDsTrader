@@ -82,19 +82,18 @@ import { useChartTools } from '@/lib/use-chart-tools'
 import { useCoarsePointer } from '@/lib/use-coarse-pointer'
 import { useElementWidth } from '@/lib/use-element-width'
 import { cn } from '@/lib/utils'
-import { mergeBars, type ChartBar } from '@/lib/liquidity-bars'
+import { mergeBars, type ChartBar, type ChartTimeframe } from '@/lib/liquidity-bars'
 import type { OlderPage } from '@/lib/liquidity-api'
-import type {
-  FvgEvent,
-  Imbalance,
-  LevelState,
-  LiquidityLevel,
-  ViewTimeframe,
-} from '@/lib/liquidity-contracts'
+import type { FvgEvent, Imbalance, LevelState, LiquidityLevel } from '@/lib/liquidity-contracts'
 
 type Range = { label: string; bars: number }
 /** Rangos de cada timeframe (en velas); el segundo es el que se abre. */
-const RANGES: Record<ViewTimeframe, Range[]> = {
+const RANGES: Record<ChartTimeframe, Range[]> = {
+  '1m': [
+    { label: '2 horas', bars: 120 },
+    { label: '6 horas', bars: 360 },
+    { label: 'Todo', bars: Infinity },
+  ],
   '15m': [
     { label: '1 día', bars: 96 },
     { label: '2 días', bars: 192 },
@@ -111,7 +110,8 @@ const RANGES: Record<ViewTimeframe, Range[]> = {
     { label: 'Todo', bars: Infinity },
   ],
 }
-const TF_LABEL: Record<ViewTimeframe, { short: string; long: [string, string] }> = {
+const TF_LABEL: Record<ChartTimeframe, { short: string; long: [string, string] }> = {
+  '1m': { short: '1 m', long: ['vela de 1 minuto', 'velas de 1 minuto'] },
   '15m': { short: '15 m', long: ['vela de 15 minutos', 'velas de 15 minutos'] },
   '1h': { short: '1 h', long: ['vela de 1 hora', 'velas de 1 hora'] },
   '1d': { short: '1 d', long: ['vela diaria', 'velas diarias'] },
@@ -150,6 +150,8 @@ const STATE_STYLE: Record<LevelState, { stroke: string; dash?: string; opacity: 
 export function LiquidityChart({
   instrument,
   timeframe = '15m',
+  caption = 'liquidez',
+  liquidity = true,
   bars,
   levels,
   fvgs,
@@ -170,7 +172,15 @@ export function LiquidityChart({
   className,
 }: {
   instrument: string
-  timeframe?: ViewTimeframe
+  /** `1m` solo para las velas de IBKR (#556), que no traen capas de liquidez */
+  timeframe?: ChartTimeframe
+  /** qué se ve, en la cabecera (por defecto, "liquidez"; las velas de IBKR dicen su fuente) */
+  caption?: string
+  /**
+   * Si las velas traen capas de liquidez (por defecto, sí). En falso (las de IBKR, #556) no se
+   * muestran el filtro de niveles ni la leyenda de niveles y FVG, que no hay.
+   */
+  liquidity?: boolean
   /** velas con su inicio y su cierre (`end`), tal como llegan */
   bars: ChartBar[]
   levels: LiquidityLevel[]
@@ -496,12 +506,14 @@ export function LiquidityChart({
           onChange={(v) => setMode(v as ChartMode)}
         />
       )}
-      <Segmented
-        label="Niveles"
-        options={FILTERS}
-        value={filter}
-        onChange={(v) => setFilter(v as typeof filter)}
-      />
+      {liquidity && (
+        <Segmented
+          label="Niveles"
+          options={FILTERS}
+          value={filter}
+          onChange={(v) => setFilter(v as typeof filter)}
+        />
+      )}
       <Segmented
         label="Rango"
         options={ranges.map((r) => r.label)}
@@ -521,7 +533,7 @@ export function LiquidityChart({
           <div>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <p className="text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase">
-                {instrument} · {TF_LABEL[timeframe].short} · liquidez
+                {instrument} · {TF_LABEL[timeframe].short} · {caption}
               </p>
               {vix && (
                 <span
@@ -1059,40 +1071,51 @@ export function LiquidityChart({
 
       {!compact && (
         <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-          {(Object.keys(STATE_STYLE) as LevelState[]).map((st) => (
-            <li key={st} className="flex items-center gap-1.5">
-              <svg width={22} height={6} aria-hidden>
-                <line
-                  x1={0}
-                  x2={22}
-                  y1={3}
-                  y2={3}
-                  stroke={STATE_STYLE[st].stroke}
-                  strokeWidth={1.6}
-                  strokeDasharray={STATE_STYLE[st].dash}
+          {liquidity && (
+            <>
+              {(Object.keys(STATE_STYLE) as LevelState[]).map((st) => (
+                <li key={st} className="flex items-center gap-1.5">
+                  <svg width={22} height={6} aria-hidden>
+                    <line
+                      x1={0}
+                      x2={22}
+                      y1={3}
+                      y2={3}
+                      stroke={STATE_STYLE[st].stroke}
+                      strokeWidth={1.6}
+                      strokeDasharray={STATE_STYLE[st].dash}
+                    />
+                  </svg>
+                  {STATE_LABEL[st]}
+                </li>
+              ))}
+              <li className="flex items-center gap-1.5">
+                <svg width={22} height={6} aria-hidden opacity={0.3}>
+                  <line
+                    x1={0}
+                    x2={22}
+                    y1={3}
+                    y2={3}
+                    stroke="var(--chart-accent)"
+                    strokeWidth={1.6}
+                  />
+                </svg>
+                Vencido
+              </li>
+              <li className="flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-4 rounded-[2px] bg-up/30" aria-hidden />
+                FVG abierto
+              </li>
+              <li className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2.5 w-4 rounded-[2px] border border-dashed border-muted-foreground/50"
+                  aria-hidden
                 />
-              </svg>
-              {STATE_LABEL[st]}
-            </li>
-          ))}
-          <li className="flex items-center gap-1.5">
-            <svg width={22} height={6} aria-hidden opacity={0.3}>
-              <line x1={0} x2={22} y1={3} y2={3} stroke="var(--chart-accent)" strokeWidth={1.6} />
-            </svg>
-            Vencido
-          </li>
-          <li className="flex items-center gap-1.5">
-            <span className="inline-block h-2.5 w-4 rounded-[2px] bg-up/30" aria-hidden />
-            FVG abierto
-          </li>
-          <li className="flex items-center gap-1.5">
-            <span
-              className="inline-block h-2.5 w-4 rounded-[2px] border border-dashed border-muted-foreground/50"
-              aria-hidden
-            />
-            FVG lleno o vencido
-          </li>
-          <li>▲ ▼ vela de desplazamiento</li>
+                FVG lleno o vencido
+              </li>
+              <li>▲ ▼ vela de desplazamiento</li>
+            </>
+          )}
           {coarse ? (
             <>
               <li>
