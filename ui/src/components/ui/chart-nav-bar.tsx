@@ -2,7 +2,7 @@
  * Capas de React de los gráficos navegables (#401, ver `chart-nav.ts`): lo que sigue al encuadre
  * cuadro a cuadro (ejes) y los botones sobre el gráfico. Solo presentación (CLAUDE.md §1).
  */
-import { useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { ArrowRightToLine, Ruler } from 'lucide-react'
 
 import { useMapping, type HistoryState, type Viewport } from '@/components/ui/chart-nav'
@@ -35,6 +35,7 @@ export function ChartNavBar({
   bottom,
   history = 'idle',
   onRetry,
+  wheelHint = false,
 }: {
   vp: Viewport
   ruler: boolean
@@ -45,6 +46,8 @@ export function ChartNavBar({
   bottom: number
   history?: HistoryState
   onRetry?: () => void
+  /** la rueda pasó sin zoom (#580): se muestra la pista de cómo hacerlo */
+  wheelHint?: boolean
 }) {
   const coarse = useCoarsePointer()
   const latest = useSyncExternalStore(
@@ -62,13 +65,16 @@ export function ChartNavBar({
     () => visibleRange(vp.store.get(), vp.store.count())[0] === 0,
     () => false,
   )
+  // "No hay velas más antiguas" es un aviso que se va solo (#580): antes quedaba fijo.
+  const doneShown = useTransient(history === 'done' && atFirst, DONE_MS)
   const pill =
     'pointer-events-auto inline-flex h-7 items-center gap-1.5 rounded-full border border-border bg-background/85 px-2.5 text-[11px] font-bold text-muted-foreground shadow-sm backdrop-blur transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring'
   return (
     <>
-      {(history === 'loading' || history === 'error' || (history === 'done' && atFirst)) && (
+      {/* a la izquierda, a media altura: donde llegan las velas viejas, sin pisar "En formación" */}
+      {(history === 'loading' || history === 'error' || (history === 'done' && doneShown)) && (
         <div
-          className="pointer-events-none absolute left-2 top-2 flex"
+          className="pointer-events-none absolute top-1/2 left-2 flex -translate-y-1/2"
           role="status"
           data-history={history}
         >
@@ -83,6 +89,18 @@ export function ChartNavBar({
                 : 'No hay velas más antiguas guardadas'}
             </span>
           )}
+        </div>
+      )}
+      {wheelHint && (
+        <div
+          role="status"
+          data-wheel-hint
+          className="pointer-events-none absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2"
+        >
+          {/* al centro, como un aviso que se va solo: arriba se pisaba con "En formación" */}
+          <span className={cn(pill, 'pointer-events-none font-semibold whitespace-nowrap')}>
+            Zoom: Ctrl o ⌘ + rueda, o clic y rueda
+          </span>
         </div>
       )}
       <div
@@ -132,4 +150,26 @@ export function ChartNavBar({
       </div>
     </>
   )
+}
+
+/** Cuánto se ve el aviso de que no hay velas más antiguas. */
+const DONE_MS = 3000
+
+/**
+ * Verdadero mientras `on` siga prendido y no pasaron `ms` desde que se prendió: un aviso que se va
+ * solo. Si `on` se apaga y vuelve a prenderse, se muestra de nuevo.
+ */
+function useTransient(on: boolean, ms: number): boolean {
+  const [expired, setExpired] = useState<boolean>(false)
+  const [prev, setPrev] = useState(on)
+  if (prev !== on) {
+    setPrev(on)
+    setExpired(false)
+  }
+  useEffect(() => {
+    if (!on) return
+    const t = window.setTimeout(() => setExpired(true), ms)
+    return () => window.clearTimeout(t)
+  }, [on, ms])
+  return on && !expired
 }

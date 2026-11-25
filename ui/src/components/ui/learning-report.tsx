@@ -162,8 +162,8 @@ export function LearningReportView({
       <section>
         <h4 className="mb-1 text-[12.5px] font-bold">Propuestas de cambio</h4>
         <p className="mb-2 text-[11px] text-muted-foreground">
-          El sistema nunca se cambia solo: cada propuesta pasa por la votación del grupo (spec
-          §1.2). Desde acá no se vota.
+          El sistema nunca se cambia solo: cada propuesta pasa por la votación del grupo. Desde acá
+          no se vota.
         </p>
         {r.change_proposals.length === 0 ? (
           <p className="text-[12px] text-muted-foreground">El informe no propone cambios.</p>

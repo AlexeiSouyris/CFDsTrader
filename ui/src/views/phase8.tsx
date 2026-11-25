@@ -66,7 +66,7 @@ export function PaperVsBacktestSection() {
           <Term id="paper-trading">Paper</Term> vs backtest
         </>
       }
-      aside="fase 8 · simulación, del motor"
+      aside="simulación, del motor"
     >
       <p className="mb-3 max-w-3xl text-[12px] text-pretty text-muted-foreground">
         El broker simulado contra el backtest del mismo período, con las mismas velas y la misma
@@ -94,7 +94,7 @@ export function LearningSection() {
     return s && voteLabel(s)
   }
   return (
-    <Section id="perf-aprendizaje" title="Aprendizaje" aside="fase 8b · informe del diario">
+    <Section id="perf-aprendizaje" title="Aprendizaje" aside="informe del diario">
       {r.status === 'loading' ? (
         note('Pidiendo el informe al motor…', 'loading')
       ) : r.status === 'error' ? (
@@ -111,7 +111,7 @@ export function LearningSection() {
 export function MlExperimentsSection() {
   const r = useMlExperiments()
   return (
-    <Section id="perf-modelo" title="Modelo (informativo)" aside="fase 4b · experimentos de ML">
+    <Section id="perf-modelo" title="Modelo (informativo)" aside="experimentos de ML">
       <p className="mb-3 max-w-3xl text-[12px] text-pretty text-muted-foreground">
         El modelo de ML v1 (M1) se compara contra lo que se muestra hoy (B1) con datos que no vio.
         Es <strong className="text-foreground">solo informativo</strong>: no decide operaciones y no

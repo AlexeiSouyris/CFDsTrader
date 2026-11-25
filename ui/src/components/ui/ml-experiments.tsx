@@ -22,7 +22,7 @@ const td = 'py-2 pr-3 tabular-nums whitespace-nowrap'
 
 const MODEL_LABEL: Record<MlModel, string> = {
   B0: 'frecuencia global',
-  B1: 'tabla de §13 (lo que se muestra hoy)',
+  B1: 'tabla de frecuencias (lo que se muestra hoy)',
   M1: 'regresión logística',
 }
 
@@ -202,11 +202,31 @@ function Calibration({ calibration }: { calibration: MlCalibration }) {
 /** Cuántos motivos distintos de las ventanas sin entrenar se listan (los más frecuentes). */
 const SHOWN_REASONS = 3
 
-/** Las ventanas que no entrenaron, agrupadas por su motivo tal como lo escribió Python. */
+/**
+ * El motivo de Python en palabras de usuario (#580): "53 propuestas, el mínimo es 300" cambia en
+ * cada ventana y se leía como un error. Queda "menos de 300 propuestas"; el texto original va en
+ * el `title`. Si no se reconoce, se muestra tal cual.
+ */
+function reasonText(raw: string): string {
+  const few = /^\d+ propuestas, el mínimo es (\d+)$/.exec(raw)
+  if (few) return `menos de ${few[1]} propuestas`
+  const cls = /con TP1 .*el mínimo es (\d+) de cada clase$/.exec(raw)
+  if (cls) return `menos de ${cls[1]} casos con y sin TP1`
+  return raw
+}
+
+/** Las ventanas que no entrenaron, agrupadas por su motivo (en palabras de usuario). */
 function skippedReasons(e: MlExperimentEntry['experiment']) {
-  const by = new Map<string, number>()
-  for (const w of e.windows) if (w.skipped) by.set(w.skipped, (by.get(w.skipped) ?? 0) + 1)
-  return [...by].sort((a, b) => b[1] - a[1])
+  const by = new Map<string, { n: number; raw: Set<string> }>()
+  for (const w of e.windows) {
+    if (!w.skipped) continue
+    const key = reasonText(w.skipped)
+    const g = by.get(key) ?? { n: 0, raw: new Set<string>() }
+    g.n += 1
+    g.raw.add(w.skipped)
+    by.set(key, g)
+  }
+  return [...by].sort((a, b) => b[1].n - a[1].n)
 }
 
 function Experiment({ entry }: { entry: MlExperimentEntry }) {
@@ -255,10 +275,10 @@ function Experiment({ entry }: { entry: MlExperimentEntry }) {
           {trained} de {e.windows.length}{' '}
           {e.windows.length === 1 ? 'ventana entrenó' : 'ventanas entrenaron'}
           {reasons.length > 0 && ' · sin entrenar: '}
-          {reasons.slice(0, SHOWN_REASONS).map(([why, n], i) => (
-            <span key={why}>
+          {reasons.slice(0, SHOWN_REASONS).map(([why, g], i) => (
+            <span key={why} title={[...g.raw].join('\n')}>
               {i > 0 && '; '}
-              {why} ({n})
+              {why} ({g.n} {g.n === 1 ? 'ventana' : 'ventanas'})
             </span>
           ))}
           {reasons.length > SHOWN_REASONS &&

@@ -169,7 +169,7 @@ describe('ayuda de gestos según el puntero (#424)', () => {
 
   it('con mouse habla de rueda y Shift', () => {
     const { svg } = chart()
-    expect(svg.getAttribute('aria-label')).toMatch(/usá la rueda/)
+    expect(svg.getAttribute('aria-label')).toMatch(/Ctrl o ⌘ más la rueda/)
     expect(document.body).toHaveTextContent('Shift + arrastrar (o la regla) mide')
     expect(screen.getByRole('button', { name: 'Regla: medir arrastrando' })).toHaveAttribute(
       'title',

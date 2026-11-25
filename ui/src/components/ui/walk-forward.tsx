@@ -220,7 +220,7 @@ export function WalkForwardReportView({ report: r }: { report: WalkForwardReport
       <p className="text-[11.5px] [overflow-wrap:anywhere] text-muted-foreground">
         {r.instrument_id} · velas {r.candle_source === 'futures' ? 'de futuros' : 'de IG'} ·{' '}
         {r.split.train_months} meses de entrenamiento, {r.split.validation_months} de prueba, paso{' '}
-        {r.split.step_months} · calculado el {dateTimeUtc(r.computed_at)} · {r.report_id}
+        {r.split.step_months} · calculado el {dateTimeUtc(r.computed_at)}
       </p>
       <Folds r={r} />
       <div>
@@ -254,8 +254,7 @@ export function WalkForwardLive({ instrument }: { instrument: string }) {
   if (wf.data === null)
     return (
       <p data-walk-forward="none" className="text-[12.5px] text-muted-foreground">
-        Todavía no hay un reporte de walk-forward para {instrument}. Lo genera el ejemplo{' '}
-        <code>walk_forward</code> del motor con un <code>report_id</code>.
+        Todavía no hay un reporte de walk-forward para {instrument}: el motor todavía no lo calculó.
       </p>
     )
   return <WalkForwardReportView report={wf.data} />

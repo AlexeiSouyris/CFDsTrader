@@ -158,7 +158,8 @@ describe('paper vs backtest (fase 8, #331)', () => {
       'Faltan en paper−20',
     )
     expect(causes.querySelector('[data-cause="extra_in_paper"]')).toHaveTextContent('+12')
-    expect(causes.querySelector('[data-cause="size"]')).toHaveTextContent('+0')
+    // el cero va sin signo (#580)
+    expect(causes.querySelector('[data-cause="size"]')).toHaveTextContent(/Tamaño\s*0$/)
     // La barra más larga es la causa más grande, del lado negativo.
     const bar = (k: string) =>
       causes.querySelector<HTMLElement>(`[data-cause="${k}"] [style]`)!.style.width

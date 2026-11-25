@@ -9,7 +9,7 @@ import {
   usePointer,
   type PointerStore,
 } from '@/components/ui/chart-measure'
-import { dateTimeUtc, decimal } from '@/lib/format'
+import { dateTimeUtc, price as priceText, priceDigits } from '@/lib/format'
 
 /** "16 nov, 15:00 – 20 nov, 20:00 UTC" (o una sola fecha si es la misma vela). */
 function dateRange(a: string, b: string) {
@@ -45,7 +45,8 @@ export function ChartReadout({
   const measure = usePointer(store, (s) => s.measure)
   const n = closes.length
   if (n === 0) return null
-  const digits = (closes[n - 1].split('.')[1] ?? '').length
+  const digits = priceDigits(closes.slice(-50))
+  const fmt = (t: string) => priceText(t, digits)
   const at = (iso: string) => starts.indexOf(iso)
 
   let state: 'idle' | 'hover' | 'measure' = 'idle'
@@ -68,7 +69,7 @@ export function ChartReadout({
   return (
     <div data-chart-readout={state}>
       <p className="mt-1 text-[26px] leading-none font-bold tracking-[-0.03em] tabular-nums">
-        {state === 'idle' ? <AnimatedNumber value={price} format={decimal} /> : decimal(price)}
+        {state === 'idle' ? <AnimatedNumber value={price} format={fmt} /> : fmt(price)}
       </p>
       <p className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 text-[12px] leading-tight tabular-nums">
         <span

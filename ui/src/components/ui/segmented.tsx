@@ -11,6 +11,7 @@ export function Segmented({
   value,
   onChange,
   format,
+  disabled,
 }: {
   label: string
   options: readonly string[]
@@ -18,6 +19,8 @@ export function Segmented({
   onChange: (v: string) => void
   /** el texto de cada opción, si no es el valor mismo */
   format?: (o: string) => string
+  /** opciones que no se pueden elegir ahora, con el motivo (va en el `title`) */
+  disabled?: Readonly<Record<string, string>>
 }) {
   return (
     <div
@@ -30,12 +33,14 @@ export function Segmented({
           key={o}
           type="button"
           aria-pressed={o === value}
+          disabled={disabled?.[o] !== undefined}
+          title={disabled?.[o]}
           onClick={() => onChange(o)}
           className={cn(
-            'shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold whitespace-nowrap transition-colors',
+            'shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-40',
             o === value
               ? 'bg-primary text-primary-foreground'
-              : 'text-muted-foreground hover:text-foreground',
+              : 'text-muted-foreground enabled:hover:text-foreground',
           )}
         >
           {format ? format(o) : o}

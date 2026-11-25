@@ -80,7 +80,7 @@ function Curves({ detail }: { detail: Detail }) {
   if (points.length === 0)
     return (
       <p className="text-[12.5px] text-muted-foreground">
-        Esta corrida no guardó su curva (es anterior a #299).
+        Esta corrida no guardó su curva: es de una versión anterior del motor.
       </p>
     )
   const axis = 64
@@ -531,11 +531,10 @@ export function RunDetailView({
         de cada instrumento de la corrida, tal cual lo manda el motor. Con los datos de ejemplo no
         se inventa ninguno.
       */}
-      <Block title="Walk-forward / fuera de muestra" aside="fase 5">
+      <Block title="Walk-forward / fuera de muestra">
         {example ? (
           <p data-walk-forward="pending" className="text-[12.5px] text-muted-foreground">
-            Los datos de ejemplo no tienen walk-forward: llega del motor con la fase 5, desde su
-            propio contrato.
+            Los datos de ejemplo no tienen walk-forward: solo las corridas del motor lo traen.
           </p>
         ) : (
           <div className="grid gap-4">

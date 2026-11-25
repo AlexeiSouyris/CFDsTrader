@@ -15,6 +15,12 @@ const DATE = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', 
 /** "20 nov, 15:45 UTC": la hora interna es UTC (spec §2). */
 export const dateTimeUtc = (iso: string) => `${DATE_TIME.format(new Date(iso))} UTC`
 export const dateUtc = (iso: string) => DATE.format(new Date(iso))
+
+/**
+ * La hora de una vela cerrada, siempre la de su **cierre** (`end`) y dicha así: el gráfico y el
+ * panel mostraban una el inicio y otro el cierre (#580). "cerró el 25 nov, 04:00 UTC".
+ */
+export const closedAt = (endIso: string) => `cerró el ${dateTimeUtc(endIso)}`
 const TIME = new Intl.DateTimeFormat('es-ES', {
   hour: '2-digit',
   minute: '2-digit',
@@ -40,10 +46,29 @@ export function decimal(text: string, digits?: number): string {
   return `${negative ? '−' : ''}${grouped}${f ? `,${f}` : ''}`
 }
 
-/** Con signo explícito: "+41,25" o "−18,40". */
+/** Con signo explícito: "+41,25" o "−18,40". El cero va sin signo ("0", "0,00"). */
 export function signed(text: string, digits?: number): string {
-  return text.startsWith('-') ? decimal(text, digits) : `+${decimal(text, digits)}`
+  const body = decimal(text.replace(/^[-+]/, ''), digits)
+  if (/^0(,0*)?$/.test(body)) return body
+  return text.startsWith('-') ? `−${body}` : `+${body}`
 }
+
+/**
+ * Cuántos decimales tiene el instrumento, según los precios que llegan del motor (el texto
+ * decimal de cada uno): el máximo de las muestras, hasta 5. Un cierre "26006" junto a
+ * "26007.75" dice que el instrumento usa 2 decimales. Es formato, no un cálculo.
+ */
+export function priceDigits(texts: readonly string[]): number {
+  let d = 0
+  for (const t of texts) d = Math.max(d, t.split('.')[1]?.length ?? 0)
+  return Math.min(d, 5)
+}
+
+/**
+ * El formateador de precios de la app: siempre con los decimales del instrumento, así "26.006"
+ * no se lee como 26 con decimales al lado de "26.007,75". Corta el texto sin pasar por float.
+ */
+export const price = (text: string, digits: number) => decimal(text, digits)
 
 export const isNegative = (text: string) => text.trim().startsWith('-')
 
