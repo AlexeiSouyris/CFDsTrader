@@ -112,3 +112,58 @@ anterior que da el snapshot demorado (26275.75) coincide con la diaria cerrada q
 como referencia de la variación del día. Precios en vivo requieren una suscripción de datos de IBKR
 (con costo: **a decidir por el dueño**, no se contrató nada).
 
+
+## Precios por streaming y vela en formación (#558)
+
+Medición del 25-11-2026 entre las 03:18 y las 03:45 UTC (CME abierto; QQQ cerrado, fuera del horario
+extendido), con `cargo run -p cfds-ibkr --example ibkr_live` (`client_id` 21, el de `[live]`), contra
+IB Gateway paper: seis suscripciones sueltas (`reqMktData` en streaming, sin snapshot; en vivo y
+demorado por instrumento) y dos corridas con los tres instrumentos a la vez como los abre el gateway
+(`--feed`, la segunda de 7 minutos), unas 18 suscripciones en total. Sin ninguna suscripción de datos
+contratada.
+
+| Instrumento (contrato) | Pedido en vivo (`reqMarketDataType` 1) | Pedido demorado (tipo 3) |
+|---|---|---|
+| MNQ (MNQZ6) | error 354 "Requested market data is not subscribed ... Delayed market data is available" | IBKR informa `delayed`; último precio y su hora cada **~5 s**; atraso medido (llegada − hora del último operado) **600 s** (600-604 s) |
+| MES (MESZ6) | error 354 | igual que MNQ: `delayed`, una muestra cada ~5 s, atraso 600-604 s |
+| QQQ (NASDAQ.NMS) | error 354 (medido con el mercado cerrado: a repetir en horario de EE. UU., ver abajo) | `delayed`; al suscribirse manda solo el último operado conocido (00:59:59 UTC, 2 h 22 min antes) y nada más hasta que haya operaciones |
+
+- **En vivo no hay**: los tres instrumentos responden 354 al pedir datos en vivo. Con
+  `first_try = "live"` el motor lo intenta y, ante ese error, pide demorados solo (lo mismo que ya
+  medía #541 para MNQ). El tipo (`delayed`) y el atraso (~600 s) van en cada mensaje.
+- **QQQ en horario de EE. UU.**: la medición fue con el mercado cerrado. Si la cuenta tiene la
+  suscripción gratuita "US Real-Time Non Consolidated Streaming Quotes", QQQ podría dar `live` en
+  horario de mercado. **Pendiente**: repetir `ibkr_live -- QQQ live 30` entre las 14:30 y las 21:00
+  UTC. Si da en vivo, el motor ya lo usa sin cambiar código (el mensaje dirá `live`).
+- **El último operado previo a la suscripción no es un precio nuevo**: con QQQ cerrado era de horas
+  antes y, tomado como precio, armaba una vela vieja y un "atraso" de 8534 s. El motor lo ignora
+  (no arma vela ni mide atraso con ese primer par); por eso la primera vela de cada timeframe se
+  marca `partial` si su período empezó antes de ese operado.
+
+### La vela en formación al cerrar, contra `ibkr_bars`
+
+Velas de 1m armadas con los precios demorados (corridas de las 03:18 y de las 03:38), contra las
+históricas de 1m que guardó `ibkr_load` (lectura de solo lectura de `ibkr_bars`):
+
+| Vela | Armada por streaming (O H L C) | Histórica (O H L C) |
+|---|---|---|
+| MNQ 03:09 | 25969 · 25972.25 · 25969 · **25969.5** | 25962.5 · 25974 · 25959.25 · **25969.5** |
+| MNQ 03:10 | 25971.25 · 26001 · 25971.25 · **25985.25** | 25969.75 · 26003.75 · 25969 · **25985.25** |
+| MES 03:11 | 7175 · 7176 · 7174.5 · **7176** | 7173.75 · 7176 · 7172.25 · **7176** |
+| MNQ 03:28 (parcial) | 26016 · 26016 · 26008.25 · **26015** | 26021.25 · 26025.75 · 26006.75 · **26015** |
+| MES 03:28 (parcial) | 7177.5 · 7177.5 · 7176 · **7177.25** | 7178.25 · 7178.75 · 7175.75 · **7177.25** |
+| MNQ 03:29 | **26014** · 26014 · 26002 · **26002** | **26014** · 26015.5 · 25998 · **26002** |
+| MES 03:29 | **7177** · 7177 · 7174.75 · **7174.75** | **7177** · 7177.25 · 7174.5 · **7174.75** |
+
+- **El cierre coincidió en las 7**; la apertura en 2 de las 5 no parciales; el máximo y el mínimo
+  quedaron siempre **adentro** del rango de la histórica. Es lo esperable: IBKR manda una muestra
+  del último precio cada ~5 s (demorados), no cada operado, así que los extremos de la vela pueden
+  no verse. Por eso la vela en formación es **solo visual** y la que vale es la histórica.
+- Con todos los precios (un test con las velas de 1m reales de MNQZ6 de 02:00 a 02:14), la vela
+  armada es exactamente la histórica de 1m y su agregado de 5m y 15m
+  (`engine/crates/ibkr/tests/live_coherence.rs`).
+- **Problema aparte encontrado**: las velas de 15m y 1h que guardó `ibkr_load` en las cargas
+  incrementales del 25-11 (por ejemplo MNQ 15m 02:00) **no coinciden** con el agregado de sus velas
+  de 1m: se guardaron antes de que IBKR tuviera todos sus datos (el atraso de ~10 minutos). Ver #563.
+
+Cómo repetirlo: ver el encabezado de `engine/crates/ibkr/examples/ibkr_live.rs`.

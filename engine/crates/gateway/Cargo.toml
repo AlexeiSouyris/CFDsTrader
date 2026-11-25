@@ -10,6 +10,7 @@ cfds-backtest = { version = "0.1.0", path = "../backtest" }
 cfds-broker = { version = "0.1.0", path = "../broker" }
 cfds-core = { version = "0.1.0", path = "../core" }
 cfds-fund = { version = "0.1.0", path = "../fund" }
+cfds-ibkr = { version = "0.1.0", path = "../ibkr" }
 cfds-journal = { version = "0.1.0", path = "../journal" }
 cfds-liquidity = { version = "0.1.0", path = "../liquidity" }
 cfds-market-data = { version = "0.1.0", path = "../market-data" }
@@ -34,6 +35,8 @@ toml = "0.9"
 jsonschema = { version = "0.61.2", default-features = false }
 rust_decimal = { version = "1.43.0", features = ["macros"] }
 sqlx = { version = "0.9.1", default-features = false, features = ["runtime-tokio", "postgres"] }
+# Reloj de prueba para el tope de un mensaje por segundo de la vela en formación (#558).
+tokio = { version = "1.54.1", features = ["test-util", "macros", "rt"] }
 
 [lints]
 workspace = true

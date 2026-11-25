@@ -55,6 +55,32 @@ window_1m_hours = 24
 window_15m_hours = 168
 window_1h_hours = 720
 
+[live]
+# Precios por streaming para la vela en formación de la terminal de la app (#558). SOLO VISUAL: ningún
+# indicador, patrón, señal ni estrategia usa esa vela. La conexión la abre el gateway solo con
+# [ibkr] live = true en config/gateway.toml.
+# Identificador propio de esta conexión: distinto del de [gateway] (17, que usan ibkr_load y el cron),
+# de ibkr_probe (18) y de la terminal bolsa (19, config/terminal.toml).
+client_id = 21
+# Instrumentos con precios por streaming (futuros o acciones: EURUSD de IDEALPRO no tiene último
+# operado y además no hay permiso de datos).
+instruments = ["MNQ", "MES", "QQQ"]
+# Velas en formación que se arman: "1m", "5m", "15m" o "1h".
+timeframes = ["1m", "5m", "15m", "1h"]
+# Qué se pide primero: "live" (si IBKR dice que no hay permiso, pasa a "delayed" solo) o "delayed".
+# Sin suscripción de datos, CME llega con unos 10 minutos de atraso (#541). El tipo y el atraso se
+# informan siempre en cada mensaje.
+first_try = "live"
+# Cuánto espera un precio a su hora (IBKR la manda aparte, en segundos) antes de usar la hora de
+# llegada menos el atraso medido.
+pending_wait_ms = 1000
+# Si se corta IB Gateway (por ejemplo, su reinicio diario), se vuelve a abrir el socket a esta máquina
+# con espera creciente, pasando otra vez por todas las guardas (puerto, cuenta paper). Nunca se usan
+# credenciales: el login de IB Gateway lo hace el dueño. Una cuenta que no es la paper o un dato
+# inválido detienen el streaming hasta reiniciar el gateway.
+reconnect_min_secs = 5
+reconnect_max_secs = 300
+
 # Futuros micro (ADR 0017). La bolsa y la moneda son a confirmar con la respuesta de IBKR
 # (contract_details): si no encuentra el contrato, el comando lo dice y no inventa nada. Se usa el
 # vencimiento vigente más cercano que informe IBKR.

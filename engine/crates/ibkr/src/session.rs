@@ -17,6 +17,7 @@ use rust_decimal::Decimal;
 
 use crate::account::{PaperAccountId, check_session_accounts, mask};
 use crate::config::{FutureSpec, IbkrConfig, WhatToShow};
+use crate::live::{LiveDataType, QuoteEvent};
 
 /// Error del cliente de IBKR.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -30,6 +31,10 @@ pub enum ApiError {
     /// IBKR rechazó el pedido (contrato desconocido, sin permiso de datos, ...).
     #[error("IBKR rechazó el pedido: {0}")]
     Rejected(String),
+    /// La cuenta no tiene permiso para ese tipo de precios (por ejemplo, en vivo sin suscripción:
+    /// errores 354, 420, 10089-10091, 10168). Es un rechazo: no activa el kill switch.
+    #[error("sin permiso de datos: {0}")]
+    NoPermission(String),
 }
 
 /// Tamaño de vela que se le pide a IBKR (más que los `Timeframe` del motor: para medir y guardar).
@@ -147,7 +152,28 @@ pub trait IbkrApi: Send + Sync {
         &self,
         req: &BarsRequest,
     ) -> impl Future<Output = Result<(String, DateTime<Utc>), ApiError>> + Send;
+    /// Precios por streaming (#558) del contrato de `req`, con el tipo de dato pedido: manda los
+    /// eventos a `out` hasta que se corta (error) o `out` se cierra (`Ok`). Solo lectura.
+    fn stream_quotes(
+        &self,
+        req: &QuoteRequest,
+        out: tokio::sync::mpsc::Sender<QuoteEvent>,
+    ) -> impl Future<Output = Result<(), ApiError>> + Send {
+        let _ = (req, out);
+        async {
+            Err(ApiError::Rejected(
+                "este cliente no tiene precios por streaming".into(),
+            ))
+        }
+    }
     fn disconnect(&self) -> impl Future<Output = ()> + Send;
+}
+
+/// Pedido de precios por streaming de un instrumento (#558): siempre el contrato vigente.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuoteRequest {
+    pub spec: FutureSpec,
+    pub data_type: LiveDataType,
 }
 
 /// Por qué se activó el kill switch, para la alerta.
@@ -275,6 +301,16 @@ impl<A: IbkrApi> ReadOnlySession<A> {
         self.lock().trip.clone()
     }
 
+    #[cfg(test)]
+    pub(crate) fn api_for_tests(&self) -> &A {
+        &self.api
+    }
+
+    /// Por qué se activó el kill switch, si se activó.
+    pub fn trip_reason(&self) -> Option<Trip> {
+        self.active_trip()
+    }
+
     /// Activa el kill switch (si no estaba), desconecta y devuelve el error.
     async fn trip(&self, kind: AlertKind, reason: String, at: DateTime<Utc>) -> SessionError {
         let trip = {
@@ -315,7 +351,7 @@ impl<A: IbkrApi> ReadOnlySession<A> {
                 )
                 .await
             }
-            e @ ApiError::Rejected(_) => SessionError::Rejected(e),
+            e @ (ApiError::Rejected(_) | ApiError::NoPermission(_)) => SessionError::Rejected(e),
         }
     }
 
@@ -494,6 +530,37 @@ impl<A: IbkrApi> ReadOnlySession<A> {
             contract: got.contract,
             candles,
         })
+    }
+
+    /// Precios por streaming de `instrument` (#558), con el tipo de dato pedido, hasta que se corta
+    /// o `out` se cierra. Antes, kill switch inactivo y conexión viva; una desconexión o un dato
+    /// inválido activan el kill switch, igual que en las velas. Solo lectura.
+    pub async fn stream_quotes(
+        &self,
+        instrument: &InstrumentId,
+        data_type: LiveDataType,
+        out: tokio::sync::mpsc::Sender<QuoteEvent>,
+        now: DateTime<Utc>,
+    ) -> Result<(), SessionError> {
+        let spec = self
+            .cfg
+            .instrument(instrument)
+            .cloned()
+            .ok_or_else(|| SessionError::UnknownInstrument(instrument.clone()))?;
+        self.check_connection(now).await?;
+        match self
+            .api
+            .stream_quotes(&QuoteRequest { spec, data_type }, out)
+            .await
+        {
+            Ok(()) => Ok(()),
+            Err(e) => Err(self.api_error(e, Utc::now()).await),
+        }
+    }
+
+    /// Desconecta sin activar el kill switch, sin consumir la sesión (compartida entre tareas).
+    pub async fn disconnect(&self) {
+        self.api.disconnect().await;
     }
 
     /// Cierra la conexión (sin activar el kill switch).

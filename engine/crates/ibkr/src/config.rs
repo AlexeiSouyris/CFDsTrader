@@ -82,6 +82,26 @@ pub struct IbkrConfig {
     pub source: String,
     pub instruments: Vec<FutureSpec>,
     pub load: crate::load::LoadConfig,
+    /// `[live]`: precios por streaming para la vela en formación (#558). `None` si no está.
+    pub live: Option<LiveConfig>,
+}
+
+/// `[live]` de `config/ibkr.toml`: la suscripción de precios para la vela en formación (#558).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LiveConfig {
+    /// Identificador propio de esta conexión (distinto del de `[gateway]`).
+    pub client_id: i32,
+    /// Instrumentos con precios por streaming (futuros o acciones: los de IDEALPRO no tienen
+    /// último operado).
+    pub instruments: Vec<InstrumentId>,
+    pub timeframes: Vec<crate::live::LiveTimeframe>,
+    /// Qué se pide primero: en vivo (si no hay permiso, pasa a demorado) o directamente demorado.
+    pub first_try: crate::live::LiveDataType,
+    /// Cuánto espera un precio a su hora antes de usar la estimada.
+    pub pending_wait: chrono::TimeDelta,
+    /// Espera antes de volver a abrir el socket después de un corte, y su máximo (se duplica).
+    pub reconnect_min: Duration,
+    pub reconnect_max: Duration,
 }
 
 #[derive(Deserialize)]
@@ -91,7 +111,21 @@ struct Raw {
     account: RawAccount,
     history: RawHistory,
     load: RawLoad,
+    #[serde(default)]
+    live: Option<RawLive>,
     instruments: Vec<RawInstrument>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawLive {
+    client_id: i32,
+    instruments: Vec<String>,
+    timeframes: Vec<String>,
+    first_try: String,
+    pending_wait_ms: u64,
+    reconnect_min_secs: u64,
+    reconnect_max_secs: u64,
 }
 
 #[derive(Deserialize)]
@@ -180,6 +214,91 @@ fn parse_what(field: &'static str, v: &str) -> Result<WhatToShow, IbkrConfigErro
             format!("{other:?}: solo \"TRADES\" o \"MIDPOINT\""),
         )),
     }
+}
+
+fn parse_live(
+    l: RawLive,
+    gateway_client_id: i32,
+    instruments: &[FutureSpec],
+) -> Result<LiveConfig, IbkrConfigError> {
+    use crate::live::{LiveDataType, LiveTimeframe};
+    if l.client_id < 0 || l.client_id == gateway_client_id {
+        return Err(invalid(
+            "live.client_id",
+            format!("no negativo y distinto de gateway.client_id ({gateway_client_id})"),
+        ));
+    }
+    if l.instruments.is_empty() {
+        return Err(invalid("live.instruments", "hace falta al menos uno"));
+    }
+    let mut ids: Vec<InstrumentId> = Vec::with_capacity(l.instruments.len());
+    for raw in &l.instruments {
+        let id = raw
+            .parse::<InstrumentId>()
+            .map_err(|e| invalid("live.instruments", e.to_string()))?;
+        let spec = instruments.iter().find(|s| s.id == id).ok_or_else(|| {
+            invalid(
+                "live.instruments",
+                format!("{id} no está en [[instruments]]"),
+            )
+        })?;
+        if !matches!(spec.kind, ContractKind::Future | ContractKind::Stock) {
+            return Err(invalid(
+                "live.instruments",
+                format!("{id}: solo futuros o acciones (tienen último operado)"),
+            ));
+        }
+        if ids.contains(&id) {
+            return Err(invalid("live.instruments", format!("{id} repetido")));
+        }
+        ids.push(id);
+    }
+    if l.timeframes.is_empty() {
+        return Err(invalid("live.timeframes", "hace falta al menos uno"));
+    }
+    let mut timeframes = Vec::with_capacity(l.timeframes.len());
+    for t in &l.timeframes {
+        let tf = t
+            .parse::<LiveTimeframe>()
+            .map_err(|e| invalid("live.timeframes", e))?;
+        if timeframes.contains(&tf) {
+            return Err(invalid("live.timeframes", format!("{t} repetido")));
+        }
+        timeframes.push(tf);
+    }
+    let first_try = match l.first_try.as_str() {
+        "live" => LiveDataType::Live,
+        "delayed" => LiveDataType::Delayed,
+        other => {
+            return Err(invalid(
+                "live.first_try",
+                format!("{other:?}: solo \"live\" o \"delayed\""),
+            ));
+        }
+    };
+    if !(100..=5000).contains(&l.pending_wait_ms) {
+        return Err(invalid(
+            "live.pending_wait_ms",
+            "tiene que estar entre 100 y 5000",
+        ));
+    }
+    let reconnect_min = secs("live.reconnect_min_secs", l.reconnect_min_secs, 300)?;
+    let reconnect_max = secs("live.reconnect_max_secs", l.reconnect_max_secs, 3600)?;
+    if reconnect_max < reconnect_min {
+        return Err(invalid(
+            "live.reconnect_max_secs",
+            "no puede ser menor que reconnect_min_secs",
+        ));
+    }
+    Ok(LiveConfig {
+        client_id: l.client_id,
+        instruments: ids,
+        timeframes,
+        first_try,
+        pending_wait: chrono::TimeDelta::milliseconds(l.pending_wait_ms as i64),
+        reconnect_min,
+        reconnect_max,
+    })
 }
 
 /// Puerto prohibido: está en la lista de la configuración o es uno de los reales fijos.
@@ -330,8 +449,13 @@ impl IbkrConfig {
             window_1h: win("load.window_1h_hours", l.window_1h_hours, 24 * 30)?,
             source: l.source,
         };
+        let live = match r.live {
+            None => None,
+            Some(l) => Some(parse_live(l, g.client_id, &instruments)?),
+        };
         Ok(Self {
             load,
+            live,
             host: g.host,
             port: g.port,
             client_id: g.client_id,

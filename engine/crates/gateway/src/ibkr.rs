@@ -47,6 +47,13 @@ pub struct IbkrViewConfig {
     pub default_bars: u32,
     pub max_bars: u32,
     pub session: SessionOffsets,
+    /// Vela en formación (#558): con `true` el gateway abre su conexión de streaming a IB Gateway
+    /// (`[live]` de `config/ibkr.toml`). Con `false`, `/api/v1/ibkr/live` responde "disabled".
+    pub live: bool,
+    /// Conexiones SSE abiertas a la vez, como máximo.
+    pub live_max_clients: usize,
+    /// Cada cuánto va un comentario SSE para que la conexión no se corte sin mensajes.
+    pub live_heartbeat: std::time::Duration,
 }
 
 impl IbkrViewConfig {
@@ -62,6 +69,9 @@ impl IbkrViewConfig {
             instruments: Vec<String>,
             default_bars: u32,
             max_bars: u32,
+            live: bool,
+            live_max_clients: usize,
+            live_heartbeat_secs: u64,
         }
         let r = toml::from_str::<Raw>(gateway)
             .map_err(|e| e.to_string())?
@@ -88,7 +98,16 @@ impl IbkrViewConfig {
         if r.default_bars == 0 || r.max_bars > 20_000 || r.default_bars > r.max_bars {
             return Err("ibkr: 0 < default_bars <= max_bars <= 20000".into());
         }
+        if !(1..=256).contains(&r.live_max_clients) {
+            return Err("ibkr.live_max_clients: entre 1 y 256".into());
+        }
+        if !(1..=60).contains(&r.live_heartbeat_secs) {
+            return Err("ibkr.live_heartbeat_secs: entre 1 y 60".into());
+        }
         Ok(Self {
+            live: r.live,
+            live_max_clients: r.live_max_clients,
+            live_heartbeat: std::time::Duration::from_secs(r.live_heartbeat_secs),
             source: r.source,
             instruments,
             default_bars: r.default_bars,
