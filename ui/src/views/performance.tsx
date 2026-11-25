@@ -39,8 +39,16 @@ function Card({
   children: ReactNode
   className?: string
 }) {
+  // Con título, una sección del informe (#641): regla fina arriba, sin caja. Sin título (las
+  // cifras de resumen), una tarjeta: los resúmenes y resultados sí van en tarjeta (#625).
   return (
-    <section className={cn('panel relative min-w-0 rounded-[20px] p-4', className)}>
+    <section
+      className={cn(
+        'relative min-w-0',
+        title ? 'border-t border-foreground/70 pt-3' : 'panel rounded-section p-4',
+        className,
+      )}
+    >
       {title && (
         <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-[14px] font-bold">{title}</h2>

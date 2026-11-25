@@ -467,6 +467,7 @@ fn plan(signal: usize, exit: usize, stop: Decimal) -> Plan {
         risk_atr: dec!(2),
         exit_index: exit,
         target_r: None,
+        target_cap: None,
     }
 }
 

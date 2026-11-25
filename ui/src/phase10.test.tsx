@@ -168,3 +168,16 @@ describe('fondo', () => {
     expect(within(members).getByRole('row', { name: /Alexei/ })).toHaveTextContent('+12,36 €')
   })
 })
+
+describe('Investigación como informe (#641)', () => {
+  it('el glosario es un diccionario con líneas finas, no una grilla de tarjetas', () => {
+    const { container } = render(<GlossaryView />)
+    const terms = container.querySelectorAll('article[id^="termino-"]')
+    expect(terms.length).toBe(GLOSSARY.length)
+    for (const t of terms) {
+      expect(t.className).not.toMatch(/\bpanel\b|rounded/)
+      expect(t.className).toMatch(/border-b/)
+    }
+    expect(screen.getByRole('searchbox', { name: 'Buscar en el glosario' })).toBeInTheDocument()
+  })
+})

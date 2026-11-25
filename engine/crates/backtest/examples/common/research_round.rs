@@ -30,6 +30,8 @@ pub struct FamilyResult {
     pub rejected: BTreeMap<String, usize>,
     /// Planes con objetivo no operados porque la entrada abrió del lado del stop.
     pub through_stop: usize,
+    /// Planes con tope del objetivo no operados porque la entrada abrió en el tope (H4.3).
+    pub through_cap: usize,
     pub monthly: Vec<f64>,
     pub monthly_stress: Vec<f64>,
     pub min_deal: Decimal,
@@ -130,6 +132,7 @@ pub fn run_family(
     let mut trades = Vec::new();
     let mut rejected: BTreeMap<String, usize> = BTreeMap::new();
     let mut through_stop = 0;
+    let mut through_cap = 0;
     for w in &l.split.windows {
         let run = run_plans(
             plans,
@@ -144,6 +147,7 @@ pub fn run_family(
             *rejected.entry(format!("{:?}", r.reason)).or_default() += 1;
         }
         through_stop += run.through_stop.len();
+        through_cap += run.through_cap.len();
         trades.extend(run.trades);
     }
     let returns = |s: Decimal| -> Result<Vec<f64>, String> {
@@ -163,6 +167,7 @@ pub fn run_family(
         trades,
         rejected,
         through_stop,
+        through_cap,
         monthly,
         monthly_stress,
         min_deal: p
