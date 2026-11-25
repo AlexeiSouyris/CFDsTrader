@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { StaleNote } from '@/components/ui/data-honesty'
 import { dateTimeUtc, dateUtc, STALE_AFTER_DAYS, staleDays } from '@/lib/format'
+import { exampleChart } from '@/test/example-chart'
 import { ChartsView, CompetitionView, JournalView, NewsView, OverviewView } from '@/views'
 import { MultichartView } from '@/views/multichart'
 
@@ -88,14 +89,19 @@ describe('honestidad de los datos (#577)', () => {
     expect(indices).not.toHaveTextContent('US Tech 100 ')
   })
 
-  it('Gráficos, Diario, Trofeos y Noticias avisan que son de ejemplo; sin libro de órdenes', () => {
-    for (const View of [ChartsView, JournalView, CompetitionView, NewsView]) {
+  it('Diario, Trofeos y Noticias avisan que son de ejemplo', () => {
+    for (const View of [JournalView, CompetitionView, NewsView]) {
       const { unmount } = render(<View />)
       const note = screen.getByRole('note')
       expect(note).toHaveTextContent('EJEMPLO')
       unmount()
     }
+  })
+
+  it('Gráficos usa las velas del motor; sin gateway, las de ejemplo con su sello y sin libro de órdenes', async () => {
     render(<ChartsView />)
+    await exampleChart()
+    expect(screen.getAllByRole('note')[0]).toHaveTextContent('EJEMPLO')
     expect(screen.queryByText(/profundidad|libro de órdenes/i)).toBeNull()
   })
 

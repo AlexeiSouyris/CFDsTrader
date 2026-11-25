@@ -28,13 +28,13 @@ describe('la app', () => {
     expect(note).toHaveTextContent('ni una promesa de ganancia')
   })
 
-  it('navega entre vistas desde la barra de vistas', () => {
+  it('navega entre vistas desde la barra de vistas', async () => {
     render(<App initialStage="app" />)
     const nav = screen.getByRole('navigation', { name: 'Vistas' })
     fireEvent.click(within(nav).getByText('Gráficos'))
     expect(screen.getByRole('heading', { level: 1, name: 'Gráficos' })).toBeInTheDocument()
     expect(location.hash).toBe('#graficos')
-    expect(screen.getAllByRole('img', { name: /US100/ }).length).toBeGreaterThan(0)
+    expect((await screen.findAllByRole('img', { name: /US100/ })).length).toBeGreaterThan(0)
   })
 
   it('muestra el 404 para una dirección que no existe', () => {

@@ -283,6 +283,7 @@ export function GlassShell({
       {searching && (
         <CommandPalette
           views={views}
+          active={active}
           theme={theme}
           onThemeChange={onThemeChange}
           onClose={() => setSearching(false)}
@@ -622,14 +623,20 @@ const SHORTCUT =
  * - Se cierra por el fondo solo si el clic cae fuera del rectángulo del diálogo: un clic en su
  *   borde o en su relleno (que también tiene al diálogo como `target`) no lo cierra.
  */
+/** Las vistas con su propio gráfico activo, donde el timeframe de la paleta se queda. */
+const CHART_VIEWS = ['graficos', 'multigrafico']
+
 function CommandPalette({
   views,
+  active: view,
   theme,
   onThemeChange,
   onClose,
   onSelect,
 }: {
   views: ShellView[]
+  /** la vista abierta: en Gráficos y Multigráfico el timeframe se aplica ahí mismo */
+  active: string
   theme: 'dark' | 'light'
   onThemeChange: (t: 'dark' | 'light') => void
   onClose: () => void
@@ -693,6 +700,8 @@ function CommandPalette({
   }
 
   const other = theme === 'dark' ? 'light' : 'dark'
+  // Gráficos y Multigráfico (#581, etapa 5) toman el timeframe sin ir al Terminal
+  const inCharts = CHART_VIEWS.includes(view)
   const all: Command[] = [
     ...views.map((v) => ({
       key: `view:${v.id}`,
@@ -719,12 +728,15 @@ function CommandPalette({
       key: `timeframe:${tf}`,
       group: 'Timeframe' as const,
       label: `Timeframe ${tf}`,
-      detail: 'Cambia el gráfico activo del Terminal.',
+      detail: inCharts
+        ? 'Cambia el gráfico activo de esta vista.'
+        : 'Cambia el gráfico activo del Terminal.',
       text: `timeframe ${tf} temporalidad intervalo`,
       icon: Clock3,
       run: () => {
         focusTimeframe(tf)
-        onSelect('terminal')
+        if (inCharts) onClose()
+        else onSelect('terminal')
       },
     })),
     ...TOOLS.map((t) => ({

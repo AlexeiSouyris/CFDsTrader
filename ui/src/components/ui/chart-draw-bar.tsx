@@ -93,7 +93,7 @@ export function ChartDrawBar({
       aria-label={label}
       aria-orientation="vertical"
       className={cn(
-        'glass flex flex-wrap gap-1 self-start rounded-section p-1.5 lg:sticky lg:top-4 lg:flex-col',
+        'flex flex-wrap gap-1 self-start rounded-section border border-border bg-card p-1.5 lg:sticky lg:top-4 lg:flex-col',
         className,
       )}
     >

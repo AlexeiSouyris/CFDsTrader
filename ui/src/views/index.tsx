@@ -3,7 +3,7 @@
  * nada: solo ubica y muestra.
  *
  * Honestidad de los datos (#577): lo que todavía no tiene fuente en el motor (índices, mapa,
- * operaciones, competencia, noticias, el gráfico de esta vista) son datos de ejemplo de `mocks/` y
+ * operaciones, competencia, noticias) son datos de ejemplo de `mocks/` y
  * llevan siempre el sello "EJEMPLO". El valor de la unidad sale del motor (`useFund`) cuando el
  * gateway responde, y los nombres de los instrumentos, del catálogo (`/api/v1/instruments`).
  */
@@ -14,14 +14,14 @@ import { ExampleBadge, ExampleNotice } from '@/components/ui/data-honesty'
 import { MarketHeatmap } from '@/components/ui/market-heatmap'
 import { SparkTable } from '@/components/ui/spark-table'
 import { TradeJournal } from '@/components/ui/trade-journal'
-import { TradingChart } from '@/components/ui/trading-chart'
 import { Term } from '@/components/ui/term'
 import { TrophyCard } from '@/components/ui/trophy-card'
 import { dateTimeUtc, decimal, isNegative, signed } from '@/lib/format'
 import { useFund } from '@/lib/fund-api'
 import { useInstruments } from '@/lib/liquidity-api'
 import { cn } from '@/lib/utils'
-import { HEATMAP, INDEX_ROWS, KPIS, RANKING, TRADES, TROPHIES, US100_1H, type Kpi } from '@/mocks'
+import { HEATMAP, INDEX_ROWS, KPIS, RANKING, TRADES, TROPHIES, type Kpi } from '@/mocks'
+import { MultichartView } from '@/views/multichart'
 
 // Noticias vive en su archivo (#581, etapa 7); se reexporta para no cambiar las importaciones.
 export { NewsView } from '@/views/news'
@@ -168,21 +168,12 @@ export function OverviewView({ onOpen }: { onOpen: (view: string) => void }) {
 }
 
 /**
- * Gráfico de ejemplo (velas inventadas de 1 hora). El de verdad, con las velas del motor, está en
- * la Terminal y en el Multigráfico. Sin libro de órdenes: IG no lo da (#577).
+ * Gráficos (#581, etapa 5): un solo gráfico a pantalla completa, con las velas del motor (o las de
+ * ejemplo, con su sello, si el gateway no responde). Es el lienzo del Multigráfico con un gráfico.
+ * Sin libro de órdenes: IG no lo da (#577).
  */
 export function ChartsView() {
-  return (
-    <div className="grid gap-3">
-      <ExampleNotice>
-        Velas inventadas para mostrar el gráfico. Las del motor están en la Terminal y en el
-        Multigráfico.
-      </ExampleNotice>
-      <Card example>
-        <TradingChart instrument={US100_1H.instrument_id} bars={US100_1H.candles} />
-      </Card>
-    </div>
-  )
+  return <MultichartView single />
 }
 
 export function JournalView() {
