@@ -15,11 +15,10 @@ const drawBar = () => screen.getByRole('toolbar', { name: /Herramientas de dibuj
 describe('multigráfico (#540)', () => {
   afterEach(() => localStorage.clear())
 
-  it('se abre desde la navegación', () => {
+  it('se abre desde la paleta (vive dentro de Gráficos)', () => {
     render(<App initialStage="app" />)
-    fireEvent.click(
-      within(screen.getByRole('navigation', { name: 'Vistas' })).getByText('Multigráfico'),
-    )
+    fireEvent.keyDown(window, { key: 'k', metaKey: true })
+    fireEvent.click(screen.getByRole('option', { name: /^Multigráfico/ }))
     expect(location.hash).toBe('#multigrafico')
     expect(drawBar()).toBeInTheDocument()
   })

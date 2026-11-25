@@ -2,9 +2,10 @@
  * Prototipo de la interfaz (#164, sigue al #30): carga → ingreso → armazón con las vistas.
  * Todo con datos de ejemplo: no se conecta al motor ni a IG y no calcula nada (CLAUDE.md §1).
  *
- * Tres pestañas principales (#286): Performance, Panel y Terminal. Cada vista tiene su hash y entra
- * en el historial, así atrás/adelante del navegador cambia de pestaña. El deslizamiento horizontal
- * del trackpad y los atajos de teclado pasan a la pestaña anterior o siguiente.
+ * Cuatro pestañas principales (#286, #581): Inicio, Terminal, Gráficos e Investigación. Cada vista
+ * tiene su hash y entra en el historial, así atrás/adelante del navegador cambia de pestaña. El
+ * deslizamiento horizontal del trackpad y los atajos de teclado pasan a la pestaña anterior o
+ * siguiente.
  */
 import { lazy, Suspense, useEffect, useState } from 'react'
 
@@ -26,7 +27,7 @@ import { PerformanceView } from '@/views/performance'
 import { ResearchView } from '@/views/research'
 import { TerminalView } from '@/views/terminal'
 import { HomeView } from '@/views/home'
-import { GLASS_VIEWS, HOME_VIEW, MAIN_TABS, VIEWS } from '@/views/nav'
+import { GLASS_VIEWS, HOME_VIEW, MAIN_TABS, NAV_SECTIONS, sectionOf, VIEWS } from '@/views/nav'
 import { FundView, GlossaryView, ProposalsView } from '@/views/phase10'
 
 /** La intro (#581, etapa 9) se carga aparte: no pesa en las visitas siguientes. */
@@ -62,6 +63,7 @@ const systemTheme = (): Theme =>
 /** Hacia dónde entra la vista nueva: por el orden de la navegación (para la transición). */
 const order = (id: string) => VIEWS.findIndex((v) => v.id === id)
 const TABS = MAIN_TABS.map((id) => VIEWS.find((v) => v.id === id)!)
+const NAV = NAV_SECTIONS.map((id) => VIEWS.find((v) => v.id === id)!)
 const navTo = (id: string) => (prev: { view: string; dir: number }) => ({
   view: id,
   dir: Math.sign(order(id) - order(prev.view)),
@@ -148,7 +150,8 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
     window.scrollTo({ top: 0 })
   }
 
-  const tab = (MAIN_TABS as readonly string[]).indexOf(view)
+  // desde una vista de adentro (por ejemplo `#performance`) cuenta la pestaña de su sección
+  const tab = (MAIN_TABS as readonly string[]).indexOf(sectionOf(view))
   useTabSwipe(
     (step) => {
       const next = MAIN_TABS[tab + step]
@@ -182,6 +185,8 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
         {stage === 'app' && (
           <GlassShell
             views={VIEWS}
+            nav={NAV}
+            section={sectionOf(view)}
             home={HOME_VIEW}
             tabs={TABS}
             active={view}

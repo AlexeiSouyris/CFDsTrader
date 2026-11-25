@@ -114,7 +114,7 @@ describe('buscador del encabezado (#362)', () => {
     fireEvent.keyDown(input(), { key: 'ArrowDown' })
     fireEvent.keyDown(input(), { key: 'ArrowDown' })
     fireEvent.keyDown(input(), { key: 'Enter' })
-    expect(location.hash).toBe('#inicio')
+    expect(location.hash).toBe('#terminal')
   })
 
   it('Esc cierra sin navegar', () => {

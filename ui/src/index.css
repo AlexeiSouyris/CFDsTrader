@@ -288,6 +288,22 @@ body {
   }
 }
 
+/*
+ * Superficie lisa de las secciones sin vidrio (#581, etapa 10): Terminal, Gráficos, Investigación,
+ * Noticias, Diario, Trofeos y el Panel. `.glass` queda para el Inicio, el ingreso y el Fondo (y el
+ * armazón, que es vidrio solo donde hay `data-glass`). `panel-raised` es la que flota (tooltips).
+ */
+@utility panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+@utility panel-raised {
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 60px -24px var(--glass-shade);
+}
+
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .glass,
   .glass-strong {
@@ -369,16 +385,16 @@ body {
   animation-name: view-in-prev;
 }
 /* paneles y tarjetas de la vista: aparecen escalonados */
-.view-enter .glass {
+.view-enter :is(.glass, .panel) {
   animation: rise-in 420ms var(--ease-out) backwards;
 }
-.view-enter .grid > .glass:nth-child(2) {
+.view-enter .grid > :is(.glass, .panel):nth-child(2) {
   animation-delay: 40ms;
 }
-.view-enter .grid > .glass:nth-child(3) {
+.view-enter .grid > :is(.glass, .panel):nth-child(3) {
   animation-delay: 80ms;
 }
-.view-enter .grid > .glass:nth-child(n + 4) {
+.view-enter .grid > :is(.glass, .panel):nth-child(n + 4) {
   animation-delay: 120ms;
 }
 /* el gráfico al cambiar de instrumento o timeframe (se vuelve a montar) */

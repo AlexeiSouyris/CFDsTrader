@@ -108,6 +108,7 @@ const tone = (v: string) => (isNegative(v) ? 'text-down' : 'text-up')
 export function AccountStrip({ account, aside }: { account: PaperAccount; aside?: ReactNode }) {
   const used = Number(account.daily_loss_used_pct)
   return (
+    // la usan el Inicio (con vidrio) y la Terminal (lisa): `.glass` es vidrio solo en el Inicio
     <section
       aria-label="Cuenta de simulación"
       className="glass relative flex min-w-0 flex-wrap items-center gap-x-6 gap-y-3 rounded-section px-4 py-3"
@@ -448,7 +449,7 @@ export function OrderTicket({
         type="submit"
         disabled={Boolean(locked) || busy !== null}
         aria-describedby={locked ? `${id}-locked` : undefined}
-        className="glass-strong flex min-h-11 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[13px] font-bold disabled:cursor-not-allowed disabled:opacity-40"
+        className="panel flex min-h-11 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[13px] font-bold disabled:cursor-not-allowed disabled:opacity-40"
       >
         <ShieldCheck className="size-4" aria-hidden="true" />
         {busy === 'preview' ? 'Validando…' : 'Validar con el motor'}

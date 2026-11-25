@@ -15,11 +15,11 @@ import { MarketHeatmap } from '@/components/ui/market-heatmap'
 import { SparkTable } from '@/components/ui/spark-table'
 import { TradeJournal } from '@/components/ui/trade-journal'
 import { Term } from '@/components/ui/term'
-import { dateTimeUtc, decimal, isNegative, signed } from '@/lib/format'
+import { dateTimeUtc, decimal, signed } from '@/lib/format'
 import { useFund } from '@/lib/fund-api'
 import { useInstruments } from '@/lib/liquidity-api'
 import { cn } from '@/lib/utils'
-import { HEATMAP, INDEX_ROWS, KPIS, RANKING, TRADES, type Kpi } from '@/mocks'
+import { HEATMAP, INDEX_ROWS, KPIS, PROCESS_BADGES, TRADES, type Kpi } from '@/mocks'
 import { MultichartView } from '@/views/multichart'
 
 // Noticias, Diario y Trofeos viven en su archivo (#581, etapas 7 y 8); se reexportan para no
@@ -47,7 +47,7 @@ function Card({
   return (
     <section
       data-example={example || undefined}
-      className={cn('glass relative min-w-0 rounded-[20px] p-4', className)}
+      className={cn('panel relative min-w-0 rounded-[20px] p-4', className)}
     >
       {(title || stamp) && (
         <div className="mb-3 flex items-start justify-between gap-2">
@@ -151,11 +151,11 @@ export function OverviewView({ onOpen }: { onOpen: (view: string) => void }) {
             onClick={() => onOpen('operaciones')}
             className="mt-3 text-[12px] font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           >
-            Ver todas las operaciones
+            Ver el diario
           </button>
         </Card>
-        <Card title="Competencia de la semana" example>
-          <Ranking compact />
+        <Card title="Trofeos de proceso" example>
+          <ProcessBadges />
           <button
             type="button"
             onClick={() => onOpen('competencia')}
@@ -178,40 +178,24 @@ export function ChartsView() {
   return <MultichartView single />
 }
 
-function Ranking({ compact = false }: { compact?: boolean }) {
-  const rows = compact ? RANKING.slice(0, 3) : RANKING
+/**
+ * Los trofeos de proceso de la semana (#581): reemplazan al ranking por resultado del Panel viejo.
+ * Premian respetar las reglas, nunca la ganancia; el estado llega hecho (la UI no cuenta).
+ */
+function ProcessBadges() {
   return (
-    <ol className="grid gap-1.5">
-      {rows.map((r, i) => (
+    <ul className="grid gap-1.5">
+      {PROCESS_BADGES.slice(0, 3).map((b) => (
         <li
-          key={r.member.id}
+          key={b.id}
           className="flex items-center gap-3 rounded-xl border border-border px-3 py-2"
         >
-          <span className="w-5 shrink-0 text-[12px] font-extrabold text-muted-foreground tabular-nums">
-            {i + 1}
-          </span>
-          <span
-            aria-hidden="true"
-            className="grid size-8 shrink-0 place-items-center rounded-full border border-border text-[10px] font-bold"
-          >
-            {r.member.initials}
-          </span>
-          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{r.member.name}</span>
-          {!compact && (
-            <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
-              {r.trades} operaciones
-            </span>
-          )}
-          <span
-            className={cn(
-              'shrink-0 text-right text-[13px] font-extrabold whitespace-nowrap tabular-nums',
-              isNegative(r.result) ? 'text-down' : 'text-up',
-            )}
-          >
-            {signed(r.result)} R
+          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{b.title}</span>
+          <span className="shrink-0 text-[11px] font-bold tracking-[0.06em] text-muted-foreground uppercase">
+            {b.state}
           </span>
         </li>
       ))}
-    </ol>
+    </ul>
   )
 }

@@ -65,7 +65,7 @@ export const DOORS: Door[] = [
   {
     view: 'competencia',
     section: 'trophies',
-    title: 'Competencia',
+    title: 'Trofeos',
     description: 'Trofeos de proceso: disciplina, respetar el stop, completar el diario.',
     icon: Trophy,
     shortcut: '7',

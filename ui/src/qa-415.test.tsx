@@ -58,9 +58,10 @@ describe('barra de vistas del celular (#415)', () => {
     history.replaceState(null, '', '/#glosario')
     render(<App initialStage="app" />)
     const nav = screen.getByRole('navigation', { name: 'Vistas' })
-    // la activa (Glosario) queda centrada en la barra
+    // la sección de la activa (Glosario, dentro de Investigación) queda centrada en la barra
     expect(scrollTo).toHaveBeenCalledWith({ left: 640 - (349 - 60) / 2 })
-    const link = within(nav).getByRole('link', { name: 'Performance' })
+    const link = within(nav).getByRole('link', { name: 'Investigación' })
+    expect(link).toHaveAttribute('aria-current', 'true')
     // el rótulo no se corta: sin ancho fijo, sin achicarse y en una línea
     expect(link).toHaveClass('flex-[1_0_auto]', 'whitespace-nowrap')
     expect(link).not.toHaveClass('flex-1')

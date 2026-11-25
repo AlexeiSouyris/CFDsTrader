@@ -29,7 +29,7 @@ export function ProposalsView({ member }: { member: Member }) {
         Propuestas de ejemplo: el motor todavía no las publica acá, así que no se pueden aprobar.
       </ExampleNotice>
       {PROPOSALS.length === 0 ? (
-        <p className="glass rounded-[20px] p-6 text-center text-[13px] text-muted-foreground">
+        <p className="panel rounded-[20px] p-6 text-center text-[13px] text-muted-foreground">
           No hay propuestas esperando.
         </p>
       ) : (
@@ -326,7 +326,7 @@ export function GlossaryView() {
   const found = q ? GLOSSARY.filter((e) => fold(`${e.title} ${e.body}`).includes(q)) : GLOSSARY
   return (
     <div className="grid gap-3">
-      <label className="glass flex items-center gap-2 rounded-full px-4 py-2.5">
+      <label className="panel flex items-center gap-2 rounded-full px-4 py-2.5">
         <Search className="size-4 text-muted-foreground" aria-hidden="true" />
         <input
           type="search"
@@ -342,7 +342,7 @@ export function GlossaryView() {
       </p>
       <div className="grid gap-3 md:grid-cols-2">
         {found.map((e) => (
-          <article key={e.id} id={`termino-${e.id}`} className="glass rounded-[20px] p-4">
+          <article key={e.id} id={`termino-${e.id}`} className="panel rounded-[20px] p-4">
             <h2 className="text-[15px] font-bold">{e.title}</h2>
             <p className="mt-1 text-[12.5px] leading-relaxed whitespace-pre-line">{e.body}</p>
             {e.example && (

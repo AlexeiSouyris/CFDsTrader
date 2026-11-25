@@ -2,13 +2,11 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import App from '@/App'
-import { GlassFolder } from '@/components/ui/glass-folder'
 import { squarify } from '@/lib/squarify'
 import { SignIn } from '@/components/ui/sign-in'
 import { TradingChart } from '@/components/ui/trading-chart'
-import { TrophyCard } from '@/components/ui/trophy-card'
 import { decimal, signed } from '@/lib/format'
-import { FOLDERS, HEATMAP, MEMBERS, TROPHIES, US100_1H } from '@/mocks'
+import { HEATMAP, US100_1H } from '@/mocks'
 
 describe('la app', () => {
   it('arranca con la pantalla de carga y pasa al ingreso', () => {
@@ -75,27 +73,6 @@ describe('gráfico de precio', () => {
     expect(screen.getByText(decimal(last.rsi14!))).toBeInTheDocument()
     expect(screen.getByText(decimal(last.macd!))).toBeInTheDocument()
     expect(screen.getByText('RSI 14'.toUpperCase())).toBeInTheDocument()
-  })
-})
-
-describe('carpetas de noticias', () => {
-  it('el dueño puede agregar; los demás solo leen', () => {
-    const { rerender } = render(<GlassFolder folder={FOLDERS[0]} editable />)
-    fireEvent.click(screen.getByRole('button', { name: /Agregar una nota/ }))
-    expect(screen.getByText('4 noticias')).toBeInTheDocument()
-    rerender(<GlassFolder folder={FOLDERS[1]} editable={false} />)
-    expect(screen.queryByRole('button', { name: /Agregar una nota/ })).not.toBeInTheDocument()
-    expect(screen.getByText(/solo lectura/)).toBeInTheDocument()
-  })
-})
-
-describe('trofeos', () => {
-  it('muestra al ganador y se da vuelta con un clic', () => {
-    render(<TrophyCard trophy={TROPHIES[1]} />)
-    const card = screen.getByRole('button', { name: /Trofeo de la semana/ })
-    expect(card).toHaveTextContent(MEMBERS[0].name)
-    fireEvent.click(card)
-    expect(card).toHaveAttribute('aria-pressed', 'true')
   })
 })
 

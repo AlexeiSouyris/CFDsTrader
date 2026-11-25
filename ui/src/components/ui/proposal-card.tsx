@@ -62,7 +62,7 @@ export function ProposalCard({
     <article
       aria-label={`Propuesta ${p.instrument_id} ${long ? 'largo' : 'corto'}`}
       data-example={example || undefined}
-      className="glass relative @container min-w-0 rounded-section p-4 sm:p-5"
+      className="panel relative @container min-w-0 rounded-section p-4 sm:p-5"
     >
       <header className="flex flex-wrap items-center gap-2">
         <h3 className="text-[18px] leading-none font-extrabold tracking-tight">
@@ -85,7 +85,7 @@ export function ProposalCard({
           <span
             className={cn(
               'ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold whitespace-nowrap tabular-nums',
-              expired ? 'bg-down/10 text-down' : 'glass-strong',
+              expired ? 'bg-down/10 text-down' : 'panel',
             )}
             aria-live="off"
           >
@@ -202,7 +202,7 @@ export function ProposalCard({
               type="button"
               disabled={expired}
               onClick={() => setDecision('rejected')}
-              className="glass-strong flex min-h-10 items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold disabled:cursor-not-allowed disabled:opacity-40"
+              className="panel flex min-h-10 items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold disabled:cursor-not-allowed disabled:opacity-40"
             >
               <X className="size-4" aria-hidden="true" /> Rechazar
             </button>

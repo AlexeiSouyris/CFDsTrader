@@ -57,8 +57,8 @@ describe('armazón', () => {
     for (const v of VIEWS) expect(v.short).toBe(v.label)
     render(<App initialStage="app" />)
     const nav = screen.getByRole('navigation', { name: 'Vistas' })
-    expect(within(nav).getByText('Operaciones')).toBeInTheDocument()
-    expect(within(nav).getByText('Competencia')).toBeInTheDocument()
+    expect(within(nav).getByText('Diario')).toBeInTheDocument()
+    expect(within(nav).getByText('Trofeos')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Más vistas' }))
     const dialog = screen.getByRole('dialog', { name: 'Paleta de comandos' })
     // con el campo vacío lista todas las vistas
@@ -67,7 +67,8 @@ describe('armazón', () => {
 
   it('los deslizadores del vidrio tienen nombre y el popover se cierra con un clic afuera', () => {
     render(<App initialStage="app" />)
-    fireEvent.click(screen.getByRole('button', { name: 'Ajustar el vidrio' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Ajustes' }))
+    expect(screen.getByRole('button', { name: 'Ver la intro otra vez' })).toBeInTheDocument()
     expect(screen.getByRole('slider', { name: 'Desenfoque' })).toHaveAttribute('aria-valuetext')
     expect(screen.getByRole('slider', { name: 'Opacidad' })).toBeInTheDocument()
     fireEvent.pointerDown(screen.getByRole('main'))

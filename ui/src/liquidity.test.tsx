@@ -39,12 +39,12 @@ describe('vista de liquidez en vivo (#231)', () => {
       return new Response(JSON.stringify(body), { status: 200 })
     })
 
-  it('se abre desde la navegación y pide los datos al gateway', async () => {
+  it('se abre desde la paleta y pide los datos al gateway', async () => {
     const fetch = gateway(() => DATA)
     vi.stubGlobal('fetch', fetch)
     render(<App initialStage="app" />)
-    const nav = screen.getByRole('navigation', { name: 'Vistas' })
-    fireEvent.click(within(nav).getByText('Liquidez'))
+    fireEvent.keyDown(window, { key: 'k', metaKey: true })
+    fireEvent.click(screen.getByRole('option', { name: /^Liquidez/ }))
     expect(screen.getByRole('heading', { level: 1, name: 'Liquidez' })).toBeInTheDocument()
     expect(location.hash).toBe('#liquidez')
     expect(
