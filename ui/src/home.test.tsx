@@ -1,12 +1,14 @@
 /**
- * Inicio (#581, etapa 2): vista de entrada con vidrio, cuenta del motor y puertas a cada sección.
+ * Inicio (#581, etapa 2): vista de entrada con vidrio, cuenta del motor, puertas a cada sección,
+ * selector de estrategia que solo filtra y resultados recientes tal como llegan.
  */
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import App from '@/App'
 import { decimal } from '@/lib/format'
-import { PAPER_ACCOUNT } from '@/mocks'
+import { parseCsv, parseRegistry, REGISTRY } from '@/lib/results-registry'
+import { BACKTEST_RUNS, PAPER_ACCOUNT } from '@/mocks'
 import { DOORS } from '@/views/home-doors'
 
 const heading = () => screen.getByRole('heading', { level: 1 })
@@ -117,18 +119,12 @@ describe('puertas a las secciones', () => {
     expect(location.hash).toBe('#performance')
   })
 
-  it('el atajo no salta mientras se escribe ni con modificadores', () => {
+  it('el atajo no salta mientras se usa un control ni con modificadores', () => {
     render(<App initialStage="app" />)
-    const input = document.createElement('input')
-    screen.getByRole('main').append(input)
-    fireEvent.keyDown(input, { key: '1' })
+    const select = screen.getByRole('combobox', { name: 'Estrategia en pantalla' })
+    fireEvent.keyDown(select, { key: '1' })
     fireEvent.keyDown(window, { key: '1', ctrlKey: true })
     expect(heading()).toHaveTextContent('Inicio')
-  })
-
-  it('ningún texto promete ganancias', () => {
-    render(<App initialStage="app" />)
-    expect(document.body).not.toHaveTextContent(/ganancia asegurada|garantizad|sin riesgo/i)
   })
 })
 
@@ -149,5 +145,80 @@ describe('cuenta de simulación', () => {
     expect(within(doors()).getByRole('link', { name: /Terminal/ })).toHaveTextContent(
       '3 de 5 posiciones abiertas',
     )
+  })
+})
+
+describe('resultados recientes y selector de estrategia', () => {
+  const registry = () => screen.getByRole('list', { name: 'Últimas pruebas del registro' })
+
+  it('las últimas filas del registro, la más nueva arriba, con el veredicto tal cual', () => {
+    render(<App initialStage="app" />)
+    const items = within(registry()).getAllByRole('listitem')
+    const latest = REGISTRY.slice(-5).reverse()
+    expect(items).toHaveLength(latest.length)
+    items.forEach((li, i) => {
+      expect(li).toHaveTextContent(latest[i].id)
+      expect(li).toHaveTextContent(latest[i].veredicto)
+    })
+    const results = screen.getByRole('region', { name: 'Resultados recientes' })
+    expect(within(results).getByText(/Resultados del pasado, no promesas/)).toBeVisible()
+  })
+
+  it('el selector solo filtra lo que se ve y se recuerda', () => {
+    const { unmount } = render(<App initialStage="app" />)
+    const select = screen.getByRole('combobox', { name: 'Estrategia en pantalla' })
+    fireEvent.change(select, { target: { value: 'ML' } })
+    const ml = REGISTRY.filter((r) => r.programa === 'ML')
+    const items = within(registry()).getAllByRole('listitem')
+    expect(items).toHaveLength(Math.min(5, ml.length))
+    for (const li of items)
+      expect(ml.some((r) => li.textContent?.includes(`${r.id} · ${r.fecha}`))).toBe(true)
+    expect(document.querySelector('[data-metric="registro"]')).toHaveTextContent(String(ml.length))
+    // las corridas del motor no traen la estrategia: no cambian
+    expect(
+      within(screen.getByRole('list', { name: 'Últimas corridas del motor' })).getAllByRole(
+        'listitem',
+      ),
+    ).toHaveLength(BACKTEST_RUNS.length)
+    unmount()
+    render(<App initialStage="app" />)
+    expect(screen.getByRole('combobox', { name: 'Estrategia en pantalla' })).toHaveValue('ML')
+  })
+
+  it('las corridas: de ejemplo con sello sin motor; del motor, en el orden en que llegan', async () => {
+    const { unmount } = render(<App initialStage="app" />)
+    const runs = () => screen.getByRole('list', { name: 'Últimas corridas del motor' })
+    expect(runs().parentElement).toHaveTextContent('EJEMPLO')
+    unmount()
+
+    const arrived = [BACKTEST_RUNS[2], BACKTEST_RUNS[0]]
+    gateway({ '/api/v1/backtest_runs': arrived })
+    render(<App initialStage="app" />)
+    await waitFor(() => expect(within(runs()).getAllByRole('listitem')).toHaveLength(2))
+    expect(runs().parentElement).not.toHaveTextContent('EJEMPLO')
+    const items = within(runs()).getAllByRole('listitem')
+    expect(items[0]).toHaveTextContent('0,00 %')
+    expect(items[1]).toHaveTextContent('+4,12 %')
+  })
+
+  it('ningún texto promete ganancias', () => {
+    render(<App initialStage="app" />)
+    expect(document.body).not.toHaveTextContent(/ganancia asegurada|garantizad|sin riesgo/i)
+  })
+})
+
+describe('lectura del registro', () => {
+  it('respeta comillas, comillas dobles y comas dentro de un campo', () => {
+    expect(parseCsv('a,b\n"x, y","dijo ""no"""\n\n')).toEqual([
+      ['a', 'b'],
+      ['x, y', 'dijo "no"'],
+    ])
+    const [row] = parseRegistry('id,veredicto,programa\nR1,"no pasa, por poco",ML\r\n')
+    expect(row).toMatchObject({ id: 'R1', veredicto: 'no pasa, por poco', programa: 'ML' })
+  })
+
+  it('el registro real se lee entero', () => {
+    expect(REGISTRY.length).toBeGreaterThan(10)
+    for (const r of REGISTRY) expect(r.id).toMatch(/^R\d{3}$/)
   })
 })
