@@ -206,12 +206,26 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
 
+  # El N del Sharpe deflactado (`dsr_trials` de config/research.toml) tiene que cubrir todas las
+  # pruebas del registro de resultados (#660). Corre siempre: tarda segundos.
+  registro:
+    name: registro (dsr_trials)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python tools/research/check_dsr_trials.py
+      - run: python -m unittest discover -s tools/research
+
   # Un solo resultado para decidir el merge: falla si algún job falló o se canceló, y pasa si
   # los que no hacían falta quedaron salteados (#584).
   ci-ok:
     name: CI ok
     if: always()
-    needs: [changes, engine, engine-integration, intelligence, ui, docs]
+    needs: [changes, engine, engine-integration, intelligence, ui, docs, registro]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
