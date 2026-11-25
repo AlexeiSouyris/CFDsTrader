@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/gateway_news.v1.schema.json",
+  "title": "Gateway news v1",
+  "description": "Respuesta de GET /api/v1/news[?limit=<n>][&before=<UTC>][&feed=<feed>] del gateway (#600): las noticias guardadas en news_items (news_item.v1), de la más nueva a la más vieja, cada una con las interpretaciones de news_interpretations (news_interpretation.v1) que ya existían a as_of. Solo junta contratos existentes; no agrega cálculos. Una noticia aparece recién desde su published_at y una interpretación desde su interpreted_at (CLAUDE.md §5b). La interpretación es automática: sentimiento y relevancia son estimaciones, nunca certezas.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["as_of", "generated_at", "feed", "items", "next_before"],
+  "properties": {
+    "as_of": { "description": "Instante en UTC al que se leyó (ahora). Ninguna noticia publicada ni interpretación hecha después sale en la respuesta.", "$ref": "#/$defs/utc" },
+    "generated_at": { "description": "Cuándo se armó la respuesta, en UTC.", "$ref": "#/$defs/utc" },
+    "feed": {
+      "description": "El filtro ?feed= pedido, o null si no se filtró.",
+      "oneOf": [{ "type": "null" }, { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,31}$" }]
+    },
+    "items": {
+      "description": "Noticias con published_at < before (si se pidió) y ≤ as_of, por published_at de la más nueva a la más vieja. Son 'limit' como máximo, salvo que la última comparta published_at con otras: entonces van todas las de esa hora, para que la página siguiente no saltee ninguna.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["item", "interpretations"],
+        "properties": {
+          "item": { "$ref": "news_item.v1.schema.json" },
+          "interpretations": {
+            "description": "Interpretaciones de la noticia con interpreted_at ≤ as_of, de la más vieja a la más nueva (una por intérprete y versión). Vacío si todavía no se interpretó.",
+            "type": "array",
+            "items": { "$ref": "news_interpretation.v1.schema.json" }
+          }
+        }
+      }
+    },
+    "next_before": {
+      "description": "El published_at de la última noticia, para pedir la página siguiente con ?before=; null si no hay más viejas.",
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/utc" }]
+    }
+  },
+  "$defs": {
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" }
+  }
+}

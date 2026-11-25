@@ -28,6 +28,7 @@ pub mod ibkr;
 pub mod ibkr_live;
 pub mod learning;
 pub mod ml;
+pub mod news;
 pub mod ops;
 pub mod ops_store;
 pub mod paper;
@@ -115,6 +116,11 @@ struct RawConfig {
     /// `[ibkr]`: lo lee [`ibkr::IbkrViewConfig`] (#551).
     #[allow(dead_code)]
     ibkr: toml::Table,
+    /// `[news]` y `[calendar]`: los lee [`news::NewsConfig`] (#600).
+    #[allow(dead_code)]
+    news: toml::Table,
+    #[allow(dead_code)]
+    calendar: toml::Table,
 }
 
 #[derive(Deserialize)]
