@@ -37,7 +37,7 @@ mod pg;
 mod stream;
 pub mod test_db;
 
-pub use futures_candles::CandleFeed;
+pub use futures_candles::{CandleFeed, IbkrFeed};
 pub use ibkr_bars::{IbkrBarCorrection, IbkrBarRow, IbkrSeries, IbkrSeriesKey};
 pub use liquidity_levels::LevelsReport;
 pub use liquidity_stats::{StatsReport, StatsRunReport};

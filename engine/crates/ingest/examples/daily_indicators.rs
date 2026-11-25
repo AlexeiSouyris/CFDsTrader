@@ -40,6 +40,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .and_then(|s| CandleSource::parse(s))
             .ok_or("uso: [--fuente ig|futuros]")?,
     };
+    // Las barras de IBKR (#630) no tienen diarias.
+    if source == CandleSource::Ibkr {
+        return Err("--fuente ibkr: las barras de IBKR no tienen diarias".into());
+    }
     println!("diarias: {}", sources.label(source));
     let cfg = DailyConfig::from_toml(INDICATORS)?;
     let config_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../config");

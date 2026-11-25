@@ -136,10 +136,11 @@ export type ViewTimeframe = '15m' | '1h' | '1d'
 
 /**
  * De qué velas sale la vista (#259): `ig` = las del CFD de IG; `futures` = las armadas desde los
- * futuros de Databento, con la forma del precio del futuro y una base distinta a la del CFD.
+ * futuros de Databento, con la forma del precio del futuro y una base distinta a la del CFD;
+ * `ibkr` (#630) = las barras de los futuros micro de IBKR (MNQ, MES), también con base distinta.
  * `label` es el texto que manda el motor (`config/candle_sources.toml`).
  */
-export type ViewSource = { id: 'ig' | 'futures'; label: string }
+export type ViewSource = { id: 'ig' | 'futures' | 'ibkr'; label: string }
 
 /**
  * La fuente que se pide (#628): una de las de arriba o `auto` = IG y, si IG no tiene velas

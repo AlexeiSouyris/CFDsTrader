@@ -337,7 +337,7 @@ fn ui_mock_is_a_valid_liquidity_view() {
 #[test]
 fn empty_view_follows_the_contract() {
     let id: InstrumentId = "US100".parse().unwrap();
-    for source in [CandleSource::Ig, CandleSource::Futures] {
+    for source in CandleSource::ALL {
         let s = cfds_gateway::ViewSource::new(source, &sources());
         let view =
             cfds_gateway::LiquidityView::empty(id.clone(), s, M15, at("2026-11-23T10:00:00Z"));

@@ -2,11 +2,12 @@
 //! catálogo, con las velas de 15m ya guardadas en PostgreSQL. No usa IG ni gasta cupo.
 //!
 //! ```text
-//! DATABASE_URL=... cargo run -p cfds-ingest --example liquidity_levels [-- --fuente futuros]
+//! DATABASE_URL=... cargo run -p cfds-ingest --example liquidity_levels [-- --fuente futuros|ibkr]
 //! ```
 //! Con `--fuente futuros` (#259) usa las velas de 15m armadas desde los futuros de Databento y
 //! guarda los niveles bajo el instrumento derivado (por ejemplo `US500.FUT`): mismo cálculo,
-//! nunca mezclado con lo del CFD de IG.
+//! nunca mezclado con lo del CFD de IG. Con `--fuente ibkr` (#630), igual con las barras de IBKR
+//! de los instrumentos con mapeo (US100 → MNQ, US500 → MES), bajo `US100.IBKR`.
 //! Siempre calcula desde la primera vela guardada (el ATR de Wilder depende de toda la serie),
 //! solo con velas cerradas. Es idempotente: lo ya guardado e idéntico cuenta como "ya estaban",
 //! y un barrido, ruptura o vencimiento nuevo se agrega una sola vez. Si un nivel ya guardado
@@ -46,7 +47,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let from: DateTime<Utc> = "2000-01-01T00:00:00Z".parse()?;
     let now = Utc::now();
     for (id, spec) in &catalog.instruments {
-        let (feed, out) = source::feed(&sources, chosen, id)?;
+        let Some((feed, out)) = source::feed(&sources, chosen, id)? else {
+            println!("{id}: sin velas de {}", sources.label(chosen));
+            continue;
+        };
         let candles: Vec<_> = store
             .candles_from(
                 feed,

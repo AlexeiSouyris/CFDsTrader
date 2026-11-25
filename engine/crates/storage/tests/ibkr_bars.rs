@@ -261,3 +261,89 @@ async fn reads_use_the_latest_correction_and_corrections_are_append_only() {
     bad.low = dec!(30000);
     assert!(s.insert_ibkr_bar_corrections(&[bad]).await.is_err());
 }
+
+/// Fuente de la liquidez (#630): una serie empalmada por contrato, en el orden en que se empezaron
+/// a guardar, sin repintar cuando llega la historia de un contrato nuevo.
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn ibkr_candles_splice_contracts_without_repainting() {
+    use cfds_core::Timeframe;
+    use cfds_storage::IbkrFeed;
+    let s = store().await;
+    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
+    let id = format!("ITIC{nanos}");
+    let feed = IbkrFeed {
+        source: "ibkr",
+        instrument: &id,
+        what_to_show: "TRADES",
+    };
+    let (from, to) = (
+        "2026-11-24T00:00:00Z".parse().unwrap(),
+        "2026-11-25T00:00:00Z".parse().unwrap(),
+    );
+    let starts = |c: &[cfds_core::Candle]| {
+        c.iter()
+            .map(|c| (c.start.format("%H:%M").to_string(), c.close))
+            .collect::<Vec<_>>()
+    };
+    // El contrato vigente: 10:00 y 10:15, más una de 1h que no entra en 15m.
+    s.insert_ibkr_bars(&[
+        row(&id, "MNQZ6", "15m", "2026-11-24T10:00:00Z", dec!(100)),
+        row(&id, "MNQZ6", "15m", "2026-11-24T10:15:00Z", dec!(101)),
+        row(&id, "MNQZ6", "1h", "2026-11-24T10:00:00Z", dec!(999)),
+    ])
+    .await
+    .unwrap();
+    let before = s
+        .ibkr_candles(&feed, Timeframe::M15, from, to)
+        .await
+        .unwrap();
+    assert_eq!(
+        starts(&before),
+        vec![("10:00".into(), dec!(100)), ("10:15".into(), dec!(101))]
+    );
+    assert!(before.iter().all(|c| c.timeframe == Timeframe::M15));
+    // Llega el contrato nuevo con historia: antes, encima y después de las del viejo.
+    s.insert_ibkr_bars(&[
+        row(&id, "MNQH7", "15m", "2026-11-24T09:45:00Z", dec!(200)),
+        row(&id, "MNQH7", "15m", "2026-11-24T10:15:00Z", dec!(201)),
+        row(&id, "MNQH7", "15m", "2026-11-24T10:30:00Z", dec!(202)),
+    ])
+    .await
+    .unwrap();
+    let after = s
+        .ibkr_candles(&feed, Timeframe::M15, from, to)
+        .await
+        .unwrap();
+    // Lo ya usado no cambia; el nuevo sigue después de la última del viejo.
+    assert_eq!(
+        starts(&after),
+        vec![
+            ("10:00".into(), dec!(100)),
+            ("10:15".into(), dec!(101)),
+            ("10:30".into(), dec!(202)),
+        ]
+    );
+    assert_eq!(&after[..2], &before[..]);
+    // `[desde, hasta)` y el último inicio, de cualquier contrato.
+    let one = s
+        .ibkr_candles(
+            &feed,
+            Timeframe::M15,
+            "2026-11-24T10:15:00Z".parse().unwrap(),
+            "2026-11-24T10:30:00Z".parse().unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(starts(&one), vec![("10:15".into(), dec!(101))]);
+    let last = s
+        .last_candle_start_from(
+            cfds_storage::CandleFeed::Ibkr(feed),
+            &"US100".parse().unwrap(),
+            Timeframe::M15,
+            "2026-11-24T10:20:00Z".parse().unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(last, Some("2026-11-24T10:15:00Z".parse().unwrap()));
+}
