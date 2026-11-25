@@ -44,28 +44,16 @@ describe('gestos: el gráfico contra el swipe de pestañas (#415)', () => {
   })
 })
 
-describe('barra de vistas del celular (#415)', () => {
-  it('cada pestaña crece hasta su rótulo y la activa se trae a la vista', () => {
-    const scrollTo = vi.fn()
-    Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
-      configurable: true,
-      value: scrollTo,
-    })
-    vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(712)
-    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(349)
-    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(60)
-    vi.spyOn(HTMLElement.prototype, 'offsetLeft', 'get').mockReturnValue(640)
+describe('barra de vistas del celular (#415, #618)', () => {
+  it('las pestañas se reparten el ancho, en una línea y sin desplazarse', () => {
     history.replaceState(null, '', '/#glosario')
     render(<App initialStage="app" />)
     const nav = screen.getByRole('navigation', { name: 'Vistas' })
-    // la sección de la activa (Glosario, dentro de Investigación) queda centrada en la barra
-    expect(scrollTo).toHaveBeenCalledWith({ left: 640 - (349 - 60) / 2 })
+    expect(nav).not.toHaveClass('overflow-x-auto')
+    // la sección de la activa (Glosario, dentro de Investigación) queda marcada
     const link = within(nav).getByRole('link', { name: 'Investigación' })
     expect(link).toHaveAttribute('aria-current', 'true')
-    // el rótulo no se corta: sin ancho fijo, sin achicarse y en una línea
-    expect(link).toHaveClass('flex-[1_0_auto]', 'whitespace-nowrap')
-    expect(link).not.toHaveClass('flex-1')
-    delete (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo
+    expect(link).toHaveClass('flex-1', 'whitespace-nowrap')
   })
 })
 

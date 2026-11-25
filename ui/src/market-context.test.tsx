@@ -104,6 +104,16 @@ describe('contexto de mercado del Panel (#294)', () => {
     expect(screen.getByRole('meter')).toHaveAttribute('aria-valuetext', '−0,40')
   })
 
+  it('un percentil que redondea a cero va sin color: ni sube ni baja (#612)', () => {
+    const r = report('US500.FUT', 20)
+    r.groups[0].horizons[0].percentiles[1].return = '0.0004'
+    render(<AnalogDistribution report={r} />)
+    const zero = screen.getByText('0,0 %')
+    expect(zero).not.toHaveClass('text-up')
+    expect(zero).not.toHaveClass('text-down')
+    expect(screen.getAllByText('−3,1 %')[0]).toHaveClass('text-down')
+  })
+
   it('los análogos muestran p10, p50, p90, % positivos y n, y dicen que no es un pronóstico', () => {
     render(<AnalogDistribution report={report('US500.FUT', 20)} />)
     expect(screen.getByText('n = 20')).toBeInTheDocument()
