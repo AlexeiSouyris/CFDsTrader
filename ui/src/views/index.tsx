@@ -125,7 +125,7 @@ export function OverviewView({ onOpen }: { onOpen: (view: string) => void }) {
               <button
                 type="button"
                 onClick={() => onOpen('propuestas')}
-                className="-mx-1 self-start rounded-md px-1 text-left text-[10.5px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                className="-mx-1 min-h-6 self-start rounded-md px-1 text-left text-[10.5px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
               >
                 {k.detail} →
               </button>
@@ -149,7 +149,7 @@ export function OverviewView({ onOpen }: { onOpen: (view: string) => void }) {
           <button
             type="button"
             onClick={() => onOpen('operaciones')}
-            className="mt-3 text-[12px] font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            className="mt-3 inline-flex min-h-6 items-center text-[12px] font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           >
             Ver el diario
           </button>
@@ -159,7 +159,7 @@ export function OverviewView({ onOpen }: { onOpen: (view: string) => void }) {
           <button
             type="button"
             onClick={() => onOpen('competencia')}
-            className="mt-3 text-[12px] font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            className="mt-3 inline-flex min-h-6 items-center text-[12px] font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           >
             Ver los trofeos
           </button>
