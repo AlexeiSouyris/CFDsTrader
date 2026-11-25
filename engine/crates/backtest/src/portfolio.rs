@@ -60,6 +60,13 @@ pub struct PortfolioTrade {
     pub equity_at_entry: Decimal,
     /// Margen libre al decidir (capital − margen de las otras posiciones abiertas).
     pub free_margin_at_entry: Decimal,
+    /// `Sizing.risk` del módulo de riesgo: tamaño × (distancia al stop + colchón por gaps), en
+    /// la moneda del instrumento (#689, para medir el efecto de los topes).
+    pub sized_risk: Decimal,
+    /// El tope por grupo correlacionado achicó el tamaño (`Sizing.group_capped`, #670).
+    pub group_capped: bool,
+    /// Factor de la caída gradual y la volatilidad objetivo (`Sizing.risk_scale`, #671).
+    pub risk_scale: Decimal,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -368,6 +375,9 @@ pub fn run_portfolio(markets: &[Market]) -> Result<PortfolioReport, PortfolioErr
             record,
             equity_at_entry: equity,
             free_margin_at_entry: free_margin,
+            sized_risk: sizing.risk,
+            group_capped: sizing.group_capped,
+            risk_scale: sizing.risk_scale,
         });
     }
     // Lo que quedó abierto ya tiene sus salidas (hasta el final de los datos): se realiza.
