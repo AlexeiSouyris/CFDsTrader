@@ -573,13 +573,13 @@ const HOME_PARTS = [
 ] as const
 
 /**
- * Después de abrir el Inicio, lleva la vista a una de sus partes y le pasa el foco. Espera unos
- * cuadros a que la vista esté montada; si no aparece, no hace nada.
+ * Después de abrir el Inicio, lleva la vista a una de sus partes y le pasa el foco. Espera hasta
+ * 2 s a que la vista esté montada; si no aparece, no hace nada.
  */
-function jumpTo(id: string, tries = 30) {
+function jumpTo(id: string, tries = 40) {
   const el = document.getElementById(id)
   if (!el) {
-    if (tries > 0) requestAnimationFrame(() => jumpTo(id, tries - 1))
+    if (tries > 0) window.setTimeout(() => jumpTo(id, tries - 1), 50)
     return
   }
   if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1')
@@ -645,7 +645,8 @@ function CommandPalette({
   const listId = `${base}-list`
   const optionId = (i: number) => `${base}-opt-${i}`
   const [q, setQ] = useState('')
-  const [mark, setMark] = useState(0)
+  // la opción marcada; `null`: la que mejor coincide con lo escrito
+  const [mark, setMark] = useState<number | null>(null)
   const pressed = useRef<string | null>(null)
   const chosen = useRef(false)
   const catalog = useInstruments()
@@ -759,7 +760,8 @@ function CommandPalette({
       icon: House,
       run: () => {
         onSelect('inicio')
-        jumpTo(p.id)
+        // después de que se cierra la paleta (que devuelve el foco) y se monta el Inicio
+        window.setTimeout(() => jumpTo(p.id), 50)
       },
     })),
   ]
@@ -767,7 +769,19 @@ function CommandPalette({
   const matches = (text: string) => words.every((w) => text.toLowerCase().includes(w))
   // en el orden de los grupos: el índice de cada opción es el de esta lista
   const items = GROUPS.flatMap((g) => all.filter((c) => c.group === g && matches(c.text)))
-  const active = items.length ? Math.min(mark, items.length - 1) : -1
+  // sin elegir con las flechas se marca la primera, salvo que no tenga la frase escrita tal cual
+  // y otra la tenga en su nombre: "inicio resultados" → "Inicio: Resultados recientes"
+  const plain = (t: string) =>
+    t
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .trim()
+  const phrase = plain(q)
+  const best =
+    phrase && items.length && !plain(items[0].text).includes(phrase)
+      ? items.findIndex((c) => plain(c.label).includes(phrase))
+      : -1
+  const active = items.length ? Math.min(mark ?? Math.max(best, 0), items.length - 1) : -1
 
   useEffect(() => {
     if (active >= 0)
@@ -875,7 +889,7 @@ function CommandPalette({
             value={q}
             onChange={(e) => {
               setQ(e.target.value)
-              setMark(0)
+              setMark(null)
               waiting.current = false
             }}
             onKeyDown={onKeyDown}
@@ -895,7 +909,7 @@ function CommandPalette({
         id={listId}
         role="listbox"
         aria-label="Resultados"
-        className="mt-3 grid max-h-[min(60svh,440px)] gap-2 overflow-y-auto"
+        className="mt-3 grid max-h-[min(60svh,440px)] grid-cols-[minmax(0,1fr)] gap-2 overflow-y-auto"
       >
         {GROUPS.map((g) => {
           const inGroup = items.filter((c) => c.group === g)

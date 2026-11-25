@@ -127,10 +127,15 @@ describe('paleta de comandos (#581)', () => {
     history.replaceState(null, '', '#panel')
     render(<App initialStage="app" />)
     openPalette()
-    type('resultados recientes')
-    fireEvent.click(screen.getByRole('option', { name: /^Inicio: Resultados recientes/ }))
+    // la vista Inicio también coincide (su descripción), pero se marca la parte que se nombró
+    type('inicio resultados')
+    expect(screen.getByRole('option', { name: /^Inicio: Resultados recientes/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    fireEvent.keyDown(input(), { key: 'Enter' })
     expect(location.hash).toBe('#inicio')
-    await act(() => new Promise((r) => requestAnimationFrame(() => r(null))))
+    await act(() => new Promise((r) => setTimeout(r, 120)))
     expect(document.activeElement).toHaveAttribute('id', 'inicio-resultados')
   })
 
