@@ -158,6 +158,8 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 |---|---|---|
 | `news_item.v1` | tabla `news_items` | Una noticia de una fuente aprobada (ADR 0006): fuente, feed, id, título, enlace, `published_at` y `retrieved_at`. Solo agregar. La escribe Python (`cfds_intel.news`). |
 | `news_interpretation.v1` | tabla `news_interpretations` y stream `news_interpretations.v1` (#186) | Interpretación automática de una noticia (spec §9): resumen en español y, por instrumento, `sentiment` ∈ [−1, 1] y `relevance` ∈ [0, 1] como string decimal, con el intérprete registrado (nombre, versión, modelo y SHA-256 del prompt). Id propio e idempotente. |
+| `gateway_news.v1` | (respuesta del gateway) | `GET /api/v1/news[?limit=<n>][&before=<UTC>][&feed=<feed>]` (#600): noticias de `news_items` (`news_item.v1`) de la más nueva a la más vieja, cada una con sus interpretaciones (`news_interpretation.v1`) ya existentes, y `next_before` para la página siguiente. Solo junta contratos existentes; nada aparece antes de su `published_at` / `interpreted_at`. |
+| `gateway_calendar.v1` | (respuesta del gateway) | `GET /api/v1/calendar[?from=<UTC>][&to=<UTC>]` (#600): eventos de `economic_events` (`economic_event.v1`) y publicaciones de `official_releases` (`official_release.v1`) con hora en `[from, to]`, publicados a más tardar ahora. Solo lectura. |
 
 - Una interpretación existe desde `interpreted_at`, que nunca es anterior a `published_at` de la noticia (CLAUDE.md §5b).
 - El **ajuste de −2 a +2** del puntaje (spec §6 y §9) **no** viaja en el evento: lo calcula el motor en Rust a partir de `sentiment` y `relevance`, porque el puntaje vive en un solo lugar.

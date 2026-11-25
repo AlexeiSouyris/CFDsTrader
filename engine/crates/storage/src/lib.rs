@@ -8,6 +8,8 @@
 //!   `news_interpretations.v1`, sin perder ni repetir entradas entre reinicios (#197).
 //! - Calendario económico (`economic_event.v1`, #243): [`PgStore::economic_events`] y
 //!   [`PgStore::economic_event_sightings`], solo lectura (lo escribe Python).
+//! - Noticias para la UI (`news_item.v1` y sus interpretaciones, #600): [`PgStore::news_page`] y
+//!   [`PgStore::news_interpretations_of`], solo lectura (lo escribe Python).
 //! - Mapa de liquidez (`liquidity_level.v1`, #231): [`PgStore::insert_liquidity_levels`] y
 //!   [`PgStore::liquidity_levels`], de solo agregar y sin repintado.
 //! - Estadísticas de liquidez (#231): eventos de FVG, gaps de apertura, desequilibrio y
@@ -23,6 +25,7 @@ mod ibkr_bars;
 mod liquidity_levels;
 mod liquidity_stats;
 mod market_context;
+mod news_items;
 mod news_stream;
 mod official_releases;
 mod ops_events;
@@ -38,6 +41,7 @@ pub use futures_candles::CandleFeed;
 pub use ibkr_bars::{IbkrBarCorrection, IbkrBarRow, IbkrSeries, IbkrSeriesKey};
 pub use liquidity_levels::LevelsReport;
 pub use liquidity_stats::{StatsReport, StatsRunReport};
+pub use news_items::NewsItemRow;
 pub use news_stream::{
     Delivery, NEWS_INTERPRETATIONS_STREAM, NewsBatch, NewsInterpretationConsumer, Rejected, StartAt,
 };

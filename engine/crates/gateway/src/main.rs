@@ -35,6 +35,7 @@ use cfds_gateway::ibkr_live::{
 };
 use cfds_gateway::learning::{PgLearning, is_learning_route, respond_learning};
 use cfds_gateway::ml::{is_ml_route, respond_ml};
+use cfds_gateway::news::{NewsConfig, is_news_route, respond_news};
 use cfds_gateway::ops::{connection_end, url_password};
 use cfds_gateway::ops_store::{persistence, run_persister};
 use cfds_gateway::paper::{HttpIn, Ops, PaperConfig, PgPaper, is_paper_route, respond_paper};
@@ -92,6 +93,8 @@ struct State {
     /// Token local de escritura; `None`: escritura apagada.
     token: Option<String>,
     context_cfg: ContextConfig,
+    /// Noticias y calendario de la vista Noticias (#600), solo lectura.
+    news_cfg: NewsConfig,
     /// Fondo del grupo (#312): solo lectura.
     fund: PgFund,
     fund_cfg: FundConfig,
@@ -263,6 +266,16 @@ async fn handle(state: Arc<State>, req: Request<Incoming>) -> Result<Response<Bo
         respond_ibkr(
             &state.source.store,
             &state.ibkr_cfg,
+            req.method().as_str(),
+            req.uri().path(),
+            req.uri().query(),
+            chrono::Utc::now(),
+        )
+        .await
+    } else if is_news_route(req.uri().path()) {
+        respond_news(
+            &state.source.store,
+            &state.news_cfg,
             req.method().as_str(),
             req.uri().path(),
             req.uri().query(),
@@ -543,6 +556,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         paper_cfg,
         token,
         context_cfg: ContextConfig::from_toml(GATEWAY)?,
+        news_cfg: NewsConfig::from_toml(GATEWAY)?,
         ibkr_cfg,
         live_hub,
         source: PgSource {

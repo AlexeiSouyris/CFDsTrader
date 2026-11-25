@@ -52,7 +52,7 @@ type AllowanceRow = (DateTime<Utc>, i64, i64, i64, DateTime<Utc>);
 /// Fila de `news_interpretations` (#194): id, source, item_id, published_at, interpreted_at,
 /// interpreter_name, interpreter_version, interpreter_model, interpreter_prompt_sha256,
 /// summary_es e impacts (JSONB leído como texto).
-type NewsInterpretationRow = (
+pub(crate) type NewsInterpretationRow = (
     String,
     String,
     String,
@@ -1124,7 +1124,7 @@ fn to_i64(v: u64) -> Result<i64, StorageError> {
 
 /// Arma el documento del contrato `news_interpretation.v1` con la fila (el `interpreter`
 /// aplanado vuelve a ser un objeto) y lo valida con `NewsInterpretation`, igual que un mensaje.
-fn row_to_news_interpretation(
+pub(crate) fn row_to_news_interpretation(
     r: NewsInterpretationRow,
 ) -> Result<NewsInterpretation, StorageError> {
     let (

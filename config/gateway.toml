@@ -81,8 +81,24 @@ live_max_clients = 16
 # Cada cuánto va un comentario SSE (": ping") para que nada corte una conexión sin mensajes.
 live_heartbeat_secs = 15
 
+# Noticias de la vista Noticias (#600): GET /api/v1/news, solo lectura de news_items y
+# news_interpretations (lo escribe Python). Una noticia sale recién desde su published_at.
+[news]
+# Noticias que devuelve sin ?limit, y el máximo que acepta ?limit (1..=1000).
+default_limit = 50
+max_limit = 200
+
+# Calendario de la vista Noticias (#600): GET /api/v1/calendar, solo lectura de economic_events y
+# official_releases. Una fila sale recién desde su published_at.
+[calendar]
+# Sin ?from, el rango empieza estos días antes de ahora.
+past_days = 1
+# Sin ?to, el rango termina estos días después de from (o de ahora, si from es anterior).
+future_days = 14
+# El rango from..to más largo que se acepta, en días (1..=3660).
+max_days = 400
+
 # Contexto de mercado del Panel (#294): /api/v1/sentiment y /api/v1/analogs, solo lectura.
 [context]
 # Valores del índice de sentimiento que devuelve la historia de un instrumento (los últimos).
 sentiment_history = 400
-
