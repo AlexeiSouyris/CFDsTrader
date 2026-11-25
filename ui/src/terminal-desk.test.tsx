@@ -266,19 +266,25 @@ describe('resumen de mercados (#552)', () => {
   it('muestra la variación y el atraso solo si la fuente los manda, tal cual', () => {
     render(
       <Watchlist
-        rows={[
+        groups={[
           {
-            instrument_id: 'DE40',
-            last: '100.5',
-            at: '2026-11-24T10:00:00Z',
-            change_pct: '-0.42',
-            delay_s: 600,
+            id: 'prueba',
+            title: 'Prueba',
+            sourceLabel: 'fuente de prueba',
+            rows: [
+              {
+                instrument_id: 'DE40',
+                last: '100.5',
+                at: '2026-11-24T10:00:00Z',
+                change_pct: '-0.42',
+                delay_s: 600,
+              },
+            ],
           },
         ]}
         names={{ DE40: 'Alemania 40' }}
         selected="DE40"
         onSelect={() => {}}
-        sourceLabel="fuente de prueba"
       />,
     )
     const row = screen.getByRole('button', { name: /DE40/ })

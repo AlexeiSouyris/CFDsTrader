@@ -2,15 +2,14 @@
  * El gráfico de un lugar de una grilla (#286, #540): el `LiquidityChart` con las velas que eligió
  * `lib/chart-slots.ts`, o el aviso de que no hay velas. Lo comparten la Terminal y el
  * Multigráfico. Las velas, niveles, FVG y el bloque `analysis` llegan del motor
- * (`liquidity_view.v1`); acá no se calcula nada.
+ * (`liquidity_view.v1`); acá no se calcula nada. Las velas de IBKR (#556) se ven sin capas: el
+ * motor no manda niveles ni FVG para ellas y no se inventan.
  */
 import type { ChartMode } from '@/components/ui/chart-measure'
 import type { DrawTool } from '@/lib/chart-drawings'
 import type { CursorSync } from '@/lib/cursor-sync'
 import { LiquidityChart } from '@/components/ui/liquidity-chart'
 import type { SlotData } from '@/lib/chart-slots'
-import { fetchOlderBars } from '@/lib/liquidity-api'
-import { chartBars } from '@/lib/liquidity-bars'
 import { CHART_SIGNALS } from '@/mocks'
 
 /** El gráfico de un lugar, o el aviso mientras se pide o si no hay velas. */
@@ -43,8 +42,9 @@ export function SlotChart({
   /** cursor sincronizado del Multigráfico (#544): ver `LiquidityChart` */
   syncCursor?: CursorSync
 }) {
-  const { sel, data, live } = slot
-  if (!data)
+  const { sel, view, ibkr } = slot
+  const ibkrSel = sel.feed === 'ibkr'
+  if (slot.bars.length === 0)
     return (
       <p
         role="status"
@@ -52,26 +52,26 @@ export function SlotChart({
         style={{ minHeight: height }}
       >
         {slot.loading
-          ? `Pidiendo ${sel.instrument} (${sel.timeframe}) al motor…`
-          : `Sin velas de ${sel.instrument} en ${sel.timeframe}: el gateway no respondió o todavía no las tiene.`}
+          ? `Pidiendo ${sel.instrument} (${sel.timeframe}) ${ibkrSel ? 'de IBKR' : 'al motor'}…`
+          : ibkrSel
+            ? `Sin velas de IBKR de ${sel.instrument} en ${sel.timeframe}: el gateway no respondió o todavía no las tiene.`
+            : `Sin velas de ${sel.instrument} en ${sel.timeframe}: el gateway no respondió o todavía no las tiene.`}
       </p>
     )
   return (
     <LiquidityChart
-      key={`${sel.instrument}|${sel.timeframe}`}
-      instrument={data.instrument_id}
-      timeframe={data.timeframe ?? sel.timeframe}
-      bars={chartBars(data)}
-      levels={data.levels}
-      fvgs={data.fvgs}
-      imbalance={data.imbalance}
-      signals={live ? [] : CHART_SIGNALS}
-      analysis={data.analysis}
-      loadOlder={
-        live
-          ? (before) => fetchOlderBars(live.instrument_id, live.timeframe ?? sel.timeframe, before)
-          : undefined
-      }
+      key={`${sel.feed ?? ''}|${sel.instrument}|${sel.timeframe}`}
+      instrument={ibkr?.instrument_id ?? view?.instrument_id ?? sel.instrument}
+      timeframe={ibkr?.timeframe ?? view?.timeframe ?? sel.timeframe}
+      caption={ibkr?.series ? `IBKR · ${ibkr.series.contract} · solo datos` : undefined}
+      liquidity={!ibkrSel}
+      bars={slot.bars}
+      levels={view?.levels ?? []}
+      fvgs={view?.fvgs ?? []}
+      imbalance={view?.imbalance ?? []}
+      signals={slot.source === 'ejemplo' ? CHART_SIGNALS : []}
+      analysis={view?.analysis}
+      loadOlder={slot.loadOlder}
       height={height}
       ruler={ruler}
       onRulerChange={onRuler}

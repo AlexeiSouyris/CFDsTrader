@@ -4,19 +4,19 @@
  * no trae la variación o el atraso, no se muestran.
  *
  * Una fuente es una función `SummarySource` que recibe los instrumentos y devuelve un
- * `MarketSummary` por cada uno. Hoy hay una sola:
+ * `MarketSummary` por cada uno. Hay dos:
  *
  * - `liquiditySummaries`: el cierre de la última vela cerrada de 15 m que ya sirve el gateway
- *   (`GET /api/v1/liquidity`, `liquidity_view.v1`). No trae variación ni atraso.
- *
- * El gateway va a servir un resumen por instrumento con precio, variación y atraso (Issue #551,
- * con su contrato en `contracts/`). Cuando exista, se agrega acá otra `SummarySource` que lo lea
- * y lo pase a `MarketSummary`, y `useMarketSummaries` la usa en lugar de esta. La lista de
- * mercados no cambia. No se inventa la ruta antes de que exista.
+ *   (`GET /api/v1/liquidity`, `liquidity_view.v1`) para los instrumentos del broker simulado. No
+ *   trae variación ni atraso.
+ * - `ibkrSummaries` (#556): el resumen de IBKR del gateway (`GET /api/v1/ibkr/watchlist`,
+ *   `gateway_ibkr_watchlist.v1`) con último precio, variación, hora y atraso, tal como los manda
+ *   el motor. Trae su propia lista de instrumentos (`own`). Son solo datos: no se operan.
  */
 import { fetchLiquidityView, useRemote } from '@/lib/liquidity-api'
 import { chartBars } from '@/lib/liquidity-bars'
 import type { Decimal, Utc, ViewTimeframe } from '@/lib/liquidity-contracts'
+import { fetchIbkrWatchlist } from '@/lib/ibkr-api'
 import { LIQUIDITY_US100 } from '@/mocks'
 
 export type MarketSummary = {
@@ -36,6 +36,11 @@ export type SummarySource = {
   /** cómo se nombra la fuente en la lista (por ejemplo, "último cierre de 15 m del motor") */
   label: string
   load: (instruments: string[], signal: AbortSignal) => Promise<MarketSummary[]>
+  /**
+   * La fuente trae su propia lista: con `instruments` vacío devuelve todos los suyos, en su orden.
+   * Sin gateway no tiene datos de ejemplo.
+   */
+  own?: boolean
 }
 
 const TIMEFRAME: ViewTimeframe = '15m'
@@ -70,6 +75,32 @@ export const liquiditySummaries: SummarySource = {
   },
 }
 
+/**
+ * El resumen de IBKR, tal cual llega: último, hora del cierre de esa vela, variación en % y atraso
+ * en segundos. Un instrumento sin velas (`quote: null`) queda vacío. Con `instruments` vacío,
+ * todos los del gateway; si no, esos, en ese orden.
+ */
+export const ibkrSummaries: SummarySource = {
+  label: 'IBKR · solo datos',
+  own: true,
+  async load(instruments, signal) {
+    const data = await fetchIbkrWatchlist(signal)
+    const ids = instruments.length ? instruments : data.instruments.map((i) => i.instrument_id)
+    return ids.map((id) => {
+      const q = data.instruments.find((i) => i.instrument_id === id)?.quote
+      return q
+        ? {
+            instrument_id: id,
+            last: q.last,
+            at: q.bar_end,
+            change_pct: q.change_pct,
+            delay_s: q.delay_seconds,
+          }
+        : empty(id)
+    })
+  },
+}
+
 /** Sin gateway: el cierre de la última vela del ejemplo (solo US100), marcado como ejemplo. */
 export function exampleSummaries(instruments: string[]): MarketSummary[] {
   const last = chartBars(LIQUIDITY_US100).at(-1)
@@ -85,18 +116,24 @@ export const SUMMARY_REFRESH_MS = 60_000
 
 /**
  * Los resúmenes de la lista de mercados. Con la fuente caída, los de ejemplo, con
- * `source: 'ejemplo'` para decirlo en pantalla.
+ * `status: 'ejemplo'` para decirlo en pantalla; una fuente con lista propia (`own`) no tiene
+ * ejemplo: `status: 'error'` y sin renglones.
  */
 export function useMarketSummaries(instruments: string[], source = liquiditySummaries) {
   const remote = useRemote(
-    instruments.length ? `summaries|${source.label}|${instruments.join(',')}` : null,
+    source.own || instruments.length ? `summaries|${source.label}|${instruments.join(',')}` : null,
     (signal) => source.load(instruments, signal),
     SUMMARY_REFRESH_MS,
   )
   if (remote.status === 'ok')
     return { status: 'ok' as const, label: source.label, rows: remote.data }
   if (remote.status === 'loading')
-    return { status: 'loading' as const, label: source.label, rows: instruments.map(empty) }
+    return {
+      status: 'loading' as const,
+      label: source.label,
+      rows: source.own && !instruments.length ? [] : instruments.map(empty),
+    }
+  if (source.own) return { status: 'error' as const, label: source.label, rows: [] }
   return {
     status: 'ejemplo' as const,
     label: 'datos de ejemplo',

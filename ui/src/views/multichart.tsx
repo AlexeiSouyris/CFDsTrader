@@ -21,6 +21,9 @@
  * el gráfico activo, y un botón para borrar todos los dibujos de su instrumento. Se guardan en el
  * navegador por instrumento y son solo visuales: no generan señales ni órdenes.
  *
+ * Instrumentos de IBKR (#556): el selector de instrumento suma los de IBKR (`GET /api/v1/ibkr/*`),
+ * con sus timeframes (1m, 15m, 1h). Se ven sin capas de liquidez y son solo datos.
+ *
  * Cursor sincronizado (#544): opción de la barra de arriba, apagada por defecto. Al mover el
  * cursor en un panel, los otros marcan la vela que contiene esa hora UTC. No sincroniza el zoom.
  */
@@ -31,7 +34,11 @@ import { ChartDrawBar } from '@/components/ui/chart-draw-bar'
 import { NO_TOOLS, type ChartTools } from '@/lib/chart-drawings'
 import {
   DEFAULT_SLOTS,
+  parseSelKey,
   parseSlots,
+  selKey,
+  slotTimeframes,
+  withInstrumentSel,
   useChartCatalog,
   useChartSlot,
   type ChartSel,
@@ -40,9 +47,9 @@ import {
 import { SlotChart } from '@/components/ui/chart-slot'
 import { ChartToolsMenu } from '@/components/ui/chart-tools'
 import { Segmented } from '@/components/ui/segmented'
-import { chartBars } from '@/lib/liquidity-bars'
 import { CursorSync } from '@/lib/cursor-sync'
-import type { ViewTimeframe } from '@/lib/liquidity-contracts'
+import { useIbkrInstruments } from '@/lib/ibkr-api'
+import type { ChartTimeframe } from '@/lib/liquidity-bars'
 import { dateTimeUtc, decimal } from '@/lib/format'
 import { useChartTools } from '@/lib/use-chart-tools'
 import { cn } from '@/lib/utils'
@@ -92,6 +99,7 @@ function save(saved: Saved) {
 
 const SOURCE: Record<NonNullable<SlotData['source']>, string> = {
   motor: 'velas del motor',
+  ibkr: 'IBKR · solo datos',
   ejemplo: 'datos de ejemplo',
 }
 
@@ -103,6 +111,7 @@ export function MultichartView() {
   )
   const [chartTools, toggleChartTool] = useChartTools()
   const { instruments, timeframes } = useChartCatalog()
+  const ibkrInstruments = useIbkrInstruments()
   const [cursorHub] = useState(() => new CursorSync())
 
   const layout = LAYOUTS[saved.layout]
@@ -116,15 +125,24 @@ export function MultichartView() {
   const slots = [s0, s1, s2, s3]
   const current = slots[active]
   const sel = saved.slots[active]
-  const drawingsOf = current.data?.instrument_id ?? sel.instrument
+  const drawingsOf = current.view?.instrument_id ?? current.ibkr?.instrument_id ?? sel.instrument
+  const brokerKeys =
+    instruments.includes(sel.instrument) || sel.feed
+      ? instruments
+      : [sel.instrument, ...instruments]
+  const ibkrKeys = (
+    ibkrInstruments.includes(sel.instrument) || !sel.feed
+      ? ibkrInstruments
+      : [sel.instrument, ...ibkrInstruments]
+  ).map((id) => selKey({ instrument: id, feed: 'ibkr' }))
   // en modo compacto, el gráfico activo dibuja sus controles acá, en la barra de arriba (#545)
   const [controlsEl, setControlsEl] = useState<HTMLElement | null>(null)
 
   const setActive = (i: number) => setSaved((p) => (p.active === i ? p : { ...p, active: i }))
-  const patchSel = (patch: Partial<ChartSel>) =>
+  const setSel = (next: ChartSel) =>
     setSaved((p) => ({
       ...p,
-      slots: p.slots.map((s, k) => (k === active ? { ...s, ...patch } : s)),
+      slots: p.slots.map((s, k) => (k === active ? next : s)),
     }))
   const patchTools = (i: number, patch: Partial<ChartTools>) =>
     setTools((all) => all.map((t, k) => (k === i ? { ...t, ...patch } : t)))
@@ -142,25 +160,36 @@ export function MultichartView() {
         <label className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground">
           <span className="sr-only">Instrumento del gráfico activo</span>
           <select
-            value={sel.instrument}
-            onChange={(e) => patchSel({ instrument: e.target.value })}
+            value={selKey(sel)}
+            onChange={(e) => {
+              const p = parseSelKey(e.target.value)
+              setSel(withInstrumentSel(sel, p.instrument, p.feed))
+            }}
             className="h-8 rounded-full border border-border bg-background/60 px-3 text-[12px] font-bold text-foreground focus-visible:outline-2 focus-visible:outline-ring"
           >
-            {(instruments.includes(sel.instrument)
-              ? instruments
-              : [sel.instrument, ...instruments]
-            ).map((id) => (
-              <option key={id} value={id}>
-                {id}
-              </option>
-            ))}
+            <optgroup label="Broker simulado">
+              {brokerKeys.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </optgroup>
+            {ibkrKeys.length > 0 && (
+              <optgroup label="IBKR · solo datos">
+                {ibkrKeys.map((k) => (
+                  <option key={k} value={k}>
+                    {parseSelKey(k).instrument} · IBKR
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </label>
         <Segmented
           label="Timeframe del gráfico activo"
-          options={timeframes}
+          options={slotTimeframes(sel, timeframes)}
           value={sel.timeframe}
-          onChange={(tf) => patchSel({ timeframe: tf as ViewTimeframe })}
+          onChange={(tf) => setSel({ ...sel, timeframe: tf as ChartTimeframe })}
         />
         {layout.compact ? (
           <div ref={setControlsEl} data-active-controls className="flex min-w-0" />
@@ -168,7 +197,7 @@ export function MultichartView() {
           <ChartToolsMenu
             tools={chartTools}
             onToggle={toggleChartTool}
-            available={current.data?.analysis != null}
+            available={current.view?.analysis != null}
           />
         )}
         <span className="ml-auto" />
@@ -292,15 +321,16 @@ export function MultichartView() {
  * la última vela, tal cual llega del motor (solo con formato de pantalla).
  */
 function CompactHeading({ slot }: { slot: SlotData }) {
-  const { sel, data } = slot
-  const last = data ? chartBars(data).at(-1) : undefined
+  const { sel, view, ibkr } = slot
+  const last = slot.bars.at(-1)
   return (
     <p
       data-compact-heading
       className="flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden text-[12px] whitespace-nowrap"
     >
       <span className="truncate font-bold tracking-[0.08em] text-muted-foreground uppercase">
-        {data?.instrument_id ?? sel.instrument} · {data?.timeframe ?? sel.timeframe}
+        {view?.instrument_id ?? ibkr?.instrument_id ?? sel.instrument} ·{' '}
+        {view?.timeframe ?? ibkr?.timeframe ?? sel.timeframe}
       </span>
       {last && (
         <span
@@ -317,10 +347,10 @@ function CompactHeading({ slot }: { slot: SlotData }) {
 
 /** Panel lateral: lo que el motor manda del gráfico activo, tal cual llega. */
 function SlotInfo({ index, slot }: { index: number; slot: SlotData }) {
-  const { sel, data } = slot
-  const last = data ? chartBars(data).at(-1) : undefined
+  const { sel, view, ibkr } = slot
+  const last = slot.bars.at(-1)
   const rows: [string, string][] = [
-    ['Instrumento', sel.instrument],
+    ['Instrumento', sel.feed === 'ibkr' ? `${sel.instrument} (IBKR)` : sel.instrument],
     ['Timeframe', sel.timeframe],
     ['Fuente', slot.source ? SOURCE[slot.source] : slot.loading ? 'pidiendo…' : 'sin velas'],
   ]
@@ -333,11 +363,12 @@ function SlotInfo({ index, slot }: { index: number; slot: SlotData }) {
       ['Cierre', decimal(last.close)],
     )
   }
-  if (data)
+  if (view)
     rows.push(
-      ['Niveles de liquidez', String(data.levels.length)],
-      ['FVG', String(data.fvgs.length)],
+      ['Niveles de liquidez', String(view.levels.length)],
+      ['FVG', String(view.fvgs.length)],
     )
+  if (ibkr?.series) rows.push(['Contrato', ibkr.series.contract], ['Operable', 'no, solo datos'])
   return (
     <aside
       aria-label={`Información del gráfico ${index + 1}`}
