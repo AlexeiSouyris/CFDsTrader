@@ -47,4 +47,5 @@ resumen: Esquema y migraciones de PostgreSQL, escritura idempotente y publicaci�
 - `ops_events` (`ops_event.v1` ya redactados, de solo agregar salvo la retención: `insert_ops_events`, `latest_ops_events` y `purge_ops_events_before`, #337)
 - lecturas de `ibkr_bars` para el gateway (`latest_closed_ibkr_bar`, `ibkr_bars_closed_by`, `last_ibkr_bar_starting_before`: solo velas cerradas, de una sola serie, #551; `ibkr_bars_between` e `ibkr_series` para revisar 15m y 1h contra sus 1m, #563)
 - `ibkr_bar_corrections`, correcciones de velas de `ibkr_bars` de solo agregar (clave de la vela, OHLC corregido, motivo, fuente y `corrected_at`; `insert_ibkr_bar_corrections`; todas las lecturas de `ibkr_bars` devuelven la corrección más reciente; migración 0049 idempotente, #575)
+- `fomc_statement_novelty`, novedad de cada comunicado del FOMC respecto del anterior, de solo agregar, que escribe Python (`cfds_intel.fomc_novelty`, `fomc_statement_novelty.v1`, migración 0050, #668)
 - lectura de noticias para la UI (`news_page`, `news_interpretations_of`, #600) y de `official_releases` por rango de hora (`official_releases_between`, con `source_url`, #600)

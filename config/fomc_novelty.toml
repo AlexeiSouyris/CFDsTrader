@@ -1,0 +1,47 @@
+# Novedad de cada comunicado del FOMC respecto del anterior (#668), tabla
+# `fomc_statement_novelty` (contracts/fomc_statement_novelty.v1). Solo descriptivo.
+#
+# Los comunicados son los de `official_releases` (ADR 0016) y el texto sale de su página en
+# federalreserve.gov. Fuente: Board of Governors of the Federal Reserve System (dominio público;
+# piden citarla: https://www.federalreserve.gov/disclaimer.htm).
+
+[client]
+# Las mismas reglas que la carga del ADR 0016 §1.2: cliente automático honesto, sin datos
+# personales, un pedido por vez con al menos 1 s entre pedidos.
+user_agent = "cfds-intel/0.1 (automated official calendar reader)"
+timeout_secs = 30
+pause_secs = 1.5
+# Solo se piden páginas de comunicados con esta forma (la `source_url` de official_releases).
+release_url_prefix = "https://www.federalreserve.gov/newsevents/pressreleases/monetary"
+# Copia local de cada página pedida (fuera de git, `data/raw/` está en .gitignore). Si la página
+# ya está acá no se vuelve a pedir: medir con otro método no repite los pedidos.
+html_dir = "data/raw/fomc_statements"
+
+[statements]
+# Comunicados con `scheduled_at` en [first_day, last_day] (UTC), de los estados listados.
+first_day = "2011-01-01"
+last_day = "2025-12-31"
+# Solo los programados: así cada uno se compara con el comunicado de política anterior. Los no
+# programados son textos de otra clase (el del 11-10-2019 es una nota de implementación, sin
+# votación) o de emergencia (marzo de 2020): mezclarlos inflaría la novedad del siguiente.
+statuses = ["scheduled"]
+# El texto medido termina antes del primer párrafo que empieza así: la votación cambia con la
+# rotación de miembros y no es política. Si un comunicado no lo trae, la carga falla.
+end_marker = "Voting for"
+
+[word_diff]
+# Palabras en minúscula (letras, dígitos y ., ', /, - dentro de la palabra); difflib sin
+# autojunk. Cambiar algo de esto es otra versión.
+method_version = "word_diff.v1"
+
+[embedding]
+# Ollama local (ADR 0008: solo http://127.0.0.1). El modelo se fija por nombre y por el digest
+# que devuelve GET /api/tags, que se guarda en cada fila.
+url = "http://127.0.0.1:11434"
+model = "nomic-embed-text"
+# nomic-embed-text pide un prefijo de tarea; "clustering: " es el de comparar textos entre sí.
+prefix = "clustering: "
+# Sin recortar: si el texto no entra en el contexto, falla (truncate = false en /api/embed).
+num_ctx = 8192
+timeout_secs = 120
+method_version = "embedding_cosine.v1"
