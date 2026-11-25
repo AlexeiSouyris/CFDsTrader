@@ -6,10 +6,11 @@
  * Disposición, como una terminal de trading:
  * - arriba, la cuenta de simulación (`paper_account.v1`) con el modo simulación siempre a la vista,
  *   y el estado del broker del motor (`ops_status.v1`: conexión, kill switch, pérdida del día);
- * - a la izquierda, la lista de mercados (`lib/market-summary.ts`), en dos grupos: los del broker
- *   simulado (último cierre que sirve el gateway) y los de IBKR (#556: último, variación, hora y
- *   atraso del gateway). Los de IBKR abren el gráfico con sus velas, pero son **solo datos**: el
- *   ticket no los acepta;
+ * - a la izquierda, la lista de mercados (`lib/market-summary.ts`), en dos grupos: los de IBKR
+ *   (#556: último, variación contra la sesión anterior, hora y hace cuánto cerró la vela; van
+ *   primero porque hoy son las únicas velas reales, #275) y los del broker simulado (último
+ *   cierre que sirve el gateway). Los de IBKR abren el gráfico con sus velas, pero son **solo
+ *   datos**: el ticket no los acepta. Con IBKR en vivo, los gráficos sin tocar abren los de IBKR;
  * - al centro, 1, 2 o 4 gráficos (`LiquidityChart`, #286) con la barra de dibujo compartida con el
  *   Multigráfico (#543) sobre el gráfico activo;
  * - a la derecha, el ticket de siempre: validación del riesgo del motor (`ticket_verdict.v1`) y
@@ -42,6 +43,7 @@ import { OpsEventFeed, OpsKillSwitchBanner, OpsStatusBar } from '@/components/ui
 import { ProposalCard } from '@/components/ui/proposal-card'
 import { Segmented } from '@/components/ui/segmented'
 import { SessionOrders, type SentOrder } from '@/components/ui/session-orders'
+import { TerminalNews } from '@/components/ui/terminal-news'
 import {
   AccountStrip,
   KillSwitchBanner,
@@ -53,6 +55,7 @@ import {
   DEFAULT_SLOTS,
   parseSelKey,
   parseSlots,
+  preferIbkr,
   selKey,
   slotTimeframes,
   useChartCatalog,
@@ -146,9 +149,9 @@ const withInstrument = (saved: Saved, id: string | null, index = 0, feed?: 'ibkr
       }
     : saved
 
-/** "~15 min de atraso", tal como lo declara la fuente, o nada. */
+/** "última vela hace ~15 min" (`generated_at − bar_end` del gateway), o nada. */
 const delayText = (row: MarketSummary | undefined) =>
-  row?.delay_s != null ? `~${Math.max(1, Math.round(row.delay_s / 60))} min de atraso` : null
+  row?.delay_s != null ? `última vela hace ~${Math.max(1, Math.round(row.delay_s / 60))} min` : null
 
 function saveLayout(saved: Saved) {
   try {
@@ -317,7 +320,7 @@ function History({ account, live }: { account: PaperAccount; live: boolean }) {
 
 const PANES = ['Gráfico', 'Mercados', 'Ticket'] as const
 type Pane = (typeof PANES)[number]
-const TABS = ['Posiciones', 'Órdenes', 'Historial', 'Actividad', 'Propuestas'] as const
+const TABS = ['Posiciones', 'Órdenes', 'Historial', 'Actividad', 'Noticias', 'Propuestas'] as const
 type Tab = (typeof TABS)[number]
 
 export function TerminalView({ member }: { member: Member }) {
@@ -381,6 +384,10 @@ export function TerminalView({ member }: { member: Member }) {
   const ibkr = useMarketSummaries([], ibkrSummaries)
   const ibkrInstruments = ibkr.rows.map((r) => r.instrument_id)
   const ibkrDelayOf = (id: string) => delayText(ibkr.rows.find((r) => r.instrument_id === id))
+
+  // ajuste durante el render (sin efecto): con IBKR en vivo, los lugares sin tocar abren sus velas
+  const ibkrSlots = ibkr.status === 'ok' ? preferIbkr(saved.slots, ibkrInstruments) : null
+  if (ibkrSlots) setSaved((prev) => ({ ...prev, slots: ibkrSlots }))
 
   const count = Number(saved.layout)
   const current = Math.min(active, count - 1)
@@ -555,6 +562,7 @@ export function TerminalView({ member }: { member: Member }) {
     Órdenes: `Órdenes (${sent.length})`,
     Historial: 'Historial',
     Actividad: 'Actividad',
+    Noticias: 'Noticias',
     Propuestas: 'Propuestas',
   }
   const tabNote: Record<Tab, string> = {
@@ -562,6 +570,7 @@ export function TerminalView({ member }: { member: Member }) {
     Órdenes: 'las enviadas desde esta pestaña',
     Historial: 'sin ruta en el gateway',
     Actividad: 'eventos del broker y alertas',
+    Noticias: 'del gateway, con su hora de publicación real',
     Propuestas: 'de ejemplo: el motor todavía no las publica acá',
   }
 
@@ -668,13 +677,7 @@ export function TerminalView({ member }: { member: Member }) {
           <div className="lg:sticky lg:top-12">
             <Watchlist
               groups={[
-                {
-                  id: 'broker',
-                  title: 'Broker simulado',
-                  sourceLabel: summaries.label,
-                  rows: summaries.rows,
-                  loading: summaries.status === 'loading',
-                },
+                // IBKR primero (#275): hoy es la única fuente con velas reales y frescas
                 {
                   id: 'ibkr',
                   title: 'IBKR',
@@ -690,7 +693,14 @@ export function TerminalView({ member }: { member: Member }) {
                         ? 'Pidiendo los datos de IBKR…'
                         : ibkr.rows.length === 0
                           ? 'El gateway no tiene instrumentos de IBKR configurados.'
-                          : 'Datos con atraso, tal como los manda el gateway. Precios del pasado, no promesas.',
+                          : 'Velas cerradas de IBKR: sin suscripción, IBKR manda los precios con unos 10 min de atraso. Variación contra el cierre de la sesión anterior. Precios del pasado, no promesas.',
+                },
+                {
+                  id: 'broker',
+                  title: 'Broker simulado',
+                  sourceLabel: summaries.label,
+                  rows: summaries.rows,
+                  loading: summaries.status === 'loading',
                 },
               ]}
               names={names}
@@ -738,10 +748,32 @@ export function TerminalView({ member }: { member: Member }) {
         className="min-w-0 rounded-section border border-border bg-section p-density"
       >
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-2">
+          {/*
+           * Pestañas con el patrón de WAI-ARIA (#617): solo la elegida entra con Tab; las flechas,
+           * Inicio y Fin pasan a otra y la eligen. La línea de abajo es una sombra (no un borde con
+           * margen negativo) para que la lista no muestre una barra de desplazamiento suelta.
+           */}
           <div
             role="tablist"
             aria-label="Paneles de la cuenta"
-            className="flex max-w-full gap-1 overflow-x-auto border-b border-border"
+            onKeyDown={(e) => {
+              const i = TABS.indexOf(tab)
+              const next =
+                e.key === 'ArrowRight'
+                  ? (i + 1) % TABS.length
+                  : e.key === 'ArrowLeft'
+                    ? (i - 1 + TABS.length) % TABS.length
+                    : e.key === 'Home'
+                      ? 0
+                      : e.key === 'End'
+                        ? TABS.length - 1
+                        : null
+              if (next === null) return
+              e.preventDefault()
+              setTab(TABS[next])
+              document.getElementById(`terminal-tab-${TABS[next]}`)?.focus()
+            }}
+            className="flex max-w-full gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_var(--border)]"
           >
             {TABS.map((t) => (
               <button
@@ -751,9 +783,10 @@ export function TerminalView({ member }: { member: Member }) {
                 id={`terminal-tab-${t}`}
                 aria-selected={t === tab}
                 aria-controls="terminal-tabpanel"
+                tabIndex={t === tab ? 0 : -1}
                 onClick={() => setTab(t)}
                 className={cn(
-                  '-mb-px min-h-8 shrink-0 border-b-2 px-2.5 text-[11px] font-bold tracking-[0.06em] whitespace-nowrap uppercase transition-colors focus-visible:outline-2 focus-visible:outline-ring',
+                  'min-h-8 shrink-0 border-b-2 px-2.5 text-[11px] font-bold tracking-[0.06em] whitespace-nowrap uppercase transition-colors focus-visible:outline-2 focus-visible:outline-ring',
                   t === tab
                     ? 'border-accent text-foreground'
                     : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -770,6 +803,7 @@ export function TerminalView({ member }: { member: Member }) {
           {tab === 'Órdenes' && <SessionOrders orders={sent} />}
           {tab === 'Historial' && <History account={account} live={live} />}
           {tab === 'Actividad' && <Activity />}
+          {tab === 'Noticias' && <TerminalNews />}
           {tab === 'Propuestas' && (
             <section aria-label="Propuestas" className="grid gap-3 xl:grid-cols-2">
               {PROPOSALS.map((p) => (

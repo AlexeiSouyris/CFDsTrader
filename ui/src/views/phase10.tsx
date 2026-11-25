@@ -28,6 +28,8 @@ export function ProposalsView({ member }: { member: Member }) {
       <ExampleNotice className="max-w-2xl">
         Propuestas de ejemplo: el motor todavía no las publica acá, así que no se pueden aprobar.
       </ExampleNotice>
+      {/* cada tarjeta lleva un h3: este h2 deja el orden de títulos sin saltos (axe heading-order) */}
+      <h2 className="mt-1 text-[14px] font-bold">En espera ({PROPOSALS.length})</h2>
       {PROPOSALS.length === 0 ? (
         <p className="panel rounded-[20px] p-6 text-center text-[13px] text-muted-foreground">
           No hay propuestas esperando.
@@ -334,7 +336,7 @@ export function GlossaryView() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Buscar un término (por ejemplo: sweep, margen, R)"
           aria-label="Buscar en el glosario"
-          className="w-full bg-transparent text-[14px] outline-none placeholder:text-muted-foreground"
+          className="min-h-6 w-full bg-transparent text-[14px] outline-none placeholder:text-muted-foreground"
         />
       </label>
       <p className="text-[11px] text-muted-foreground" aria-live="polite">

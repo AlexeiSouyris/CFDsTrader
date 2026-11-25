@@ -10,9 +10,11 @@ import { dateTimeUtc, decimal, isNegative, signed } from '@/lib/format'
 import type { MarketSummary } from '@/lib/market-summary'
 import { cn } from '@/lib/utils'
 
+// 24 h como el resto de la app: es-AR daba "04:00 a. m." (QA terminal #19)
 const TIME = new Intl.DateTimeFormat('es-AR', {
   hour: '2-digit',
   minute: '2-digit',
+  hourCycle: 'h23',
   timeZone: 'UTC',
 })
 const DAY = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' })
@@ -43,6 +45,12 @@ export type WatchGroup = {
 
 /** El atraso como lo declara la fuente, en minutos enteros para la pantalla. */
 const delayMin = (s: number) => Math.max(1, Math.round(s / 60))
+
+/**
+ * Un precio con al menos 2 decimales (QA terminal #19, charts #13): "25.590" solo se leía como 25
+ * con decimales; "25.590,00" no. Si el precio trae más, se muestran todos. Solo formato.
+ */
+const fixed = (text: string) => decimal(text, Math.max(2, text.split('.')[1]?.length ?? 0))
 
 export function Watchlist({
   groups,
@@ -128,7 +136,7 @@ function WatchGroupList({
                 </span>
                 <span className="text-right">
                   <span className="block text-[12.5px] font-bold tabular-nums">
-                    {r.last === null ? '—' : decimal(r.last)}
+                    {r.last === null ? '—' : fixed(r.last)}
                   </span>
                   {r.change_pct !== null && (
                     <span
@@ -137,7 +145,8 @@ function WatchGroupList({
                         isNegative(r.change_pct) ? 'text-down' : 'text-up',
                       )}
                     >
-                      {signed(r.change_pct)} %
+                      {signed(r.change_pct, 2)} %
+                      <span className="sr-only"> contra el cierre de la sesión anterior</span>
                     </span>
                   )}
                 </span>
@@ -149,12 +158,19 @@ function WatchGroupList({
                   {!g.badge && r.delay_s !== null && ` · ${delayMin(r.delay_s)} min de atraso`}
                 </span>
                 {g.badge && (
+                  // `delay_s` es cuánto hace que cerró la última vela (`generated_at − bar_end`):
+                  // se dice así, no como "atraso" de la fuente, que es otro número (#275)
                   <span
                     data-delay-badge
-                    className="col-span-2 mt-0.5 max-w-full justify-self-start truncate rounded-full border border-border px-1.5 py-px text-[9.5px] font-bold text-muted-foreground"
+                    title={
+                      r.delay_s !== null
+                        ? `La última vela cerrada terminó hace unos ${delayMin(r.delay_s)} min`
+                        : undefined
+                    }
+                    className="col-span-2 mt-0.5 max-w-full justify-self-start truncate rounded-full border border-border px-1.5 py-px text-[10.5px] font-bold text-muted-foreground"
                   >
                     {g.badge}
-                    {r.delay_s !== null && ` · ~${delayMin(r.delay_s)} min de atraso`}
+                    {r.delay_s !== null && ` · cerró hace ~${delayMin(r.delay_s)} min`}
                   </span>
                 )}
               </button>

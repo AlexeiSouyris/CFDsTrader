@@ -45,6 +45,7 @@ import {
   DEFAULT_SLOTS,
   parseSelKey,
   parseSlots,
+  preferIbkr,
   selKey,
   slotTimeframes,
   withInstrumentSel,
@@ -178,6 +179,10 @@ export function MultichartView({ single = false }: { single?: boolean }) {
   // en modo compacto, el gráfico activo dibuja sus controles acá, en la barra de arriba (#545)
   const [controlsEl, setControlsEl] = useState<HTMLElement | null>(null)
 
+  // ajuste durante el render (sin efecto): con IBKR en vivo, los lugares sin tocar abren sus velas
+  const ibkrSlots = preferIbkr(saved.slots, ibkrInstruments)
+  if (ibkrSlots) setSaved((p) => ({ ...p, slots: ibkrSlots }))
+
   const setActive = (i: number) => setSaved((p) => (p.active === i ? p : { ...p, active: i }))
   const setSel = (next: ChartSel) =>
     setSaved((p) => ({
@@ -279,8 +284,9 @@ export function MultichartView({ single = false }: { single?: boolean }) {
             aria-pressed={saved.sync}
             onClick={() => setSaved((p) => ({ ...p, sync: !p.sync }))}
             title="Al mover el cursor en un gráfico, los otros marcan la misma hora UTC"
+            // en el celular se ve un gráfico a la vez: sincronizar y la distribución no sirven (#617)
             className={cn(
-              'inline-flex h-8 items-center gap-1.5 rounded-section border border-border px-2.5 text-[12px] font-bold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring',
+              'inline-flex h-8 items-center gap-1.5 rounded-section border border-border px-2.5 text-[12px] font-bold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring max-lg:hidden',
               saved.sync &&
                 'border-primary bg-primary text-primary-foreground hover:text-primary-foreground',
             )}
@@ -290,15 +296,17 @@ export function MultichartView({ single = false }: { single?: boolean }) {
           </button>
         )}
         {!single && (
-          <Segmented
-            label="Distribución"
-            options={LAYOUT_IDS.map((id) => LAYOUTS[id].label)}
-            value={layout.label}
-            onChange={(v) => {
-              const id = LAYOUT_IDS.find((k) => LAYOUTS[k].label === v) ?? '1'
-              setSaved((p) => ({ ...p, layout: id }))
-            }}
-          />
+          <div className="max-lg:hidden" data-layout-picker>
+            <Segmented
+              label="Distribución"
+              options={LAYOUT_IDS.map((id) => LAYOUTS[id].label)}
+              value={layout.label}
+              onChange={(v) => {
+                const id = LAYOUT_IDS.find((k) => LAYOUTS[k].label === v) ?? '1'
+                setSaved((p) => ({ ...p, layout: id }))
+              }}
+            />
+          </div>
         )}
       </FloatingBar>
 
@@ -363,7 +371,8 @@ export function MultichartView({ single = false }: { single?: boolean }) {
                     aria-pressed={i === active}
                     onClick={() => setActive(i)}
                     className={cn(
-                      'inline-flex shrink-0 items-center gap-1.5 rounded-md text-[13px] font-extrabold tracking-tight transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+                      // 24 px de alto como mínimo (WCAG 2.2, 2.5.8, #617); 44 px táctil va en index.css
+                      'inline-flex min-h-6 shrink-0 items-center gap-1.5 rounded-md text-[13px] font-extrabold tracking-tight transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
                       i === active
                         ? 'text-foreground'
                         : 'text-muted-foreground hover:text-foreground',

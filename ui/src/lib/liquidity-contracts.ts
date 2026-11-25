@@ -141,6 +141,15 @@ export type ViewTimeframe = '15m' | '1h' | '1d'
  */
 export type ViewSource = { id: 'ig' | 'futures'; label: string }
 
+/**
+ * La fuente que se pide (#628): una de las de arriba o `auto` = IG y, si IG no tiene velas
+ * suficientes, la primera de reemplazo con velas. Una vista siempre dice la que de verdad usó.
+ */
+export type SourceChoice = ViewSource['id'] | 'auto'
+
+/** Por qué la vista no sale de IG con `source=auto` (#628); `note` se muestra tal cual. */
+export type SourceFallback = { from: 'ig'; note: string }
+
 /** `daily_candle.v1`: día local de medianoche a medianoche, con `start` y `end` explícitos. */
 export type DailyBar = {
   instrument_id: string
@@ -161,6 +170,8 @@ export type LiquidityViewData = {
   timeframe?: ViewTimeframe
   /** opcional en el contrato (#259); ausente = velas del CFD de IG */
   source?: ViewSource
+  /** opcional en el contrato (#628): solo si `auto` pasó a una fuente de reemplazo */
+  fallback?: SourceFallback
   generated_at: Utc
   /** cierre de la última vela cerrada guardada; null si no hay velas ("sin datos todavía") */
   as_of: Utc | null
@@ -193,6 +204,6 @@ export type GatewayInstruments = {
   default_timeframe: ViewTimeframe
   timeframes: ViewTimeframe[]
   instruments: InstrumentInfo[]
-  /** opcional en el contrato (#259); la primera es la que se usa sin `source` */
-  sources?: ViewSource[]
+  /** opcional en el contrato (#259); la primera es la que abre la vista (#628: `auto`) */
+  sources?: { id: SourceChoice; label: string }[]
 }

@@ -133,7 +133,7 @@ function Calibration({ calibration }: { calibration: MlCalibration }) {
   if (models.length === 0) return null
   return (
     <details className="group rounded-xl border border-border px-3 py-2" data-calibration>
-      <summary className="cursor-pointer text-[12px] font-bold">
+      <summary className="min-h-6 cursor-pointer text-[12px] font-bold">
         Calibración por grupos
         <span className="font-normal text-muted-foreground">
           {' '}

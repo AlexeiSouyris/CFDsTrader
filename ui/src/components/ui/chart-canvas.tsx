@@ -10,7 +10,9 @@ import { cn } from '@/lib/utils'
 
 /**
  * La barra flotante de arriba: fina, opaca (sin vidrio) y fija al desplazar (en escritorio). Se atenúa con
- * `idle`; el mouse encima o el foco de teclado adentro la vuelven a mostrar entera.
+ * `idle`; el mouse encima o el foco de teclado adentro la vuelven a mostrar entera. Atenuada no baja
+ * de 85 %: así su texto sigue con contraste AA (4,5:1) sobre la superficie oscura y la clara (#617;
+ * con 35 % daba 1,9:1).
  */
 export function FloatingBar({
   label,
@@ -32,7 +34,7 @@ export function FloatingBar({
       data-idle={idle || undefined}
       className={cn(
         'relative z-30 flex min-w-0 flex-wrap items-center gap-2 rounded-section border border-border bg-card px-2 py-1.5 shadow-[0_8px_24px_-16px_var(--glass-shade)] transition-opacity duration-300 lg:sticky lg:top-2',
-        idle && 'opacity-35 hover:opacity-100 has-[:focus-visible]:opacity-100',
+        idle && 'opacity-85 hover:opacity-100 has-[:focus-visible]:opacity-100',
       )}
     >
       {children}
