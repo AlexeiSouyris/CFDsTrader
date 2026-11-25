@@ -88,21 +88,32 @@ Es la parte más útil, porque convierte el "análisis técnico" en reglas que s
 
 ### 3.C Estrategia "de campeonato" (entrevista IQCapital del 02-10-2026)
 
-- **[dice]** **Régimen de volatilidad** con el percentil del ATR: ATR de 14 velas comparado con las últimas 200. Cuatro tramos: 0–25 bajo, 26–50 medio, 51–75 alto, 76–100 extremo. Su estrategia rinde mejor en el **alto**.
-- **[dice]** **Frescura del régimen** con un indicador de TradingView de detección de cambios (bayesiano), en escala 0–100. Prefiere el régimen "nuevo". **[inferido]** No es reproducible con una definición pública, así que no lo usamos.
-- **[dice]** **Perfil de volumen de cada sesión.** Si el área de valor (la franja de precios donde se operó el 70 % del volumen) se **desplaza** de una sesión a la siguiente, hay tendencia.
-- **[dice]** **Setup largo:** el precio vuelve al área de valor de la **sesión anterior** sin romper el mínimo de la estructura; entra cuando una vela **cierra por encima del borde superior del área de valor (VAH)** y por encima de la mecha más alta de la vela anterior, con un margen mínimo (dice **6 puntos en NQ**, 0,6 pips en forex).
-- **[dice]** **"Eficiencia":** la vela de entrada tiene que tener menos volumen que la anterior, o menos que su media de 20 velas.
-- **[dice]** Stop en el mínimo de la vela de entrada y objetivo fijo de **2 veces el riesgo**. Dice que probó de 1:1 a 1:5 y que 1:2 dio la mejor expectativa. Puede reentrar con la misma condición. No opera días de datos fuertes (empleo, inflación) porque, según él, rinden mal. Es mejor en la sesión de Nueva York que en la de Londres.
-- **[dice]** Números que muestra: expectativa de 0,2 R, Sharpe 2,2, 147 R en 2 años, 41 de 10.000 caminos de Monte Carlo en pérdida.
+Fuente primaria: la transcripción completa de la entrevista, hecha con Whisper el 25-11-2026 (§9). Es la estrategia que dice haber usado en el campeonato. La explica en NQ, en velas de 15 minutos.
+
+- **[dice] Tendencia por perfil de volumen de sesión.** Usa el perfil de volumen **por sesión** de TradingView ("Session Volume Profile HD"). Si el área de valor (la franja donde se operó el 70 % del volumen) y el punto de control (POC, el precio con más volumen) de la sesión **actual, en desarrollo,** quedan por encima de los de la sesión anterior, el mercado está "en tendencia alcista". En el ejemplo compara la sesión anterior con la actual.
+- **[dice] Mínimo de la estructura.** Se busca hacia atrás, desde la ruptura de la estructura, la **vela bajista válida más cercana** a esa ruptura (cuerpo mayor que la mecha más larga). Su **mínimo** es el mínimo de la estructura. Si esa vela no es válida, se sigue buscando hacia atrás. Si el precio **perfora** ese mínimo, el setup queda anulado: según él, el disparador que viene después tiene expectativa negativa.
+- **[dice] Setup.** Hay que esperar que el precio vuelva al **área de valor de la sesión anterior**; alcanza con que la toque, no hace falta que cierre adentro. Los largos se toman **siempre** con una ruptura por encima del **VAH** (el borde superior de esa área).
+- **[dice] Disparador.** Las tres condiciones tienen que darse **en la misma vela**:
+  1. el **cuerpo cierra por encima de la mecha más alta de la vela anterior** (él lo llama "engulfing", pero no es el patrón clásico: el tamaño de la vela no importa);
+  2. el cierre queda **por encima del VAH** con un margen mínimo. Mide los dos márgenes con la regla de TradingView: dice "0,6 para forex y 6 para el Nasdaq". En el ejemplo descarta márgenes de 3 y 5 y acepta 24. **[inferido]** Por cómo mide las velas ("con la cantidad de ticks"), lo más probable es que sean **6 ticks** (1,5 puntos) y no 6 puntos. A confirmar;
+  3. **volumen "eficiente"**: el volumen de la vela es menor que el de la anterior ("menos esfuerzo, más resultado") **o** menor que su media de 20 velas. Habla de "MA 20" y también de "EMA", sin aclarar cuál. En el ejemplo acepta una vela con volumen en subida pero por debajo de la media.
+- **[dice] Salida.** Entrada al cierre de la vela. Stop **justo en el mínimo de esa vela**. Objetivo fijo de **2 veces el riesgo**. Dice que probó de 1:1 a 1:5 y que 1:2 dio la mejor expectativa.
+- **[dice] Reentradas.** Después de la primera operación (la de la ruptura del VAH), toma otras con las mismas condiciones de vela y volumen hasta que el precio llegue al **máximo de la estructura** (el máximo anterior). Ahí cierra todo, aunque no haya llegado a 2 R. Sin la primera operación no hay reentradas.
+- **[dice] Qué no opera.** No entra cuando hay un dato fuerte (empleo, inflación) **durante el disparador**: lo probó y rinde mal. Habla de "días con muchas noticias".
+- **[dice] Régimen, frescura, autocorrelación y sesión no son filtros.** Solo suman puntos para el tamaño (§3.D). Dice textualmente que con 1 de 5 puntos también opera, pero arriesgando muy poco.
+- **[dice] Régimen.** Percentil del ATR, con ATR de 14 velas y percentil de 200: 0–25 bajo, 26–50 medio, 51–75 alto, 76–100 extremo. Su estrategia rinde mejor en el **alto**. En un momento dice "14 to 100", así que el 200 queda a confirmar.
+- **[dice] Frescura** con un indicador de TradingView (detección bayesiana de cambios, "regime age" de 0 a 100): 0–30 fresco, 31–60 maduro, 61–100 viejo. Rinde mejor en el fresco. **[inferido]** No es reproducible con una definición pública.
+- **[dice] Números que muestra:** 147 R en 2 años, expectativa de 0,2 R (0,17 en las últimas 60 operaciones), Sharpe de 2,2 (2,05 en las últimas 60), con costos aproximados (spread, comisión, swap y slippage). También dice que tiene "expectativa positiva en los **últimos tres años** de datos". En otros videos habla de 15 años de backtest; **son cifras distintas** (§5).
+- **[dice]** En la misma entrevista simula 200 desafíos de una empresa de fondeo con estos datos, para mostrar cuánto se "ganaría".
 
 ### 3.D Modelo de riesgo (según él, explica "la mitad" de lo que ganó en la competencia)
 
-- **[dice]** **Autocorrelación de resultados:** compara la tasa de aciertos **después de** una ganadora o una perdedora con la tasa general. Dice que en condiciones normales las pérdidas siguen a pérdidas, así que **saltea la operación que sigue a una pérdida**. Revalida cada unas 100 operaciones y en ventanas móviles de 15 años, y si la relación no es estable la descarta.
-- **[dice]** En las rachas muy largas (8 pérdidas seguidas) dice que la relación se da vuelta y que la siguiente operación tiene más chances de ganar.
-- **[dice]** **"Variance accelerator" (VAM):** sube el riesgo de 0,5 % hasta 4 % por operación cuando la racha perdedora llega a su promedio o a su máximo histórico, y también a medida que crece la cuenta. En otra entrevista da 0,5 % a 3 %.
-- **[dice]** **"Meta-tagging":** un puntaje de 0 a 5 (régimen, posición en la racha, frescura, volumen, sesión de Nueva York). Con 5/5 arriesga ½ Kelly, con 4/5 ¼ Kelly y con menos, fracciones más chicas.
-- **[dice]** Para empresas de fondeo: 4 cuentas de 50.000 en vez de una de 200.000, operando una por semana ("drawdown shield"). En el régimen "calmo" (medido con GARCH) dice que su estrategia pierde el 75 % de las veces y que ahí la **invierte**.
+- **[dice] Autocorrelación de resultados.** Compara la tasa de aciertos después de cada tipo de resultado con la tasa general, y lo pasa a una escala de 0 a 10: 0–2 nula, 3–5 básica, 6–8 fuerte, 9–10 muy fuerte (y rara). Dice que su estrategia tiene autocorrelación **positiva fuerte**: las ganadoras y las perdedoras vienen en grupos. La **mejor operación** es la que viene **después de la primera ganadora que corta una racha de pérdidas**, y la peor la que viene después de la primera pérdida que corta una racha de ganadoras. Dice que la autocorrelación "no es la ventaja de la estrategia" y que hay que revalidarla cada unas **100 operaciones**.
+- **[dice]** En su canal: en condiciones normales **saltea la operación que sigue a una pérdida**. En las rachas muy largas (8 pérdidas seguidas) dice que la relación se da vuelta. Mide la estabilidad en ventanas móviles de 15 años y la descarta si no es estable.
+- **[dice] "Variance accelerator" (VAM, en su canal):** sube el riesgo de 0,5 % hasta 4 % por operación cuando la racha perdedora llega a su promedio o a su máximo histórico, y también a medida que crece la cuenta. En otra entrevista da 0,5 % a 3 %.
+- **[dice] "Meta-label".** Cinco preguntas de sí o no, un punto cada una: ¿es el mejor régimen? ¿es la mejor posición en la racha? ¿es la mejor frescura? ¿es el mejor tipo de volumen? ¿es la sesión de Nueva York?
+- **[dice] Tamaño con Kelly** (la fracción de la cuenta que, en teoría, maximiza el crecimiento): dice que el Kelly completo "es absurdo" porque supone que la estrategia no cambia. En el campeonato usa **½ Kelly con 5/5, ¼ con 4/5, 1/5 con 3/5 y 1/6 con menos**. Aclara que no lo recomienda igual para una cuenta propia.
+- **[dice]** Para empresas de fondeo usa 4 cuentas de 50.000 en vez de una de 200.000, operando una por semana ("drawdown shield"). En el régimen "calmo" (medido con GARCH) dice que su estrategia pierde el 75 % de las veces y que ahí la **invierte**.
 
 ### 3.E Cómo valida
 
@@ -135,6 +146,8 @@ Comparado con casi todo el contenido de trading en video:
    - da 71 % y 76 % para el mismo trimestre;
    - da 0,25 % y 0,5 % de riesgo para la misma estrategia;
    - en febrero de 2026 dijo ir "72–73 %" en el trimestre en curso, pero en 2026 Q1 terminó fuera del top 5;
+   - de la estrategia de campeonato dice que tiene expectativa positiva "en los últimos tres años" y muestra 147 R "en dos años", pero en su canal habla de "15 años de backtest y más de 5.000 operaciones". Con 2–3 años de datos, la muestra es mucho más chica de lo que sugiere;
+   - para la "eficiencia" de volumen habla a veces de una media simple de 20 y a veces de una EMA; para el percentil del ATR dice 200 y después "14 to 100";
    - los entrevistadores inflan ("futures champion", "3 veces campeón" antes de tiempo).
 7. **Ningún backtest auditado.** Todas sus métricas son capturas de pantalla. Él mismo dice que no hay que confiar en nadie y que hay que probarlo.
 8. **En vivo no siguió su regla.** En el video en vivo bajó a 5 minutos y tomó una operación que él llamó "no el mejor setup" porque había que operar.
@@ -147,7 +160,7 @@ Comparado con casi todo el contenido de trading en video:
 
 1. **Su estructura objetiva** (vela válida, zona con 3 velas válidas del color contrario, ruptura con cierre de cuerpo, actual y periférica) como filtro de dirección. Ya escrita como definición medible en el borrador.
 2. **La estrategia A** en US100, literal (15 puntos) y normalizada por volatilidad.
-3. **La estrategia C** (perfil de volumen de sesión, régimen por percentil del ATR, cierre sobre el VAH, eficiencia de volumen, 1:2), con el volumen real del NQ.
+3. **La estrategia C** (vuelta al área de valor de la sesión anterior, cierre sobre el VAH y sobre el máximo anterior, volumen "eficiente", 1:2, cierre en el máximo de la estructura), con el volumen real del NQ. Su régimen, frescura y autocorrelación son puntos para el tamaño, no filtros: con riesgo fijo se prueban sin ellos y el régimen se informa como descriptivo.
 4. **El test de suerte** (entradas al azar con el mismo stop, objetivo y cantidad) como reporte fácil de entender, al lado del p-valor y el Sharpe deflactado.
 5. **"Saltear tras una pérdida"**, solo si la autocorrelación de resultados resulta estable en ventanas móviles. Queda como candidata para la reserva del programa.
 
@@ -167,7 +180,7 @@ Es buen material **de proceso**: muestra cómo convertir ideas de trading en reg
 
 ## 9. Fuentes
 
-Todas leídas o transcriptas entre el 24 y el 25-11-2026. Las transcripciones son automáticas (subtítulos de YouTube en inglés). La entrevista IQCapital del 02-10-2026 tiene la pista de audio doblada; sus detalles quedan **a confirmar** con una transcripción completa (punto abierto del pre-registro).
+Todas se leyeron o transcribieron entre el 24 y el 25-11-2026. Las transcripciones son automáticas: subtítulos de YouTube en inglés y, para la entrevista IQCapital del 02-10-2026, una transcripción completa del audio hecha con Whisper (modelo medium) el 25-11-2026, que es la fuente primaria de §3.C y §3.D. Los subtítulos de esa entrevista venían de una pista doblada.
 
 **Oficiales y terceros**
 

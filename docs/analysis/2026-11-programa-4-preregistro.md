@@ -17,7 +17,7 @@ Nada de esto es una recomendación de operar. Los resultados pasados no prometen
 |---|---|---|
 | H4.1 | Estrategia A **literal**: dos velas de 15 m con cuerpo ≥ 15 puntos a favor de la estructura | 1,25 % (p < 0,0125) |
 | H4.2 | Estrategia A **normalizada**: cuerpo ≥ k × ATR de 15 m, con k fijado antes (§5) | 1,25 % (p < 0,0125) |
-| H4.3 | Estrategia C ("de campeonato"): perfil de volumen de sesión, régimen, cierre sobre el VAH, 1:2 | 1,25 % (p < 0,0125) |
+| H4.3 | Estrategia C ("de campeonato"): vuelta al área de valor de la sesión anterior, cierre sobre el VAH y el máximo anterior, volumen "eficiente", 1:2 | 1,25 % (p < 0,0125) |
 | Reserva | Candidata: "saltear la operación que sigue a una pérdida" (§8) | 1,25 %, sin gastar |
 
 - **La reserva no se gasta en variantes** de H4.1–H4.3 (otros umbrales, otros objetivos, otros horarios). Solo se puede usar con un pre-registro nuevo y fechado, como se hizo con la reserva del programa 2.
@@ -99,7 +99,7 @@ Se calculan sobre **todas** las velas de 15 m del NQ (las casi 23 h del día), n
 - **Estructura actual** = la dirección de la **última** ruptura registrada hasta `t` inclusive.
 - **Estructura periférica** = la dirección de la **penúltima** ruptura.
 - **Alineadas** = las dos existen y tienen la misma dirección. Sin dos rupturas desde el último reinicio, no hay estructura y no hay señal.
-- **Mínimo de la estructura** (solo H4.3, largos): el mínimo de la **última vela válida anterior** a la vela de la última ruptura alcista. Espejo para cortos (máximo de la última vela válida anterior a la última ruptura bajista).
+- **Mínimo de la estructura** (solo H4.3, largos): desde la vela de la última ruptura alcista se busca hacia atrás la **vela bajista válida más cercana**; su **mínimo** es el mínimo de la estructura (entrevista del 02-10-2026). Si no hay ninguna desde el último reinicio, no hay señal. Espejo para cortos: la vela alcista válida más cercana antes de la última ruptura bajista, y su máximo.
 
 ## 4. H4.1 Estrategia A literal
 
@@ -156,52 +156,61 @@ La elección es el punto abierto 2.
 
 ## 6. H4.3 Estrategia C ("de campeonato")
 
-**Hipótesis:** comprar (vender) cuando el precio vuelve al área de valor de la sesión anterior y la recupera con una vela que cierra sobre el VAH (bajo el VAL) y sobre el máximo (bajo el mínimo) de la vela anterior, con volumen "eficiente", en régimen de volatilidad alto y a favor del desplazamiento del área de valor, con objetivo de 2 R, le agrega retorno ajustado por riesgo a comprar y mantener el US100 después de costos.
+Fuente primaria: la transcripción completa con Whisper de la entrevista IQCapital del 02-10-2026 (informe §3.C). Lo que él deja ambiguo está marcado y va a los puntos abiertos.
+
+**Hipótesis:** en una sesión cuyo perfil de volumen se desplaza al alza, comprar cuando el precio vuelve al área de valor de la sesión anterior y la recupera con una vela que cierra sobre el VAH y sobre el máximo de la vela anterior, con volumen "eficiente", con objetivo de 2 R (o el máximo de la estructura, si queda más cerca), le agrega retorno ajustado por riesgo a comprar y mantener el US100 después de costos. Lo mismo, en espejo, para cortos.
 
 ### 6.1 Perfil de volumen de la sesión
 
-Para cada sesión de contado `d`:
-
-- **Barras:** las velas de **1 minuto** del NQ que empiezan dentro de la sesión de contado de `d` (09:30 a 15:59 ET un día normal).
+- **Sesión del perfil:** el **día de operaciones del CME** para el NQ: de las 18:00 ET del día hábil anterior a las 17:00 ET (la sesión que usa por defecto el "Session Volume Profile" de TradingView en un futuro). La sesión `d` es la que termina el día hábil `d`. Alternativa: solo la sesión de contado (punto abierto 9).
+- **Barras:** las velas de **1 minuto** del NQ que empiezan dentro de la sesión.
 - **Ancho del casillero (bin):** `w` = tick × máx(1, redondeo(0,0002 × apertura de la sesión / tick)), con tick = 0,25 puntos. Es decir, unos 2 puntos básicos del precio redondeados a ticks: unos 4 puntos con el NQ en 20.000 y 0,5 puntos con el NQ en 2.800. Los casilleros arrancan en múltiplos de `w`.
 - **Reparto del volumen:** el volumen de cada barra de 1 minuto se reparte **en partes iguales a lo largo de su rango** [mínimo, máximo], en proporción a lo que cada casillero cubre de ese rango. Si mínimo = máximo, todo va al casillero de ese precio.
 - **POC** = el casillero con más volumen. Si hay empate, el más cercano al punto medio del rango de la sesión; si sigue el empate, el más bajo.
 - **Área de valor (70 %):** empieza en el POC. Mientras el volumen acumulado sea < 70 % del total, se compara el **siguiente casillero de arriba** con el **siguiente de abajo** y se suma el de más volumen; si empatan, se suman los dos; si ya no queda casillero de un lado, se suma el del otro.
 - **VAH** = borde superior del casillero más alto del área; **VAL** = borde inferior del casillero más bajo.
-- El perfil de `d` existe recién **después del cierre de la sesión `d`**: solo se usa en sesiones posteriores.
-- Si a la sesión le falta más del 10 % de sus barras de 1 minuto, su perfil no existe y no hay señales que dependan de él.
+- **Perfil cerrado** de la sesión `d − 1`: se usa recién después de que esa sesión termina.
+- **Perfil en desarrollo** de la sesión `d` hasta la vela `t`: el mismo cálculo con las barras de 1 minuto de `d` que empiezan antes del cierre de `t`. No usa nada posterior a `t`.
+- Si a la sesión `d − 1` le falta más del 10 % de sus barras de 1 minuto, su perfil no existe y no hay señales en `d`.
 
-### 6.2 Régimen de volatilidad (percentil del ATR 14/200)
+### 6.2 Señal larga al cierre de la vela `t`
 
-- ATR(14) de Wilder de 15 m sobre todas las velas (§5).
-- **Percentil** en la vela `t` = 100 × (cantidad de valores de ATR entre `t − 199` y `t` que son ≤ ATR de `t`) / 200.
-- Régimen: **bajo** ≤ 25; **medio** > 25 y ≤ 50; **alto** > 50 y ≤ 75; **extremo** > 75.
-- Calentamiento: 14 + 199 velas desde el último reinicio.
-- **Filtro de H4.3: solo régimen alto** (el que Bruni dice que mejor rinde; punto abierto 9).
+Sean `d` la sesión de `t` y `d − 1` la anterior.
 
-### 6.3 Señal larga al cierre de la vela `t`
+1. **Tendencia (desplazamiento del perfil):** el POC en desarrollo de `d` hasta `t` > POC(`d − 1`) **y** el VAL en desarrollo de `d` > VAL(`d − 1`). (Él dice que el área de valor y el POC de la sesión actual quedan "por encima" de los de la anterior.)
+2. **Estructura:** la estructura actual es alcista al cierre de `t` (§3).
+3. **Vuelta al área de valor:** alguna vela de la sesión `d`, desde su inicio hasta `t − 1`, tuvo mínimo ≤ VAH(`d − 1`). Alcanza con tocarla.
+4. **Sin perforar la estructura:** desde la última ruptura alcista hasta `t`, ningún mínimo quedó por debajo del **mínimo de la estructura** (§3). Si lo perforó, no hay señales hasta una ruptura alcista nueva.
+5. **Disparador**, todo en la vela `t`:
+   - a. cierre de `t` ≥ máximo de `t − 1` + **m** ("cuerpo que cierra sobre la mecha más alta de la anterior");
+   - b. cierre de `t` ≥ VAH(`d − 1`) + **m**;
+   - c. **volumen eficiente:** volumen de `t` < volumen de `t − 1` **o** volumen de `t` < promedio simple del volumen de las 20 velas `t − 20` a `t − 1`. El volumen de una vela de 15 m es la suma del de sus 15 barras de 1 minuto.
+   - **m = 6 ticks = 1,5 puntos** (la lectura más probable de su "6 para el Nasdaq", medido en ticks como el resto de sus medidas; punto abierto 10).
+6. **Primera operación de la secuencia:** la primera operación después de cada vuelta al área de valor (condición 3) tiene que tener cierre de `t − 1` < VAH(`d − 1`) + m, o sea que `t` es la vela que rompe el VAH. Las **reentradas** (§6.3) no lo necesitan.
+7. **Sin datos fuertes:** no hay comunicado programado del FOMC (`official_releases`, `fed_fomc`, como en el programa Nasdaq §2.3) ni de **CPI** o **empleo** del BLS con `scheduled_at` dentro de la sesión de contado de `d`. Él dice "durante el disparador" y "días con muchas noticias"; se toma el día entero porque es más simple y más conservador (punto abierto 11). Hoy el BLS no está cargado (ADR 0016): H4.3 **no se corre** hasta que esté, igual que H2 del programa Nasdaq.
+8. **Hay recorrido:** el **máximo de la estructura** es mayor que el precio de entrada. Si no, no se opera.
 
-Sean `d` la sesión de `t`, `d − 1` la sesión de contado anterior y `d − 2` la de antes, con perfiles VAH/VAL según §6.1.
+**Máximo de la estructura** (largos) = el mayor máximo entre la vela de la última ruptura alcista y la última vela anterior a la primera que tocó el área de valor (condición 3). Es "el máximo anterior" al que él apunta.
 
-1. **Tendencia por desplazamiento del área de valor:** VAL(`d − 1`) > VAL(`d − 2`) **y** VAH(`d − 1`) > VAH(`d − 2`).
-2. **Estructura:** la estructura actual es alcista al cierre de `t` (§3). (No se exige la periférica: Bruni no la menciona en esta estrategia; punto abierto 8.)
-3. **Vuelta al área de valor:** alguna vela de la sesión `d`, desde su apertura hasta `t − 1`, tuvo mínimo ≤ VAH(`d − 1`); y el cierre de `t − 1` ≤ VAH(`d − 1`).
-4. **Sin romper la estructura:** ninguna vela desde la última ruptura alcista hasta `t` cerró por debajo del **mínimo de la estructura** (§3).
-5. **Vela de entrada ("envolvente" de Bruni):** cierre de `t` > VAH(`d − 1`) **y** cierre de `t` ≥ máximo de `t − 1` + **m**, con **m = 0,4 × k × ATR** (ATR en `t − 1`). El 0,4 es la proporción entre los 6 puntos que dice Bruni para esta regla y los 15 de la estrategia A; así m queda atado al mismo k de H4.2 y escala con la volatilidad (punto abierto 10: o 6 puntos fijos).
-6. **Eficiencia de volumen:** volumen de `t` < volumen de `t − 1` **o** volumen de `t` < promedio del volumen de las 20 velas `t − 20` a `t − 1`. Volumen de una vela de 15 m = suma del de sus 15 barras de 1 minuto.
-7. **Régimen alto** en `t` (§6.2).
-8. **Sin datos fuertes:** la sesión `d` no es día de comunicado programado del FOMC (`official_releases`, `fed_fomc`, como en el programa Nasdaq §2.3) ni de **CPI** o **empleo** del BLS. Hoy el BLS no está cargado (ADR 0016): H4.3 **no se corre** hasta que esté, igual que H2 del programa Nasdaq (punto abierto 11).
+### 6.3 Operación
 
-**Operación:**
+- **Entrada:** largo en la apertura de `t + 1`. Él entra al cierre de `t`; acá es la apertura de la vela siguiente (`CLAUDE.md` §5b).
+- **Stop:** el **mínimo de `t`**.
+- **R** = entrada − stop. **Objetivo** = el menor entre entrada + **2 × R** y el **máximo de la estructura**.
+- **Reentradas:** después de cerrar una operación de la secuencia, se puede volver a entrar con las condiciones 1, 2, 4, 5, 7 y 8, hasta que el precio toque el máximo de la estructura. Ahí la secuencia termina: no hay más operaciones hasta una nueva vuelta al área de valor.
 
-- **Entrada:** largo en la apertura de `t + 1`.
-- **Stop:** el **mínimo de `t`** (la vela de entrada).
-- **R** = entrada − stop. **Objetivo** = entrada + **2 × R**.
-- **Reentradas:** después de cerrar una operación, se puede volver a entrar en la misma sesión si se cumplen de nuevo todas las condiciones (con una vela `t` posterior a la salida).
+Corto: espejo exacto (POC y VAH en desarrollo por debajo de los de `d − 1`, estructura bajista, vuelta con máximo ≥ VAL(`d − 1`), cierre ≤ mínimo de `t − 1` − m y ≤ VAL(`d − 1`) − m, stop en el máximo de `t`, piso de la estructura como límite del objetivo).
 
-Corto: espejo exacto (área de valor desplazada a la baja, estructura bajista, vuelta al área con máximo ≥ VAL y cierre de `t − 1` ≥ VAL, cierre de `t` < VAL y ≤ mínimo de `t − 1` − m, stop en el máximo de `t`).
+### 6.4 Régimen, frescura y autocorrelación: no son filtros
 
-**Lo que no se toma de la entrevista:** la "frescura" bayesiana (no es reproducible), el cierre total en el "máximo de la estructura" (no está definido con precisión), el meta-tagging y el Kelly (§9).
+Según la entrevista, el régimen (percentil del ATR), la frescura, la posición en la racha, el tipo de volumen y la sesión **solo suman puntos para el tamaño** ("meta-label" y Kelly). Él toma la operación igual, aunque sume 1 de 5. Como acá el riesgo es fijo (1 %), **H4.3 no filtra por ninguno de ellos.** El régimen se calcula solo como **descriptivo**:
+
+- ATR(14) de Wilder de 15 m sobre todas las velas (§5);
+- **percentil** en la vela `t` = 100 × (cantidad de valores de ATR entre `t − 199` y `t` que son ≤ ATR de `t`) / 200;
+- tramos: **bajo** ≤ 25; **medio** > 25 y ≤ 50; **alto** > 50 y ≤ 75; **extremo** > 75;
+- se informa el resultado de H4.3 por tramo, sin voto.
+
+**Lo que no se toma de la entrevista:** la frescura bayesiana (no es reproducible), el meta-label y el Kelly (§9).
 
 ## 7. Criterios para pasar (iguales para H4.1, H4.2 y H4.3)
 
@@ -226,7 +235,7 @@ Criterios (todos, en los **dos** escenarios EUR y USD):
 - Por hipótesis: operaciones (largas y cortas), salidas por motivo (stop, objetivo, cierre del día, vencimiento), rechazos del riesgo por motivo, R medio antes y después de costos, costo medio en R, aciertos, operaciones por año, retorno mensual medio y Sharpe, DSR con N = 100 y N = 1000, resultado con costos × 2.
 - Las velas que tocan stop y objetivo a la vez, resueltas con barras de 1 minuto (§2.4).
 - Operaciones que no se habrían abierto con 10.000 €.
-- Para H4.3: cuántas señales quedan después de cada filtro (desplazamiento, vuelta al área, envolvente, volumen, régimen, datos fuertes). Y la misma regla **sin** el filtro de régimen, solo como contexto.
+- Para H4.3: cuántas señales quedan después de cada condición (desplazamiento, vuelta al área, cierre sobre el máximo anterior, cierre sobre el VAH, volumen, datos fuertes, recorrido), cuántas son primeras operaciones y cuántas reentradas, cuántos objetivos quedaron recortados por el máximo de la estructura, y el resultado por tramo de régimen (§6.4).
 - **Autocorrelación de resultados** de cada hipótesis: tasa de aciertos después de una ganadora y después de una perdedora, contra la general, en ventanas móviles de 100 operaciones.
 - **Test de suerte** (§7.2).
 
@@ -246,7 +255,7 @@ Se informa en qué percentil de las 1.000 simulaciones cae el R medio y el retor
 
 **No se asigna en este borrador** salvo que el dueño lo decida antes de congelar (punto abierto 5). Si se asigna, la definición es esta y no cambia:
 
-- **Base:** H4.3 (la estrategia en la que Bruni dice usar este filtro). Elegirla ahora, antes de cualquier resultado, evita elegir después la estrategia que mejor dio.
+- **Base:** H4.3 (la estrategia en la que Bruni dice usar este filtro). En la entrevista del 02-10-2026 lo describe más fino (la mejor operación es la que sigue a la primera ganadora después de pérdidas); acá se prueba la versión simple de su canal, que tiene menos grados de libertad. Elegirla ahora, antes de cualquier resultado, evita elegir después la estrategia que mejor dio.
 - **Regla causal por ventana:** para cada ventana de validación, se corre H4.3 en sus **24 meses de entrenamiento** y se mide:
   - `a` = tasa de aciertos después de una pérdida; `g` = tasa general;
   - estabilidad: en ventanas móviles de 100 operaciones dentro del entrenamiento, la proporción de ventanas con `a < g`.
@@ -267,9 +276,9 @@ Si el dueño no la asigna ahora, la reserva queda sin gastar y solo se usa con u
 Todo esto cuenta como una prueba nueva, con su costo en el presupuesto:
 
 - cambiar el umbral (15 puntos, k, m), el objetivo (1,5 R, 2 R), el stop, el marco de tiempo, el horario, el cierre del día o el tamaño;
-- cambiar las definiciones de vela válida, zona, ruptura, δ, actual y periférica, mínimo de la estructura, perfil de volumen (casillero, reparto, 70 %), régimen (14/200, tramos) o eficiencia de volumen;
+- cambiar las definiciones de vela válida, zona, ruptura, δ, actual y periférica, mínimo y máximo de la estructura, perfil de volumen (sesión, casillero, reparto, 70 %), régimen (14/200, tramos), eficiencia de volumen (media de 20) o el margen m;
 - recalcular k con otro período o redondeo;
-- agregar o sacar filtros (régimen, días de datos, periférica en H4.3), filtrar por año, por sesión o por dirección (los cortes del §7.1 son descriptivos);
+- agregar o sacar filtros (régimen, frescura, días de datos, periférica en H4.3), filtrar por año, por sesión o por dirección (los cortes del §7.1 son descriptivos);
 - asignar la reserva a la hipótesis que mejor dio;
 - cambiar los costos, el escenario de financiación (los dos votan), el estrés, la vara de comparación, el corte de las mitades, el nivel 0,0125, el mínimo 0,95, el N o el mínimo de 100 operaciones;
 - mirar el fuera de muestra sin la aprobación del dueño;
@@ -294,13 +303,14 @@ Los decide el dueño. Cada respuesta queda en #561 con sus palabras y la fecha.
 3. **Criterio de las mitades en H4.1:** con 15 puntos fijos, H4.1 casi no opera antes de ~2020 (§4), y la primera mitad tendrá una media cercana a 0 que puede caer de cualquier lado. ¿Se deja el criterio igual (y H4.1 queda como "la regla literal tal cual", probablemente sin pasar) o se cambia algo **ahora**, antes de ver resultados?
 4. **Mínimo de 100 operaciones** (§7): ¿se agrega como condición para pasar?
 5. **Reserva:** ¿se asigna ahora a "saltear tras una pérdida" sobre H4.3 (§8), o queda sin gastar?
-6. **δ de la ruptura:** ¿0 (cerrar estrictamente afuera) o un mínimo en ATR? La transcripción completa de la entrevista del 02-10-2026 puede dar el número.
+6. **δ de la ruptura:** ¿0 (cerrar estrictamente afuera) o un mínimo en ATR? Ni el video del 30-10 ni la transcripción completa de la entrevista del 02-10-2026 dan el número.
 7. **H4.1 y H4.2:** ¿se exige además que las dos velas del impulso sean "válidas" (cuerpo mayor que la mecha más larga)? En el video solo habla del tamaño del cuerpo.
-8. **H4.3:** ¿se exige también la estructura periférica alineada, o solo la actual (§6.3, condición 2)?
-9. **Régimen en H4.3:** ¿solo "alto" (lo que dice Bruni), "alto o extremo", o sin filtro? Con solo "alto" puede haber pocas operaciones.
-10. **Margen m de la envolvente en H4.3:** ¿0,4 × k × ATR (escalado) o 6 puntos fijos (literal)?
-11. **Datos fuertes en H4.3:** ¿se espera la carga del BLS para filtrar CPI y empleo, o se corre filtrando solo el FOMC?
-12. **Conteo de señales antes de congelar:** ¿se autoriza correr **solo el conteo** de señales por año de cada hipótesis (sin P/L ni resultados) para ver si hay muestra suficiente? Si una hipótesis da muy pocas señales, conviene saberlo antes de gastar presupuesto en ella.
-13. **Vencimientos y volumen:** `NQ.c.0` es el contrato más cercano en el calendario; en la semana del vencimiento el volumen se pasa al contrato siguiente y el perfil del NQ se deforma. ¿Se excluyen las sesiones desde la fecha de cambio de contrato habitual del CME (8 días antes del vencimiento) hasta el vencimiento, o se acepta el efecto?
-14. **Confirmar con la transcripción completa** de la entrevista IQCapital del 02-10-2026 (la que hay tiene la pista doblada): el margen de 6 puntos, la definición del volumen "eficiente", la sesión del perfil (contado de Nueva York o el día entero), el ATR 14/200 y el 1:2.
-15. **Congelar:** commitear con fecha, hora y SHA-256, escribir k, agregar `[rule_program4]` y sumar las pruebas al registro.
+8. **H4.3, estructura:** ¿se exige también la estructura periférica alineada, o solo la actual (§6.2, condición 2)? En la entrevista solo usa el mínimo de la estructura.
+9. **H4.3, sesión del perfil:** ¿el día del CME (18:00–17:00 ET, lo que usa TradingView por defecto en un futuro; propuesta) o solo la sesión de contado?
+10. **H4.3, margen m:** dice "6 para el Nasdaq" medido con la regla de TradingView. ¿**6 ticks = 1,5 puntos** (propuesta, porque mide las velas en ticks) o 6 puntos? Con cualquiera de los dos, el margen pesa mucho más en 2013 (NQ ≈ 2.800) que en 2025: ¿se deja fijo (literal) o se escala con el precio?
+11. **H4.3, datos fuertes:** ¿se excluye el día entero de FOMC, CPI y empleo (propuesta) o solo si el dato cae en la vela del disparador? ¿Se espera la carga del BLS o se corre filtrando solo el FOMC?
+12. **H4.3, media del volumen:** él habla de "MA 20" y también de "EMA". ¿Media simple de 20 (propuesta) o exponencial de 20?
+13. **H4.3, tendencia:** ¿perfil en desarrollo de la sesión actual contra el de la anterior (propuesta, como en su ejemplo) o sesión anterior contra la de antes? ¿Se exigen POC y VAL más altos (propuesta) o alcanza con el POC?
+14. **Conteo de señales antes de congelar:** ¿se autoriza correr **solo el conteo** de señales por año de cada hipótesis (sin P/L ni resultados) para ver si hay muestra suficiente? Si una hipótesis da muy pocas señales, conviene saberlo antes de gastar presupuesto en ella.
+15. **Vencimientos y volumen:** `NQ.c.0` es el contrato más cercano en el calendario; en la semana del vencimiento el volumen se pasa al contrato siguiente y el perfil del NQ se deforma. ¿Se excluyen las sesiones desde la fecha de cambio de contrato habitual del CME (8 días antes del vencimiento) hasta el vencimiento, o se acepta el efecto?
+16. **Congelar:** commitear con fecha, hora y SHA-256, escribir k, agregar `[rule_program4]` y sumar las pruebas al registro.
