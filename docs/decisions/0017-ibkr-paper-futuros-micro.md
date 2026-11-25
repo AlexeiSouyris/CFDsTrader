@@ -27,6 +27,7 @@ Un futuro no cobra la tasa administrativa: el costo de financiarse está dentro 
 | Puertos de TWS | Sesión real: 7496. Sesión paper: 7497 | [TWS API: Initial Setup](https://interactivebrokers.github.io/tws-api/initial_setup.html) |
 | Modo solo lectura de la API | Viene **activado** por defecto. Con él activado, la API no ve información de órdenes | misma página |
 | IB Gateway frente a TWS | Para la API son idénticos | misma página |
+| Puerto de IB Gateway en paper | **4002**. IB Gateway dice "Paper Trading (simulated trading)". Escucha en todas las interfaces (`*:4002`); el filtro a esta máquina lo hace la opción "Allow connections from localhost only" de IB Gateway, con "Trusted IPs" = `127.0.0.1` | Leído por el dueño en Configure → Settings → API → Settings, y puerto verificado abierto con `lsof` en la Mac (25-11-2026, #530) |
 | Comisión de futuros micro (MNQ, MES) | **0,25 USD por contrato y por lado**, hasta 1.000 contratos por mes, más tasas de bolsa y regulatorias (no leídas) | [IBKR Irlanda, comisiones de futuros](https://www.interactivebrokers.ie/en/pricing/commissions-futures.php), leído por el dueño en el navegador (#493) |
 
 ### Lo que no se pudo verificar (queda **a confirmar**)
@@ -36,7 +37,7 @@ Las páginas de IBKR rechazaron la lectura automática (403) varias veces. Lo qu
 | Dato | Lo que se encontró | Por qué queda a confirmar |
 |---|---|---|
 | Futuros en una cuenta **Cash** | Resúmenes de búsqueda citan FAQ de IBKR que dicen que **sí** se pueden operar futuros en una cuenta Cash (sin tasas de margen intradía y con el margen inicial cubierto con efectivo libre). Otra fuente no oficial dice que hace falta una cuenta Margin | La FAQ oficial devolvió 403. Además el permiso de futuros del dueño figura denegado |
-| Puertos de IB Gateway | Resúmenes de páginas de IBKR Campus: real 4001, paper 4002 | La página de IBKR Campus devolvió 403 |
+| Puerto de IB Gateway en sesión real | Resúmenes de páginas de IBKR Campus: real 4001 (el de paper, 4002, ya está confirmado arriba) | La página de IBKR Campus devolvió 403 |
 | Prefijo de las cuentas paper | Fuentes de terceros dicen que empiezan con `DU` | No hay fuente oficial leída |
 | Costo de los datos de CME (no profesional) | Páginas oficiales con valores distintos (1,25 USD y 1,55 USD por mes para CME nivel 1) y una exención por comisiones que varía según la página | Hay que leer el valor actual en el gestor de suscripciones de la cuenta |
 | Compartir datos de la cuenta real con la paper | La página oficial dice que las suscripciones son "las mismas"; no se leyó cómo se activa ni si hay límites de sesiones simultáneas | Página específica no encontrada |
