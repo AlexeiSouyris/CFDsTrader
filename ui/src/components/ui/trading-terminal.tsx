@@ -11,7 +11,14 @@ import { useId, useState, type FormEvent, type ReactNode } from 'react'
 
 import { AnimatedNumber } from '@/components/ui/animated-number'
 import { Term } from '@/components/ui/term'
-import { dateTimeUtc, decimal, isNegative, parseDecimalInput, signed } from '@/lib/format'
+import {
+  dateTimeUtc,
+  decimal,
+  isNegative,
+  leverageText,
+  parseDecimalInput,
+  signed,
+} from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { GatewayError, newOrder } from '@/lib/paper-api'
 import {
@@ -141,9 +148,9 @@ export function AccountStrip({ account, aside }: { account: PaperAccount; aside?
           label={<Term id="apalancamiento">Apalanc.</Term>}
           hint={`${account.open_positions} de ${account.max_positions} posiciones`}
         >
-          {decimal(account.leverage)}:1
+          {leverageText(account.leverage)}
         </Stat>
-        <Stat label="Pérdida del día" hint="usada del máximo diario (§10)">
+        <Stat label="Pérdida del día" hint="usada del máximo diario">
           {decimal(account.daily_loss_used_pct)} %
           <span
             className="mt-1.5 block h-1 overflow-hidden rounded-full bg-border"

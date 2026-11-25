@@ -45,6 +45,7 @@ import {
   DEFAULT_SLOTS,
   parseSelKey,
   parseSlots,
+  preferIbkr,
   selKey,
   slotTimeframes,
   withInstrumentSel,
@@ -177,6 +178,10 @@ export function MultichartView({ single = false }: { single?: boolean }) {
   ).map((id) => selKey({ instrument: id, feed: 'ibkr' }))
   // en modo compacto, el gráfico activo dibuja sus controles acá, en la barra de arriba (#545)
   const [controlsEl, setControlsEl] = useState<HTMLElement | null>(null)
+
+  // ajuste durante el render (sin efecto): con IBKR en vivo, los lugares sin tocar abren sus velas
+  const ibkrSlots = preferIbkr(saved.slots, ibkrInstruments)
+  if (ibkrSlots) setSaved((p) => ({ ...p, slots: ibkrSlots }))
 
   const setActive = (i: number) => setSaved((p) => (p.active === i ? p : { ...p, active: i }))
   const setSel = (next: ChartSel) =>
