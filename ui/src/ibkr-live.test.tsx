@@ -111,9 +111,12 @@ describe('vela en formación de IBKR: armado puro (#558)', () => {
 
   it('una vela en formación vieja o de otro contrato no se dibuja', () => {
     const old = message({
-      bar: { ...message().bar!, start: '2026-11-24T14:45:00Z', end: '2026-11-24T15:00:00Z' },
+      bar: { ...message().bar!, start: '2026-11-24T14:30:00Z', end: '2026-11-24T14:45:00Z' },
     })
-    expect(withLiveBars(history(), 'MNQZ6', { message: old, closed: [] }).forming).toBeNull()
+    expect(withLiveBars(history(), 'MNQZ6', { message: old, closed: [] })).toEqual({
+      bars: history(),
+      forming: null,
+    })
     const other = message({ contract: 'MNQH7' })
     const out = withLiveBars(history(), 'MNQZ6', { message: other, closed: [] })
     expect(out.bars).toEqual(history())
@@ -121,6 +124,34 @@ describe('vela en formación de IBKR: armado puro (#558)', () => {
     let s = nextLiveState({ message: null, closed: [] }, message({ forming: false }))
     s = nextLiveState(s, message({ contract: 'MNQH7', bar: null, forming: false }))
     expect(s.closed).toEqual([])
+  })
+
+  it('si la historia ya trae la vela del mismo período, la en formación la reemplaza (#575)', () => {
+    // QA 25-11: la historia de 15m traía la de 14:45 (a medias) y el SSE la mandaba en formación.
+    const same = message({
+      bar: { ...message().bar!, start: '2026-11-24T14:45:00Z', end: '2026-11-24T15:00:00Z' },
+    })
+    const h = history()
+    const out = withLiveBars(h, 'MNQZ6', { message: same, closed: [] })
+    expect(out.forming).toBe(same)
+    expect(out.bars).toHaveLength(h.length)
+    expect(out.bars.slice(0, -1)).toEqual(h.slice(0, -1))
+    expect(out.bars.at(-1)).toEqual({
+      start: '2026-11-24T14:45:00Z',
+      end: '2026-11-24T15:00:00Z',
+      open: '21003.25',
+      high: '21009',
+      low: '21001.5',
+      close: '21007.75',
+    })
+    // Lo mismo si la del mismo período llegó cerrada por streaming antes (queda una sola).
+    const closed: ChartBar[] = [
+      { ...h.at(-1)!, start: '2026-11-24T15:00:00Z', end: '2026-11-24T15:15:00Z' },
+    ]
+    const again = withLiveBars(h, 'MNQZ6', { message: message(), closed })
+    expect(again.bars.filter((b) => b.start === '2026-11-24T15:00:00Z')).toHaveLength(1)
+    expect(again.bars.at(-1)?.close).toBe('21007.75')
+    expect(again.forming?.bar?.start).toBe('2026-11-24T15:00:00Z')
   })
 
   it('la etiqueta dice el tipo de dato y el atraso que informa el motor', () => {

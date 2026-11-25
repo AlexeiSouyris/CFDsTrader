@@ -327,7 +327,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let catalog = Catalog::from_toml(CATALOG)?;
     let stats = StatsConfig::from_toml(LIQUIDITY)?;
     let paper_cfg = PaperConfig::from_toml(GATEWAY)?;
-    let ibkr_cfg = IbkrViewConfig::from_toml(GATEWAY, TERMINAL)?;
+    let ibkr_cfg = IbkrViewConfig::from_toml(GATEWAY, TERMINAL, IBKR)?;
     let ibkr_conn = IbkrConfig::from_toml(IBKR)?;
     if ibkr_cfg.live && ibkr_conn.live.is_none() {
         return Err(
