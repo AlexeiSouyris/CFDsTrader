@@ -236,6 +236,54 @@ export function placeLabels<T extends { y: number }>(items: T[], minY: number, m
   return out
 }
 
+/** Cuántos rótulos entran como mucho en el eje de precio: el resto se agrupa con "+N" (#580). */
+export const MAX_AXIS_LABELS = 8
+
+/** Un rótulo del eje que se puede agrupar: `rank` menor = más importante (encabeza el grupo). */
+type Groupable = { key: string; text: string; title: string; y: number; rank?: number }
+
+/**
+ * Agrupa los rótulos del eje que se pisarían (a menos de `LABEL_GAP`) en uno solo: el más
+ * importante del grupo con "+N" y, en su `title`, todos los nombres. Si aun así quedan más de
+ * `max`, se juntan los grupos más cercanos. Después `placeLabels` los separa. Así quedan a la
+ * vista los precios del eje (#580). Es solo geometría de dibujo.
+ */
+export function groupLabels<T extends Groupable>(
+  items: T[],
+  minY: number,
+  maxY: number,
+  max = MAX_AXIS_LABELS,
+): (T & { count: number })[] {
+  const sorted = items
+    .map((t) => ({ ...t, y: Math.max(minY, Math.min(maxY, t.y)) }))
+    .sort((a, b) => a.y - b.y)
+  const groups: T[][] = []
+  for (const t of sorted) {
+    const g = groups.at(-1)
+    if (g && t.y - g[g.length - 1].y < LABEL_GAP) g.push(t)
+    else groups.push([t])
+  }
+  while (groups.length > Math.max(1, max)) {
+    let k = 0
+    for (let i = 1; i < groups.length - 1; i++) {
+      const gap = (j: number) => groups[j + 1][0].y - groups[j][groups[j].length - 1].y
+      if (gap(i) < gap(k)) k = i
+    }
+    groups.splice(k, 2, [...groups[k], ...groups[k + 1]])
+  }
+  const out = groups.map((g) => {
+    const head = g.reduce((best, t) => ((t.rank ?? 0) < (best.rank ?? 0) ? t : best), g[0])
+    const more = g.length - 1
+    return {
+      ...head,
+      text: more ? `${head.text} +${more}` : head.text,
+      title: g.map((t) => t.title).join('\n'),
+      count: g.length,
+    }
+  })
+  return placeLabels(out, minY, maxY)
+}
+
 /** Número con signo y `d` decimales para la etiqueta: "+12,50", "−0,08" o "0,00". */
 export function signedFixed(n: number, d: number): string {
   const t = n.toFixed(d)

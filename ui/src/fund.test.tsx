@@ -84,7 +84,9 @@ describe('fondo del motor (fase 6b, #312)', () => {
     expect(rows[0]).toHaveTextContent('110,00 €')
     expect(rows[0]).toHaveTextContent('+10,00 €')
     expect(rows[1]).toHaveTextContent('+5,00 €')
-    expect(rows[2]).toHaveTextContent('+0,00 €')
+    // el cero va sin signo (#580)
+    expect(rows[2]).toHaveTextContent('0,00 €')
+    expect(rows[2]).not.toHaveTextContent('+0,00')
     // Solo los pedidos pendientes siguen de ejemplo (el motor no los publica todavía).
     const marked = screen.getAllByText('(ejemplo)').map((el) => el.closest('h2')?.textContent)
     expect(marked).toEqual([expect.stringMatching(/^Movimientos pendientes/)])

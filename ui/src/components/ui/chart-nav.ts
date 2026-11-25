@@ -59,6 +59,8 @@ export const SETTLE_MS = 150
 /** Sensibilidad de la rueda (zoom) y del pellizco del trackpad (`ctrl` + rueda). */
 const WHEEL_ZOOM = 0.002
 const PINCH_ZOOM = 0.01
+/** cuánto se ve la pista de zoom con la rueda (#580) */
+const WHEEL_HINT_MS = 1800
 /** Sensibilidad del arrastre vertical sobre el eje de precio. */
 const AXIS_STRETCH = 0.006
 /** Mantener apretado el dedo este tiempo (ms) sin moverlo empieza a medir. */
@@ -338,6 +340,21 @@ export function useChartNav(
     }
   }
 
+  /**
+   * La rueda vertical es de la página (#580): hace zoom solo con Ctrl o ⌘, con el pellizco del
+   * trackpad (que llega con Ctrl) o después de un clic en el gráfico, hasta que el puntero sale.
+   * Si no, deja scrollear y avisa cómo hacer zoom.
+   */
+  const engaged = useRef(false)
+  const [wheelHint, setWheelHint] = useState(false)
+  const hintTimer = useRef(0)
+  const showHint = () => {
+    window.clearTimeout(hintTimer.current)
+    setWheelHint(true)
+    hintTimer.current = window.setTimeout(() => setWheelHint(false), WHEEL_HINT_MS)
+  }
+  useEffect(() => () => window.clearTimeout(hintTimer.current), [])
+
   // La rueda (y el trackpad): zoom anclado al cursor, desplazamiento horizontal y pellizco.
   useEffect(() => {
     const svg = svgRef.current
@@ -345,16 +362,18 @@ export function useChartNav(
     const onWheel = (e: WheelEvent) => {
       const p = toSvg(e.clientX, e.clientY)
       if (!p) return
-      e.preventDefault()
       const { plotW, top, bottom } = o.current
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1
       const dx = e.deltaX * unit
       const dy = e.deltaY * unit
+      const horizontal = Math.abs(dx) > Math.abs(dy) || (e.shiftKey && dx === 0)
+      if (!horizontal && !e.ctrlKey && !e.metaKey && !engaged.current) return showHint()
+      e.preventDefault()
       const store = vp.store
       const s = store.get()
       const span = s.end - s.start
       const anchor = Math.max(0, Math.min(1, p.x / plotW))
-      if (e.ctrlKey) return store.zoom(Math.exp(dy * PINCH_ZOOM), anchor)
+      if (e.ctrlKey || e.metaKey) return store.zoom(Math.exp(dy * PINCH_ZOOM), anchor)
       if (e.shiftKey && dx === 0) return store.pan((dy * p.k * span) / plotW)
       if (Math.abs(dx) > Math.abs(dy)) return store.pan((dx * p.k * span) / plotW)
       if (p.x > plotW && p.y >= top && p.y <= bottom) {
@@ -396,6 +415,8 @@ export function useChartNav(
 
   const onPointerDown = (e: PointerEvent<SVGSVGElement>) => {
     const { plotW, height, top, bottom, ruler } = o.current
+    engaged.current = true
+    if (wheelHint) setWheelHint(false)
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     // dos dedos: pellizco (zoom)
     if (pointers.current.size === 2 && e.pointerType === 'touch') {
@@ -533,6 +554,8 @@ export function useChartNav(
 
   const onPointerLeave = () => {
     if (!drag.current) measure.handlers.onPointerLeave()
+    // al salir del gráfico, la rueda vuelve a ser de la página
+    if (!drag.current) engaged.current = false
   }
 
   const onDoubleClick = (e: MouseEvent<SVGSVGElement>) => {
@@ -571,5 +594,7 @@ export function useChartNav(
       onDoubleClick,
     },
     onKeyDown,
+    /** la rueda pasó sin zoom: mostrar la pista (`ChartNavBar` `wheelHint`) */
+    wheelHint,
   }
 }
