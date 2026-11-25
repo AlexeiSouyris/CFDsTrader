@@ -56,8 +56,9 @@
   --glass-rim: rgb(255 255 255 / 70%);
   --glass-edge: rgb(255 255 255 / 85%);
   --glass-shade: rgb(30 34 40 / 16%);
-  --chart-up: #13865c;
-  --chart-down: #c2393c;
+  /* AA (≥ 4.5:1) en texto chico sobre --card, --background y las fichas con 10-15 % del color (#579) */
+  --chart-up: #0a6643;
+  --chart-down: #a52d30;
   --chart-line: #2b3036;
   --chart-accent: #3a55c9;
   --chart-signal: #9a6500;
@@ -243,6 +244,18 @@ body {
     content: '';
     position: absolute;
     inset: -14px -6px;
+  }
+}
+
+/*
+ * Pantallas táctiles (#579): con menos de 16 px, Safari del iPhone agranda la página al tocar un
+ * campo y la deja corrida. Va sin capa, así gana a los `text-[14px]` de Tailwind.
+ */
+@media (pointer: coarse) {
+  input:not([type='range'], [type='checkbox'], [type='radio']),
+  select,
+  textarea {
+    font-size: 16px;
   }
 }
 

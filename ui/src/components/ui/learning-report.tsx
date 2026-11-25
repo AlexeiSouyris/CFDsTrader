@@ -7,6 +7,7 @@
  * cada propuesta se muestra con su estado. Cuando el gateway exponga los votos (#330), llegan por
  * `voteStatus`; votar sigue fuera de la UI (cuentas y 2FA, decisión aparte).
  */
+import { ScrollRegion } from '@/components/ui/scroll-region'
 import { dateTimeUtc } from '@/lib/format'
 import type { LearningReport, Signal, VoteStatus } from '@/lib/learning-api'
 import { numOrDash, pctOrDash } from '@/lib/run-format'
@@ -74,7 +75,7 @@ export function LearningReportView({
         <h4 className="mb-2 text-[12.5px] font-bold">
           Calibración: probabilidad mostrada contra la frecuencia real (TP1 antes que el stop)
         </h4>
-        <div className="overflow-x-auto">
+        <ScrollRegion label="Tabla de confiabilidad">
           <table className="w-full min-w-[560px] text-[12px]" aria-label="Tabla de confiabilidad">
             <thead>
               <tr className="border-b border-border">
@@ -116,12 +117,12 @@ export function LearningReportView({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       </section>
 
       <section>
         <h4 className="mb-2 text-[12.5px] font-bold">Aporte de cada señal (en R)</h4>
-        <div className="overflow-x-auto">
+        <ScrollRegion label="Aporte de cada señal">
           <table className="w-full min-w-[560px] text-[12px]" aria-label="Aporte de cada señal">
             <thead>
               <tr className="border-b border-border">
@@ -155,7 +156,7 @@ export function LearningReportView({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       </section>
 
       <section>

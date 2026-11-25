@@ -7,6 +7,7 @@
  * causas la garantiza él. Lo único que se hace acá es dibujar: el largo de cada barra es su monto
  * relativo al mayor, solo para verlo.
  */
+import { ScrollRegion } from '@/components/ui/scroll-region'
 import { useState } from 'react'
 
 import { Price } from '@/components/ui/run-detail'
@@ -116,7 +117,7 @@ function Comparison({ c }: { c: PaperComparison }) {
         {c.matched.length === 0 ? (
           <p className="text-[12px] text-muted-foreground">Ninguna.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <ScrollRegion label="Operaciones emparejadas">
             <table
               className="w-full min-w-[560px] text-[12px]"
               aria-label="Operaciones emparejadas"
@@ -157,7 +158,7 @@ function Comparison({ c }: { c: PaperComparison }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollRegion>
         )}
       </section>
 

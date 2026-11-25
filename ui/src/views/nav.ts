@@ -57,7 +57,7 @@ export const VIEWS: ShellView[] = [
   {
     id: 'multigrafico',
     label: 'Multigráfico',
-    short: 'Multi',
+    short: 'Multigráfico',
     icon: LayoutGrid,
     description:
       'Hasta cuatro gráficos a la vez, cada uno con su instrumento y timeframe. Solo para mirar: sin órdenes.',
@@ -80,7 +80,7 @@ export const VIEWS: ShellView[] = [
   {
     id: 'operaciones',
     label: 'Operaciones',
-    short: 'Diario',
+    short: 'Operaciones',
     icon: ListChecks,
     description: 'El diario de operaciones en simulación.',
   },
@@ -94,7 +94,7 @@ export const VIEWS: ShellView[] = [
   {
     id: 'competencia',
     label: 'Competencia',
-    short: 'Trofeos',
+    short: 'Competencia',
     icon: Trophy,
     description: 'Los trofeos del día y de la semana, y la tabla del grupo.',
   },
