@@ -149,3 +149,47 @@ drop_lookback_days = 250
 drop_quantile = "0.2"
 # Cartera mezclada: 50 % comprar y mantener + 50 % V escalada a su volatilidad.
 blend_hold_weight = "0.5"
+
+# ── Programa 4 (#561): reglas de Gianluca Bruni en US100 ───────────────────────────────────────
+# Pre-registro: docs/analysis/2026-11-programa-4-preregistro.md. Presupuesto propio del 5 %
+# (aprobación del dueño, 25-11-2026), 1,25 % unilateral para cada una de H4.1, H4.2 y H4.3, y
+# 1,25 % de reserva sin asignar. Solo lo leen los ejemplos `programa_4_*`.
+
+[rule_program4]
+alpha = "0.0125"
+# 356 pruebas registradas hasta el programa Nasdaq más H4.1, H4.2 y H4.3 (al congelar).
+dsr_trials = 359
+dsr_min = "0.95"
+cost_stress = "1.5"
+# Mitades: 02-2013 → 12-2020 y 01-2021 → 10-2025 (§7, criterio 3).
+second_half_from = "2021-01-01"
+
+[program4]
+# ATR de Wilder de 15m (umbral de H4.2 y riesgo), reiniciado en cada vencimiento (§2.5, §13.2).
+atr_period = 14
+# Una zona se rompe con al menos 3 velas válidas del color contrario y un cierre afuera (δ = 0).
+min_valid_in_zone = 3
+# H4.1: cuerpo mínimo de las dos velas del impulso, en puntos (60 ticks del NQ).
+body_points = "15"
+# H4.2: cuerpo mínimo = k × ATR(14) de 15m de la vela anterior al impulso. k calibrado (§5.1) con
+# `programa_4_k` el 25-11-2026 03:58 UTC: 6360 velas de sesión en 11-2024 → 10-2025, q = 0,574057
+# (cuerpo ≥ 15 puntos), cuantil 1 − q de cuerpo / ATR redondeado a 0,05.
+body_atr_k = "0.35"
+# Objetivo: 1,5 R.
+target_r = "1.5"
+# La vela de ejecución empieza antes del cierre de la sesión menos 30 minutos.
+last_entry_minutes_before_close = 30
+# Cierre forzado del día: apertura de la última vela de 15m de la sesión.
+exit_minutes_before_close = 15
+# Calibración de k (§5.1): velas de la sesión de contado en [desde, hasta), redondeo a 0,05.
+k_reference_from = "2024-11-01"
+k_reference_to = "2025-11-01"
+k_step = "0.05"
+# Datos fuertes que excluyen el día entero (decisión 11). Hoy solo está cargado el FOMC; CPI y
+# empleo del BLS se agregan cuando estén en official_releases (H4.3 los espera).
+strong_releases = ["fed_fomc/fomc_statement"]
+# Mínimo de operaciones para pasar (decisión 4).
+min_trades = 100
+# Test de suerte (§7.2, solo reporte): SplitMix64.
+luck_simulations = 1000
+luck_seed = 20261125

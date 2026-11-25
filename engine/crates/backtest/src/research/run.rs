@@ -32,6 +32,8 @@ pub enum StudyExit {
     ForceClose,
     /// La salida de la definición: al cierre de la vela planificada.
     Planned,
+    /// El máximo (largo) o el mínimo (corto) tocó el objetivo: sale al objetivo (programa 4).
+    Target,
 }
 
 /// Una operación de estudio ejecutada. Montos en la moneda del instrumento, salvo
@@ -45,6 +47,8 @@ pub struct StudyTrade {
     pub signal_at: DateTime<Utc>,
     pub reference: Decimal,
     pub stop: Decimal,
+    /// Objetivo fijado con el precio medio de la entrada, si el plan tiene uno.
+    pub target: Option<Decimal>,
     pub entry_index: usize,
     pub entry_time: DateTime<Utc>,
     pub entry_mid: Decimal,
@@ -86,6 +90,9 @@ pub struct StudyRejected {
 pub struct StudyRun {
     pub trades: Vec<StudyTrade>,
     pub rejected: Vec<StudyRejected>,
+    /// Planes con objetivo que no se operaron porque la apertura de la entrada ya estaba del
+    /// lado del stop (índice de la señal).
+    pub through_stop: Vec<usize>,
 }
 
 fn sign(side: Side) -> Decimal {
@@ -96,12 +103,14 @@ fn sign(side: Side) -> Decimal {
 }
 
 /// Recorre una pata desde la vela de entrada hasta `exit_index`: en cada vela, primero el gap
-/// por la apertura, después el stop, después el cierre forzado y la salida planificada.
-/// Devuelve la vela de salida, el precio medio y el motivo.
+/// por la apertura, después el stop, después el objetivo (si hay), después el cierre forzado y
+/// la salida planificada. Si una vela toca el stop y el objetivo, se supone el stop. Devuelve la
+/// vela de salida, el precio medio y el motivo.
 pub fn simulate_leg(
     side: Side,
     entry_index: usize,
     stop: Decimal,
+    target: Option<Decimal>,
     exit_index: usize,
     m15: &[Candle],
     force_close: &[bool],
@@ -117,6 +126,15 @@ pub fn simulate_leg(
         }
         if touched {
             return Some((i, stop, StudyExit::Stop));
+        }
+        if let Some(t) = target {
+            let reached = match side {
+                Side::Long => c.high >= t,
+                Side::Short => c.low <= t,
+            };
+            if reached {
+                return Some((i, t, StudyExit::Target));
+            }
         }
         if i == exit_index {
             return Some((i, c.close, StudyExit::Planned));
@@ -144,10 +162,12 @@ pub fn execute_plan(
     let cfg = &setup.backtest.costs;
     let entry_mid = entry.open;
     let entry_price = fill_price(side, Execution::Entry, entry_mid, &setup.costs, cfg);
+    let target = plan.target_from(entry_mid);
     let (exit_index, exit_mid, exit) = simulate_leg(
         side,
         entry_index,
         plan.stop,
+        target,
         plan.exit_index,
         m15,
         force_close,
@@ -186,6 +206,7 @@ pub fn execute_plan(
         signal_at: m15[plan.signal_index].end(),
         reference: plan.reference,
         stop: plan.stop,
+        target,
         entry_index,
         entry_time: entry.start,
         entry_mid,
@@ -251,6 +272,14 @@ pub fn run_plans(
             continue;
         }
         if stopped_event == Some(p.event) {
+            continue;
+        }
+        if p.target_r.is_some()
+            && m15
+                .get(p.signal_index + 1)
+                .is_some_and(|e| p.open_beyond_stop(e.open))
+        {
+            out.through_stop.push(p.signal_index);
             continue;
         }
         let today = at.with_timezone(&setup.day_tz).date_naive();

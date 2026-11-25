@@ -109,6 +109,7 @@ fn orb_day(
             },
             risk_atr,
             exit_index,
+            target_r: None,
         });
     }
     None

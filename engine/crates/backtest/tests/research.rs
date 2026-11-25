@@ -428,17 +428,17 @@ fn a_leg_checks_the_gap_then_the_stop_then_the_exits() {
     let mut m15 = flat(6, "2024-06-04T14:00:00Z");
     let none = vec![false; 6];
     assert_eq!(
-        simulate_leg(Side::Long, 1, dec!(99), 4, &m15, &none),
+        simulate_leg(Side::Long, 1, dec!(99), None, 4, &m15, &none),
         Some((4, dec!(100), StudyExit::Planned))
     );
     m15[2].low = dec!(98);
     assert_eq!(
-        simulate_leg(Side::Long, 1, dec!(99), 4, &m15, &none),
+        simulate_leg(Side::Long, 1, dec!(99), None, 4, &m15, &none),
         Some((2, dec!(99), StudyExit::Stop))
     );
     m15[2].open = dec!(98.5);
     assert_eq!(
-        simulate_leg(Side::Long, 1, dec!(99), 4, &m15, &none),
+        simulate_leg(Side::Long, 1, dec!(99), None, 4, &m15, &none),
         Some((2, dec!(98.5), StudyExit::StopGap))
     );
     let mut force = none.clone();
@@ -448,6 +448,7 @@ fn a_leg_checks_the_gap_then_the_stop_then_the_exits() {
             Side::Short,
             1,
             dec!(101),
+            None,
             4,
             &flat(6, "2024-06-04T14:00:00Z"),
             &force
@@ -465,6 +466,7 @@ fn plan(signal: usize, exit: usize, stop: Decimal) -> Plan {
         stop,
         risk_atr: dec!(2),
         exit_index: exit,
+        target_r: None,
     }
 }
 

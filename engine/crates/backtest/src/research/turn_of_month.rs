@@ -184,6 +184,7 @@ fn event_plans(
                 stop: reference - cfg.stop_atr * a,
                 risk_atr: a,
                 exit_index: end,
+                target_r: None,
             });
         }
     }
