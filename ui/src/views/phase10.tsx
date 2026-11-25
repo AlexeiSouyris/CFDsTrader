@@ -328,7 +328,7 @@ export function GlossaryView() {
   const found = q ? GLOSSARY.filter((e) => fold(`${e.title} ${e.body}`).includes(q)) : GLOSSARY
   return (
     <div className="grid gap-3">
-      <label className="panel flex items-center gap-2 rounded-full px-4 py-2.5">
+      <label className="flex items-center gap-2 border-b border-foreground/70 px-1 py-2.5 focus-within:border-accent">
         <Search className="size-4 text-muted-foreground" aria-hidden="true" />
         <input
           type="search"
@@ -342,17 +342,24 @@ export function GlossaryView() {
       <p className="text-[11px] text-muted-foreground" aria-live="polite">
         {found.length} de {GLOSSARY.length} términos
       </p>
-      <div className="grid gap-3 md:grid-cols-2">
+      {/* un diccionario (#641): término a la izquierda, definición a la derecha, líneas finas */}
+      <div className="grid border-t border-border">
         {found.map((e) => (
-          <article key={e.id} id={`termino-${e.id}`} className="panel rounded-[20px] p-4">
-            <h2 className="text-[15px] font-bold">{e.title}</h2>
-            <p className="mt-1 text-[12.5px] leading-relaxed whitespace-pre-line">{e.body}</p>
-            {e.example && (
-              <p className="mt-2 text-[12px] leading-relaxed whitespace-pre-line text-muted-foreground">
-                <em className="font-semibold not-italic">Ejemplo: </em>
-                {e.example}
-              </p>
-            )}
+          <article
+            key={e.id}
+            id={`termino-${e.id}`}
+            className="grid gap-x-8 gap-y-1 border-b border-border py-4 md:grid-cols-[14rem_minmax(0,1fr)]"
+          >
+            <h2 className="font-serif text-[17px] leading-snug font-semibold">{e.title}</h2>
+            <div className="max-w-[68ch]">
+              <p className="text-[13px] leading-relaxed whitespace-pre-line">{e.body}</p>
+              {e.example && (
+                <p className="mt-2 text-[12px] leading-relaxed whitespace-pre-line text-muted-foreground">
+                  <em className="font-semibold not-italic">Ejemplo: </em>
+                  {e.example}
+                </p>
+              )}
+            </div>
           </article>
         ))}
       </div>
