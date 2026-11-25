@@ -130,6 +130,10 @@ export function LiquidityChart({
   analysis,
   loadOlder,
   height = 440,
+  ruler: rulerProp,
+  onRulerChange,
+  mode: modeProp,
+  onModeChange,
   className,
 }: {
   instrument: string
@@ -155,12 +159,30 @@ export function LiquidityChart({
    */
   loadOlder?: (before: string) => Promise<ChartBar[] | OlderPage>
   height?: number
+  /**
+   * Regla y tipo de gráfico manejados desde afuera (la barra de dibujo del Multigráfico, #540).
+   * Sin esto, el gráfico los maneja solo.
+   */
+  ruler?: boolean
+  onRulerChange?: (on: boolean) => void
+  mode?: ChartMode
+  onModeChange?: (m: ChartMode) => void
   className?: string
 }) {
   const ranges = RANGES[timeframe]
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('Todos')
-  const [mode, setMode] = useState<ChartMode>('Velas')
-  const [ruler, setRuler] = useState(false)
+  const [modeState, setModeState] = useState<ChartMode>('Velas')
+  const [rulerState, setRulerState] = useState(false)
+  const mode = modeProp ?? modeState
+  const ruler = rulerProp ?? rulerState
+  const setMode = (m: ChartMode) => {
+    setModeState(m)
+    onModeChange?.(m)
+  }
+  const setRuler = (on: boolean) => {
+    setRulerState(on)
+    onRulerChange?.(on)
+  }
   const [boxRef, width] = useElementWidth<HTMLDivElement>(720, 300)
   const coarse = useCoarsePointer()
   const svgRef = useRef<SVGSVGElement>(null)
