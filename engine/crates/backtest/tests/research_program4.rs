@@ -501,3 +501,44 @@ fn the_short_side_is_the_exact_mirror() {
     assert_eq!((p.reference, p.stop), (m - dec!(1036), m - dec!(1003.5)));
     assert_eq!(p.target_from(m - dec!(1036)), Some(m - dec!(1084.75)));
 }
+
+#[test]
+fn minute_bars_say_which_level_came_first() {
+    use cfds_backtest::research::program4::target_first;
+    let bars = [
+        (dec!(101), dec!(99.5)),
+        (dec!(106), dec!(100)),
+        (dec!(101), dec!(94)),
+    ];
+    assert_eq!(
+        target_first(Side::Long, dec!(95), dec!(105), &bars),
+        Some(true)
+    );
+    let bars = [(dec!(101), dec!(94)), (dec!(106), dec!(100))];
+    assert_eq!(
+        target_first(Side::Long, dec!(95), dec!(105), &bars),
+        Some(false)
+    );
+    assert_eq!(
+        target_first(Side::Long, dec!(95), dec!(105), &[(dec!(106), dec!(94))]),
+        None
+    );
+    assert_eq!(
+        target_first(Side::Short, dec!(105), dec!(95), &[(dec!(101), dec!(94))]),
+        Some(true)
+    );
+}
+
+#[test]
+fn outcomes_after_a_win_and_after_a_loss_are_counted_apart() {
+    use cfds_backtest::research::program4::{outcome_after, rolling_after_loss_below};
+    let wins = [true, false, false, true, true, false];
+    // Tras una ganadora: F, T, F → 1 de 3; tras una perdedora: F, T → 1 de 2.
+    assert_eq!(outcome_after(&wins), [(3, 6), (1, 3), (1, 2)]);
+    assert_eq!(rolling_after_loss_below(&wins, 6), (0, 1));
+    assert_eq!(
+        rolling_after_loss_below(&[true, false, false, false], 4),
+        (1, 1)
+    );
+    assert_eq!(rolling_after_loss_below(&wins, 0), (0, 0));
+}
