@@ -77,7 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let risk = RiskConfig::from_toml(cfg!("risk.toml"))?;
     let broker_cfg = BrokerConfig::from_toml(
         cfg!("broker.toml"),
-        risk,
+        risk.clone(),
         backtest_cfg.costs,
         backtest_cfg.exits,
         backtest_cfg.day_tz,
