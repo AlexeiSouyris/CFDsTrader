@@ -10,7 +10,7 @@ Los datos están en [`registro-de-resultados.csv`](registro-de-resultados.csv), 
 |---|---|
 | `id` | Número fijo de la fila (R001, R002…). Nunca se reutiliza. |
 | `programa` | De dónde sale: estrategia en uso, ML, programa de investigación y ronda, o referencia. |
-| `metrica` y `valor_escenario_eur` / `valor_escenario_usd` | La cifra principal. Hay dos valores porque IG todavía no confirmó qué tasa usa para financiar los índices de EE. UU., y se prueba con las dos. |
+| `metrica` y `valor_escenario_eur` / `valor_escenario_usd` | La cifra principal. Hay dos valores porque, cuando se corrieron, IG todavía no había confirmado qué tasa usa para financiar los índices de EE. UU. y se probó con las dos. IG confirmó SOFR el 24-11-2026 (#655): para US500, US100 y US30 vale la columna USD (EFFR hasta 2018-03, SOFR desde 2018-04); la EUR queda como registro. |
 | `veredicto` | Pasa / no pasa / pierde / no mejora / referencia, según la regla fijada **antes** de correr. |
 | `compara_con` | Si la fila repite o cambia una prueba anterior: el `id` de esa fila. |
 | `cambio` | **mejor**, **peor** o **igual** frente a esa fila. |

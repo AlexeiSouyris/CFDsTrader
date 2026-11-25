@@ -50,6 +50,24 @@ fn csv_values_count_only_after_the_lagged_publication() {
 }
 
 #[test]
+fn the_scenario_keeps_the_sourced_sofr_of_the_catalog() {
+    // #655: con el catálogo de config, US500 ya usa SOFR con fuente. Un escenario SOFR solo
+    // cambia la etiqueta del instrumento y no pisa el valor documentado.
+    let mut catalog = Catalog::from_toml(CATALOG).unwrap();
+    let us500: InstrumentId = "US500".parse().unwrap();
+    assert!(market_terms_from_catalog(&catalog, &us500).is_ok());
+    let before = apply_funding_scenario(&mut catalog, &us500, "SOFR", dec!(99)).unwrap();
+    assert_eq!(before.as_deref(), Some("SOFR"));
+    assert_eq!(
+        catalog.funding_benchmarks.get("SOFR"),
+        Some(&Sourced::Known {
+            value: dec!(3.94),
+            source: "nyfed-sofr".into()
+        })
+    );
+}
+
+#[test]
 fn bad_or_empty_csv_is_rejected() {
     assert!(rates_from_csv("SOFR", "effective_date,percent_rate\n", 2, one_pm()).is_err());
     assert!(rates_from_csv("SOFR", "2026-11-19,3.91\n2026-11-xx,3.92\n", 2, one_pm()).is_err());
@@ -59,11 +77,25 @@ fn bad_or_empty_csv_is_rejected() {
     assert!(rates_from_csv("SOFR", "2026-11-19,3.91\nfecha,tasa\n", 2, one_pm()).is_err());
 }
 
+/// El catálogo de config como antes de #655: US500 sin tipo de referencia confirmado y sin SOFR
+/// en `[funding_benchmarks]`, para probar que el escenario completa lo pendiente solo en memoria.
+fn without_sofr() -> String {
+    let text = CATALOG
+        .replacen(r#"SOFR = { value = "3.94", source = "nyfed-sofr" }"#, "", 1)
+        .replace(
+            r#"funding_benchmark = { value = "SOFR", source = "ig-chat-sofr" }"#,
+            r#"funding_benchmark = { pending = "sin confirmar" }"#,
+        );
+    assert_ne!(text, CATALOG);
+    text
+}
+
 #[test]
 fn the_scenario_completes_a_pending_benchmark_only_in_memory() {
-    let original = Catalog::from_toml(CATALOG).unwrap();
+    let text = without_sofr();
+    let original = Catalog::from_toml(&text).unwrap();
     let us500: InstrumentId = "US500".parse().unwrap();
-    // Con el catálogo de config, US500 no se puede simular: el tipo de referencia está pendiente.
+    // Sin tipo de referencia confirmado, US500 no se puede simular.
     assert!(matches!(
         market_terms_from_catalog(&original, &us500),
         Err(SetupError::Pending(_))
@@ -94,7 +126,7 @@ fn the_scenario_completes_a_pending_benchmark_only_in_memory() {
     assert!(market_terms_from_catalog(&estr, &us500).is_ok());
 
     // El catálogo original no cambió, y un instrumento desconocido es un error.
-    assert_eq!(original, Catalog::from_toml(CATALOG).unwrap());
+    assert_eq!(original, Catalog::from_toml(&text).unwrap());
     let unknown: InstrumentId = "XX1".parse().unwrap();
     assert!(apply_funding_scenario(&mut estr, &unknown, "ESTR", dec!(1)).is_err());
 }

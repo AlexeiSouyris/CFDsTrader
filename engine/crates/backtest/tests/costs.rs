@@ -280,12 +280,22 @@ mod from_catalog {
 
     #[test]
     fn instruments_with_pending_terms_cannot_be_simulated() {
-        // Los índices de EE. UU. esperan el tipo de referencia de la financiación (#67).
+        // Con el tipo de referencia pendiente (como los índices de EE. UU. antes de #655), no se
+        // simula. Con SOFR confirmado, sus costos salen del catálogo.
+        let pending = REAL.replace(
+            r#"funding_benchmark = { value = "SOFR", source = "ig-chat-sofr" }"#,
+            r#"funding_benchmark = { pending = "sin confirmar" }"#,
+        );
+        assert_ne!(pending, REAL);
         for id in ["US100", "US500", "US30"] {
             assert_eq!(
-                costs(REAL, id).unwrap_err(),
+                costs(&pending, id).unwrap_err(),
                 [(id.to_string(), "funding_benchmark")]
             );
+            let ok = costs(REAL, id).unwrap();
+            assert_eq!(ok.commission, Commission::None, "{id}");
+            assert_eq!(ok.funding_admin_fee_pct, dec!(3), "{id}");
+            assert_eq!(ok.funding_day_count, dec!(360), "{id}");
         }
     }
 
