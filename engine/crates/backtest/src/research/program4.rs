@@ -587,3 +587,65 @@ pub fn luck_test(
         simulations,
     }
 }
+
+/// Con barras de 1 minuto `(máximo, mínimo)` en orden, ¿qué tocó primero una vela que tocó el
+/// stop y el objetivo (§2.4, descriptivo)? `Some(true)` = el objetivo, `Some(false)` = el stop;
+/// `None` si las dos cosas pasan en la misma barra o no se ve ninguna.
+pub fn target_first(
+    side: Side,
+    stop: Decimal,
+    target: Decimal,
+    bars: &[(Decimal, Decimal)],
+) -> Option<bool> {
+    for &(high, low) in bars {
+        let (hit_stop, hit_target) = match side {
+            Side::Long => (low <= stop, high >= target),
+            Side::Short => (high >= stop, low <= target),
+        };
+        match (hit_stop, hit_target) {
+            (true, true) => return None,
+            (true, false) => return Some(false),
+            (false, true) => return Some(true),
+            (false, false) => {}
+        }
+    }
+    None
+}
+
+/// Autocorrelación de resultados (§7.1, descriptivo): `(aciertos, operaciones)` en total, después
+/// de una ganadora y después de una perdedora.
+pub fn outcome_after(wins: &[bool]) -> [(usize, usize); 3] {
+    let mut out = [(0, 0); 3];
+    for (i, &w) in wins.iter().enumerate() {
+        out[0].0 += usize::from(w);
+        out[0].1 += 1;
+        if let Some(&prev) = i.checked_sub(1).and_then(|p| wins.get(p)) {
+            let k = if prev { 1 } else { 2 };
+            out[k].0 += usize::from(w);
+            out[k].1 += 1;
+        }
+    }
+    out
+}
+
+/// En ventanas móviles de `window` operaciones: `(ventanas con la tasa tras una pérdida menor que
+/// la general, ventanas con alguna operación tras una pérdida)`.
+pub fn rolling_after_loss_below(wins: &[bool], window: usize) -> (usize, usize) {
+    let mut below = 0;
+    let mut total = 0;
+    if window == 0 {
+        return (0, 0);
+    }
+    for w in wins.windows(window) {
+        let [all, _, after_loss] = outcome_after(w);
+        if after_loss.1 == 0 {
+            continue;
+        }
+        total += 1;
+        // a/n < g/m  ⇔  a·m < g·n (enteros).
+        if after_loss.0 * all.1 < all.0 * after_loss.1 {
+            below += 1;
+        }
+    }
+    (below, total)
+}
