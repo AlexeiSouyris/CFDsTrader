@@ -61,7 +61,12 @@ def test_real_configs_load() -> None:
     assert CFG.max_horizon == 20
     indicators = (ROOT / "config" / "indicators.toml").read_text()
     assert daily_params(indicators) == (14, 20, 3)
-    assert benchmarks((ROOT / "config" / "instruments.toml").read_text()) == {"DE40": "ESTR"}
+    assert benchmarks((ROOT / "config" / "instruments.toml").read_text()) == {
+        "DE40": "ESTR",
+        "US100": "SOFR",
+        "US30": "SOFR",
+        "US500": "SOFR",
+    }
 
 
 @pytest.mark.parametrize(

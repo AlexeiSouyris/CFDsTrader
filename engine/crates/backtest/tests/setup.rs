@@ -81,8 +81,13 @@ fn de40_setup_comes_only_from_the_configuration() {
 
 #[test]
 fn pending_broker_terms_block_the_run_and_say_what_is_missing() {
-    let Err(SetupError::Pending(p)) = build(CATALOG, "US100", dec!(10000)) else {
-        panic!("US100 no tiene confirmado el tipo de referencia");
+    let pending = in_section(
+        "US100",
+        r#"funding_benchmark = { value = "SOFR", source = "ig-chat-sofr" }"#,
+        r#"funding_benchmark = { pending = "sin confirmar" }"#,
+    );
+    let Err(SetupError::Pending(p)) = build(&pending, "US100", dec!(10000)) else {
+        panic!("sin tipo de referencia confirmado no se simula");
     };
     let fields: Vec<_> = p.iter().map(|f| (f.item.as_str(), f.field)).collect();
     assert_eq!(fields, [("US100", "funding_benchmark")]);
@@ -108,6 +113,27 @@ fn pending_broker_terms_block_the_run_and_say_what_is_missing() {
     };
     assert_eq!(p.len(), 1, "{p:?}");
     assert_eq!(p[0].field, "margin_retail_pct");
+}
+
+#[test]
+fn us_indices_simulate_with_the_documented_sofr() {
+    // #655: con SOFR confirmado, los tres índices de EE. UU. ya no quedan bloqueados. Sin la
+    // serie diaria guardada, el respaldo es la constante documentada (nyfed-sofr).
+    for id in ["US100", "US500", "US30"] {
+        let s = build(CATALOG, id, dec!(10000)).unwrap();
+        assert_eq!(
+            s.funding_rates.at(chrono::Utc::now()),
+            Some(dec!(3.94)),
+            "{id}"
+        );
+        assert_eq!(s.costs.funding_admin_fee_pct, dec!(3), "{id}");
+        assert_eq!(s.costs.funding_day_count, dec!(360), "{id}");
+        assert_eq!(
+            s.account_to_instrument,
+            cfds_backtest::AccountFx::Same,
+            "{id}"
+        );
+    }
 }
 
 #[test]

@@ -53,6 +53,16 @@ reference = "BCE, serie EST.B.EU000A2X2A25.WT 'Euro short-term rate' (https://da
 consulted = "2026-11-20"
 note = "Valor de referencia 19-11-2026, publicado el 20-11-2026 a las 08:00 CET. 'The ECB does not charge for the €STR or license its use' (https://www.ecb.europa.eu/stats/financial_markets_and_interest_rates/euro_short-term_rate/html/index.en.html)."
 
+[sources.ig-chat-sofr]
+reference = "Chat de atención al cliente de ig.com (IG España), respuesta del agente a una consulta del dueño (#655)"
+consulted = "2026-11-24"
+note = "Pregunta: qué tipo de referencia usa IG para la financiación nocturna de los CFD al contado IX.D.SPTRD.IFE.IP (US 500), IX.D.NASDAQ.IFE.IP (US Tech 100) e IX.D.DOW.IFE.IP (Wall Street). Respuesta textual: 'Aplicamos SOFR y el margen depende del tipo de instrumento.' El margen es la tasa administrativa (fuente ig-es-costes-indices, 3 %). La base de días es la de la fórmula publicada: 360 para todos los índices salvo el FTSE 100 (ig-es-costes, nota al pie, revisada el 2026-11-25)."
+
+[sources.nyfed-sofr]
+reference = "Federal Reserve Bank of New York, SOFR (https://markets.newyorkfed.org/api/rates/secured/sofr/last/3.json; página https://www.newyorkfed.org/markets/reference-rates/sofr)"
+consulted = "2026-11-25"
+note = "Valor de la fecha efectiva 24-11-2026: 3,94 % (revisionIndicator vacío), publicado el 25-11-2026 hacia las 8:00 ET ('published one business day following its value date'; revisión posible hacia las 2:30 p.m. ET). Content from the New York Fed subject to the Terms of Use at newyorkfed.org (https://www.newyorkfed.org/privacy/termsofuse): permite copiar y distribuir con ese aviso; las tasas de referencia llevan además sus avisos y descargos."
+
 [sources.esma-2018-796]
 reference = "Decisión (UE) 2018/796 de ESMA (medidas sobre CFD para clientes minoristas)"
 consulted = "2026-11-20"
@@ -70,10 +80,13 @@ margin_closeout_pct = { value = "50", source = "esma-2018-796" }
 
 # ---------------------------------------------------------------- tipos de referencia
 # Valor anual en % de cada tipo de referencia de la financiación nocturna (campo
-# funding_benchmark de los instrumentos). El backtest lo usa constante en un recorrido: sirve para
-# períodos cortos; un período largo necesita la serie diaria (pendiente).
+# funding_benchmark de los instrumentos). Respaldo documentado: el backtest y el paper usan la
+# serie diaria guardada (config/reference_rates.toml, #79) cuando existe; la constante solo sirve
+# para períodos cortos.
 [funding_benchmarks]
 ESTR = { value = "2.441", source = "ecb-estr" }
+# Índices de EE. UU. (#655): IG confirmó SOFR aunque el contrato sea de 1 € por punto.
+SOFR = { value = "3.94", source = "nyfed-sofr" }
 
 # ---------------------------------------------------------------- índices
 # Fórmula de financiación de IG para índices (fuente ig-es-costes):
@@ -101,7 +114,7 @@ min_deal_size = { value = "0.5", source = "ig-demo-api" }
 tick = { value = "0.1", source = "ig-demo-api" }
 funding_admin_fee_pct = { value = "3", source = "ig-es-costes-indices" }
 funding_day_count = { value = "360", source = "ig-es-costes" }
-funding_benchmark = { pending = "Contrato en EUR (#67): probablemente ESTR como el DE40, pero ni la API ni ig.com/es lo confirman para este índice. Confirmar con IG." }
+funding_benchmark = { value = "SOFR", source = "ig-chat-sofr" }
 
 [instruments.US500]
 name = "US 500"
@@ -119,7 +132,7 @@ min_deal_size = { value = "1", source = "ig-demo-api" }
 tick = { value = "0.01", source = "ig-demo-api" }
 funding_admin_fee_pct = { value = "3", source = "ig-es-costes-indices" }
 funding_day_count = { value = "360", source = "ig-es-costes" }
-funding_benchmark = { pending = "Contrato en EUR (#67): probablemente ESTR como el DE40, pero ni la API ni ig.com/es lo confirman para este índice. Confirmar con IG." }
+funding_benchmark = { value = "SOFR", source = "ig-chat-sofr" }
 
 [instruments.US30]
 name = "Wall Street"
@@ -137,7 +150,7 @@ min_deal_size = { value = "0.2", source = "ig-demo-api" }
 tick = { value = "0.1", source = "ig-demo-api" }
 funding_admin_fee_pct = { value = "3", source = "ig-es-costes-indices" }
 funding_day_count = { value = "360", source = "ig-es-costes" }
-funding_benchmark = { pending = "Contrato en EUR (#67): probablemente ESTR como el DE40, pero ni la API ni ig.com/es lo confirman para este índice. Confirmar con IG." }
+funding_benchmark = { value = "SOFR", source = "ig-chat-sofr" }
 
 [instruments.DE40]
 name = "Alemania 40"
@@ -178,7 +191,7 @@ min_deal_size = { pending = "Confirmar con GET /markets/{epic} (dealingRules.min
 tick = { pending = "Confirmar con GET /markets/{epic} (decimalPlacesFactor) cuando haya cupo." }
 funding_admin_fee_pct = { pending = "IG España no lista este índice (2026-11-24). Si lo ofrece como CFD de índice, la tasa publicada para los CFD de índices es 3 % (fuente ig-es-costes-indices, #379). Confirmar que lo ofrece antes de fijarlo (#371)." }
 funding_day_count = { value = "360", source = "ig-es-costes" }
-funding_benchmark = { pending = "Contrato en EUR: probablemente ESTR, como el DE40, pero ni la API ni ig.com/es lo confirman para este índice. Confirmar con IG." }
+funding_benchmark = { pending = "IG España no lista este índice (2026-11-24). Si lo ofrece, probablemente SOFR como US500, US100 y US30 (fuente ig-chat-sofr, #655), pero IG no lo confirmó para este índice. Confirmar con IG." }
 
 # ---------------------------------------------------------------- materias primas
 # ADR 0013 (aceptado el 24-11-2026), #418. Solo paper y estudio; nada con dinero real.
