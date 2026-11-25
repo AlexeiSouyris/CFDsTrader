@@ -4,6 +4,7 @@
 - **Fecha:** 2026-11-23
 - **Aprobada por:** el dueño (modo de un solo constructor, `CLAUDE.md`), el 23-11-2026. Lo pidió explícitamente con estas palabras: "quiero que descargues e implementes estos git…" y "fijate como adaptarlos a nosotros y que funcionen bien". El pedido se refería a [kjpou1/news_factory](https://github.com/kjpou1/news_factory) y [viandwi24/forexfactory](https://github.com/viandwi24/forexfactory). La aprobación la informó el agente coordinador.
 - **Issue:** #238 (ingesta: #239; relacionado: ADR 0006, #91, spec §7.2 y §9)
+- **Modificado por:** [ADR 0018](0018-sorpresa-del-calendario.md), solo el punto 7 ("Qué se guarda").
 - **Reemplaza:** la parte del [ADR 0006](0006-fuentes-de-noticias.md) que dejó Forex Factory fuera de v1 (§5 "Agregadores y medios privados" y "Alternativas consideradas"), **solo para el calendario económico** y **solo por el feed JSON**. El resto del ADR 0006 sigue vigente.
 
 ## Contexto
@@ -40,6 +41,7 @@ Lo que se comprobó el 23-11-2026:
    - Para el backtest de fechas anteriores, el filtro §7.2 sigue sin datos de Forex Factory. Vale lo del ADR 0006 §3: sin un anuncio documentado, el evento queda **fuera**.
    - No se baja histórico de ninguna otra fuente para rellenar.
 7. **Qué se guarda:** solo lo que pide `economic_event.v1`: el nombre del evento, el país, el impacto, la hora y la hora de publicación. `forecast` y `previous` no se guardan en v1, porque el contrato no los tiene y el filtro no los usa.
+   - **Modificado por el [ADR 0018](0018-sorpresa-del-calendario.md) (aceptado el 25-11-2026):** desde ahí `forecast` y `previous` **sí se guardan**, como instantáneas de solo agregar en un contrato y una tabla aparte (`calendar_estimate.v1`, tabla `calendar_estimates`). `economic_event.v1` y el filtro §7.2 no cambian, ni tampoco los puntos 2 a 6 (misma URL, un pedido por hora como máximo, sin scraping).
 8. **Código:** la ingesta es propia, en Python (`cfds_intel.calendar`, #239), con la misma salida HTTPS que las noticias (`cfds_intel.net`). Si se porta algo de `news_factory` (por ejemplo su lista de eventos "NNFX"), va como configuración con la atribución MIT.
 
 ## Alternativas consideradas

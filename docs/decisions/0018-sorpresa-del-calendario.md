@@ -1,8 +1,8 @@
 # 0018 – Guardar el pronóstico, el dato anterior y el dato real del calendario (sorpresa)
 
-- **Estado:** propuesta
+- **Estado:** aceptada
 - **Fecha:** 2026-11-25
-- **Aprobada por:** pendiente. La aprueba solo el dueño (modo de un solo constructor, `CLAUDE.md`), con sus palabras registradas en #667. Un agente no la da por aprobada. Este ADR no habilita dinero real.
+- **Aprobada por:** el dueño (Alexei), el 25-11-2026, en el chat con su agente, textual: «Si lei los terminos y si podemos guardar el forecast, asique hacelo.» (modo de un solo constructor, `CLAUDE.md`). Registrado en [#667](https://github.com/AlexeiSouyris/CFDsTrader/issues/667#issuecomment-7170508946). Con eso queda cumplida la condición previa del §1.1: el dueño leyó los términos de Forex Factory y permiten guardar `forecast`. No eligió formato, así que vale la opción recomendada del §3: dos contratos y tablas nuevas (`calendar_estimate.v1` y `release_actual.v1`), sin tocar `economic_event.v1`. Este ADR no habilita dinero real.
 - **Issue:** #667 (plan del autoanálisis, #658, ítem 8, **N2**)
 - **Modifica:** [ADR 0010](0010-calendario-forex-factory.md) §7 ("Qué se guarda"). El resto del ADR 0010 sigue vigente: misma URL, un pedido por hora como máximo, sin scraping ni esquivar bloqueos.
 - **Relacionados:** [ADR 0006](0006-fuentes-de-noticias.md) §3 (regla de publicación), [ADR 0016](0016-calendario-historico-oficial.md) (calendario oficial de FOMC, CPI y empleo; política del BLS), `docs/analysis/2026-11-autoanalisis.md` §6
@@ -27,7 +27,7 @@ Lo que se comprobó el 25-11-2026 (WebFetch; sin pedir el feed, que ya lo lee el
 | `https://www.faireconomy.media` y `https://nfs.faireconomy.media/` | Redirigen (301) a `forexfactory.com`, que responde 403. No hay términos propios del feed a la vista. |
 | Lo único documentado del feed | El aviso del 429: el archivo "is only updated once per hour" y pedirlo de más "can result in being blocked" (ADR 0010). Nada sobre guardar sus valores. |
 
-**Los términos siguen sin leerse.** El ADR 0010 ya dejó pendiente que el dueño los lea en el navegador. Este ADR depende de lo mismo, con una pregunta más concreta (Decisión §1.1).
+**Los términos seguían sin leerse** al escribir la propuesta (el dueño los leyó después; ver «Aprobada por»). El ADR 0010 ya dejó pendiente que el dueño los lea en el navegador. Este ADR depende de lo mismo, con una pregunta más concreta (Decisión §1.1).
 
 ### Fuentes oficiales del dato real
 
@@ -42,7 +42,7 @@ Lo que se comprobó el 25-11-2026 (WebFetch; sin pedir el feed, que ya lo lee el
 | BEA (PIB, PCE) | Registro con nombre y correo. Los términos (PDF) **no se pudieron leer** | [signup](https://apps.bea.gov/api/signup/) |
 | Eurostat y BCE | Las páginas de reutilización **no se pudieron leer** (404 en las URLs probadas) | — |
 
-## Decisión (propuesta)
+## Decisión
 
 ### 1. Forex Factory: guardar `forecast` y `previous`
 
@@ -63,7 +63,7 @@ Lo que se comprobó el 25-11-2026 (WebFetch; sin pedir el feed, que ya lo lee el
 7. **Sin dato real oficial** para un evento, la sorpresa de ese evento no existe. **No se toma el `actual` de Forex Factory ni de otro agregador** (no viene en el feed, y leer la página está prohibido por el ADR 0010 §2).
 8. Se cita la fuente ("U.S. Bureau of Labor Statistics") con la fecha de la lectura, como piden sus términos.
 
-### 3. Cómo se guardaría (solo diseño; no se implementa en este PR)
+### 3. Cómo se guarda
 
 **No se toca `economic_event.v1` ni la tabla `economic_events`.** El filtro §7.2 sigue igual. Los datos nuevos van en dos contratos y dos tablas nuevas, de solo agregar (trigger, como `economic_events` y `official_releases`):
 
@@ -116,8 +116,8 @@ Clave natural: (`source`, `series_id`, `reference_period`, `vintage`, `value`).
 
 ## Consecuencias
 
-- **Pendiente del dueño:** leer los términos de Forex Factory (§1.1) y aprobar o no este ADR. Sin eso, nada se implementa.
-- **Lo que sigue, si se aprueba,** cada uno con su Issue y su PR: (1) los contratos `calendar_estimate.v1` y `release_actual.v1` con sus migraciones; (2) guardar las instantáneas en la ingesta de Forex Factory (sin pedidos extra); (3) la lectura de la API del BLS, en el cron del Mac mini, el día hábil siguiente a cada publicación; (4) la correspondencia de series en `config/`.
+- **Cumplido (25-11-2026):** el dueño leyó los términos de Forex Factory (§1.1) y aprobó este ADR (ver «Aprobada por»).
+- **Lo que sigue,** cada uno con su Issue y su PR: (1) los contratos `calendar_estimate.v1` y `release_actual.v1` con sus migraciones; (2) guardar las instantáneas en la ingesta de Forex Factory (sin pedidos extra); (3) la lectura de la API del BLS, en el cron del Mac mini, el día hábil siguiente a cada publicación; (4) la correspondencia de series en `config/`.
 - Hay que permitir `api.bls.gov` en la red del entorno.
 - **Muestras chicas por mucho tiempo:** unas 2 sorpresas del BLS por mes. Con un año hay unas 24: no alcanza para concluir nada sobre el precio. Este ADR solo empieza a **juntar** el dato; no promete ninguna ganancia.
 - **Riesgos:** el feed de Forex Factory puede cambiar de formato o de condiciones sin aviso (ya dicho en el ADR 0010); la API del BLS puede cambiar o bloquear; un `forecast` con formato raro queda solo como texto. En todos los casos la ingesta falla con un mensaje claro y no inventa valores.

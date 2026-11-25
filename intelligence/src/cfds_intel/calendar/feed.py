@@ -12,6 +12,10 @@ Reglas:
 - `date` trae offset: `scheduled_at` se pasa a UTC. Sin offset es un error: no se supone zona.
 - `published_at` es **la hora en que lo leímos** (la primera vez que lo vimos lo decide el
   guardado), nunca la hora del evento: antes de leerlo no existía para el sistema (ADR 0006 §3).
+- `forecast` y `previous` (ADR 0018 §1, #696): de cada evento que se guarda sale también una
+  instantánea (`contracts/calendar_estimate.v1`, ver `estimates.py`), en la misma lectura y sin
+  pedidos extra. Tienen que ser texto (o faltar); vacío es `None`. Si el mismo evento viene
+  dos veces con valores distintos, no se guarda ninguna instantánea suya (se cuenta).
 - Cualquier evento que no cumple las reglas hace fallar el feed entero: no se guarda nada.
 """
 
@@ -24,6 +28,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from cfds_intel.calendar.estimates import MAX_RAW, CalendarEstimate, build_estimate
 from cfds_intel.net import https_get
 
 _LABEL = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
@@ -110,6 +115,8 @@ class Parsed:
     events: list[EconomicEvent]
     holidays: int
     unknown_currencies: dict[str, int]
+    estimates: list[CalendarEstimate]
+    ambiguous_estimates: int
 
 
 def _scheduled(raw: object, where: str) -> datetime:
@@ -124,6 +131,19 @@ def _scheduled(raw: object, where: str) -> datetime:
     return t.astimezone(UTC)
 
 
+def _raw(item: dict[str, Any], field: str, where: str) -> str | None:
+    """`forecast` o `previous` tal cual (sin espacios a los lados); vacío o ausente es `None`."""
+    raw = item.get(field)
+    if raw is None:
+        return None
+    if not isinstance(raw, str):
+        raise CalendarError(f"{where}: {field} no es texto: {raw!r}")
+    raw = raw.strip()
+    if len(raw) > MAX_RAW:
+        raise CalendarError(f"{where}: {field} de más de {MAX_RAW} caracteres")
+    return raw or None
+
+
 def parse_feed(body: bytes, cfg: CalendarConfig, retrieved_at: datetime) -> Parsed:
     """Eventos del feed, vistos en `retrieved_at` (con zona horaria)."""
     if retrieved_at.tzinfo is None:
@@ -136,6 +156,8 @@ def parse_feed(body: bytes, cfg: CalendarConfig, retrieved_at: datetime) -> Pars
     if not isinstance(doc, list) or len(doc) > _MAX_EVENTS:
         raise CalendarError("el feed tiene que ser una lista de eventos")
     events: dict[tuple[str, str, str, str, datetime], EconomicEvent] = {}
+    estimates: dict[tuple[str, str, str, datetime], CalendarEstimate] = {}
+    ambiguous: set[tuple[str, str, str, datetime]] = set()
     holidays = 0
     unknown: dict[str, int] = {}
     for i, item in enumerate(doc):
@@ -148,6 +170,7 @@ def parse_feed(body: bytes, cfg: CalendarConfig, retrieved_at: datetime) -> Pars
         if not isinstance(currency, str) or not currency:
             raise CalendarError(f"{where}: sin country (moneda)")
         scheduled = _scheduled(item.get("date"), where)
+        forecast, previous = _raw(item, "forecast", where), _raw(item, "previous", where)
         if impact == _HOLIDAY:
             holidays += 1
             continue
@@ -166,7 +189,14 @@ def parse_feed(body: bytes, cfg: CalendarConfig, retrieved_at: datetime) -> Pars
             published_at=seen_at,
         )
         events.setdefault(ev.key(), ev)  # el mismo evento dos veces en el feed cuenta una
-    return Parsed(list(events.values()), holidays, unknown)
+        est = build_estimate(cfg.source, ev.event, country, scheduled, forecast, previous, seen_at)
+        other = estimates.setdefault(est.event_key(), est)
+        if other.pair() != est.pair():
+            # El mismo evento dos veces con valores distintos: no se sabe cuál vale, así que
+            # no se guarda ninguno de los dos (el evento sí; se cuenta).
+            ambiguous.add(est.event_key())
+    kept = [e for k, e in estimates.items() if k not in ambiguous]
+    return Parsed(list(events.values()), holidays, unknown, kept, len(ambiguous))
 
 
 Opener = Callable[[urllib.request.Request, int], bytes]

@@ -71,7 +71,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | [storage](modules/storage.md) | `infra/` (SQL) + `engine/crates/storage` (crate `cfds-storage`) | SQL + Rust | Esquema y migraciones de PostgreSQL, escritura idempotente y publicación de velas cerradas en Redis. | hecho |
 | [intelligence](modules/intelligence.md) | `intelligence/` (paquete `cfds_intel`) | Python | Proyecto base de la capa de inteligencia y única salida HTTPS (`cfds_intel/net.py`). | hecho |
 | [analogs](modules/analogs.md) | `intelligence/cfds_intel/analogs` | Python | Búsqueda de situaciones históricas similares (análogos v1 sobre velas diarias). | hecho |
-| [calendar](modules/calendar.md) | `intelligence/cfds_intel/calendar` | Python | Calendario económico de Forex Factory, solo por su feed JSON oficial (ADR 0010). | hecho |
+| [calendar](modules/calendar.md) | `intelligence/cfds_intel/calendar` | Python | Calendario económico de Forex Factory, solo por su feed JSON oficial (ADR 0010), con su forecast y previous (ADR 0018). | hecho |
 | [calendar.official](modules/calendar.official.md) | `intelligence/cfds_intel/calendar/official` | Python | Calendario histórico oficial (ADR 0016): comunicados del FOMC y publicaciones del BLS. | hecho |
 | [databento](modules/databento.md) | `intelligence/cfds_intel/databento` | Python | Importador del histórico de 1 minuto de futuros desde Databento (ADR 0011). | hecho |
 | [fomc_novelty](modules/fomc_novelty.md) | `intelligence/cfds_intel/fomc_novelty` | Python | Novedad de cada comunicado del FOMC respecto del anterior (diff de palabras y embeddings locales), descriptiva. | en curso (#668) |

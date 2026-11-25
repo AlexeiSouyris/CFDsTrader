@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/calendar_estimate.v1.schema.json",
+  "title": "Calendar estimate v1",
+  "description": "Una instantánea del pronóstico ('forecast') y del dato anterior ('previous') de un evento del calendario, tal como se veían en la fuente (ADR 0018 §1). Es el 'forecast' que mostraba Forex Factory, no el consenso de una encuesta. Hay una fila nueva solo cuando el par cambia respecto de la última instantánea del mismo evento; 'seen_at' es la primera lectura con ese valor. Para la sorpresa vale la última instantánea con 'seen_at' estrictamente anterior a 'scheduled_at' (anti look-ahead).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source",
+    "event",
+    "country",
+    "scheduled_at",
+    "forecast_raw",
+    "previous_raw",
+    "forecast_value",
+    "previous_value",
+    "unit",
+    "seen_at"
+  ],
+  "$defs": {
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" },
+    "raw": {
+      "oneOf": [{ "type": "string", "minLength": 1, "maxLength": 50 }, { "type": "null" }]
+    },
+    "value": {
+      "oneOf": [{ "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" }, { "type": "null" }]
+    }
+  },
+  "properties": {
+    "source": {
+      "description": "Fuente del calendario, como en economic_event.v1 (hoy 'forex_factory').",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,31}$"
+    },
+    "event": {
+      "description": "Nombre del evento tal como lo publica la fuente (igual que en economic_event.v1).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "country": {
+      "description": "País o zona, ISO 3166-1 alfa-2 en mayúsculas ('EU' = zona euro), como en economic_event.v1.",
+      "type": "string",
+      "pattern": "^[A-Z]{2}$"
+    },
+    "scheduled_at": {
+      "description": "Hora del evento en UTC, ISO 8601 terminado en Z. Con 'source', 'event' y 'country' identifica el evento de economic_event.v1.",
+      "$ref": "#/$defs/utc"
+    },
+    "forecast_raw": {
+      "description": "El 'forecast' tal como vino en el feed (por ejemplo '0.3%' o '215K'); null si vino vacío o no vino.",
+      "$ref": "#/$defs/raw"
+    },
+    "previous_raw": {
+      "description": "El 'previous' tal como vino en el feed; null si vino vacío o no vino.",
+      "$ref": "#/$defs/raw"
+    },
+    "forecast_value": {
+      "description": "El número de 'forecast_raw' como string decimal exacto, en la unidad de 'unit' (por ejemplo '215' con 'thousands'). null si no se interpreta sin ambigüedad: no se adivina.",
+      "$ref": "#/$defs/value"
+    },
+    "previous_value": {
+      "description": "El número de 'previous_raw', igual que 'forecast_value'.",
+      "$ref": "#/$defs/value"
+    },
+    "unit": {
+      "description": "Unidad común de los dos valores: 'percent' (%), 'thousands' (K), 'millions' (M), 'billions' (B), 'trillions' (T) o 'level' (sin sufijo). null si los dos valores son null.",
+      "oneOf": [
+        { "enum": ["percent", "thousands", "millions", "billions", "trillions", "level"] },
+        { "type": "null" }
+      ]
+    },
+    "seen_at": {
+      "description": "Primera lectura del feed con este par de valores, en UTC, ISO 8601 terminado en Z. Antes de esa hora la instantánea no existe para el sistema.",
+      "$ref": "#/$defs/utc"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "forecast_raw": { "type": "null" } } },
+      "then": { "properties": { "forecast_value": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "previous_raw": { "type": "null" } } },
+      "then": { "properties": { "previous_value": { "type": "null" } } }
+    },
+    {
+      "if": {
+        "properties": { "forecast_value": { "type": "null" }, "previous_value": { "type": "null" } }
+      },
+      "then": { "properties": { "unit": { "type": "null" } } },
+      "else": { "properties": { "unit": { "type": "string" } } }
+    }
+  ]
+}
