@@ -197,3 +197,29 @@ min_trades = 100
 # Test de suerte (§7.2, solo reporte): SplitMix64.
 luck_simulations = 1000
 luck_seed = 20261125
+
+[program4_c]
+# H4.3, estrategia C de Bruni (pre-registro §6 y §13; valores exactos del archivo congelado).
+# Perfil de volumen de la sesión del CME (decisión 9): de las 18:00 ET del día hábil anterior a
+# las 17:00 ET del día d, con las barras de 1 minuto del NQ.
+timezone = "America/New_York"
+profile_session_start = "18:00"
+profile_session_end = "17:00"
+# Si a la sesión d − 1 le falta más del 10 % de sus barras de 1 minuto, su perfil no existe.
+profile_min_bars_fraction = "0.9"
+# Casillero: tick × máx(1, redondeo(0,0002 × apertura de la sesión / tick)).
+profile_bin_fraction = "0.0002"
+tick = "0.25"
+# Área de valor del 70 %.
+value_area = "0.7"
+# m = 6 ticks = 1,5 puntos fijos (decisión 10).
+trigger_margin_points = "1.5"
+# Volumen eficiente: menor que el de la vela anterior o que la media simple de 20 (decisión 12).
+volume_sma = 20
+# Objetivo: 2 R o el máximo de la estructura, el más cercano.
+target_r = "2"
+# Régimen, solo descriptivo (§6.4): percentil del ATR(14) en 200 velas; tramos ≤ 25, ≤ 50, ≤ 75.
+regime_window = 200
+regime_bands = ["25", "50", "75"]
+# Datos fuertes que excluyen el día entero (decisión 11): FOMC, CPI y empleo del BLS.
+strong_releases = ["fed_fomc/fomc_statement", "bls/cpi", "bls/employment_situation"]

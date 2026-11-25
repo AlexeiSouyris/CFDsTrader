@@ -358,6 +358,69 @@ impl PgStore {
         Ok(rows.into_iter().map(into_row).collect())
     }
 
+    /// Velas de 15m o 1h de un instrumento de IBKR con inicio en `[from, to)`, en orden, como
+    /// fuente de la liquidez (#630). Con su corrección más reciente, si tiene.
+    ///
+    /// Una sola serie empalmada, sin mezclar contratos en una vela y sin repintar: los contratos
+    /// van en el orden en que se empezaron a guardar (`min(inserted_at)`; la carga guarda un
+    /// vencimiento por vez), y una vela de un contrato se usa solo si empieza después de la última
+    /// de todos los contratos anteriores. Así la historia que trae un contrato nuevo nunca
+    /// reemplaza ni se mete entre velas ya usadas. El instrumento de las velas es el de IBKR;
+    /// quien llama lo cambia por el suyo. Velas en curso: las filtra quien llama
+    /// (`is_closed_at`); la carga solo guarda velas completas (#575).
+    pub async fn ibkr_candles(
+        &self,
+        f: &crate::IbkrFeed<'_>,
+        timeframe: cfds_core::Timeframe,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<cfds_core::Candle>, StorageError> {
+        let rows: Vec<Row> = sqlx::query_as(concat!(
+            "WITH k AS (
+                 SELECT contract, min(inserted_at) AS first_in, max(start_at) AS last_start
+                 FROM ibkr_bars
+                 WHERE source = $1 AND instrument_id = $2 AND what_to_show = $3 AND bar_size = $4
+                 GROUP BY contract)
+             SELECT ",
+            columns!(),
+            from_bars!(),
+            "JOIN k ON k.contract = b.contract
+             WHERE b.source = $1 AND b.instrument_id = $2 AND b.what_to_show = $3
+               AND b.bar_size = $4 AND b.start_at >= $5 AND b.start_at < $6
+               AND NOT EXISTS (
+                 SELECT 1 FROM k AS e
+                 WHERE (e.first_in, e.contract) < (k.first_in, k.contract)
+                   AND e.last_start >= b.start_at)
+             ORDER BY b.start_at"
+        ))
+        .bind(f.source)
+        .bind(f.instrument)
+        .bind(f.what_to_show)
+        .bind(timeframe.as_str())
+        .bind(from)
+        .bind(to)
+        .fetch_all(self.pool())
+        .await?;
+        rows.into_iter()
+            .map(|r| {
+                let r = into_row(r);
+                Ok(cfds_core::Candle {
+                    instrument_id: r
+                        .instrument_id
+                        .parse()
+                        .map_err(|e| StorageError::CorruptRow(format!("{e}")))?,
+                    timeframe,
+                    start: r.start,
+                    open: r.open,
+                    high: r.high,
+                    low: r.low,
+                    close: r.close,
+                    volume: r.volume,
+                })
+            })
+            .collect()
+    }
+
     /// Todas las series guardadas, ordenadas. Solo lectura.
     pub async fn ibkr_series(&self) -> Result<Vec<IbkrSeriesKey>, StorageError> {
         let rows: Vec<(String, String, String, String, String)> = sqlx::query_as(

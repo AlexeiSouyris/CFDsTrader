@@ -106,6 +106,9 @@ pub async fn prepare_with(
     let feed = match source {
         CandleSource::Ig => CandleFeed::Ig,
         CandleSource::Futures => CandleFeed::Futures(&sources.futures_source),
+        // Las barras de IBKR (#630) son solo para la vista de liquidez: poca historia y sin
+        // diarias ni base de financiación.
+        CandleSource::Ibkr => return Err("el backtest no usa las barras de IBKR".into()),
     };
     println!("velas: {} ({out})", sources.label(source));
     // Escenario (#405): el valor constante que se agrega solo completa el catálogo en memoria;
@@ -275,7 +278,7 @@ pub async fn prepare_with(
             );
             ok
         }
-        CandleSource::Futures => {
+        CandleSource::Futures | CandleSource::Ibkr => {
             eprintln!(
                 "⚠️  filtro de spread (§7.3): NO se aplica, no hay spread medido del CFD para las \
                  velas de futuros. Los costos usan el spread de config ({} puntos), no medido.",

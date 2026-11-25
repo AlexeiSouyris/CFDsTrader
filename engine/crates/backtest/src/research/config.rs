@@ -164,6 +164,37 @@ pub struct Program4Config {
     pub luck_seed: u64,
 }
 
+/// H4.3 del programa 4 (#561, pre-registro §6 y §13): estrategia C de Bruni, con perfil de
+/// volumen de la sesión del CME.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChampionshipConfig {
+    /// Zona de las horas de la sesión del perfil.
+    pub timezone: chrono_tz::Tz,
+    /// La sesión `d` va de esta hora del día hábil anterior…
+    pub profile_session_start: NaiveTime,
+    /// …a esta hora del día `d`.
+    pub profile_session_end: NaiveTime,
+    /// Proporción mínima de barras de 1 minuto de la sesión anterior para que su perfil exista.
+    pub profile_min_bars_fraction: Decimal,
+    /// Ancho del casillero = tick × máx(1, redondeo(fracción × apertura de la sesión / tick)).
+    pub profile_bin_fraction: Decimal,
+    /// Tick del futuro (NQ: 0,25 puntos).
+    pub tick: Decimal,
+    /// Proporción del volumen del área de valor.
+    pub value_area: Decimal,
+    /// Margen m del disparador, en puntos (6 ticks).
+    pub trigger_margin: Decimal,
+    /// Velas de la media simple del volumen.
+    pub volume_sma: usize,
+    /// Objetivo en múltiplos de R (o el máximo de la estructura, si queda más cerca).
+    pub target_r: Decimal,
+    /// Descriptivo del régimen: ventana del percentil del ATR y bordes de los tramos (en %).
+    pub regime_window: usize,
+    pub regime_bands: Vec<Decimal>,
+    /// Comunicados que excluyen el día entero (`fuente/serie` de `official_releases`).
+    pub strong_releases: Vec<(String, String)>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResearchConfig {
     pub orb: OrbConfig,
@@ -188,6 +219,7 @@ pub struct ResearchConfig {
     /// Regla del programa 4 (#561).
     pub rule_program4: RuleConfig,
     pub program4: Program4Config,
+    pub program4_c: ChampionshipConfig,
 }
 
 impl ResearchConfig {
@@ -277,6 +309,24 @@ impl ResearchConfig {
             macro_day: MacroDay,
             rule_program4: Rule,
             program4: Program4,
+            program4_c: Program4C,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Program4C {
+            timezone: String,
+            profile_session_start: String,
+            profile_session_end: String,
+            profile_min_bars_fraction: String,
+            profile_bin_fraction: String,
+            tick: String,
+            value_area: String,
+            trigger_margin_points: String,
+            volume_sma: usize,
+            target_r: String,
+            regime_window: usize,
+            regime_bands: Vec<String>,
+            strong_releases: Vec<String>,
         }
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
@@ -527,6 +577,72 @@ impl ResearchConfig {
             luck_simulations: p4.luck_simulations,
             luck_seed: p4.luck_seed,
         };
+        let pc = &raw.program4_c;
+        let fraction = |v: &str, name: &str| -> Result<Decimal, String> {
+            let d = dec(v, name)?;
+            if d <= Decimal::ZERO || d > Decimal::ONE {
+                return Err(format!("{name} tiene que estar en (0, 1]"));
+            }
+            Ok(d)
+        };
+        let program4_c = ChampionshipConfig {
+            timezone: tz(&pc.timezone, "program4_c.timezone")?,
+            profile_session_start: time(
+                &pc.profile_session_start,
+                "program4_c.profile_session_start",
+            )?,
+            profile_session_end: time(&pc.profile_session_end, "program4_c.profile_session_end")?,
+            profile_min_bars_fraction: fraction(
+                &pc.profile_min_bars_fraction,
+                "program4_c.profile_min_bars_fraction",
+            )?,
+            profile_bin_fraction: fraction(
+                &pc.profile_bin_fraction,
+                "program4_c.profile_bin_fraction",
+            )?,
+            tick: dec(&pc.tick, "program4_c.tick")?,
+            value_area: fraction(&pc.value_area, "program4_c.value_area")?,
+            trigger_margin: dec(
+                &pc.trigger_margin_points,
+                "program4_c.trigger_margin_points",
+            )?,
+            volume_sma: pc.volume_sma,
+            target_r: dec(&pc.target_r, "program4_c.target_r")?,
+            regime_window: pc.regime_window,
+            regime_bands: pc
+                .regime_bands
+                .iter()
+                .map(|b| dec(b, "program4_c.regime_bands"))
+                .collect::<Result<_, _>>()?,
+            strong_releases: pc
+                .strong_releases
+                .iter()
+                .map(|s| {
+                    s.split_once('/')
+                        .filter(|(a, b)| !a.is_empty() && !b.is_empty())
+                        .map(|(a, b)| (a.to_owned(), b.to_owned()))
+                        .ok_or_else(|| {
+                            format!("program4_c.strong_releases: \"{s}\" no es fuente/serie")
+                        })
+                })
+                .collect::<Result<_, _>>()?,
+        };
+        if program4_c.profile_session_end >= program4_c.profile_session_start {
+            return Err(
+                "program4_c: la sesión del perfil empieza el día anterior (inicio > fin)".into(),
+            );
+        }
+        if program4_c.volume_sma < 2 || program4_c.regime_window < 2 {
+            return Err("program4_c: volume_sma y regime_window tienen que ser al menos 2".into());
+        }
+        if program4_c.regime_bands.windows(2).any(|w| w[0] >= w[1])
+            || program4_c
+                .regime_bands
+                .iter()
+                .any(|b| *b <= Decimal::ZERO || *b >= Decimal::ONE_HUNDRED)
+        {
+            return Err("program4_c.regime_bands: crecientes y entre 0 y 100".into());
+        }
         Ok(Self {
             orb: OrbConfig {
                 range_candles: raw.orb.range_candles,
@@ -572,6 +688,7 @@ impl ResearchConfig {
             macro_day,
             rule_program4: rule(&raw.rule_program4, "rule_program4")?,
             program4,
+            program4_c,
         })
     }
 }

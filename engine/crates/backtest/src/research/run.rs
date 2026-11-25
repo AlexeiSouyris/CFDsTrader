@@ -93,6 +93,9 @@ pub struct StudyRun {
     /// Planes con objetivo que no se operaron porque la apertura de la entrada ya estaba del
     /// lado del stop (índice de la señal).
     pub through_stop: Vec<usize>,
+    /// Planes con tope del objetivo que no se operaron porque la apertura de la entrada ya
+    /// había llegado al tope (índice de la señal).
+    pub through_cap: Vec<usize>,
 }
 
 fn sign(side: Side) -> Decimal {
@@ -280,6 +283,13 @@ pub fn run_plans(
                 .is_some_and(|e| p.open_beyond_stop(e.open))
         {
             out.through_stop.push(p.signal_index);
+            continue;
+        }
+        if m15
+            .get(p.signal_index + 1)
+            .is_some_and(|e| p.open_beyond_cap(e.open))
+        {
+            out.through_cap.push(p.signal_index);
             continue;
         }
         let today = at.with_timezone(&setup.day_tz).date_naive();

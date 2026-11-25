@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import App from '@/App'
@@ -464,5 +464,31 @@ describe('vista de liquidez en vivo (#231)', () => {
     render(<LiquidityContent data={{ ...DATA, source: { id: 'ig', label: 'IG CFD' } }} />)
     expect(screen.getByText('IG CFD', { selector: 'strong' })).toBeInTheDocument()
     expect(screen.queryByText(/Fuente automática/)).not.toBeInTheDocument()
+  })
+
+  it('con IBKR muestra el motivo con MNQ y sin diarias, como los futuros (#630)', () => {
+    const note =
+      'IG todavía no tiene velas: se muestran futuros de CME (MNQ, IBKR, ~10 min de atraso). Base distinta al CFD.'
+    const label = 'futuros micro CME de IBKR (~10 min de atraso; base distinta al CFD)'
+    render(
+      <LiquidityContent
+        data={{ ...DATA, source: { id: 'ibkr', label }, fallback: { from: 'ig', note } }}
+      />,
+    )
+    expect(screen.getByText(label, { selector: 'strong' })).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(`Fuente automática: ${note}`)
+    cleanup()
+    render(
+      <LiquidityContent
+        data={{
+          ...DATA,
+          timeframe: '1d',
+          as_of: null,
+          candles: [],
+          source: { id: 'ibkr', label },
+        }}
+      />,
+    )
+    expect(screen.getByText(/Los futuros no tienen velas diarias/)).toBeInTheDocument()
   })
 })

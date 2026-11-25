@@ -270,6 +270,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 candle_source: match source {
                     CandleSource::Ig => CandleSourceName::Ig,
                     CandleSource::Futures => CandleSourceName::Futures,
+                    // `prepare` ya rechaza las barras de IBKR (#630).
+                    CandleSource::Ibkr => {
+                        return Err("el backtest no usa las barras de IBKR".into());
+                    }
                 },
                 config_sha256: cfds_journal::config_sha256(&CONFIG_FILES),
                 split: split_cfg,

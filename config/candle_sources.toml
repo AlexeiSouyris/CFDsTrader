@@ -87,3 +87,26 @@ US2000 = [{ series = "EFFR" }, { series = "SOFR", from = "2018-04-02" }]
 DE40 = [{ series = "ESTR" }]
 # XAUUSD: sin entrada. La financiación del oro al contado ya sale de la base del futuro (ADR 0013,
 # `commodity_basis`) y todavía no se simula (#418): se decide en su Issue.
+
+# Barras de los futuros micro de IBKR (#630): las de `ibkr_bars` (cron cada 5 min, unos 10 a 15
+# minutos de atraso, solo velas completas). Como fuente de la liquidez de 15m y 1h de los CFD con
+# mapeo; sin diarias. Lo calculado se guarda bajo `<instrumento><id_suffix>` (por ejemplo
+# US100.IBKR), aparte de lo del CFD y de lo de Databento. Tienen la forma del precio del futuro,
+# con su base distinta a la del CFD.
+#
+# Contratos: el loader guarda el vencimiento vigente más cercano (config/ibkr.toml), uno por vez.
+# Se empalman en el orden en que se empezaron a guardar: un contrato nuevo se usa recién después de
+# la última vela del anterior (su historia anterior se descarta). Así una vela ya usada no cambia
+# cuando llega un contrato nuevo (sin repintado), y nunca se mezclan dos contratos en una vela. Sin
+# ajuste de precios: en el cambio de contrato hay un salto, igual que en el continuo de Databento.
+[ibkr]
+# Valor de `source` en ibkr_bars: el de [load] source de config/ibkr.toml (un test lo controla).
+source = "ibkr"
+what_to_show = "TRADES"
+label = "futuros micro CME de IBKR (~10 min de atraso; base distinta al CFD)"
+id_suffix = ".IBKR"
+
+# Instrumento de ibkr_bars de cada CFD. Los demás no tienen velas de IBKR.
+[ibkr.instruments]
+US100 = "MNQ"
+US500 = "MES"

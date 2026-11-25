@@ -80,6 +80,9 @@ const INTRO = (
 /** Por qué 1d no se puede elegir con la fuente de futuros. */
 const NO_DAILY_FUTURES = { '1d': 'Los futuros no tienen velas diarias.' }
 
+/** Precios de un futuro (Databento o IBKR, #630): base distinta al CFD y sin diarias. */
+const isFutures = (id?: string) => id === 'futures' || id === 'ibkr'
+
 const TF_TEXT: Record<ViewTimeframe, [string, string]> = {
   '15m': ['vela de 15 m', 'velas de 15 m'],
   '1h': ['vela de 1 h', 'velas de 1 h'],
@@ -159,7 +162,7 @@ function LiveLiquidity() {
     )
   // Las fuentes las manda el motor; sin ellas (gateway anterior) solo existe la del CFD.
   const sources = catalog.data.sources ?? []
-  const futuresSel = sel?.source === 'futures'
+  const futuresSel = isFutures(sel?.source)
   const controls = sel && (
     <div className="flex min-w-0 flex-wrap gap-2">
       <ScrollRow>
@@ -189,7 +192,7 @@ function LiveLiquidity() {
               const source = sources.find((s) => s.label === label)?.id ?? 'ig'
               // los futuros no tienen velas diarias: con 1d se pasa al primer timeframe que sí
               const timeframe =
-                source === 'futures' && sel.timeframe === '1d'
+                isFutures(source) && sel.timeframe === '1d'
                   ? (catalog.data.timeframes.find((t) => t !== '1d') ?? sel.timeframe)
                   : sel.timeframe
               setPicked({ ...sel, source, timeframe })
@@ -212,7 +215,7 @@ function LiveLiquidity() {
 export function LiquidityContent({ data }: { data: LiquidityViewData }) {
   const tf = data.timeframe ?? '15m'
   const source = data.source?.label ?? 'IG CFD'
-  const futures = data.source?.id === 'futures'
+  const futures = isFutures(data.source?.id)
   if (data.as_of === null || data.candles.length === 0)
     return (
       <Note title="Sin datos todavía">
