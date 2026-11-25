@@ -1,6 +1,6 @@
 /**
  * Armazón de la app: barra superior, navegación (lateral en escritorio, inferior en el celular),
- * escenario de vidrio, paleta de comandos (⌘K), avisos y ajuste del vidrio.
+ * escenario, paleta de comandos (⌘K), avisos y ajustes (vidrio del Inicio y del Fondo, ver la intro).
  *
  * Une dos componentes de referencia que hacían lo mismo (#164): "Glassy Dashboard" (barra,
  * docks y búsqueda) y "Adjustable Glass Dashboard" (panel para ajustar el vidrio). Queda un solo
@@ -51,14 +51,16 @@ export type ShellView = {
   icon: LucideIcon
 }
 
-type Popover = 'notices' | 'glass' | null
+type Popover = 'notices' | 'settings' | null
 
 export function GlassShell({
   brand = 'CFDsTrader',
   views,
+  nav = views,
   home = views[0].id,
   tabs = [],
   active,
+  section = active,
   onSelect,
   onReplayIntro,
   theme,
@@ -72,6 +74,10 @@ export function GlassShell({
 }: {
   brand?: string
   views: ShellView[]
+  /** las secciones de la barra lateral y la del celular (las demás vistas, en la paleta) */
+  nav?: ShellView[]
+  /** la sección de la vista abierta: la que se marca en la navegación */
+  section?: string
   /** la vista de inicio: a la que lleva el logo */
   home?: string
   /** pestañas principales (#286): van arriba de cada vista, con su hash */
@@ -169,9 +175,9 @@ export function GlassShell({
 
         <div ref={popButtons} className="relative flex items-center justify-end gap-1.5">
           <IconButton
-            label="Ajustar el vidrio"
-            expanded={popover === 'glass'}
-            onClick={() => setPopover(popover === 'glass' ? null : 'glass')}
+            label="Ajustes"
+            expanded={popover === 'settings'}
+            onClick={() => setPopover(popover === 'settings' ? null : 'settings')}
           >
             <SlidersHorizontal />
           </IconButton>
@@ -217,8 +223,11 @@ export function GlassShell({
               )}
             </Popover>
           )}
-          {popover === 'glass' && (
-            <Popover title="Vidrio" panelRef={popPanel} onClose={() => setPopover(null)}>
+          {popover === 'settings' && (
+            <Popover title="Ajustes" panelRef={popPanel} onClose={() => setPopover(null)}>
+              <p className="mb-2 text-[11px] font-semibold text-muted-foreground">
+                Vidrio del Inicio y del Fondo
+              </p>
               <div className="mb-3 flex gap-1.5">
                 {PRESETS.map((p) => (
                   <button
@@ -249,13 +258,26 @@ export function GlassShell({
                 text={`${Math.round(glass.opacity * 100)} %`}
                 onChange={(opacity) => onGlassChange({ ...glass, opacity })}
               />
+              {onReplayIntro && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPopover(null)
+                    onReplayIntro()
+                  }}
+                  className="flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-border text-[12px] font-semibold hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
+                >
+                  <Play className="size-4" aria-hidden="true" />
+                  Ver la intro otra vez
+                </button>
+              )}
             </Popover>
           )}
         </div>
       </header>
 
       <div className="relative mt-3 flex flex-1 gap-3">
-        <Dock views={views} active={active} onSelect={onSelect} side />
+        <Dock views={nav} active={active} section={section} onSelect={onSelect} side />
         <main
           id="contenido"
           tabIndex={-1}
@@ -268,7 +290,9 @@ export function GlassShell({
               </h1>
               <p className="mt-2 text-[13px] text-muted-foreground">{current.description}</p>
             </div>
-            {tabs.length > 0 && <Tabs tabs={tabs} active={active} onSelect={onSelect} />}
+            {tabs.length > 0 && (
+              <Tabs tabs={tabs} active={active} section={section} onSelect={onSelect} />
+            )}
           </header>
           {children}
           <p
@@ -282,7 +306,13 @@ export function GlassShell({
           </p>
         </main>
       </div>
-      <Dock views={views} active={active} onSelect={onSelect} onMore={() => setSearching(true)} />
+      <Dock
+        views={nav}
+        active={active}
+        section={section}
+        onSelect={onSelect}
+        onMore={() => setSearching(true)}
+      />
 
       {searching && (
         <CommandPalette
@@ -309,23 +339,27 @@ export function GlassShell({
 function Tabs({
   tabs,
   active,
+  section,
   onSelect,
 }: {
   tabs: ShellView[]
   active: string
+  section: string
   onSelect: (id: string) => void
 }) {
-  const at = tabs.findIndex((t) => t.id === active)
+  const at = tabs.findIndex((t) => t.id === section)
   return (
+    // en el celular las cuatro no entran iguales: cada una toma el ancho de su nombre (sin íconos)
+    // y la activa lleva su propio fondo; desde `sm`, columnas iguales con la marca que se desliza
     <nav
       aria-label="Secciones"
-      className="relative grid rounded-full border border-border p-1"
-      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+      className="relative flex w-full rounded-full border border-border p-1 sm:grid sm:w-auto sm:grid-cols-[repeat(var(--tabs),minmax(0,1fr))]"
+      style={{ '--tabs': tabs.length } as CSSProperties}
     >
       {at >= 0 && (
         <span
           aria-hidden
-          className="tab-thumb absolute inset-y-1 left-1 rounded-full bg-primary"
+          className="tab-thumb absolute inset-y-1 left-1 hidden rounded-full bg-primary sm:block"
           style={{
             width: `calc((100% - 8px) / ${tabs.length})`,
             transform: `translateX(${at * 100}%)`,
@@ -333,23 +367,25 @@ function Tabs({
         />
       )}
       {tabs.map(({ id, label, icon: Icon }) => {
-        const on = id === active
+        const on = id === section
         return (
           <a
             key={id}
             href={`#${id}`}
-            aria-current={on ? 'page' : undefined}
+            aria-current={id === active ? 'page' : on ? 'true' : undefined}
             onClick={(e) => {
               if (e.metaKey || e.ctrlKey || e.shiftKey) return
               e.preventDefault()
               onSelect(id)
             }}
             className={cn(
-              'relative z-10 flex min-h-9 items-center justify-center gap-1.5 rounded-full px-3 text-[12px] font-bold sm:px-4',
-              on ? 'text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
+              'relative z-10 flex min-h-9 flex-auto items-center justify-center gap-1.5 rounded-full px-2 text-[12px] font-bold whitespace-nowrap sm:px-4',
+              on
+                ? 'bg-primary text-primary-foreground sm:bg-transparent'
+                : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            <Icon className="size-[15px]" aria-hidden="true" />
+            <Icon className="hidden size-[15px] sm:block" aria-hidden="true" />
             {label}
           </a>
         )
@@ -460,12 +496,15 @@ function Range({
 function Dock({
   views,
   active,
+  section = active,
   onSelect,
   onMore,
   side = false,
 }: {
   views: ShellView[]
   active: string
+  /** la sección de la vista abierta: se marca aunque la vista sea una de adentro */
+  section?: string
   onSelect: (id: string) => void
   /** en el celular: abre la lista completa de vistas (el buscador) */
   onMore?: () => void
@@ -478,11 +517,11 @@ function Dock({
   const [more, setMore] = useState({ left: false, right: false })
   useEffect(() => {
     const nav = bar.current
-    const on = nav?.querySelector<HTMLElement>('[aria-current="page"]')
+    const on = nav?.querySelector<HTMLElement>('[aria-current]')
     if (side || !nav || !on || nav.scrollWidth <= nav.clientWidth) return
     const left = on.offsetLeft - (nav.clientWidth - on.offsetWidth) / 2
     nav.scrollTo?.({ left: Math.max(0, left) })
-  }, [active, side])
+  }, [section, side])
   useEffect(() => {
     const nav = bar.current
     if (side || !nav) return
@@ -517,12 +556,12 @@ function Dock({
       style={side ? undefined : { maskImage: mask, WebkitMaskImage: mask }}
     >
       {views.map(({ id, label, short, icon: Icon }) => {
-        const on = id === active
+        const on = id === section
         return (
           <a
             key={id}
             href={`#${id}`}
-            aria-current={on ? 'page' : undefined}
+            aria-current={id === active ? 'page' : on ? 'true' : undefined}
             aria-label={side ? label : undefined}
             title={side ? label : undefined}
             onClick={(e) => {

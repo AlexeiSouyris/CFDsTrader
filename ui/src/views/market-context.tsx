@@ -27,7 +27,7 @@ function Card({
   wide?: boolean
 }) {
   return (
-    <section className={cn('glass relative min-w-0 rounded-[20px] p-4', wide && 'lg:col-span-2')}>
+    <section className={cn('panel relative min-w-0 rounded-[20px] p-4', wide && 'lg:col-span-2')}>
       <h3 className="mb-3 text-[14px] font-bold">{title}</h3>
       {children}
     </section>

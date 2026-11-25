@@ -23,10 +23,15 @@ describe('pestañas principales (#286)', () => {
     localStorage.clear()
   })
 
-  it('Performance, Inicio y Terminal, con su hash y en el historial', async () => {
+  it('Inicio, Terminal, Gráficos e Investigación, con su hash y en el historial', async () => {
     render(<App initialStage="app" />)
     const links = within(tabs()).getAllByRole('link')
-    expect(links.map((a) => a.textContent)).toEqual(['Performance', 'Inicio', 'Terminal'])
+    expect(links.map((a) => a.textContent)).toEqual([
+      'Inicio',
+      'Terminal',
+      'Gráficos',
+      'Investigación',
+    ])
     expect(heading()).toHaveTextContent('Inicio')
     expect(within(tabs()).getByRole('link', { name: 'Inicio' })).toHaveAttribute(
       'aria-current',
@@ -34,27 +39,39 @@ describe('pestañas principales (#286)', () => {
     )
 
     const before = history.length
-    fireEvent.click(within(tabs()).getByRole('link', { name: 'Performance' }))
-    expect(location.hash).toBe('#performance')
-    expect(heading()).toHaveTextContent('Performance')
+    fireEvent.click(within(tabs()).getByRole('link', { name: 'Investigación' }))
+    expect(location.hash).toBe('#investigacion')
+    expect(heading()).toHaveTextContent('Investigación')
     expect(history.length).toBe(before + 1)
 
     fireEvent.click(within(tabs()).getByRole('link', { name: 'Terminal' }))
     expect(location.hash).toBe('#terminal')
     // atrás del navegador (o el gesto de macOS) vuelve a la pestaña anterior
     act(() => history.back())
-    await waitFor(() => expect(heading()).toHaveTextContent('Performance'))
+    await waitFor(() => expect(heading()).toHaveTextContent('Investigación'))
   })
 
-  it('el Panel reúne el panel de siempre y la liquidez; las demás vistas siguen', () => {
+  it('los hashes viejos siguen andando y marcan la pestaña de su sección', () => {
+    history.replaceState(null, '', '/#performance')
+    render(<App initialStage="app" />)
+    expect(heading()).toHaveTextContent('Performance')
+    const research = within(tabs()).getByRole('link', { name: 'Investigación' })
+    expect(research).toHaveAttribute('aria-current', 'true')
+    // el gesto sigue desde la sección: de Investigación hacia atrás, Gráficos
+    fireEvent.keyDown(window, { key: 'ArrowLeft', ctrlKey: true })
+    expect(heading()).toHaveTextContent('Gráficos')
+  })
+
+  it('el Panel reúne el panel de siempre y la liquidez, con trofeos de proceso y sin ranking', () => {
     history.replaceState(null, '', '/#panel')
     render(<App initialStage="app" />)
     expect(screen.getByRole('heading', { level: 2, name: 'Liquidez' })).toBeInTheDocument()
-    expect(screen.getByText('Competencia de la semana')).toBeInTheDocument()
+    expect(screen.getByText('Trofeos de proceso')).toBeInTheDocument()
+    expect(screen.queryByText('Competencia de la semana')).not.toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent(/\d R\b/)
+    // el Panel vive en el Inicio: la barra marca el Inicio
     const nav = screen.getByRole('navigation', { name: 'Vistas' })
-    fireEvent.click(within(nav).getByText('Liquidez'))
-    expect(location.hash).toBe('#liquidez')
-    expect(heading()).toHaveTextContent('Liquidez')
+    expect(within(nav).getByText('Inicio').closest('a')).toHaveAttribute('aria-current', 'true')
   })
 
   it('Performance muestra las corridas de backtest tal como llegan, sin prometer nada', () => {
@@ -87,16 +104,17 @@ describe('pestañas principales (#286)', () => {
     swipe(main, 180)
     expect(heading()).toHaveTextContent('Terminal')
     expect(location.hash).toBe('#terminal')
-    // la inercia del mismo gesto no salta otra (y Terminal es la última)
-    swipe(main, -180)
+    // la inercia del mismo gesto no salta otra
+    swipe(main, 180)
     expect(heading()).toHaveTextContent('Terminal')
 
     vi.advanceTimersByTime(1000)
     swipe(main, -180)
     expect(heading()).toHaveTextContent('Inicio')
+    // el Inicio es la primera: hacia atrás no hay otra
     vi.advanceTimersByTime(1000)
     swipe(main, -180)
-    expect(heading()).toHaveTextContent('Performance')
+    expect(heading()).toHaveTextContent('Inicio')
   })
 
   it('no se dispara dentro de algo con scroll horizontal propio ni con Ctrl (zoom)', () => {
@@ -128,18 +146,16 @@ describe('pestañas principales (#286)', () => {
     expect(heading()).toHaveTextContent('Terminal')
     fireEvent.keyDown(window, { key: '[', metaKey: true })
     expect(heading()).toHaveTextContent('Inicio')
-    fireEvent.keyDown(window, { key: '[', metaKey: true })
-    expect(heading()).toHaveTextContent('Performance')
     // sin pestaña anterior: no hace nada
     fireEvent.keyDown(window, { key: 'ArrowLeft', ctrlKey: true })
-    expect(heading()).toHaveTextContent('Performance')
+    expect(heading()).toHaveTextContent('Inicio')
 
     fireEvent.keyDown(window, { key: ']', metaKey: true })
-    expect(heading()).toHaveTextContent('Inicio')
+    expect(heading()).toHaveTextContent('Terminal')
     const input = document.createElement('input')
     document.body.append(input)
     fireEvent.keyDown(input, { key: 'ArrowRight', ctrlKey: true })
-    expect(heading()).toHaveTextContent('Inicio')
+    expect(heading()).toHaveTextContent('Terminal')
     input.remove()
   })
 

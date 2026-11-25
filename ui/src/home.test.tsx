@@ -80,7 +80,7 @@ describe('puertas a las secciones', () => {
       'Noticias',
       'Fondo',
       'Diario',
-      'Competencia',
+      'Trofeos',
     ])
     expect(links.map((a) => a.getAttribute('href'))).toEqual(DOORS.map((d) => `#${d.view}`))
     expect(links.map((a) => a.getAttribute('data-section'))).toEqual([
@@ -102,7 +102,7 @@ describe('puertas a las secciones', () => {
     const before = history.length
     fireEvent.click(within(doors()).getByRole('link', { name: /Diario/ }))
     expect(location.hash).toBe('#operaciones')
-    expect(heading()).toHaveTextContent('Operaciones')
+    expect(heading()).toHaveTextContent('Diario')
     expect(history.length).toBe(before + 1)
   })
 

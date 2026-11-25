@@ -122,7 +122,7 @@ export function MarketHeatmap({
         {tile && (
           <div
             role="status"
-            className="glass-strong pointer-events-none absolute z-10 w-40 rounded-xl px-3 py-2 text-[11px] tabular-nums"
+            className="panel-raised pointer-events-none absolute z-10 w-40 rounded-xl px-3 py-2 text-[11px] tabular-nums"
             style={{
               left: Math.min(width - 164, Math.max(0, tile.x + tile.w / 2 - 80)),
               top: tile.y > 70 ? tile.y - 66 : Math.min(height - 62, tile.y + tile.h + 6),

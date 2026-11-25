@@ -14,7 +14,7 @@ export function OperationView() {
     <div className="grid gap-3">
       {live && <OpsKillSwitchBanner status={live} />}
       <OpsStatusBar status={live} />
-      <section className="glass min-w-0 rounded-[20px] p-4" aria-labelledby="ops-eventos">
+      <section className="panel min-w-0 rounded-[20px] p-4" aria-labelledby="ops-eventos">
         <h3 id="ops-eventos" className="text-[14px] font-bold">
           Eventos del broker y alertas
         </h3>

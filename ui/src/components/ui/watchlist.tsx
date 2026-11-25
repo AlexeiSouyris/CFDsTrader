@@ -60,7 +60,7 @@ export function Watchlist({
   return (
     <section
       aria-label="Mercados"
-      className="glass flex min-w-0 flex-col gap-2 rounded-section p-2"
+      className="panel flex min-w-0 flex-col gap-2 rounded-section p-2"
       aria-busy={groups.some((g) => g.loading) || undefined}
     >
       <h2 className="px-2 pt-1 text-[13px] font-extrabold tracking-tight">Mercados</h2>

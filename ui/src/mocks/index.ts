@@ -357,27 +357,6 @@ export const CALENDAR_EXAMPLE: EventExample[] = [
   },
 ]
 
-export type Trophy = {
-  period: 'día' | 'semana'
-  winner: Member
-  /** resultado de la competencia en simulación, ya calculado (en R, spec §8) */
-  result: string
-  date: string
-  serial: string
-}
-
-/** Competencia interna en simulación: no es dinero real ni una promesa de ganancia. */
-export const TROPHIES: Trophy[] = [
-  { period: 'día', winner: MEMBERS[2], result: '+2.4 R', date: '2026-11-21', serial: 'D-0021' },
-  {
-    period: 'semana',
-    winner: MEMBERS[0],
-    result: '+6.1 R',
-    date: '2026-11-17 / 21',
-    serial: 'S-0004',
-  },
-]
-
 /**
  * Trofeos de proceso (#581): premian la disciplina y las reglas cumplidas, **nunca la ganancia**.
  * Cada uno tiene una regla medible. El estado y el avance los calcularía el servidor; acá son de
@@ -494,18 +473,6 @@ export const KPIS: Kpi[] = [
     tone: 'down',
   },
   { id: 'props', label: 'Propuestas', value: '2', unit: '', detail: 'esperando al responsable' },
-]
-
-export type RankingRow = { member: Member; result: string; trades: number }
-
-/** Tabla de la competencia de la semana (simulación; la regla la define el grupo). */
-export const RANKING: RankingRow[] = [
-  { member: MEMBERS[0], result: '6.1', trades: 9 },
-  { member: MEMBERS[2], result: '4.8', trades: 7 },
-  { member: MEMBERS[1], result: '2.2', trades: 11 },
-  { member: MEMBERS[4], result: '-0.6', trades: 5 },
-  { member: MEMBERS[3], result: '-1.4', trades: 8 },
-  { member: MEMBERS[5], result: '-2.9', trades: 6 },
 ]
 
 // --- Fase 10, adelanto (#171) ---
