@@ -211,10 +211,41 @@ describe('gráficos navegables (#401)', () => {
     expect(measure()).not.toBeNull()
   })
 
+  it('sin clic ni Ctrl/⌘, la rueda vertical es de la página y avisa cómo hacer zoom (#580)', () => {
+    const { container, svg, count } = chart()
+    const n0 = count()
+    const ev = new WheelEvent('wheel', {
+      deltaY: -400,
+      clientX: 200,
+      clientY: 200,
+      bubbles: true,
+      cancelable: true,
+    })
+    act(() => {
+      svg.dispatchEvent(ev)
+    })
+    expect(ev.defaultPrevented).toBe(false)
+    expect(count()).toBe(n0)
+    expect(container.querySelector('[data-wheel-hint]')).toHaveTextContent('Ctrl o ⌘ + rueda')
+    // ⌘ + rueda sí acerca
+    fireEvent.wheel(svg, { deltaY: -400, metaKey: true, clientX: 200, clientY: 200 })
+    expect(count()).toBeLessThan(n0)
+    // al salir el puntero, después de un clic, la rueda vuelve a ser de la página
+    fireEvent.pointerDown(svg, { clientX: 200, clientY: 200, button: 0, pointerId: 1 })
+    fireEvent.pointerUp(svg, { clientX: 200, clientY: 200, pointerId: 1 })
+    fireEvent.pointerLeave(svg)
+    const n1 = count()
+    fireEvent.wheel(svg, { deltaY: -400, clientX: 200, clientY: 200 })
+    expect(count()).toBe(n1)
+  })
+
   it('la rueda acerca y aleja anclada en el cursor', () => {
     const { svg, count, hovered } = chart()
     const n0 = count()
     const under = hovered(200)
+    // la rueda hace zoom después de un clic en el gráfico (#580)
+    fireEvent.pointerDown(svg, { clientX: 200, clientY: 200, button: 0, pointerId: 9 })
+    fireEvent.pointerUp(svg, { clientX: 200, clientY: 200, pointerId: 9 })
     fireEvent.wheel(svg, { deltaY: -400, clientX: 200, clientY: 200 })
     expect(count()).toBeLessThan(n0)
     // la vela bajo el cursor es la misma

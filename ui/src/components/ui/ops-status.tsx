@@ -187,6 +187,39 @@ const EVENT_LABEL: Record<string, string> = {
   alert: 'Alerta',
   startup_reconcile: 'Reconciliación al arrancar',
   shutdown: 'Parada',
+  instrument_skipped: 'Instrumento omitido',
+  connection_error: 'Error de conexión',
+}
+
+/**
+ * Marcas de una nota técnica para desarrolladores (#580): pedidos a la API, ADR, secciones de la
+ * spec, números de Issue, rutas de docs o contratos. Ese texto va plegado en "Detalle técnico".
+ */
+const TECHNICAL = /GET \/|POST \/|\bADR\b|§|#\d+|docs\/|\.md\b|\.toml\b|\w+\.v\d\b|\{\w+\}/
+
+/**
+ * Lo que se muestra de un evento: un texto para el usuario y, si el motor mandó una nota técnica,
+ * el texto original aparte. `instrument_skipped` llega como "XAUUSD: <motivo técnico>".
+ */
+function describe(e: OpsEvent): { text: string; technical: string | null } {
+  const raw = summary(e)
+  if (e.event === 'instrument_skipped') {
+    const id = /^([\w.]+):/.exec(raw)?.[1]
+    return {
+      text: id
+        ? `Se omite ${id} en el broker simulado: faltan datos del instrumento.`
+        : 'Se omite un instrumento en el broker simulado: faltan datos del instrumento.',
+      technical: raw,
+    }
+  }
+  if (!TECHNICAL.test(raw)) return { text: raw, technical: null }
+  // se quedan las frases sin marcas técnicas; el texto entero, plegado
+  const plain = raw
+    .split(/(?<=[.;])\s+/)
+    .filter((part) => !TECHNICAL.test(part))
+    .join(' ')
+    .trim()
+  return { text: plain || 'Aviso del motor con detalle técnico.', technical: raw }
 }
 
 const str = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v) : null)
@@ -259,10 +292,28 @@ export function OpsEventFeed({ events }: { events: OpsEvent[] }) {
                 ×{e.count} · desde {dateTimeUtc(e.ts)}
               </span>
             )}
-            <span className="min-w-0 basis-full break-words sm:basis-auto">{summary(e)}</span>
+            <EventText event={e} />
           </motion.li>
         ))}
       </AnimatePresence>
     </ol>
+  )
+}
+
+/** El texto de un evento, con el detalle técnico plegado si lo hay (#580). */
+function EventText({ event }: { event: OpsEvent }) {
+  const { text, technical } = describe(event)
+  if (!technical)
+    return <span className="min-w-0 basis-full break-words sm:basis-auto">{text}</span>
+  return (
+    <span className="min-w-0 basis-full break-words sm:basis-auto">
+      {text}{' '}
+      <details className="inline text-muted-foreground [&[open]]:block">
+        <summary className="inline cursor-pointer text-[11px] underline decoration-dotted">
+          Detalle técnico
+        </summary>
+        <span className="mt-1 block text-[11px] [overflow-wrap:anywhere]">{technical}</span>
+      </details>
+    </span>
   )
 }

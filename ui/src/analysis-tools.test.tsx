@@ -303,7 +303,11 @@ describe('capas en el gráfico (#501)', () => {
     expect(container.querySelectorAll('[data-fib-ratio]').length).toBe(3)
     expect(container.querySelector('[data-pocket-touch="inside"]')).not.toBeNull()
     // los rótulos del tramo van al eje, con la razón tal como llega
-    expect(screen.getAllByText('F 0,618').length).toBeGreaterThan(0)
+    // (si se pisa con otro rótulo, queda agrupado con "+N" y su nombre en el title, #580)
+    const titles = [...container.querySelectorAll('[data-level-label] title')].map(
+      (t) => t.textContent,
+    )
+    expect(titles.some((t) => t?.includes('Fibonacci 0,618'))).toBe(true)
 
     fireEvent.click(within(m).getByRole('checkbox', { name: 'Spring y upthrust' }))
     expect(container.querySelector('[data-marker="spring"]')).not.toBeNull()
@@ -336,7 +340,7 @@ describe('capas en el gráfico (#501)', () => {
 
   it('sin bloque analysis, el menú avisa que este gráfico no las trae', () => {
     const { container } = draw()
-    expect(within(menu()).getByRole('note').textContent).toMatch(/15 m del CFD de IG/)
+    expect(within(menu()).getByRole('note').textContent).toMatch(/15 minutos de los CFD de IG/)
     expect(container.querySelector('[data-ema]')).toBeNull()
   })
 

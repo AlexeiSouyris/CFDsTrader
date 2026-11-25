@@ -298,7 +298,7 @@ export function TradingChart({
           role="img"
           tabIndex={0}
           data-swipe-ignore
-          aria-label={`${instrument}, ${count} velas de 1 hora desde ${first ? dateUtc(first.start) : ''}. ${coarse ? 'Deslizá un dedo en horizontal para moverte en el tiempo y pellizcá con dos para acercar o alejar' : 'Arrastrá para moverte en el tiempo y usá la rueda para acercar o alejar'}; con el foco, flechas para desplazar, + y − para el zoom y Shift + flechas para leer cada vela.`}
+          aria-label={`${instrument}, ${count} velas de 1 hora desde ${first ? dateUtc(first.start) : ''}. ${coarse ? 'Deslizá un dedo en horizontal para moverte en el tiempo y pellizcá con dos para acercar o alejar' : 'Arrastrá para moverte en el tiempo y usá Ctrl o ⌘ más la rueda (o la rueda después de un clic) para acercar o alejar'}; con el foco, flechas para desplazar, + y − para el zoom y Shift + flechas para leer cada vela.`}
           className={cn(
             'block w-full touch-pan-y select-none focus-visible:outline-2 focus-visible:outline-ring',
             ruler ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing',
@@ -484,6 +484,7 @@ export function TradingChart({
           onRuler={setRuler}
           right={AXIS_W}
           bottom={top.price + h.price}
+          wheelHint={nav.wheelHint}
         />
       </div>
     </div>

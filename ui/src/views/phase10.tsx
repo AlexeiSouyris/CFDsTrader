@@ -234,7 +234,7 @@ export function GlossaryView() {
         />
       </label>
       <p className="text-[11px] text-muted-foreground" aria-live="polite">
-        {found.length} de {GLOSSARY.length} términos · fuente: docs/GLOSARIO.md
+        {found.length} de {GLOSSARY.length} términos
       </p>
       <div className="grid gap-3 md:grid-cols-2">
         {found.map((e) => (

@@ -12,6 +12,9 @@ import { TOOLS, type AnalysisTool, type ToolState } from '@/lib/analysis-layers'
 import { useDismiss } from '@/lib/floating'
 import { cn } from '@/lib/utils'
 
+const NOT_AVAILABLE =
+  'Este gráfico no trae herramientas de análisis: por ahora solo las tienen las velas de 15 minutos de los CFD de IG.'
+
 export function ChartToolsMenu({
   tools,
   onToggle,
@@ -26,7 +29,9 @@ export function ChartToolsMenu({
   const ref = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const panelId = useId()
-  const on = TOOLS.filter((t) => tools[t.id]).length
+  // sin capas (#580): el botón se ve deshabilitado, sin contador, y al abrirlo explica por qué
+  const on = available ? TOOLS.filter((t) => tools[t.id]).length : 0
+  const noteId = `${panelId}-note`
   // el panel va en una capa sobre todo (#570): si no, el gráfico de abajo lo tapa
   useDismiss(open, () => setOpen(false), [ref, panelRef], ref)
 
@@ -37,10 +42,13 @@ export function ChartToolsMenu({
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
+        aria-disabled={!available || undefined}
+        title={available ? undefined : NOT_AVAILABLE}
         onClick={() => setOpen((o) => !o)}
         className={cn(
           'inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-background/60 px-3 text-[12px] font-bold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring',
           open && 'text-foreground',
+          !available && 'border-dashed opacity-60',
         )}
       >
         <Layers className="size-3.5" aria-hidden />
@@ -66,8 +74,12 @@ export function ChartToolsMenu({
             Tocá cada nombre para ver su definición.
           </p>
           {!available && (
-            <p role="note" className="mb-2 text-[11.5px] leading-snug text-muted-foreground">
-              Este gráfico no las trae: el motor las manda con las velas de 15 m del CFD de IG.
+            <p
+              id={noteId}
+              role="note"
+              className="mb-2 rounded-lg border border-dashed border-border px-2 py-1.5 text-[11.5px] leading-snug text-foreground"
+            >
+              {NOT_AVAILABLE}
             </p>
           )}
           <ul className="grid gap-1">
@@ -76,9 +88,11 @@ export function ChartToolsMenu({
                 <input
                   id={`${panelId}-${t.id}`}
                   type="checkbox"
-                  checked={tools[t.id]}
+                  checked={available && tools[t.id]}
+                  disabled={!available}
+                  aria-describedby={available ? undefined : noteId}
                   onChange={(e) => onToggle(t.id, e.target.checked)}
-                  className="size-4 accent-[var(--primary)]"
+                  className="size-4 accent-[var(--primary)] disabled:opacity-50"
                 />
                 <label htmlFor={`${panelId}-${t.id}`} className="sr-only">
                   {t.label}

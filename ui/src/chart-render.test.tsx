@@ -1,16 +1,16 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { placeLabels } from '@/components/ui/chart-measure'
+import { groupLabels } from '@/components/ui/chart-measure'
 import { LiquidityChart } from '@/components/ui/liquidity-chart'
 import { chartBars } from '@/lib/liquidity-bars'
 import { LIQUIDITY_US100 as DATA } from '@/mocks'
 
-// `placeLabels` se llama una vez por cada dibujo del gráfico entero: contarla dice si mover el
+// `groupLabels` se llama una vez por cada dibujo del gráfico entero: contarla dice si mover el
 // cursor vuelve a dibujar todo el SVG o solo la capa del punto (#377).
 vi.mock('@/components/ui/chart-measure', async (importOriginal) => {
   const m = await importOriginal<typeof import('@/components/ui/chart-measure')>()
-  return { ...m, placeLabels: vi.fn(m.placeLabels) }
+  return { ...m, groupLabels: vi.fn(m.groupLabels) }
 })
 
 describe('rendimiento del gráfico al mover el cursor (#377)', () => {
@@ -38,7 +38,7 @@ describe('rendimiento del gráfico al mover el cursor (#377)', () => {
       />,
     )
     const svg = screen.getByRole('img', { name: /US100, \d+ velas/ })
-    const calls = vi.mocked(placeLabels).mock.calls.length
+    const calls = vi.mocked(groupLabels).mock.calls.length
     expect(calls).toBeGreaterThan(0)
     const candle = container.querySelector('[data-candle]')
 
@@ -58,10 +58,10 @@ describe('rendimiento del gráfico al mover el cursor (#377)', () => {
     expect(container.querySelector('[data-hover-dot]')).not.toBeNull()
     expect(container.querySelector('[data-measure]')).not.toBeNull()
     // ...pero el gráfico no se volvió a dibujar
-    expect(vi.mocked(placeLabels).mock.calls.length).toBe(calls)
+    expect(vi.mocked(groupLabels).mock.calls.length).toBe(calls)
     expect(container.querySelector('[data-candle]')).toBe(candle)
     // en cambio, cambiar el rango sí lo vuelve a dibujar (la cuenta mide lo que dice medir)
     fireEvent.click(screen.getByRole('button', { name: 'Todo' }))
-    expect(vi.mocked(placeLabels).mock.calls.length).toBeGreaterThan(calls)
+    expect(vi.mocked(groupLabels).mock.calls.length).toBeGreaterThan(calls)
   })
 })

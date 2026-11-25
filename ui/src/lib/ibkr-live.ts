@@ -112,15 +112,23 @@ export function withLiveBars(
   return { bars, forming: null }
 }
 
+/** El tipo de dato de IBKR en español (#580): "delayed" se mostraba en inglés. */
+const DATA_TYPE: Record<Exclude<IbkrLiveDataType, 'live'>, string> = {
+  delayed: 'con atraso',
+  frozen: 'congelado',
+  delayed_frozen: 'con atraso, congelado',
+}
+
 /**
- * Etiqueta del tipo de dato, tal como lo informa IBKR: "en vivo" o "IBKR · delayed ~N min".
- * Minutos redondeados del atraso que mide el motor (presentación).
+ * Etiqueta del tipo de dato, tal como lo informa IBKR: "en vivo" o "IBKR · ~N min de atraso"
+ * (como la lista de mercados). Minutos redondeados del atraso que mide el motor (presentación).
  */
 export function liveLabel(msg: Pick<IbkrLiveMessage, 'data_type' | 'delay_seconds'>): string {
   if (msg.data_type === 'live') return 'en vivo'
-  const kind = msg.data_type ? msg.data_type.replace('_', ' ') : 'sin tipo'
+  const kind = msg.data_type ? (DATA_TYPE[msg.data_type] ?? msg.data_type) : 'sin tipo'
   if (msg.delay_seconds === null) return `IBKR · ${kind}`
-  return `IBKR · ${kind} ~${Math.max(0, Math.round(msg.delay_seconds / 60))} min`
+  const delay = `~${Math.max(0, Math.round(msg.delay_seconds / 60))} min de atraso`
+  return msg.data_type === 'delayed' ? `IBKR · ${delay}` : `IBKR · ${kind} · ${delay}`
 }
 
 /** Espera antes de volver a abrir una conexión que el navegador dio por cerrada (se duplica). */

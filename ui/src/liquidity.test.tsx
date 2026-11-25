@@ -302,10 +302,13 @@ describe('vista de liquidez en vivo (#231)', () => {
         height={440}
       />,
     )
-    const ys = [...container.querySelectorAll('[data-level-label]')].map((g) =>
-      Number(g.querySelector('rect')!.getAttribute('y')),
-    )
-    expect(ys).toHaveLength(9)
+    const groups = [...container.querySelectorAll('[data-level-label]')]
+    const ys = groups.map((g) => Number(g.querySelector('rect')!.getAttribute('y')))
+    // los que se pisan se agrupan en uno con "+N" (#580): están los 9, en pocos rótulos
+    const total = groups.reduce((s, g) => s + Number(g.getAttribute('data-label-count') ?? 1), 0)
+    expect(total).toBe(9)
+    expect(ys.length).toBeLessThan(9)
+    expect(groups.some((g) => / \+\d+$/.test(g.querySelector('text')!.textContent!))).toBe(true)
     // la caja de cada rótulo (11 px) queda dentro del panel de precio: de 6 a 440 − 22
     for (const y of ys) {
       expect(y).toBeGreaterThanOrEqual(6)

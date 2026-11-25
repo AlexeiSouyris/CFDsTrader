@@ -72,6 +72,13 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
       ?.setAttribute('content', theme === 'dark' ? '#101113' : '#e7e9ec')
   }, [theme])
 
+  // El título de la pestaña dice la vista (#580): el historial y las pestañas se distinguen.
+  useEffect(() => {
+    const label =
+      view === NOT_FOUND ? 'Página no encontrada' : VIEWS.find((v) => v.id === view)?.label
+    document.title = label ? `${label} · CFDsTrader` : 'CFDsTrader'
+  }, [view])
+
   useEffect(() => {
     if (stage !== 'loading') return
     const t = window.setTimeout(() => setStage('signin'), 900)
