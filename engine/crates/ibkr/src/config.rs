@@ -29,12 +29,40 @@ pub enum WhatToShow {
     Midpoint,
 }
 
+/// Qué tipo de contrato es un instrumento de `config/ibkr.toml`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContractKind {
+    /// Futuro con vencimiento: se usa el vigente más cercano (o el mes pedido).
+    Future,
+    /// Futuro continuo de IBKR (`CONTFUT`), solo para historia.
+    ContinuousFuture,
+    /// Acción o ETF (por ejemplo QQQ).
+    Stock,
+    /// Divisa en IDEALPRO: `symbol` es la moneda base y `currency` la cotizada.
+    Forex,
+}
+
+impl ContractKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ContractKind::Future => "future",
+            ContractKind::ContinuousFuture => "continuous_future",
+            ContractKind::Stock => "stock",
+            ContractKind::Forex => "forex",
+        }
+    }
+}
+
+/// Un instrumento de `config/ibkr.toml` (el nombre viene de la etapa 1, cuando eran solo futuros).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FutureSpec {
     pub id: InstrumentId,
+    pub kind: ContractKind,
     pub symbol: String,
     pub exchange: String,
     pub currency: String,
+    /// Precio propio del instrumento; si no, el de `[history]` (en IDEALPRO no hay `TRADES`).
+    pub what_to_show: Option<WhatToShow>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,6 +124,10 @@ struct RawHistory {
 #[serde(deny_unknown_fields)]
 struct RawInstrument {
     id: String,
+    #[serde(default)]
+    kind: Option<String>,
+    #[serde(default)]
+    what_to_show: Option<String>,
     symbol: String,
     exchange: String,
     currency: String,
@@ -122,6 +154,17 @@ fn plain(field: &'static str, v: &str) -> Result<String, IbkrConfigError> {
         Ok(v.to_owned())
     } else {
         Err(invalid(field, format!("{v:?}: 1-16 letras o números")))
+    }
+}
+
+fn parse_what(field: &'static str, v: &str) -> Result<WhatToShow, IbkrConfigError> {
+    match v {
+        "TRADES" => Ok(WhatToShow::Trades),
+        "MIDPOINT" => Ok(WhatToShow::Midpoint),
+        other => Err(invalid(
+            field,
+            format!("{other:?}: solo \"TRADES\" o \"MIDPOINT\""),
+        )),
     }
 }
 
@@ -184,16 +227,7 @@ impl IbkrConfig {
                 ));
             }
         };
-        let what_to_show = match h.what_to_show.as_str() {
-            "TRADES" => WhatToShow::Trades,
-            "MIDPOINT" => WhatToShow::Midpoint,
-            other => {
-                return Err(invalid(
-                    "history.what_to_show",
-                    format!("{other:?}: solo \"TRADES\" o \"MIDPOINT\""),
-                ));
-            }
-        };
+        let what_to_show = parse_what("history.what_to_show", &h.what_to_show)?;
         if !(1..=24 * 30).contains(&h.lookback_hours) {
             return Err(invalid(
                 "history.lookback_hours",
@@ -214,8 +248,26 @@ impl IbkrConfig {
             if instruments.iter().any(|s: &FutureSpec| s.id == id) {
                 return Err(invalid("instruments.id", format!("{id} repetido")));
             }
+            let kind = match i.kind.as_deref().unwrap_or("future") {
+                "future" => ContractKind::Future,
+                "continuous_future" => ContractKind::ContinuousFuture,
+                "stock" => ContractKind::Stock,
+                "forex" => ContractKind::Forex,
+                other => {
+                    return Err(invalid(
+                        "instruments.kind",
+                        format!("{other:?}: future, continuous_future, stock o forex"),
+                    ));
+                }
+            };
+            let what_to_show = match i.what_to_show.as_deref() {
+                None => None,
+                Some(w) => Some(parse_what("instruments.what_to_show", w)?),
+            };
             instruments.push(FutureSpec {
                 id,
+                kind,
+                what_to_show,
                 symbol: plain("instruments.symbol", &i.symbol)?,
                 exchange: plain("instruments.exchange", &i.exchange)?,
                 currency: plain("instruments.currency", &i.currency)?,

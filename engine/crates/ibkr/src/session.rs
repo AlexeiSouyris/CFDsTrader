@@ -12,7 +12,7 @@ use std::sync::Mutex;
 use cfds_core::{Candle, InstrumentId, KillSwitch, Timeframe};
 use cfds_market_data::{MarketDataProvider, ProviderError};
 use cfds_obs::AlertKind;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use rust_decimal::Decimal;
 
 use crate::account::{PaperAccountId, check_session_accounts, mask};
@@ -32,11 +32,72 @@ pub enum ApiError {
     Rejected(String),
 }
 
-/// Pedido de velas de un futuro.
+/// Tamaño de vela que se le pide a IBKR (más que los `Timeframe` del motor: para medir y guardar).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum BarSize {
+    M1,
+    M15,
+    H1,
+    /// Diaria: IBKR la fecha por día de sesión, sin hora (se toma la medianoche UTC de esa fecha).
+    D1,
+}
+
+impl BarSize {
+    pub const ALL: [BarSize; 4] = [BarSize::M1, BarSize::M15, BarSize::H1, BarSize::D1];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            BarSize::M1 => "1m",
+            BarSize::M15 => "15m",
+            BarSize::H1 => "1h",
+            BarSize::D1 => "1d",
+        }
+    }
+
+    pub fn duration(self) -> TimeDelta {
+        match self {
+            BarSize::M1 => TimeDelta::minutes(1),
+            BarSize::M15 => TimeDelta::minutes(15),
+            BarSize::H1 => TimeDelta::hours(1),
+            BarSize::D1 => TimeDelta::days(1),
+        }
+    }
+}
+
+impl From<Timeframe> for BarSize {
+    fn from(t: Timeframe) -> Self {
+        match t {
+            Timeframe::M15 => BarSize::M15,
+            Timeframe::H1 => BarSize::H1,
+        }
+    }
+}
+
+impl std::str::FromStr for BarSize {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        BarSize::ALL
+            .into_iter()
+            .find(|b| b.as_str() == s)
+            .ok_or_else(|| format!("tamaño de vela desconocido: {s:?} (1m, 15m, 1h o 1d)"))
+    }
+}
+
+/// De qué contrato de un futuro: el vigente más cercano o un mes concreto (`AAAAMM`), que puede
+/// estar vencido. Para los demás tipos se ignora.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum ContractChoice {
+    #[default]
+    Front,
+    Month(String),
+}
+
+/// Pedido de velas (o de la fecha más vieja con datos) de un instrumento.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BarsRequest {
     pub spec: FutureSpec,
-    pub timeframe: Timeframe,
+    pub contract: ContractChoice,
+    pub bar_size: BarSize,
     pub from: DateTime<Utc>,
     pub to: DateTime<Utc>,
     pub what_to_show: WhatToShow,
@@ -80,6 +141,12 @@ pub trait IbkrApi: Send + Sync {
         &self,
         req: &BarsRequest,
     ) -> impl Future<Output = Result<BarsResponse, ApiError>> + Send;
+    /// Fecha de la primera vela que tiene IBKR (`reqHeadTimeStamp`) y el contrato. Usa `spec`,
+    /// `contract`, `what_to_show` y `regular_hours_only` del pedido.
+    fn head_timestamp(
+        &self,
+        req: &BarsRequest,
+    ) -> impl Future<Output = Result<(String, DateTime<Utc>), ApiError>> + Send;
     fn disconnect(&self) -> impl Future<Output = ()> + Send;
 }
 
@@ -112,6 +179,15 @@ pub struct AccountSummary {
     pub net_liquidation: Option<Decimal>,
     pub total_cash: Option<Decimal>,
     pub available_funds: Option<Decimal>,
+}
+
+/// Velas cerradas de cualquier [`BarSize`], con su fuente y el contrato del que salen.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourcedBars {
+    pub source: String,
+    pub contract: String,
+    pub bar_size: BarSize,
+    pub bars: Vec<RawBar>,
 }
 
 /// Velas cerradas con su fuente y el contrato del que salen.
@@ -305,7 +381,82 @@ impl<A: IbkrApi> ReadOnlySession<A> {
         Ok(out)
     }
 
+    fn request(
+        &self,
+        instrument: &InstrumentId,
+        contract: ContractChoice,
+        bar_size: BarSize,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<BarsRequest, SessionError> {
+        let spec = self
+            .cfg
+            .instrument(instrument)
+            .cloned()
+            .ok_or_else(|| SessionError::UnknownInstrument(instrument.clone()))?;
+        Ok(BarsRequest {
+            what_to_show: spec.what_to_show.unwrap_or(self.cfg.what_to_show),
+            spec,
+            contract,
+            bar_size,
+            from,
+            to,
+            regular_hours_only: self.cfg.regular_hours_only,
+        })
+    }
+
+    /// Fecha de la primera vela que tiene IBKR para `instrument` (y de qué contrato).
+    pub async fn head_timestamp(
+        &self,
+        instrument: &InstrumentId,
+        contract: ContractChoice,
+        now: DateTime<Utc>,
+    ) -> Result<(String, DateTime<Utc>), SessionError> {
+        let req = self.request(instrument, contract, BarSize::H1, now, now)?;
+        self.check_connection(now).await?;
+        match self.api.head_timestamp(&req).await {
+            Ok(r) => Ok(r),
+            Err(e) => Err(self.api_error(e, now).await),
+        }
+    }
+
     /// Velas **cerradas** en `now` de `instrument`, con inicio en `[from, to)`, con su fuente.
+    pub async fn closed_bars(
+        &self,
+        instrument: &InstrumentId,
+        contract: ContractChoice,
+        bar_size: BarSize,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+        now: DateTime<Utc>,
+    ) -> Result<SourcedBars, SessionError> {
+        let req = self.request(instrument, contract, bar_size, from, to)?;
+        self.check_connection(now).await?;
+        let resp = match self.api.bars(&req).await {
+            Ok(r) => r,
+            Err(e) => return Err(self.api_error(e, now).await),
+        };
+        let mut bars: Vec<RawBar> = Vec::with_capacity(resp.bars.len());
+        for b in resp.bars {
+            if let Err(problem) = sane(&b, bars.last().map(|c| c.start)) {
+                let reason = format!("{instrument} {}: {problem}", b.start.to_rfc3339());
+                return Err(self.trip(AlertKind::DataError, reason, now).await);
+            }
+            // Solo velas cerradas (CLAUDE.md §5b): la vela en curso nunca sale de acá.
+            if from <= b.start && b.start < to && b.start + bar_size.duration() <= now {
+                bars.push(b);
+            }
+        }
+        Ok(SourcedBars {
+            source: self.cfg.source.clone(),
+            contract: resp.contract,
+            bar_size,
+            bars,
+        })
+    }
+
+    /// Velas **cerradas** en `now` de `instrument`, con inicio en `[from, to)`, con su fuente,
+    /// como velas del motor (solo 15m y 1h, del contrato vigente).
     pub async fn closed_candles(
         &self,
         instrument: &InstrumentId,
@@ -314,31 +465,20 @@ impl<A: IbkrApi> ReadOnlySession<A> {
         to: DateTime<Utc>,
         now: DateTime<Utc>,
     ) -> Result<SourcedCandles, SessionError> {
-        let spec = self
-            .cfg
-            .instrument(instrument)
-            .cloned()
-            .ok_or_else(|| SessionError::UnknownInstrument(instrument.clone()))?;
-        self.check_connection(now).await?;
-        let req = BarsRequest {
-            spec,
-            timeframe,
-            from,
-            to,
-            what_to_show: self.cfg.what_to_show,
-            regular_hours_only: self.cfg.regular_hours_only,
-        };
-        let resp = match self.api.bars(&req).await {
-            Ok(r) => r,
-            Err(e) => return Err(self.api_error(e, now).await),
-        };
-        let mut candles: Vec<Candle> = Vec::with_capacity(resp.bars.len());
-        for b in resp.bars {
-            if let Err(problem) = sane(&b, candles.last().map(|c| c.start)) {
-                let reason = format!("{instrument} {}: {problem}", b.start.to_rfc3339());
-                return Err(self.trip(AlertKind::DataError, reason, now).await);
-            }
-            let c = Candle {
+        let got = self
+            .closed_bars(
+                instrument,
+                ContractChoice::Front,
+                timeframe.into(),
+                from,
+                to,
+                now,
+            )
+            .await?;
+        let candles = got
+            .bars
+            .into_iter()
+            .map(|b| Candle {
                 instrument_id: instrument.clone(),
                 timeframe,
                 start: b.start,
@@ -347,15 +487,11 @@ impl<A: IbkrApi> ReadOnlySession<A> {
                 low: b.low,
                 close: b.close,
                 volume: b.volume,
-            };
-            // Solo velas cerradas (CLAUDE.md §5b): la vela en curso nunca sale de acá.
-            if from <= c.start && c.start < to && c.is_closed_at(now) {
-                candles.push(c);
-            }
-        }
+            })
+            .collect();
         Ok(SourcedCandles {
-            source: self.cfg.source.clone(),
-            contract: resp.contract,
+            source: got.source,
+            contract: got.contract,
             candles,
         })
     }

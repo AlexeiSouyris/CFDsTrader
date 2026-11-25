@@ -22,8 +22,10 @@ pub mod session;
 
 pub use account::{PaperAccountError, PaperAccountId, check_session_accounts, mask};
 pub use client::{ConnectError, IbapiClient, connect};
-pub use config::{FutureSpec, IbkrConfig, IbkrConfigError, REQUIRED_FORBIDDEN_PORTS, WhatToShow};
+pub use config::{
+    ContractKind, FutureSpec, IbkrConfig, IbkrConfigError, REQUIRED_FORBIDDEN_PORTS, WhatToShow,
+};
 pub use session::{
-    AccountSummary, ApiError, BarsRequest, BarsResponse, IbkrApi, RawBar, ReadOnlySession,
-    SessionError, SourcedCandles, SummaryItem, Trip,
+    AccountSummary, ApiError, BarSize, BarsRequest, BarsResponse, ContractChoice, IbkrApi, RawBar,
+    ReadOnlySession, SessionError, SourcedBars, SourcedCandles, SummaryItem, Trip,
 };

@@ -7,8 +7,9 @@ use std::time::Duration;
 
 use cfds_core::{InstrumentId, KillSwitch, Timeframe};
 use cfds_ibkr::{
-    ApiError, BarsRequest, BarsResponse, ConnectError, IbkrApi, IbkrConfig, IbkrConfigError,
-    PaperAccountError, PaperAccountId, RawBar, ReadOnlySession, SessionError, SummaryItem, connect,
+    ApiError, BarSize, BarsRequest, BarsResponse, ConnectError, ContractChoice, ContractKind,
+    IbkrApi, IbkrConfig, IbkrConfigError, PaperAccountError, PaperAccountId, RawBar,
+    ReadOnlySession, SessionError, SummaryItem, WhatToShow, connect,
 };
 use cfds_obs::AlertKind;
 use chrono::{DateTime, TimeZone, Utc};
@@ -39,6 +40,7 @@ struct Fake {
     accounts: Vec<String>,
     summary: Vec<SummaryItem>,
     bars: Mutex<Option<Result<BarsResponse, ApiError>>>,
+    last: Mutex<Option<BarsRequest>>,
 }
 
 impl Fake {
@@ -60,12 +62,19 @@ impl IbkrApi for &Fake {
     async fn account_summary(&self) -> Result<Vec<SummaryItem>, ApiError> {
         Ok(self.summary.clone())
     }
-    async fn bars(&self, _req: &BarsRequest) -> Result<BarsResponse, ApiError> {
+    async fn bars(&self, req: &BarsRequest) -> Result<BarsResponse, ApiError> {
+        *self.last.lock().unwrap() = Some(req.clone());
         self.bars
             .lock()
             .unwrap()
             .clone()
             .unwrap_or(Err(ApiError::Rejected("sin velas".into())))
+    }
+    async fn head_timestamp(
+        &self,
+        _req: &BarsRequest,
+    ) -> Result<(String, DateTime<Utc>), ApiError> {
+        Ok(("MNQZ6".into(), t(0)))
     }
     async fn disconnect(&self) {
         self.disconnects.fetch_add(1, Ordering::SeqCst);
@@ -411,4 +420,89 @@ fn paper_account_is_masked_in_debug_and_display() {
     let p = paper();
     assert_eq!(p.to_string(), "***01");
     assert!(!format!("{p:?}").contains(PAPER));
+}
+
+// ---- Otros tamaños de vela, tipos de contrato y la primera vela (#536) ----
+
+#[tokio::test]
+async fn one_minute_bars_only_closed_and_forex_asks_midpoint() {
+    let fake = Fake::with_accounts(&[PAPER]);
+    let m = |min: i64| t(10) + chrono::TimeDelta::minutes(min);
+    let mut bars: Vec<RawBar> = (0..3).map(|_| bar(10, dec!(1.1))).collect();
+    for (i, b) in bars.iter_mut().enumerate() {
+        b.start = m(i as i64);
+    }
+    *fake.bars.lock().unwrap() = Some(Ok(BarsResponse {
+        contract: "EUR.USD".into(),
+        bars,
+    }));
+    let s = ReadOnlySession::open(&fake, cfg(), paper(), t(10))
+        .await
+        .unwrap();
+    let id: InstrumentId = "EURUSD".parse().unwrap();
+    // A las 10:02:30 la vela de las 10:02 sigue abierta.
+    let now = m(2) + chrono::TimeDelta::seconds(30);
+    let got = s
+        .closed_bars(&id, ContractChoice::Front, BarSize::M1, t(10), t(11), now)
+        .await
+        .unwrap();
+    assert_eq!(got.bar_size, BarSize::M1);
+    assert_eq!(
+        got.bars.iter().map(|b| b.start).collect::<Vec<_>>(),
+        vec![m(0), m(1)]
+    );
+    let req = fake.last.lock().unwrap().clone().unwrap();
+    assert_eq!(req.spec.kind, ContractKind::Forex);
+    assert_eq!(req.what_to_show, WhatToShow::Midpoint);
+    assert_eq!(req.bar_size, BarSize::M1);
+}
+
+#[tokio::test]
+async fn an_expired_month_reaches_the_client() {
+    let fake = Fake::with_accounts(&[PAPER]);
+    *fake.bars.lock().unwrap() = Some(Ok(BarsResponse {
+        contract: "MNQU6".into(),
+        bars: vec![bar(8, dec!(21000))],
+    }));
+    let s = ReadOnlySession::open(&fake, cfg(), paper(), t(10))
+        .await
+        .unwrap();
+    let id: InstrumentId = "MNQ".parse().unwrap();
+    let month = ContractChoice::Month("202609".into());
+    let got = s
+        .closed_bars(&id, month.clone(), BarSize::H1, t(0), t(10), t(10))
+        .await
+        .unwrap();
+    assert_eq!(got.contract, "MNQU6");
+    let req = fake.last.lock().unwrap().clone().unwrap();
+    assert_eq!(req.contract, month);
+    assert_eq!(req.what_to_show, WhatToShow::Trades);
+    let (c, first) = s
+        .head_timestamp(&id, ContractChoice::Front, t(10))
+        .await
+        .unwrap();
+    assert_eq!((c.as_str(), first), ("MNQZ6", t(0)));
+}
+
+#[test]
+fn bar_sizes_and_contract_kinds_from_text() {
+    for b in BarSize::ALL {
+        assert_eq!(b.as_str().parse::<BarSize>().unwrap(), b);
+    }
+    assert!("4h".parse::<BarSize>().is_err());
+    assert_eq!(BarSize::from(Timeframe::M15), BarSize::M15);
+    let c = cfg();
+    let kind = |id: &str| c.instrument(&id.parse().unwrap()).unwrap().kind;
+    assert_eq!(kind("MNQ"), ContractKind::Future);
+    assert_eq!(kind("MNQ.C"), ContractKind::ContinuousFuture);
+    assert_eq!(kind("QQQ"), ContractKind::Stock);
+    assert_eq!(kind("EURUSD"), ContractKind::Forex);
+    let bad = CONFIG.replace("kind = \"stock\"", "kind = \"bond\"");
+    assert!(matches!(
+        IbkrConfig::from_toml(&bad),
+        Err(IbkrConfigError::Invalid {
+            field: "instruments.kind",
+            ..
+        })
+    ));
 }

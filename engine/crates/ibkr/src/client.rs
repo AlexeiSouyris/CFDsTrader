@@ -16,19 +16,21 @@ use chrono::{DateTime, NaiveDate, Utc};
 use ibapi::accounts::types::AccountGroup;
 use ibapi::accounts::{AccountSummaryResult, AccountSummaryTags};
 use ibapi::contracts::Contract;
+use ibapi::contracts::ContractMonth;
 use ibapi::market_data::TradingHours;
-use ibapi::market_data::historical::{Bar, BarSize, BarTimestamp, WhatToShow as IbWhat};
+use ibapi::market_data::historical::{
+    Bar, BarSize as IbSize, BarTimestamp, Duration as IbDuration, WhatToShow as IbWhat,
+};
 use ibapi::prelude::{StreamExt, SubscriptionItemStreamExt};
 use ibapi::{Client, Error as IbError};
 use rust_decimal::Decimal;
 use time::OffsetDateTime;
 
-use cfds_core::Timeframe;
-
 use crate::account::{PaperAccountError, PaperAccountId};
-use crate::config::{IbkrConfig, IbkrConfigError, WhatToShow};
+use crate::config::{ContractKind, IbkrConfig, IbkrConfigError, WhatToShow};
 use crate::session::{
-    ApiError, BarsRequest, BarsResponse, IbkrApi, RawBar, ReadOnlySession, SummaryItem, Trip,
+    ApiError, BarSize, BarsRequest, BarsResponse, ContractChoice, IbkrApi, RawBar, ReadOnlySession,
+    SummaryItem, Trip,
 };
 
 /// Variables de `ibapi` que graban en disco los mensajes crudos (con cuentas y saldos). Con
@@ -152,9 +154,11 @@ fn to_offset(t: DateTime<Utc>) -> Result<OffsetDateTime, ApiError> {
 }
 
 /// Una vela de `ibapi` a decimales y UTC. Volumen negativo (IBKR usa -1 cuando no hay) → `None`.
-pub fn to_raw_bar(b: &Bar) -> Result<RawBar, ApiError> {
+/// Una vela diaria (`daily`) puede venir solo con fecha: se toma la medianoche UTC de esa fecha.
+pub fn to_raw_bar(b: &Bar, daily: bool) -> Result<RawBar, ApiError> {
     let start = match b.date {
         BarTimestamp::DateTime(t) => to_utc(t)?,
+        BarTimestamp::Date(d) if daily => to_utc(d.midnight().assume_utc())?,
         BarTimestamp::Date(_) => {
             return Err(ApiError::Data("vela intradía sin hora".into()));
         }
@@ -172,6 +176,35 @@ pub fn to_raw_bar(b: &Bar) -> Result<RawBar, ApiError> {
         close: to_decimal(b.close, "close")?,
         volume,
     })
+}
+
+/// Mes `AAAAMM` → `ContractMonth`.
+pub fn parse_month(m: &str) -> Result<ContractMonth, ApiError> {
+    let bad = || ApiError::Rejected(format!("mes de contrato inválido: {m:?} (AAAAMM)"));
+    if m.len() != 6 || !m.chars().all(|c| c.is_ascii_digit()) {
+        return Err(bad());
+    }
+    let year: u16 = m[..4].parse().map_err(|_| bad())?;
+    let month: u8 = m[4..].parse().map_err(|_| bad())?;
+    if !(1..=12).contains(&month) {
+        return Err(bad());
+    }
+    Ok(ContractMonth::new(year, month))
+}
+
+/// Duración de IBKR que cubre `span` (como `between` de `ibapi`): segundos hasta un día, días hasta
+/// 365 y si no años. Para el futuro continuo, que no acepta fecha de fin.
+pub fn covering(span: chrono::TimeDelta) -> IbDuration {
+    let secs = span.num_seconds().max(1);
+    if secs <= 86_400 {
+        return IbDuration::seconds(secs as i32);
+    }
+    let days = secs.div_euclid(86_400) + 2;
+    if days <= 365 {
+        IbDuration::days(days as i32)
+    } else {
+        IbDuration::years(secs.div_euclid(365 * 86_400) as i32 + 1)
+    }
 }
 
 /// El vencimiento vigente más cercano: la menor fecha `AAAAMMDD` que no es anterior a `today`.
@@ -227,6 +260,65 @@ impl IbapiClient {
         })?;
         Ok(details[i].contract.clone())
     }
+
+    /// El contrato del pedido, y su nombre para guardar junto a las velas.
+    async fn contract(&self, req: &BarsRequest) -> Result<(Contract, String), ApiError> {
+        let s = &req.spec;
+        let c = match (s.kind, &req.contract) {
+            (ContractKind::Future, ContractChoice::Front) => self.front_contract(req).await?,
+            (ContractKind::Future, ContractChoice::Month(m)) => {
+                let mut query = Contract::futures(s.symbol.as_str())
+                    .on_exchange(s.exchange.as_str())
+                    .in_currency(s.currency.as_str())
+                    .expires_in(parse_month(m)?)
+                    .build();
+                query.include_expired = true;
+                let details = self
+                    .with_timeout(self.client.contract_details(&query))
+                    .await?;
+                let mut c = details
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| ApiError::Rejected(format!("IBKR no conoce {} {m}", s.symbol)))?
+                    .contract;
+                c.include_expired = true;
+                c
+            }
+            (ContractKind::ContinuousFuture, _) => Contract::continuous_futures(s.symbol.as_str())
+                .on_exchange(s.exchange.as_str())
+                .in_currency(s.currency.as_str())
+                .build(),
+            (ContractKind::Stock, _) => Contract::stock(s.symbol.as_str())
+                .on_exchange(s.exchange.as_str())
+                .in_currency(s.currency.as_str())
+                .build(),
+            (ContractKind::Forex, _) => Contract::forex(s.symbol.as_str(), s.currency.as_str())
+                .on_exchange(s.exchange.as_str())
+                .build(),
+        };
+        let name = match s.kind {
+            ContractKind::Future if !c.local_symbol.is_empty() => c.local_symbol.clone(),
+            ContractKind::ContinuousFuture => format!("{}.CONTFUT", s.symbol),
+            ContractKind::Forex => format!("{}.{}", s.symbol, s.currency),
+            _ => s.symbol.clone(),
+        };
+        Ok((c, name))
+    }
+}
+
+fn ib_what(w: WhatToShow) -> IbWhat {
+    match w {
+        WhatToShow::Trades => IbWhat::Trades,
+        WhatToShow::Midpoint => IbWhat::MidPoint,
+    }
+}
+
+fn ib_hours(regular_only: bool) -> TradingHours {
+    if regular_only {
+        TradingHours::Regular
+    } else {
+        TradingHours::Extended
+    }
 }
 
 impl IbkrApi for IbapiClient {
@@ -276,40 +368,47 @@ impl IbkrApi for IbapiClient {
     }
 
     async fn bars(&self, req: &BarsRequest) -> Result<BarsResponse, ApiError> {
-        let contract = self.front_contract(req).await?;
-        let size = match req.timeframe {
-            Timeframe::M15 => BarSize::Min15,
-            Timeframe::H1 => BarSize::Hour,
+        let (contract, name) = self.contract(req).await?;
+        let size = match req.bar_size {
+            BarSize::M1 => IbSize::Min,
+            BarSize::M15 => IbSize::Min15,
+            BarSize::H1 => IbSize::Hour,
+            BarSize::D1 => IbSize::Day,
         };
-        let what = match req.what_to_show {
-            WhatToShow::Trades => IbWhat::Trades,
-            WhatToShow::Midpoint => IbWhat::MidPoint,
-        };
-        let hours = if req.regular_hours_only {
-            TradingHours::Regular
+        let builder = self
+            .client
+            .historical_data(&contract, size)
+            .what_to_show(ib_what(req.what_to_show))
+            .trading_hours(ib_hours(req.regular_hours_only));
+        // El futuro continuo no acepta fecha de fin: se pide hasta ahora y se recorta después.
+        let builder = if req.spec.kind == ContractKind::ContinuousFuture {
+            builder.duration(covering(Utc::now() - req.from))
         } else {
-            TradingHours::Extended
+            builder.between(to_offset(req.from)?, to_offset(req.to)?)
         };
-        let (from, to) = (to_offset(req.from)?, to_offset(req.to)?);
-        let data = self
-            .with_timeout(
-                self.client
-                    .historical_data(&contract, size)
-                    .what_to_show(what)
-                    .trading_hours(hours)
-                    .between(from, to)
-                    .fetch(),
-            )
-            .await?;
+        let data = self.with_timeout(builder.fetch()).await?;
+        let daily = req.bar_size == BarSize::D1;
         let bars = data
             .bars
             .iter()
-            .map(to_raw_bar)
+            .map(|b| to_raw_bar(b, daily))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(BarsResponse {
-            contract: contract.local_symbol.clone(),
+            contract: name,
             bars,
         })
+    }
+
+    async fn head_timestamp(&self, req: &BarsRequest) -> Result<(String, DateTime<Utc>), ApiError> {
+        let (contract, name) = self.contract(req).await?;
+        let t = self
+            .with_timeout(self.client.head_timestamp(
+                &contract,
+                ib_what(req.what_to_show),
+                ib_hours(req.regular_hours_only),
+            ))
+            .await?;
+        Ok((name, to_utc(t)?))
     }
 
     async fn disconnect(&self) {
@@ -342,7 +441,7 @@ mod tests {
             wap: 0.0,
             count: -1,
         };
-        let r = to_raw_bar(&b).unwrap();
+        let r = to_raw_bar(&b, false).unwrap();
         assert_eq!(r.start.timestamp(), 1_764_000_000);
         assert_eq!(r.low.to_string(), "99.75");
         assert_eq!(r.volume, None);
@@ -350,7 +449,21 @@ mod tests {
             date: BarTimestamp::Date(t.date()),
             ..b
         };
-        assert!(matches!(to_raw_bar(&daily), Err(ApiError::Data(_))));
+        assert!(matches!(to_raw_bar(&daily, false), Err(ApiError::Data(_))));
+        let d = to_raw_bar(&daily, true).unwrap();
+        assert_eq!(d.start.timestamp() % 86_400, 0);
+    }
+
+    #[test]
+    fn contract_month_and_covering_duration() {
+        assert!(parse_month("202609").is_ok());
+        for bad in ["2026-09", "202613", "20260", "abcdef"] {
+            assert!(parse_month(bad).is_err(), "{bad}");
+        }
+        let d = |td: chrono::TimeDelta| covering(td).to_string();
+        assert_eq!(d(chrono::TimeDelta::hours(2)), "7200 S");
+        assert_eq!(d(chrono::TimeDelta::days(3)), "5 D");
+        assert_eq!(d(chrono::TimeDelta::days(800)), "3 Y");
     }
 
     #[test]
