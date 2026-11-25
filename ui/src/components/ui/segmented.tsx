@@ -1,4 +1,8 @@
-/** Selector de opciones en una píldora (rango, tipo de gráfico). Uno solo para toda la app. */
+/**
+ * Selector de opciones en una píldora (rango, tipo de gráfico). Uno solo para toda la app.
+ * Mide lo que miden sus opciones y nunca las parte ni las aprieta (#579): si no entra, la caja
+ * que lo contiene se desplaza.
+ */
 import { cn } from '@/lib/utils'
 
 export function Segmented({
@@ -19,7 +23,11 @@ export function Segmented({
   disabled?: Readonly<Record<string, string>>
 }) {
   return (
-    <div role="group" aria-label={label} className="flex rounded-full border border-border p-0.5">
+    <div
+      role="group"
+      aria-label={label}
+      className="flex w-max max-w-none shrink-0 rounded-full border border-border p-0.5"
+    >
       {options.map((o) => (
         <button
           key={o}
@@ -29,7 +37,7 @@ export function Segmented({
           title={disabled?.[o]}
           onClick={() => onChange(o)}
           className={cn(
-            'rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+            'shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-40',
             o === value
               ? 'bg-primary text-primary-foreground'
               : 'text-muted-foreground enabled:hover:text-foreground',

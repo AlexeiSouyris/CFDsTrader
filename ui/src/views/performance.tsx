@@ -10,6 +10,7 @@
  * El fondo llega del motor (`GET /api/v1/fund`, `fund_summary.v1`, #312); sin gateway, el de
  * ejemplo, marcado así. No se inventan contratos: los tipos son los de `contracts/`.
  */
+import { ScrollRegion } from '@/components/ui/scroll-region'
 import { useState, type ReactNode } from 'react'
 
 import { AnimatedNumber } from '@/components/ui/animated-number'
@@ -76,7 +77,7 @@ function RunsTable({
 }) {
   const th = 'py-2 pr-3 font-bold whitespace-nowrap last:pr-0'
   return (
-    <div className="overflow-x-auto max-lg:overflow-visible">
+    <ScrollRegion label="Corridas de backtest" className="max-lg:overflow-visible">
       <table
         aria-label="Corridas de backtest"
         className="w-full text-[12.5px] lg:min-w-[760px] max-lg:block"
@@ -192,7 +193,7 @@ function RunsTable({
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollRegion>
   )
 }
 

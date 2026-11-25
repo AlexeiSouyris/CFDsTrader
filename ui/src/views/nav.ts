@@ -57,7 +57,7 @@ export const VIEWS: ShellView[] = [
   {
     id: 'multigrafico',
     label: 'Multigráfico',
-    short: 'Multi',
+    short: 'Multigráfico',
     icon: LayoutGrid,
     description:
       'Hasta cuatro gráficos a la vez, cada uno con su instrumento y timeframe. Solo para mirar: sin órdenes.',

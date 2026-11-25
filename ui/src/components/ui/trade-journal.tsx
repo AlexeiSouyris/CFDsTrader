@@ -6,6 +6,7 @@
  * comisiones en la UI; acá el P/L neto llega **ya con los costos** que calcula el motor
  * (spec §11), y la UI solo lo muestra.
  */
+import { ScrollRegion } from '@/components/ui/scroll-region'
 import { Check, X } from 'lucide-react'
 import { useState } from 'react'
 
@@ -47,7 +48,7 @@ export function TradeJournal({
           onChange={(v) => setRange(v as Range)}
         />
       </header>
-      <div className="overflow-x-auto">
+      <ScrollRegion label={title}>
         <table className="w-full min-w-[560px] border-separate border-spacing-0 text-[12px] tabular-nums">
           <caption className="sr-only">{title}, de la más nueva a la más vieja</caption>
           <thead>
@@ -120,7 +121,7 @@ export function TradeJournal({
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
       {shown.length === 0 && (
         <p className="py-6 text-center text-[12px] text-muted-foreground">
           No hay operaciones en este rango.

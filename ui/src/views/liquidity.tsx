@@ -248,14 +248,14 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
       <div className="grid gap-3 2xl:grid-cols-2">
         <Card title={`FVG abiertos (${open.length})`}>
           {open.length ? (
-            <FvgTable fvgs={open} />
+            <FvgTable fvgs={open} label="FVG abiertos" />
           ) : (
             <p className="text-[12.5px]">No hay FVG abiertos.</p>
           )}
         </Card>
         <Card title={`FVG llenos o vencidos (${closed.length})`}>
           {closed.length ? (
-            <FvgTable fvgs={closed} />
+            <FvgTable fvgs={closed} label="FVG llenos o vencidos" />
           ) : (
             <p className="text-[12.5px]">Ningún FVG se llenó todavía.</p>
           )}

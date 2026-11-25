@@ -4,6 +4,7 @@
  * Todo llega calculado por el motor con la forma de sus contratos; acá solo se da formato
  * (CLAUDE.md §1).
  */
+import { ScrollRegion } from '@/components/ui/scroll-region'
 import { useState } from 'react'
 
 import { roundedText } from '@/components/ui/rounded-text'
@@ -40,7 +41,7 @@ const table = 'w-full text-[12.5px] [&_td]:px-2 [&_th]:px-2'
 /** Niveles con su estado. Los vencidos (`expired_at`) van atenuados y lo dicen. */
 export function LevelsTable({ levels }: { levels: LiquidityLevel[] }) {
   return (
-    <div className="overflow-x-auto">
+    <ScrollRegion label="Niveles de liquidez">
       <table className={cn(table, 'min-w-[560px]')}>
         <caption className="sr-only">Niveles de liquidez y su estado</caption>
         <thead>
@@ -84,7 +85,7 @@ export function LevelsTable({ levels }: { levels: LiquidityLevel[] }) {
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollRegion>
   )
 }
 
@@ -94,7 +95,16 @@ const atrText = (s: string | null) => (s === null ? '—' : `${signed(s)} ATR`)
 /** Cuántos FVG se ven antes de "Mostrar todos": la lista entera alarga mucho el Panel (#357). */
 const FVG_PREVIEW = 8
 
-export function FvgTable({ fvgs, preview = FVG_PREVIEW }: { fvgs: FvgEvent[]; preview?: number }) {
+export function FvgTable({
+  fvgs,
+  preview = FVG_PREVIEW,
+  label = 'FVG',
+}: {
+  fvgs: FvgEvent[]
+  preview?: number
+  /** nombre de la tabla: con dos en la misma vista, cada una el suyo */
+  label?: string
+}) {
   const [all, setAll] = useState(false)
   const horizons = fvgs[0]?.reactions.map((r) => r.bars) ?? []
   const rows = [...fvgs].reverse()
@@ -102,7 +112,7 @@ export function FvgTable({ fvgs, preview = FVG_PREVIEW }: { fvgs: FvgEvent[]; pr
   const hidden = rows.length - shown.length
   return (
     <div className="grid gap-2">
-      <div className="overflow-x-auto">
+      <ScrollRegion label={label}>
         <table className={cn(table, 'min-w-[720px] [&_td]:whitespace-nowrap')}>
           <caption className="sr-only">FVG, del más nuevo al más viejo</caption>
           <thead>
@@ -156,7 +166,7 @@ export function FvgTable({ fvgs, preview = FVG_PREVIEW }: { fvgs: FvgEvent[]; pr
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
       {rows.length > preview && (
         <button
           type="button"
@@ -233,7 +243,7 @@ export function StatsPanel({ stats }: { stats: LiquidityStats[] }) {
         {stats[0]?.min_cases ?? '—'} casos no se muestra la tasa. Son frecuencias pasadas, no una
         predicción.
       </p>
-      <div className="overflow-x-auto">
+      <ScrollRegion label="FVG por timeframe, dirección y tamaño">
         <table className={cn(table, 'min-w-[640px]')}>
           <caption className="mb-2 text-left text-[12px] font-bold">
             <Term id="fvg">FVG</Term> por timeframe, dirección y tamaño
@@ -279,9 +289,9 @@ export function StatsPanel({ stats }: { stats: LiquidityStats[] }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
 
-      <div className="overflow-x-auto">
+      <ScrollRegion label="Gaps de apertura (diario)">
         <table className={cn(table, 'min-w-[520px]')}>
           <caption className="mb-2 text-left text-[12px] font-bold">
             <Term id="gap">Gaps</Term> de apertura (diario)
@@ -316,7 +326,7 @@ export function StatsPanel({ stats }: { stats: LiquidityStats[] }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
     </div>
   )
 }

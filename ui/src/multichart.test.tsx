@@ -16,7 +16,9 @@ describe('multigráfico (#540)', () => {
 
   it('se abre desde la navegación', () => {
     render(<App initialStage="app" />)
-    fireEvent.click(within(screen.getByRole('navigation', { name: 'Vistas' })).getByText('Multi'))
+    fireEvent.click(
+      within(screen.getByRole('navigation', { name: 'Vistas' })).getByText('Multigráfico'),
+    )
     expect(location.hash).toBe('#multigrafico')
     expect(drawBar()).toBeInTheDocument()
   })

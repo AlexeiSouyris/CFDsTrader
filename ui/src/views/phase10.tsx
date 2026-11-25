@@ -3,6 +3,7 @@
  * Datos de ejemplo de `mocks/` y definiciones de `docs/GLOSARIO.md`; el fondo llega del motor por el
  * gateway (#312) y, sin gateway, es el de ejemplo. Nada se calcula acá.
  */
+import { ScrollRegion } from '@/components/ui/scroll-region'
 import { Search } from 'lucide-react'
 import { useDeferredValue, useState, type ReactNode } from 'react'
 
@@ -91,7 +92,7 @@ export function FundView() {
             Todavía no hay aportes liquidados.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <ScrollRegion label="Cada miembro">
             <table className="w-full min-w-[520px] text-[13px]" aria-label="Cada miembro">
               <thead>
                 <tr className="border-b border-border text-left text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
@@ -125,7 +126,7 @@ export function FundView() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollRegion>
         )}
       </section>
 
@@ -143,7 +144,7 @@ export function FundView() {
             Todavía no hay movimientos.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <ScrollRegion label="Movimientos del fondo">
             <table className="w-full min-w-[520px] text-[12px]" aria-label="Movimientos del fondo">
               <thead>
                 <tr className="border-b border-border text-left text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
@@ -174,7 +175,7 @@ export function FundView() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollRegion>
         )}
       </section>
 
