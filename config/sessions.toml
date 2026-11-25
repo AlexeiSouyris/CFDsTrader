@@ -26,7 +26,7 @@ holidays = "holidays/XETR.toml"
 # juntos). Entre sesiones queda la pausa diaria de 60 minutos. La del lunes abre el domingo.
 # Es el horario de CME, usado como aproximación del de IG hasta confirmarlo (ADR 0013, pendiente).
 # Ojo: es el horario del MERCADO (velas, validación, stops). La ventana de entradas propia del
-# oro todavía no está definida: sin ella, el oro no abre operaciones (#418).
+# oro (07:00–16:00 UTC, #418) está en config/trading_window.toml.
 [sessions.CMEGLOBEX_METALS]
 name = "CME Globex, metales (oro)"
 timezone = "America/Chicago"

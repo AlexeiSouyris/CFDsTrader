@@ -47,5 +47,8 @@ done
 echo "✅ gateway en http://$BIND (solo lectura)"
 
 cd "$ROOT/ui"
-[ -d node_modules ] || npm ci
+# Instala si falta node_modules o si package-lock.json cambió desde la última instalación (#613).
+if [ ! -f node_modules/.package-lock.json ] || [ package-lock.json -nt node_modules/.package-lock.json ]; then
+  npm ci
+fi
 VITE_SKIP_SIGNIN=1 npx vite --open '/#liquidez'
