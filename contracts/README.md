@@ -31,6 +31,7 @@ Lista de todos los contratos, generada desde `contracts/*.schema.json` (`title` 
 | [`daily_vol_tercile.v1`](daily_vol_tercile.v1.schema.json) | Daily volatility tercile v1 | Tercio de la volatilidad realizada de una vela diaria cerrada frente a su propia historia (spec §13 y spec ML §3) |
 | [`economic_event.v1`](economic_event.v1.schema.json) | Economic event v1 | Un evento del calendario económico (#91) |
 | [`emotional_state.v1`](emotional_state.v1.schema.json) | Emotional state v1 | Estados emocionales de la spec §9.1 (#220) de un instrumento en un momento |
+| [`fomc_statement_novelty.v1`](fomc_statement_novelty.v1.schema.json) | FOMC statement novelty v1 | Cuánto cambió el texto de un comunicado del FOMC respecto del comunicado anterior (#668), con un método |
 | [`fund_movement.v1`](fund_movement.v1.schema.json) | Fund movement v1 | Un aporte o retiro del fondo del grupo ya liquidado (spec §14, #179) |
 | [`fund_summary.v1`](fund_summary.v1.schema.json) | Fund summary v1 | Resumen del fondo del grupo (spec §14, #312) |
 | [`futures_bar.v1`](futures_bar.v1.schema.json) | Futures bar v1 | Una barra de 1 minuto de un futuro, tal como la publica la fuente (ADR 0011, #247; hoy Databento, esquema ohlcv-1m) |
