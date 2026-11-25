@@ -84,7 +84,8 @@ export const VIEWS: ShellView[] = [
     label: 'Noticias',
     short: 'Noticias',
     icon: FolderOpen,
-    description: 'Las carpetas de noticias de cada miembro.',
+    description:
+      'Las noticias con su hora de publicación, las carpetas de cada miembro y el contexto de mercado.',
   },
   {
     id: 'operaciones',

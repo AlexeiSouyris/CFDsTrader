@@ -11,7 +11,6 @@ import type { ReactNode } from 'react'
 
 import { CoinsIcon } from '@/components/ui/animated-icons'
 import { ExampleBadge, ExampleNotice } from '@/components/ui/data-honesty'
-import { GlassFolder } from '@/components/ui/glass-folder'
 import { MarketHeatmap } from '@/components/ui/market-heatmap'
 import { SparkTable } from '@/components/ui/spark-table'
 import { TradeJournal } from '@/components/ui/trade-journal'
@@ -22,18 +21,10 @@ import { dateTimeUtc, decimal, isNegative, signed } from '@/lib/format'
 import { useFund } from '@/lib/fund-api'
 import { useInstruments } from '@/lib/liquidity-api'
 import { cn } from '@/lib/utils'
-import {
-  CURRENT_MEMBER,
-  FOLDERS,
-  HEATMAP,
-  INDEX_ROWS,
-  KPIS,
-  RANKING,
-  TRADES,
-  TROPHIES,
-  US100_1H,
-  type Kpi,
-} from '@/mocks'
+import { HEATMAP, INDEX_ROWS, KPIS, RANKING, TRADES, TROPHIES, US100_1H, type Kpi } from '@/mocks'
+
+// Noticias vive en su archivo (#581, etapa 7); se reexporta para no cambiar las importaciones.
+export { NewsView } from '@/views/news'
 
 function Card({
   title,
@@ -190,25 +181,6 @@ export function ChartsView() {
       <Card example>
         <TradingChart instrument={US100_1H.instrument_id} bars={US100_1H.candles} />
       </Card>
-    </div>
-  )
-}
-
-export function NewsView() {
-  return (
-    <div className="grid gap-6">
-      <ExampleNotice className="max-w-2xl">
-        Las carpetas y noticias son de ejemplo: la UI todavía no lee las noticias del motor.
-      </ExampleNotice>
-      <p className="max-w-2xl text-[13px] text-muted-foreground">
-        Cada miembro guarda en su carpeta las noticias que le importan. Todos pueden ver las
-        carpetas de los demás, pero cada uno modifica solo la suya.
-      </p>
-      <div className="grid justify-items-center gap-x-8 gap-y-24 pt-14 md:grid-cols-2 xl:grid-cols-3">
-        {FOLDERS.map((f) => (
-          <GlassFolder key={f.owner.id} folder={f} editable={f.owner.id === CURRENT_MEMBER.id} />
-        ))}
-      </div>
     </div>
   )
 }

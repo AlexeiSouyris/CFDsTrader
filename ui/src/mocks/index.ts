@@ -248,6 +248,103 @@ export const FOLDERS: MemberFolder[] = [
   },
 ]
 
+/**
+ * Noticias de ejemplo para el lector (#581), con los campos de `contracts/news_item.v1`: la hora de
+ * publicación de la fuente y la hora en que el sistema la leyó, en UTC. El texto es de relleno: la
+ * UI todavía no lee las noticias que ingiere Python. `folders`: qué miembros la guardaron.
+ */
+export type NewsExample = {
+  source: 'fed' | 'ecb'
+  feed: string
+  item_id: string
+  title: string
+  published_at: string
+  retrieved_at: string
+  folders: string[]
+  body: string[]
+}
+
+const NEWS_BODY = [
+  'Texto de ejemplo para mostrar el formato de lectura. Acá va el texto de la noticia tal como lo publicó la fuente, sin resumir ni reinterpretar.',
+  'La interpretación (tema, sentimiento y relevancia por instrumento) la hace el módulo de noticias de Python y llega aparte, con su incertidumbre. Una noticia cuenta para el sistema recién desde su hora de publicación.',
+]
+
+export const NEWS_EXAMPLE: NewsExample[] = [
+  {
+    source: 'ecb',
+    feed: 'press',
+    item_id: 'ej-ecb-0421',
+    title: 'BCE: estadísticas monetarias de la zona euro',
+    published_at: '2026-11-21T09:00:00Z',
+    retrieved_at: '2026-11-21T09:04:12Z',
+    folders: ['m3'],
+    body: NEWS_BODY,
+  },
+  {
+    source: 'fed',
+    feed: 'speeches',
+    item_id: 'ej-fed-1120',
+    title: 'Fed: discurso de un miembro de la Junta sobre la inflación',
+    published_at: '2026-11-20T17:30:00Z',
+    retrieved_at: '2026-11-20T17:33:40Z',
+    folders: ['m2'],
+    body: NEWS_BODY,
+  },
+  {
+    source: 'fed',
+    feed: 'press_monetary',
+    item_id: 'ej-fed-1119',
+    title: 'FOMC: comunicado de la reunión',
+    published_at: '2026-11-19T19:00:00Z',
+    retrieved_at: '2026-11-19T19:01:05Z',
+    folders: ['alexei', 'm2'],
+    body: NEWS_BODY,
+  },
+  {
+    source: 'ecb',
+    feed: 'press_monetary',
+    item_id: 'ej-ecb-1030',
+    title: 'BCE: decisión de política monetaria',
+    published_at: '2026-10-30T13:15:00Z',
+    retrieved_at: '2026-10-30T13:17:51Z',
+    folders: ['alexei'],
+    body: NEWS_BODY,
+  },
+]
+
+/** Calendario de ejemplo con los campos de `contracts/economic_event.v1` (horas en UTC). */
+export type EventExample = {
+  event: string
+  country: string
+  impact: 'alto' | 'medio' | 'bajo'
+  scheduled_at: string
+  published_at: string
+}
+
+export const CALENDAR_EXAMPLE: EventExample[] = [
+  {
+    event: 'Decisión de tipos del BCE',
+    country: 'EU',
+    impact: 'alto',
+    scheduled_at: '2026-12-10T13:15:00Z',
+    published_at: '2026-11-01T00:00:00Z',
+  },
+  {
+    event: 'IPC de EE. UU.',
+    country: 'US',
+    impact: 'alto',
+    scheduled_at: '2026-12-11T13:30:00Z',
+    published_at: '2026-11-01T00:00:00Z',
+  },
+  {
+    event: 'Decisión de tipos del FOMC',
+    country: 'US',
+    impact: 'alto',
+    scheduled_at: '2026-12-16T19:00:00Z',
+    published_at: '2026-11-01T00:00:00Z',
+  },
+]
+
 export type Trophy = {
   period: 'día' | 'semana'
   winner: Member
