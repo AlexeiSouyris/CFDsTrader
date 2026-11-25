@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/gateway_journal.v1.schema.json",
+  "title": "Gateway journal v1",
+  "description": "El diario de paper que devuelve el gateway en GET /api/v1/journal (#615) para la vista Diario de la UI: las propuestas del runner de paper (proposal.v1, source = paper) con su resultado simulado (outcome.v1) o null, de la señal más nueva a la más vieja. Solo junta contratos existentes; no agrega cálculos. Montos en la moneda del instrumento, como texto decimal. La UI lo muestra tal cual.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["entries", "limit"],
+  "properties": {
+    "entries": {
+      "description": "Hasta `limit` entradas. Vacío si el runner de paper todavía no propuso nada.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["proposal", "outcome"],
+        "properties": {
+          "proposal": { "$ref": "proposal.v1.schema.json" },
+          "outcome": {
+            "description": "El resultado simulado (outcome.v1, kind = simulated) cuando la operación ya terminó y su última vela cerró, o null si sigue abierta, no se ejecutó o todavía no se guardó.",
+            "oneOf": [{ "type": "null" }, { "$ref": "outcome.v1.schema.json" }]
+          }
+        }
+      }
+    },
+    "limit": {
+      "description": "El tope que se aplicó: si entries tiene esta cantidad, puede haber más viejas.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 500
+    }
+  }
+}

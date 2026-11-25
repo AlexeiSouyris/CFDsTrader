@@ -470,3 +470,44 @@ async fn ml_labels_and_their_run_are_stored_once_and_never_rewritten() {
         "solo agregar"
     );
 }
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn the_paper_journal_lists_only_paper_newest_first_with_outcomes() {
+    let run_id = "it-journal-paper-source";
+    let j = journal(run_id).await;
+    let (backtest, _) = entry(run_id);
+    let (mut older, mut done) = entry(run_id);
+    older.source = cfds_journal::Source::Paper;
+    older.id = format!("{run_id}:older");
+    done.proposal_id = older.id.clone();
+    let mut newer = older.clone();
+    newer.id = format!("{run_id}:newer");
+    newer.signal_at = at("2026-11-20T09:00:00Z");
+    assert_eq!(j.record(&backtest, None).await.unwrap(), Recorded::Inserted);
+    assert_eq!(
+        j.record(&older, Some(&done)).await.unwrap(),
+        Recorded::Inserted
+    );
+    assert_eq!(j.record(&newer, None).await.unwrap(), Recorded::Inserted);
+    let mine: Vec<_> = j
+        .source_trades(cfds_journal::Source::Paper, 500)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|t| t.proposal.run_id == run_id)
+        .collect();
+    assert_eq!(mine.len(), 2, "solo las de paper, no la del backtest");
+    assert_eq!(mine[0].proposal, newer);
+    assert_eq!(mine[0].outcome, None);
+    assert_eq!(mine[1].proposal, older);
+    assert_eq!(mine[1].outcome, Some(done));
+    // el límite se aplica en la base
+    assert!(
+        j.source_trades(cfds_journal::Source::Paper, 1)
+            .await
+            .unwrap()
+            .len()
+            <= 1
+    );
+}

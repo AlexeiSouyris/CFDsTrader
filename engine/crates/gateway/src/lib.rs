@@ -26,6 +26,7 @@ pub mod emotions;
 pub mod fund;
 pub mod ibkr;
 pub mod ibkr_live;
+pub mod journal;
 pub mod learning;
 pub mod ml;
 pub mod news;

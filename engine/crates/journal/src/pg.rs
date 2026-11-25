@@ -322,6 +322,29 @@ impl PgJournal {
         tx.commit().await?;
         Ok(Some(RunDetail { run, curve, trades }))
     }
+
+    /// El diario de una fuente (`gateway_journal.v1`, #615): sus últimas `limit` propuestas, de la
+    /// señal más nueva a la más vieja, cada una con su resultado simulado o `None`. Solo lectura.
+    pub async fn source_trades(
+        &self,
+        source: Source,
+        limit: i64,
+    ) -> Result<Vec<RunTrade>, JournalError> {
+        let mut tx = self.pool.begin().await?;
+        let rows = sqlx::query(concat!(
+            "SELECT id, source, run_id, instrument_id, side, signal_at, reference, stop, tp1, ",
+            "size, leverage, score, breakdown::text AS breakdown, triggers::text AS triggers, ",
+            "shown::text AS shown ",
+            "FROM proposals WHERE source = $1 ORDER BY signal_at DESC, id DESC LIMIT $2"
+        ))
+        .bind(name(&source)?)
+        .bind(limit)
+        .fetch_all(&mut *tx)
+        .await?;
+        let trades = with_outcomes(&mut tx, rows).await?;
+        tx.commit().await?;
+        Ok(trades)
+    }
 }
 
 async fn select_curve(
@@ -360,6 +383,14 @@ async fn select_trades(
     .bind(run_id)
     .fetch_all(&mut **tx)
     .await?;
+    with_outcomes(tx, rows).await
+}
+
+/// Cada propuesta de `rows` (en ese orden) con su resultado simulado, si hay.
+async fn with_outcomes(
+    tx: &mut Transaction<'_, Postgres>,
+    rows: Vec<PgRow>,
+) -> Result<Vec<RunTrade>, JournalError> {
     let mut out = Vec::with_capacity(rows.len());
     for r in rows {
         let proposal = row_to_proposal(&r)?;
