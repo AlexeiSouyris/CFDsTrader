@@ -35,7 +35,7 @@ use cfds_gateway::ibkr_live::{
 };
 use cfds_gateway::learning::{PgLearning, is_learning_route, respond_learning};
 use cfds_gateway::ml::{is_ml_route, respond_ml};
-use cfds_gateway::ops::url_password;
+use cfds_gateway::ops::{connection_end, url_password};
 use cfds_gateway::ops_store::{persistence, run_persister};
 use cfds_gateway::paper::{HttpIn, Ops, PaperConfig, PgPaper, is_paper_route, respond_paper};
 use cfds_gateway::paper_runner::RunnerDeps;
@@ -98,6 +98,9 @@ struct State {
     /// Estado de la operación (#314): eventos en memoria, límite de pérdida diaria y el
     /// `Logger` (para tapar secretos). Solo lectura.
     feed: Arc<Feed>,
+    /// `[ops] events_limit` y `group_scan` (#576).
+    ops_events_limit: usize,
+    ops_group_scan: usize,
     daily_loss_limit_pct: rust_decimal::Decimal,
     log: Arc<Logger>,
     /// Reportes de walk-forward (#316) y experimentos de ML (#426): solo lectura del diario.
@@ -198,6 +201,8 @@ async fn handle(state: Arc<State>, req: Request<Incoming>) -> Result<Response<Bo
         let deps = StatusDeps {
             feed: &state.feed,
             events: Some(&state.source.store),
+            events_limit: state.ops_events_limit,
+            group_scan: state.ops_group_scan,
             daily_loss_limit_pct: state.daily_loss_limit_pct,
             scrub: &scrub,
         };
@@ -206,6 +211,7 @@ async fn handle(state: Arc<State>, req: Request<Incoming>) -> Result<Response<Bo
             &deps,
             req.method().as_str(),
             req.uri().path(),
+            req.uri().query(),
             chrono::Utc::now(),
         )
         .await
@@ -522,6 +528,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let fund = PgFund::new(store.pool().clone());
     let state = Arc::new(State {
         feed,
+        ops_events_limit: status_cfg.events_limit,
+        ops_group_scan: status_cfg.group_scan,
         daily_loss_limit_pct: risk.max_daily_loss_pct,
         log: log.clone(),
         walk_forward: cfds_journal::pg::PgJournal::new(store.pool().clone()),
@@ -633,12 +641,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .serve_connection(TokioIo::new(stream), service)
                 .await
             {
-                log.log(
-                    Level::Warn,
-                    "gateway",
-                    "connection_error",
-                    json!({ "error": e.to_string() }),
-                );
+                // Que el cliente cierre (recarga, cambio de vista, fin de un SSE) es lo
+                // esperable: `info`, fuera del feed y de la base (#576).
+                let (level, event) = connection_end(&e);
+                log.log(level, "gateway", event, json!({ "error": e.to_string() }));
             }
         });
     }

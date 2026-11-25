@@ -174,6 +174,30 @@ describe('estado de la operación (#314)', () => {
     expect(screen.queryByText(/empiezan de cero/)).toBeNull()
   })
 
+  it('un evento repetido es una fila con cuántas veces, la última y desde cuándo (#576)', async () => {
+    gateway(READY, [
+      {
+        ts: '2026-11-25T04:09:26Z',
+        last_seen: '2026-11-25T04:12:46Z',
+        count: 50,
+        level: 'warn',
+        target: 'gateway',
+        event: 'connection_error',
+        fields: { error: 'timeout' },
+      },
+      EVENTS[2],
+    ])
+    render(<OperationView />)
+    const list = await screen.findByRole('list', { name: 'Eventos y alertas' })
+    const items = within(list).getAllByRole('listitem')
+    expect(items).toHaveLength(2)
+    expect(items[0]).toHaveTextContent('×50')
+    expect(items[0]).toHaveTextContent('04:12')
+    expect(items[0]).toHaveTextContent(/desde .*04:09/)
+    // Un evento solo (sin count, o con 1) no muestra contador.
+    expect(items[1]).not.toHaveTextContent('×')
+  })
+
   it('sin eventos o sin gateway lo dice', async () => {
     gateway(READY, [])
     const { unmount } = render(<OperationView />)

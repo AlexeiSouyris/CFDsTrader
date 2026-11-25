@@ -116,13 +116,20 @@ async fn call(paper: Option<&Fake>, feed: &Feed, path: &str, method: &str) -> (u
     let log = Logger::new(Box::new(std::io::sink()));
     log.register_secret(FAKE_TOKEN);
     let scrub = |t: &str| log.scrub(t);
+    let cfg = StatusConfig::from_toml(GATEWAY).unwrap();
     let deps = StatusDeps {
         feed,
         events: None,
+        events_limit: cfg.events_limit.min(feed.cap()),
+        group_scan: cfg.group_scan,
         daily_loss_limit_pct: dec!(3),
         scrub: &scrub,
     };
-    let r = respond_status(paper, &deps, method, path, now()).await;
+    let (path, query) = match path.split_once('?') {
+        Some((p, q)) => (p, Some(q)),
+        None => (path, None),
+    };
+    let r = respond_status(paper, &deps, method, path, query, now()).await;
     (
         r.status,
         serde_json::from_str(&r.body).unwrap_or(Value::Null),
@@ -329,4 +336,115 @@ fn feed_size_comes_from_the_config_and_is_bounded() {
     assert!(StatusConfig::from_toml(&zero).is_err());
     let extra = GATEWAY.replace("feed_size = 50", "feed_size = 50\nnope = 1");
     assert!(StatusConfig::from_toml(&extra).is_err());
+}
+
+#[tokio::test]
+async fn repeated_events_are_one_row_with_a_count_and_last_seen() {
+    // #576: 50 connection_error iguales eran 50 filas que tapaban todo lo demás.
+    let f = Feed::new(StatusConfig {
+        feed_size: 3,
+        ..StatusConfig::from_toml(GATEWAY).unwrap()
+    });
+    let (log, _) = logger(&f);
+    log.log(Level::Warn, "broker", "risk_decision", json!({ "n": 1 }));
+    for _ in 0..50 {
+        log.log(
+            Level::Warn,
+            "gateway",
+            "connection_error",
+            json!({ "error": "x" }),
+        );
+    }
+    log.log(Level::Warn, "broker", "risk_decision", json!({ "n": 2 }));
+    let latest = f.latest();
+    assert_eq!(latest.len(), 3);
+    assert_eq!(latest[0].fields["n"], 2);
+    assert_eq!(latest[0].count, 1);
+    assert_eq!(latest[0].ts, latest[0].last_seen);
+    assert_eq!(latest[1].event, "connection_error");
+    assert_eq!(latest[1].count, 50);
+    assert!(latest[1].ts <= latest[1].last_seen);
+    // El más viejo no se perdió por la inundación.
+    assert_eq!(latest[2].fields["n"], 1);
+    // Si vuelve a pasar, sube al principio y sigue siendo uno.
+    log.log(
+        Level::Warn,
+        "gateway",
+        "connection_error",
+        json!({ "error": "x" }),
+    );
+    let latest = f.latest();
+    assert_eq!(latest.len(), 3);
+    assert_eq!(
+        (latest[0].event.as_str(), latest[0].count),
+        ("connection_error", 51)
+    );
+    // Con la forma del contrato.
+    let (_, body) = call(None, &f, "/api/v1/ops/events", "GET").await;
+    let v = validator("ops_event.v1.schema.json");
+    for r in body.as_array().unwrap() {
+        let errors: Vec<String> = v.iter_errors(r).map(|e| e.to_string()).collect();
+        assert!(errors.is_empty(), "{errors:?}\n{r}");
+    }
+    assert_eq!(body[0]["count"], 51);
+}
+
+#[tokio::test]
+async fn a_client_closing_the_connection_is_not_an_event() {
+    // #576: el gateway lo registra como info `client_closed`, que no entra al feed.
+    let f = feed();
+    let (log, out) = logger(&f);
+    log.log(
+        Level::Info,
+        "gateway",
+        "client_closed",
+        json!({ "error": "connection closed before message completed" }),
+    );
+    assert!(f.latest().is_empty());
+    let written = String::from_utf8(out.lock().unwrap().clone()).unwrap();
+    assert!(written.contains("client_closed"));
+}
+
+#[tokio::test]
+async fn the_route_has_a_default_row_limit_and_accepts_a_bounded_one() {
+    let cfg = StatusConfig::from_toml(GATEWAY).unwrap();
+    let f = Feed::new(cfg);
+    let (log, _) = logger(&f);
+    for n in 0..cfg.feed_size + 10 {
+        log.log(Level::Warn, "broker", "risk_decision", json!({ "n": n }));
+    }
+    let (status, body) = call(None, &f, "/api/v1/ops/events", "GET").await;
+    assert_eq!(status, 200);
+    assert_eq!(body.as_array().unwrap().len(), cfg.events_limit);
+    assert_eq!(body[0]["fields"]["n"], cfg.feed_size + 9);
+    let (_, body) = call(None, &f, "/api/v1/ops/events?limit=3", "GET").await;
+    assert_eq!(body.as_array().unwrap().len(), 3);
+    let max = format!("/api/v1/ops/events?limit={}", cfg.feed_size);
+    let (_, body) = call(None, &f, &max, "GET").await;
+    assert_eq!(body.as_array().unwrap().len(), cfg.feed_size);
+    let over = format!("/api/v1/ops/events?limit={}", cfg.feed_size + 1);
+    for bad in [
+        "/api/v1/ops/events?limit=0",
+        "/api/v1/ops/events?limit=x",
+        &over,
+    ] {
+        let (status, _) = call(None, &f, bad, "GET").await;
+        assert_eq!(status, 400, "{bad}");
+    }
+}
+
+#[test]
+fn the_event_limits_come_from_the_config_and_are_bounded() {
+    let cfg = StatusConfig::from_toml(GATEWAY).unwrap();
+    assert_eq!((cfg.events_limit, cfg.group_scan), (20, 2000));
+    for (from, to) in [
+        ("events_limit = 20", "events_limit = 0"),
+        ("events_limit = 20", "events_limit = 51"),
+        ("group_scan = 2000", "group_scan = 49"),
+        ("group_scan = 2000", "group_scan = 100001"),
+    ] {
+        let bad = GATEWAY.replace(from, to);
+        assert_ne!(bad, GATEWAY);
+        assert!(StatusConfig::from_toml(&bad).is_err(), "{to}");
+    }
 }

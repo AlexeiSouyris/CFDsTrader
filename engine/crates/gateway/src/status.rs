@@ -3,7 +3,7 @@
 //! | Ruta | Contrato |
 //! |---|---|
 //! | `GET /api/v1/ops/status` | `ops_status.v1`: compuerta, kill switch, pérdida diaria y apalancamiento, última reconciliación |
-//! | `GET /api/v1/ops/events` | `ops_event.v1[]`: los últimos `[ops] feed_size` eventos, el más nuevo primero (de la base; si no responde, de memoria) |
+//! | `GET /api/v1/ops/events[?limit=<n>]` | `ops_event.v1[]`: los últimos eventos **agrupados**, el más nuevo primero (de la base; si no responde, de memoria); `[ops] events_limit` por defecto, como mucho `[ops] feed_size` |
 //!
 //! - Los números de riesgo son los de `paper_account.v1` (los calcula el broker con el riesgo);
 //!   el límite de pérdida diaria es el de `config/risk.toml`. Acá no se calcula nada.
@@ -11,6 +11,10 @@
 //!   [`FeedWriter`] se pone detrás del `Logger`, escribe cada línea en la salida de siempre y
 //!   guarda en memoria las del broker, las alertas y todo lo `warn` o `error`. Además las pasa,
 //!   sin esperar nunca, a la tarea que las guarda en `ops_events` (#337, ver [`crate::ops_store`]).
+//! - **Agrupados (#576):** un evento igual a otro (mismo nivel, origen, nombre y campos) no
+//!   ocupa otra fila: suma a `count` y mueve `last_seen`; `ts` queda en la primera vez. En
+//!   memoria se agrupa al llegar; de la base, sobre las últimas `[ops] group_scan` filas (la
+//!   tabla sigue guardando cada uno: es de solo agregar).
 //! - No hay rutas de escritura: el kill switch no se reinicia desde acá.
 
 use std::collections::VecDeque;
@@ -38,8 +42,12 @@ const EVENTS: &str = "/api/v1/ops/events";
 /// `[ops]` de `config/gateway.toml`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StatusConfig {
-    /// Cuántos eventos guarda en memoria (y devuelve) `GET /api/v1/ops/events`.
+    /// Cuántos eventos (grupos) guarda en memoria; también el máximo de `?limit=`.
     pub feed_size: usize,
+    /// Cuántos grupos devuelve `GET /api/v1/ops/events` sin `?limit=` (#576).
+    pub events_limit: usize,
+    /// Cuántas filas de la base se leen para agruparlas (#576).
+    pub group_scan: usize,
     /// Días de eventos que conserva la base (los borra el job de retención).
     pub retention_days: u32,
     /// Eventos que esperan para guardarse en la base (cola y pendientes con la base caída).
@@ -58,6 +66,8 @@ impl StatusConfig {
         #[serde(deny_unknown_fields)]
         struct RawOps {
             feed_size: usize,
+            events_limit: usize,
+            group_scan: usize,
             retention_days: u32,
             persist_queue: usize,
             retry_secs: u64,
@@ -65,6 +75,12 @@ impl StatusConfig {
         let r = toml::from_str::<Raw>(text).map_err(|e| e.to_string())?.ops;
         if !(1..=1000).contains(&r.feed_size) {
             return Err("ops.feed_size tiene que estar entre 1 y 1000".into());
+        }
+        if !(1..=r.feed_size).contains(&r.events_limit) {
+            return Err("ops.events_limit tiene que estar entre 1 y ops.feed_size".into());
+        }
+        if !(r.feed_size..=100_000).contains(&r.group_scan) {
+            return Err("ops.group_scan tiene que estar entre ops.feed_size y 100000".into());
         }
         if !(1..=3650).contains(&r.retention_days) {
             return Err("ops.retention_days tiene que estar entre 1 y 3650".into());
@@ -77,6 +93,8 @@ impl StatusConfig {
         }
         Ok(Self {
             feed_size: r.feed_size,
+            events_limit: r.events_limit,
+            group_scan: r.group_scan,
             retention_days: r.retention_days,
             persist_queue: r.persist_queue,
             retry: Duration::from_secs(r.retry_secs),
@@ -84,7 +102,8 @@ impl StatusConfig {
     }
 }
 
-/// `ops_event.v1`.
+/// `ops_event.v1`. Un grupo de eventos iguales: `ts` es la primera vez, `last_seen` la última y
+/// `count` cuántas veces (#576). Un evento solo tiene `count = 1` y `last_seen = ts`.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct OpsEvent {
     pub ts: String,
@@ -92,6 +111,56 @@ pub struct OpsEvent {
     pub target: String,
     pub event: String,
     pub fields: Map<String, Value>,
+    pub count: u64,
+    pub last_seen: String,
+}
+
+impl OpsEvent {
+    /// Un evento solo (todavía sin agrupar).
+    pub fn single(
+        ts: String,
+        level: String,
+        target: String,
+        event: String,
+        fields: Map<String, Value>,
+    ) -> Self {
+        Self {
+            last_seen: ts.clone(),
+            ts,
+            level,
+            target,
+            event,
+            fields,
+            count: 1,
+        }
+    }
+
+    /// `true` si es el mismo evento: mismo nivel, origen, nombre y campos (la hora no cuenta).
+    pub fn same_as(&self, other: &Self) -> bool {
+        self.level == other.level
+            && self.target == other.target
+            && self.event == other.event
+            && self.fields == other.fields
+    }
+}
+
+/// Agrupa eventos que llegan **del más nuevo al más viejo**: cada grupo queda donde apareció su
+/// ocurrencia más nueva (`last_seen`), suma los `count` y su `ts` es el de la más vieja. Devuelve
+/// como mucho `limit` grupos, el más nuevo primero; los que no entran no se cuentan.
+pub fn group_newest_first(
+    events: impl IntoIterator<Item = OpsEvent>,
+    limit: usize,
+) -> Vec<OpsEvent> {
+    let mut out: Vec<OpsEvent> = Vec::new();
+    for e in events {
+        if let Some(g) = out.iter_mut().find(|g| g.same_as(&e)) {
+            g.count += e.count;
+            g.ts = e.ts;
+        } else if out.len() < limit {
+            out.push(e);
+        }
+    }
+    out
 }
 
 /// Los últimos eventos, en memoria.
@@ -152,26 +221,29 @@ impl Feed {
         if !wanted {
             return;
         }
-        let e = OpsEvent {
-            ts,
-            level,
-            target,
-            event,
-            fields: doc,
-        };
+        let e = OpsEvent::single(ts, level, target, event, doc);
+        // A la base va cada uno (es de solo agregar); en memoria, agrupados.
         if let Some(sink) = self.sink.get() {
             sink.offer(e.clone());
         }
         let Ok(mut items) = self.items.lock() else {
             return;
         };
+        if let Some(i) = items.iter().position(|g| g.same_as(&e)) {
+            if let Some(mut g) = items.remove(i) {
+                g.count += 1;
+                g.last_seen = e.last_seen;
+                items.push_back(g);
+            }
+            return;
+        }
         if items.len() == self.cap {
             items.pop_front();
         }
         items.push_back(e);
     }
 
-    /// Los eventos guardados, el más nuevo primero.
+    /// Los grupos guardados, el más nuevo (por `last_seen`) primero.
     pub fn latest(&self) -> Vec<OpsEvent> {
         self.items
             .lock()
@@ -337,6 +409,10 @@ pub struct StatusDeps<'a> {
     pub feed: &'a Feed,
     /// Los eventos guardados (#337). Sin base, o si falla, se leen los de memoria.
     pub events: Option<&'a dyn EventStore>,
+    /// `[ops] events_limit`: cuántos grupos devuelve la ruta sin `?limit=` (#576).
+    pub events_limit: usize,
+    /// `[ops] group_scan`: cuántas filas de la base se agrupan (#576).
+    pub group_scan: usize,
     /// `[limits] max_daily_loss_pct` de `config/risk.toml`.
     pub daily_loss_limit_pct: Decimal,
     /// Tapa secretos en un texto (el motivo del kill switch). En producción, `Logger::scrub`.
@@ -393,18 +469,31 @@ pub async fn status<S: OpsSource>(
     }
 }
 
-/// Los últimos eventos, el más nuevo primero: de la base y, si no hay o no responde, de memoria.
-pub async fn events(deps: &StatusDeps<'_>) -> Vec<OpsEvent> {
-    let limit = u32::try_from(deps.feed.cap()).unwrap_or(u32::MAX);
+/// Los últimos `limit` grupos de eventos, el más nuevo primero: de la base (agrupando sus
+/// últimas `scan` filas) y, si no hay o no responde, de memoria.
+pub async fn events(deps: &StatusDeps<'_>, limit: usize, scan: usize) -> Vec<OpsEvent> {
+    let from_memory = || deps.feed.latest().into_iter().take(limit).collect();
     match deps.events {
-        Some(store) => match store.latest(limit).await {
-            Ok(rows) => rows.into_iter().map(from_record).collect(),
+        Some(store) => match store.latest(u32::try_from(scan).unwrap_or(u32::MAX)).await {
+            Ok(rows) => group_newest_first(rows.into_iter().map(from_record), limit),
             Err(e) => {
                 eprintln!("gateway: eventos de la base: {}", (deps.scrub)(&e));
-                deps.feed.latest()
+                from_memory()
             }
         },
-        None => deps.feed.latest(),
+        None => from_memory(),
+    }
+}
+
+/// `?limit=` de `GET /api/v1/ops/events`: sin él, `default`; con él, entre 1 y `max`.
+pub fn events_limit(query: Option<&str>, default: usize, max: usize) -> Result<usize, String> {
+    match crate::param(query, "limit") {
+        None => Ok(default),
+        Some(v) => v
+            .parse::<usize>()
+            .ok()
+            .filter(|n| (1..=max).contains(n))
+            .ok_or_else(|| format!("limit tiene que ser un entero entre 1 y {max}")),
     }
 }
 
@@ -414,6 +503,7 @@ pub async fn respond_status<S: OpsSource>(
     deps: &StatusDeps<'_>,
     method: &str,
     path: &str,
+    query: Option<&str>,
     now: DateTime<Utc>,
 ) -> Reply {
     if !is_status_route(path) {
@@ -423,7 +513,10 @@ pub async fn respond_status<S: OpsSource>(
         return text(405, "solo GET: el estado es de solo lectura");
     }
     if path == EVENTS {
-        return json(&events(deps).await);
+        return match events_limit(query, deps.events_limit, deps.feed.cap()) {
+            Ok(limit) => json(&events(deps, limit, deps.group_scan).await),
+            Err(e) => text(400, &e),
+        };
     }
     json(&status(paper, deps, now).await)
 }
