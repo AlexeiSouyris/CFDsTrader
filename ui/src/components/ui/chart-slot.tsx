@@ -6,6 +6,7 @@
  */
 import type { ChartMode } from '@/components/ui/chart-measure'
 import type { DrawTool } from '@/lib/chart-drawings'
+import type { CursorSync } from '@/lib/cursor-sync'
 import { LiquidityChart } from '@/components/ui/liquidity-chart'
 import type { SlotData } from '@/lib/chart-slots'
 import { fetchOlderBars } from '@/lib/liquidity-api'
@@ -24,6 +25,7 @@ export function SlotChart({
   controlsTarget,
   draw,
   onDraw,
+  syncCursor,
 }: {
   slot: SlotData
   height: number
@@ -38,6 +40,8 @@ export function SlotChart({
   /** dibujos del usuario (#543): ver `LiquidityChart`; sin esto, no hay capa de dibujos */
   draw?: DrawTool
   onDraw?: (t: DrawTool) => void
+  /** cursor sincronizado del Multigráfico (#544): ver `LiquidityChart` */
+  syncCursor?: CursorSync
 }) {
   const { sel, data, live } = slot
   if (!data)
@@ -77,6 +81,7 @@ export function SlotChart({
       controlsTarget={controlsTarget}
       drawTool={draw}
       onDrawToolChange={onDraw}
+      syncCursor={syncCursor}
     />
   )
 }

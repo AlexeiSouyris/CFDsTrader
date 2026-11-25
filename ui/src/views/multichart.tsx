@@ -20,9 +20,13 @@
  * Dibujos (#543): la barra de dibujo suma línea horizontal, línea de tendencia y rectángulo sobre
  * el gráfico activo, y un botón para borrar todos los dibujos de su instrumento. Se guardan en el
  * navegador por instrumento y son solo visuales: no generan señales ni órdenes.
+ *
+ * Cursor sincronizado (#544): opción de la barra de arriba, apagada por defecto. Al mover el
+ * cursor en un panel, los otros marcan la vela que contiene esa hora UTC. No sincroniza el zoom.
  */
 import {
   CandlestickChart,
+  Crosshair,
   LineChart,
   Minus,
   MousePointer2,
@@ -48,6 +52,7 @@ import { ChartToolsMenu } from '@/components/ui/chart-tools'
 import { Segmented } from '@/components/ui/segmented'
 import { chartBars } from '@/lib/liquidity-bars'
 import { DRAW_LABEL, drawingStore, useDrawings, type DrawTool } from '@/lib/chart-drawings'
+import { CursorSync } from '@/lib/cursor-sync'
 import type { ViewTimeframe } from '@/lib/liquidity-contracts'
 import { dateTimeUtc, decimal } from '@/lib/format'
 import { useChartTools } from '@/lib/use-chart-tools'
@@ -67,10 +72,11 @@ const LAYOUT_IDS: Layout[] = ['1', '2', '4', '2v']
 const MAX = 4
 
 const STORAGE_KEY = 'cfdstrader.multichart'
-type Saved = { layout: Layout; slots: ChartSel[]; active: number }
+/** `sync`: cursor sincronizado entre paneles (#544), apagado por defecto */
+type Saved = { layout: Layout; slots: ChartSel[]; active: number; sync: boolean }
 
 function loadSaved(): Saved {
-  const fallback: Saved = { layout: '2', slots: DEFAULT_SLOTS, active: 0 }
+  const fallback: Saved = { layout: '2', slots: DEFAULT_SLOTS, active: 0, sync: false }
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Partial<Saved> | null
     if (!raw || !LAYOUT_IDS.includes(raw.layout as Layout)) return fallback
@@ -80,6 +86,7 @@ function loadSaved(): Saved {
       layout,
       slots: parseSlots(raw.slots),
       active: Math.max(0, Math.min(active, LAYOUTS[layout].count - 1)),
+      sync: raw.sync === true,
     }
   } catch {
     return fallback
@@ -158,6 +165,7 @@ export function MultichartView() {
   const [tools, setTools] = useState<Tools[]>(() => Array.from({ length: MAX }, () => NO_TOOLS))
   const [chartTools, toggleChartTool] = useChartTools()
   const { instruments, timeframes } = useChartCatalog()
+  const [cursorHub] = useState(() => new CursorSync())
 
   const layout = LAYOUTS[saved.layout]
   const count = layout.count
@@ -227,6 +235,22 @@ export function MultichartView() {
           />
         )}
         <span className="ml-auto" />
+        {count > 1 && (
+          <button
+            type="button"
+            aria-pressed={saved.sync}
+            onClick={() => setSaved((p) => ({ ...p, sync: !p.sync }))}
+            title="Al mover el cursor en un gráfico, los otros marcan la misma hora UTC"
+            className={cn(
+              'inline-flex h-8 items-center gap-1.5 rounded-full border border-border px-3 text-[12px] font-bold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring',
+              saved.sync &&
+                'border-primary bg-primary text-primary-foreground hover:text-primary-foreground',
+            )}
+          >
+            <Crosshair className="size-3.5" aria-hidden />
+            Sincronizar cursor
+          </button>
+        )}
         <Segmented
           label="Distribución"
           options={LAYOUT_IDS.map((id) => LAYOUTS[id].label)}
@@ -342,6 +366,7 @@ export function MultichartView() {
                 onRuler={(ruler) => patchTools(i, ruler ? { ruler, draw: 'none' } : { ruler })}
                 draw={tools[i].draw}
                 onDraw={(draw) => patchTools(i, { draw })}
+                syncCursor={saved.sync && count > 1 ? cursorHub : undefined}
                 mode={tools[i].mode}
                 onMode={(mode) => patchTools(i, { mode })}
                 compact={layout.compact}
