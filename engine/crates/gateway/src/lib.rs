@@ -9,6 +9,9 @@
 //!   UTC, terminado en `Z`), la misma vista tal como se conocía en ese momento: solo velas que
 //!   cerraron a más tardar en `before`. La UI lo usa para pedir historia al desplazarse al
 //!   pasado (#401, paginación por fecha). Un `before` futuro cuenta como ahora.
+//!   Con `source=auto` (#628), las velas de IG y, si en la ventana no hay suficientes, la primera
+//!   fuente de reemplazo de `[view.auto]` de `config/gateway.toml` que tenga velas: la respuesta
+//!   dice cuál usó (`source`) y por qué (`fallback`).
 //! - `GET /api/v1/instruments` → `contracts/gateway_instruments.v1`: los instrumentos del
 //!   catálogo, los timeframes y los valores por defecto de la vista.
 //!
@@ -80,6 +83,62 @@ pub struct GatewayConfig {
     pub m15: Window,
     pub h1: Window,
     pub d1: Window,
+    /// `[view.auto]` (#628): la fuente automática.
+    pub auto: AutoSource,
+}
+
+/// La fuente automática de la vista (#628): IG y, si en la ventana hay menos de `min_candles`
+/// velas, la primera de `fallback` que tenga velas, con su motivo.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AutoSource {
+    pub label: String,
+    pub min_candles: usize,
+    /// Fuentes de reemplazo en orden, cada una con el motivo que muestra la UI.
+    pub fallback: Vec<(CandleSource, String)>,
+}
+
+impl AutoSource {
+    fn from_raw(raw: RawAuto) -> Result<Self, String> {
+        let RawAuto {
+            label,
+            min_candles,
+            fallback,
+            mut notes,
+        } = raw;
+        if !(1..=80).contains(&label.chars().count()) {
+            return Err("view.auto.label: de 1 a 80 caracteres".into());
+        }
+        if fallback.is_empty() {
+            return Err("view.auto.fallback: hace falta al menos una fuente".into());
+        }
+        let mut out: Vec<(CandleSource, String)> = Vec::with_capacity(fallback.len());
+        for name in fallback {
+            let s = CandleSource::parse(&name)
+                .filter(|s| *s != CandleSource::Ig)
+                .ok_or_else(|| format!("view.auto.fallback: fuente inválida {name:?}"))?;
+            if out.iter().any(|(o, _)| *o == s) {
+                return Err(format!("view.auto.fallback: {name:?} repetida"));
+            }
+            let note = notes
+                .remove(s.as_str())
+                .ok_or_else(|| format!("view.auto.notes.{}: falta", s.as_str()))?;
+            if !(1..=300).contains(&note.chars().count()) {
+                return Err(format!(
+                    "view.auto.notes.{}: de 1 a 300 caracteres",
+                    s.as_str()
+                ));
+            }
+            out.push((s, note));
+        }
+        if let Some(k) = notes.keys().next() {
+            return Err(format!("view.auto.notes.{k}: no está en fallback"));
+        }
+        Ok(Self {
+            label,
+            min_candles: min_candles.get() as usize,
+            fallback: out,
+        })
+    }
 }
 
 /// Ventana de un timeframe, hacia atrás desde `as_of`.
@@ -136,6 +195,16 @@ struct RawView {
     default_instrument: String,
     default_timeframe: String,
     levels_days: NonZeroU32,
+    auto: RawAuto,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawAuto {
+    label: String,
+    min_candles: NonZeroU32,
+    fallback: Vec<String>,
+    notes: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Deserialize)]
@@ -181,6 +250,7 @@ impl GatewayConfig {
             m15: w(raw.windows.m15),
             h1: w(raw.windows.h1),
             d1: w(raw.windows.d1),
+            auto: AutoSource::from_raw(raw.view.auto)?,
         })
     }
 }
@@ -217,6 +287,15 @@ pub struct ViewSource {
 }
 
 impl ViewSource {
+    /// La fuente automática (#628), solo en la lista de `GET /api/v1/instruments`: una vista
+    /// siempre dice la fuente que de verdad usó.
+    pub fn auto(auto: &AutoSource) -> Self {
+        Self {
+            id: "auto",
+            label: auto.label.clone(),
+        }
+    }
+
     pub fn new(source: CandleSource, sources: &CandleSources) -> Self {
         Self {
             id: source.as_str(),
@@ -225,11 +304,23 @@ impl ViewSource {
     }
 }
 
+/// Por qué la vista no sale de las velas de IG con `source=auto` (#628).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Fallback {
+    /// La fuente que se pidió primero (`ig`).
+    pub from: &'static str,
+    /// El motivo, de `[view.auto.notes]`.
+    pub note: String,
+}
+
 /// `contracts/liquidity_view.v1`: mensajes de otros contratos, sin cambios.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct LiquidityView {
     pub instrument_id: InstrumentId,
     pub source: ViewSource,
+    /// Solo con `source=auto` cuando la vista sale de una fuente de reemplazo (#628).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback: Option<Fallback>,
     #[serde(serialize_with = "ser_timeframe")]
     pub timeframe: StatsTimeframe,
     pub generated_at: String,
@@ -332,6 +423,7 @@ impl LiquidityView {
         Self {
             instrument_id: instrument,
             source,
+            fallback: None,
             timeframe,
             generated_at: utc(now),
             as_of: None,
@@ -559,6 +651,7 @@ impl LiquiditySource for PgSource {
         Ok(LiquidityView {
             instrument_id: base.clone(),
             source: view_source,
+            fallback: None,
             timeframe: tf,
             generated_at: utc(now),
             as_of: Some(utc(as_of)),
@@ -650,9 +743,13 @@ pub async fn respond<S: LiquiditySource>(
             default_timeframe: timeframe_name(config.default_timeframe),
             timeframes: TIMEFRAMES.into_iter().map(timeframe_name).collect(),
             instruments: catalog.to_vec(),
-            sources: CandleSource::ALL
-                .into_iter()
-                .map(|s| ViewSource::new(s, sources))
+            // La automática primero (#628): es la que abre la UI.
+            sources: std::iter::once(ViewSource::auto(&config.auto))
+                .chain(
+                    CandleSource::ALL
+                        .into_iter()
+                        .map(|s| ViewSource::new(s, sources)),
+                )
                 .collect(),
         };
         return json(&reply, "los instrumentos");
@@ -667,11 +764,13 @@ pub async fn respond<S: LiquiditySource>(
             None => return text(400, "timeframe: 15m, 1h o 1d"),
         },
     };
+    // `None` = automática (#628).
     let candle_source = match param(query, "source") {
-        None => CandleSource::Ig,
+        None => Some(CandleSource::Ig),
+        Some("auto") => None,
         Some(s) => match CandleSource::parse(s) {
-            Some(c) => c,
-            None => return text(400, "source: ig o futures"),
+            Some(c) => Some(c),
+            None => return text(400, "source: ig, futures o auto"),
         },
     };
     // `before` (#401): la vista "tal como se conocía" en ese momento, nunca después de ahora.
@@ -685,7 +784,11 @@ pub async fn respond<S: LiquiditySource>(
     if !catalog.iter().any(|i| i.id == id) {
         return text(404, "instrumento fuera del catálogo");
     }
-    match source.view(&id, candle_source, tf, at).await {
+    let view = match candle_source {
+        Some(c) => source.view(&id, c, tf, at).await,
+        None => auto_view(source, &config.auto, &id, tf, at).await,
+    };
+    match view {
         Ok(mut view) => {
             // `generated_at` es cuándo se armó la respuesta, aunque se lea el pasado.
             view.generated_at = utc(now);
@@ -699,6 +802,33 @@ pub async fn respond<S: LiquiditySource>(
             text(500, "error interno")
         }
     }
+}
+
+/// La vista con `source=auto` (#628): la de IG si tiene al menos `min_candles` velas; si no, la
+/// de la primera fuente de reemplazo con alguna vela, con su motivo; si ninguna tiene, la de IG.
+/// Cada fuente se lee con sus propias velas cerradas hasta `at`: no se mezclan.
+pub async fn auto_view<S: LiquiditySource>(
+    source: &S,
+    auto: &AutoSource,
+    id: &InstrumentId,
+    tf: StatsTimeframe,
+    at: DateTime<Utc>,
+) -> Result<LiquidityView, StorageError> {
+    let ig = source.view(id, CandleSource::Ig, tf, at).await?;
+    if ig.candles.len() >= auto.min_candles {
+        return Ok(ig);
+    }
+    for (other, note) in &auto.fallback {
+        let mut v = source.view(id, *other, tf, at).await?;
+        if !v.candles.is_empty() {
+            v.fallback = Some(Fallback {
+                from: CandleSource::Ig.as_str(),
+                note: note.clone(),
+            });
+            return Ok(v);
+        }
+    }
+    Ok(ig)
 }
 
 #[cfg(test)]
@@ -888,6 +1018,7 @@ mod tests {
         assert_eq!(
             v["sources"],
             serde_json::json!([
+                {"id": "auto", "label": "automática (IG; sin velas de IG, futuros)"},
                 {"id": "ig", "label": "IG CFD"},
                 {"id": "futures", "label": "futuros CME/Eurex (base distinta al CFD)"}
             ])
@@ -984,6 +1115,153 @@ mod tests {
             let r = echo(&format!("instrument=US100&before={bad}")).await;
             assert_eq!(r.status, 400, "{bad}");
         }
+    }
+
+    /// Una fuente con `ig` velas de IG y `futures` velas de futuros (de 1h, cerradas antes de
+    /// `at`), para ver qué elige `source=auto` (#628) sin base de datos.
+    struct Stocked {
+        ig: usize,
+        futures: usize,
+    }
+
+    impl LiquiditySource for Stocked {
+        async fn view(
+            &self,
+            id: &InstrumentId,
+            source: CandleSource,
+            tf: StatsTimeframe,
+            at: DateTime<Utc>,
+        ) -> Result<LiquidityView, StorageError> {
+            let n = match source {
+                CandleSource::Ig => self.ig,
+                CandleSource::Futures => self.futures,
+            };
+            let mut v =
+                LiquidityView::empty(id.clone(), ViewSource::new(source, &sources()), tf, at);
+            if n == 0 {
+                return Ok(v);
+            }
+            let one = rust_decimal::Decimal::ONE;
+            let candles = (0..n)
+                .map(|k| Candle {
+                    instrument_id: id.clone(),
+                    timeframe: Timeframe::H1,
+                    start: at - TimeDelta::hours(n as i64 + 1 - k as i64),
+                    open: one,
+                    high: one,
+                    low: one,
+                    close: one,
+                    volume: None,
+                })
+                .collect();
+            v.candles = Bars::Intraday(candles);
+            v.as_of = Some(utc(at - TimeDelta::hours(1)));
+            Ok(v)
+        }
+    }
+
+    async fn stocked(ig: usize, futures: usize, q: &str) -> serde_json::Value {
+        let r = respond(
+            &Stocked { ig, futures },
+            &config(),
+            &sources(),
+            &catalog(),
+            "GET",
+            "/api/v1/liquidity",
+            Some(q),
+            now(),
+        )
+        .await;
+        assert_eq!(r.status, 200, "{q}");
+        serde_json::from_str(&r.body).unwrap()
+    }
+
+    #[tokio::test]
+    async fn auto_falls_back_to_futures_while_ig_has_no_candles() {
+        let min = config().auto.min_candles;
+        let q = "instrument=US100&timeframe=1h&source=auto";
+        // IG vacío o con menos velas que el mínimo: futuros, y la respuesta lo dice.
+        for ig in [0, min - 1] {
+            let v = stocked(ig, 50, q).await;
+            assert_eq!(v["source"]["id"], "futures", "ig={ig}");
+            assert_eq!(
+                v["source"]["label"],
+                "futuros CME/Eurex (base distinta al CFD)"
+            );
+            assert_eq!(v["fallback"]["from"], "ig");
+            let note = v["fallback"]["note"].as_str().unwrap();
+            assert!(note.starts_with("IG todavía no tiene velas"), "{note}");
+            assert!(note.contains("Base distinta al CFD"), "{note}");
+            assert_eq!(v["candles"].as_array().unwrap().len(), 50);
+        }
+    }
+
+    #[tokio::test]
+    async fn auto_goes_back_to_ig_when_it_has_candles() {
+        let min = config().auto.min_candles;
+        let q = "instrument=US100&timeframe=1h&source=auto";
+        let v = stocked(min, 50, q).await;
+        assert_eq!(v["source"]["id"], "ig");
+        assert_eq!(v["source"]["label"], "IG CFD");
+        assert!(v.get("fallback").is_none(), "sin reemplazo no hay motivo");
+        assert_eq!(v["candles"].as_array().unwrap().len(), min);
+        // Ninguna fuente tiene velas: la vista de IG, vacía y sin motivo.
+        let v = stocked(0, 0, q).await;
+        assert_eq!(v["source"]["id"], "ig");
+        assert_eq!(v["as_of"], serde_json::Value::Null);
+        assert!(v.get("fallback").is_none());
+        // Pocas velas de IG y ninguna de futuros: las de IG.
+        let v = stocked(3, 0, q).await;
+        assert_eq!(v["source"]["id"], "ig");
+        assert_eq!(v["candles"].as_array().unwrap().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn a_source_picked_by_hand_is_never_replaced() {
+        for (q, id) in [
+            ("instrument=US100&timeframe=1h&source=ig", "ig"),
+            ("instrument=US100&timeframe=1h", "ig"),
+            ("instrument=US100&timeframe=1h&source=futures", "futures"),
+        ] {
+            let v = stocked(0, 0, q).await;
+            assert_eq!(v["source"]["id"], id, "{q}");
+            assert!(v.get("fallback").is_none(), "{q}");
+            let v = stocked(0, 50, q).await;
+            assert_eq!(v["source"]["id"], id, "{q}");
+        }
+    }
+
+    #[test]
+    fn the_auto_source_is_validated() {
+        let auto = config().auto;
+        assert_eq!(auto.fallback.len(), 1);
+        assert_eq!(auto.fallback[0].0, CandleSource::Futures);
+        for (from, to) in [
+            ("min_candles = 20", "min_candles = 0"),
+            ("fallback = [\"futures\"]", "fallback = []"),
+            ("fallback = [\"futures\"]", "fallback = [\"ig\"]"),
+            ("fallback = [\"futures\"]", "fallback = [\"ibkr\"]"),
+            (
+                "fallback = [\"futures\"]",
+                "fallback = [\"futures\", \"futuros\"]",
+            ),
+            (
+                "[view.auto.notes]\nfutures = ",
+                "[view.auto.notes]\nnope = ",
+            ),
+            ("[view.auto.notes]\n", "[view.auto.notes]\nig = \"x\"\n"),
+            ("label = \"automática", "nope = 1\nlabel = \"automática"),
+        ] {
+            let bad = CONFIG.replacen(from, to, 1);
+            assert_ne!(bad, CONFIG, "{from}");
+            assert!(GatewayConfig::from_toml(&bad).is_err(), "{to}");
+        }
+        let long = CONFIG.replacen(
+            "futures = \"IG todavía",
+            &format!("futures = \"{}IG todavía", "x".repeat(300)),
+            1,
+        );
+        assert!(GatewayConfig::from_toml(&long).is_err());
     }
 
     #[tokio::test]
