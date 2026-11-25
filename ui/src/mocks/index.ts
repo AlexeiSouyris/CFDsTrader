@@ -8,6 +8,7 @@
  *   sea siempre igual. Generar datos de ejemplo no es lógica de trading.
  */
 import type { FundMovement, FundSummary } from '@/lib/fund-api'
+import { trophyRule } from '@/lib/trophy-rules'
 
 import us100 from './us100-1h.json'
 
@@ -374,45 +375,11 @@ export type ProcessBadge = {
 }
 
 export const PROCESS_BADGES: ProcessBadge[] = [
-  {
-    id: 'stop',
-    title: 'Stop respetado',
-    rule: 'Ninguna operación de la semana movió ni quitó su stop-loss.',
-    period: 'semana',
-    state: 'logrado',
-    earned_at: '2026-11-21T21:00:00Z',
-  },
-  {
-    id: 'diario',
-    title: 'Diario completo',
-    rule: 'Cada operación cerrada tiene su nota en el diario antes del cierre del día.',
-    period: 'semana',
-    state: 'en curso',
-    progress: '4 de 5 días',
-  },
-  {
-    id: 'limite',
-    title: 'Dentro del límite',
-    rule: 'Ningún día llegó a la pérdida máxima diaria configurada.',
-    period: 'mes',
-    state: 'en curso',
-    progress: '15 de 20 días',
-  },
-  {
-    id: 'propuestas',
-    title: 'Propuestas a tiempo',
-    rule: 'Todas las propuestas se aprobaron o rechazaron antes de vencer.',
-    period: 'día',
-    state: 'logrado',
-    earned_at: '2026-11-20T21:00:00Z',
-  },
-  {
-    id: 'calendario',
-    title: 'Calendario revisado',
-    rule: 'Sin operaciones abiertas en los 15 minutos antes de un evento de impacto alto.',
-    period: 'semana',
-    state: 'bloqueado',
-  },
+  { ...trophyRule('stop'), state: 'logrado', earned_at: '2026-11-21T21:00:00Z' },
+  { ...trophyRule('diario'), state: 'en curso', progress: '4 de 5 días' },
+  { ...trophyRule('limite'), state: 'en curso', progress: '15 de 20 días' },
+  { ...trophyRule('propuestas'), state: 'logrado', earned_at: '2026-11-20T21:00:00Z' },
+  { ...trophyRule('calendario'), state: 'bloqueado' },
 ]
 
 /** Reglas cumplidas por miembro en la semana (ejemplo): proceso, no resultado. */
