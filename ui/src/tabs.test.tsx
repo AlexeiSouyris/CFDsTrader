@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { exampleChart } from '@/test/example-chart'
 import App from '@/App'
 import { AnimatedNumber } from '@/components/ui/animated-number'
 import { decimal } from '@/lib/format'
@@ -159,8 +160,9 @@ describe('terminal con 1, 2 o 4 gráficos (#286)', () => {
   const charts = () => screen.queryAllByRole('img', { name: /velas de/ })
   const layout = () => screen.getByRole('group', { name: 'Gráficos en pantalla' })
 
-  it('arranca con uno y pasa a 4, cada uno con su instrumento y timeframe', () => {
+  it('arranca con uno y pasa a 4, cada uno con su instrumento y timeframe', async () => {
     render(<TerminalView member={CURRENT_MEMBER} />)
+    await exampleChart()
     expect(charts()).toHaveLength(1)
     fireEvent.click(within(layout()).getByRole('button', { name: '4' }))
     expect(document.querySelector('[data-chart-layout="4"]')).not.toBeNull()
@@ -183,10 +185,10 @@ describe('terminal con 1, 2 o 4 gráficos (#286)', () => {
         name: 'US100',
       }),
     )
-    expect(charts()).toHaveLength(2)
+    await waitFor(() => expect(charts()).toHaveLength(2))
   })
 
-  it('la herramienta de medición (#281) anda en cada gráfico de la grilla, por separado', () => {
+  it('la herramienta de medición (#281) anda en cada gráfico de la grilla, por separado', async () => {
     const us100 = { instrument: 'US100', timeframe: '15m' }
     localStorage.setItem(
       'cfdstrader.terminal.charts',
@@ -205,6 +207,7 @@ describe('terminal con 1, 2 o 4 gráficos (#286)', () => {
       toJSON: () => ({}),
     } as DOMRect)
     render(<TerminalView member={CURRENT_MEMBER} />)
+    await exampleChart()
     const svgs = charts()
     expect(svgs).toHaveLength(4)
     const measureOf = (svg: Element) => svg.querySelector('[data-measure]')
@@ -269,12 +272,13 @@ describe('terminal con 1, 2 o 4 gráficos (#286)', () => {
     expect(document.querySelector('[data-chart-layout="2"]')).not.toBeNull()
   })
 
-  it('si el almacenamiento falla o está roto, la grilla anda igual', () => {
+  it('si el almacenamiento falla o está roto, la grilla anda igual', async () => {
     localStorage.setItem('cfdstrader.terminal.charts', '{roto')
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('bloqueado')
     })
     render(<TerminalView member={CURRENT_MEMBER} />)
+    await exampleChart()
     expect(charts()).toHaveLength(1)
     fireEvent.click(within(layout()).getByRole('button', { name: '4' }))
     expect(document.querySelector('[data-chart-layout="4"]')).not.toBeNull()

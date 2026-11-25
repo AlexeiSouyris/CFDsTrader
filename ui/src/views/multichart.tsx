@@ -27,6 +27,7 @@
  * Cursor sincronizado (#544): opción de la barra de arriba, apagada por defecto. Al mover el
  * cursor en un panel, los otros marcan la vela que contiene esa hora UTC. No sincroniza el zoom.
  */
+import { StaleNote } from '@/components/ui/data-honesty'
 import { Crosshair } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
@@ -407,6 +408,7 @@ function SlotInfo({ index, slot }: { index: number; slot: SlotData }) {
           </div>
         ))}
       </dl>
+      {last && <StaleNote at={last.end} className="mt-2" />}
       <p className="mt-4 text-[11.5px] leading-snug text-muted-foreground">
         Solo para mirar el precio: desde acá no se envían órdenes. Las líneas y mediciones son
         visuales. Lo que muestra el motor es lo que pasó, no una promesa de lo que va a pasar.

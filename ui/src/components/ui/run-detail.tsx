@@ -6,6 +6,7 @@
  * mantener los calcula el motor. `Number` se usa solo para ubicar los puntos en el dibujo.
  * Es simulación con datos del pasado: no anticipa resultados.
  */
+import { ScrollRegion } from '@/components/ui/scroll-region'
 import { X } from 'lucide-react'
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 
@@ -286,7 +287,7 @@ function Trades({ detail }: { detail: Detail }) {
   const rest = total - shown
   return (
     <>
-      <div className="overflow-x-auto max-md:overflow-visible">
+      <ScrollRegion label="Operaciones de la corrida" className="max-md:overflow-visible">
         <table
           aria-label="Operaciones de la corrida"
           className="w-full text-[12.5px] md:min-w-[600px] max-md:block"
@@ -361,7 +362,7 @@ function Trades({ detail }: { detail: Detail }) {
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] text-muted-foreground">
           P/L neto en la moneda de cada instrumento, con spread, slippage, comisión y financiación.

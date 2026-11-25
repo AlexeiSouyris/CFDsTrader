@@ -34,6 +34,24 @@ const viewFromHash = () => {
 }
 
 type Stage = 'loading' | 'signin' | 'app'
+type Theme = 'dark' | 'light'
+
+/**
+ * Tema (#579): el que eligió la persona (guardado en este navegador) o, si nunca eligió, el del
+ * sistema, y lo sigue si cambia. Sin `localStorage` (navegación privada) usa el del sistema.
+ */
+const THEME_KEY = 'cfds.theme'
+const savedTheme = (): Theme | null => {
+  try {
+    const v = localStorage.getItem(THEME_KEY)
+    return v === 'dark' || v === 'light' ? v : null
+  } catch {
+    return null
+  }
+}
+const LIGHT_QUERY = '(prefers-color-scheme: light)'
+const systemTheme = (): Theme =>
+  typeof window !== 'undefined' && window.matchMedia?.(LIGHT_QUERY).matches ? 'light' : 'dark'
 
 /** Hacia dónde entra la vista nueva: por el orden de la navegación (para la transición). */
 const order = (id: string) => VIEWS.findIndex((v) => v.id === id)
@@ -61,7 +79,25 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
   const [stage, setStage] = useState<Stage>(initialStage)
   const [portal, setPortal] = useState(PORTAL_ON_START && initialStage === 'app')
   const [{ view, dir }, setNav] = useState(() => ({ view: viewFromHash(), dir: 0 }))
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const [theme, setThemeState] = useState<Theme>(() => savedTheme() ?? systemTheme())
+  const setTheme = (t: Theme) => {
+    setThemeState(t)
+    try {
+      localStorage.setItem(THEME_KEY, t)
+    } catch {
+      // sin almacenamiento: vale para esta visita
+    }
+  }
+
+  useEffect(() => {
+    const mq = window.matchMedia?.(LIGHT_QUERY)
+    if (!mq) return
+    const onChange = (e: MediaQueryListEvent) => {
+      if (!savedTheme()) setThemeState(e.matches ? 'light' : 'dark')
+    }
+    mq.addEventListener?.('change', onChange)
+    return () => mq.removeEventListener?.('change', onChange)
+  }, [])
   const [glass, setGlass] = useState(DEFAULT_GLASS)
 
   useEffect(() => {
@@ -122,6 +158,7 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
         {stage === 'app' && (
           <GlassShell
             views={VIEWS}
+            home={HOME_VIEW}
             tabs={TABS}
             active={view}
             heading={

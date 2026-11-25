@@ -23,7 +23,7 @@ describe('la app', () => {
   it('avisa siempre que los datos son de ejemplo y que no hay promesas de ganancia', () => {
     render(<App initialStage="app" />)
     const note = screen.getByRole('note')
-    expect(note).toHaveTextContent('datos de ejemplo')
+    expect(note).toHaveTextContent('sello EJEMPLO')
     expect(note).toHaveTextContent('ni una promesa de ganancia')
   })
 

@@ -4,6 +4,7 @@
  * métricas de B0, B1 y M1, la calibración por grupos (#433) y la fecha. Solo presenta: no calcula métricas ni decide nada, y el
  * modelo no decide operaciones.
  */
+import { ScrollRegion } from '@/components/ui/scroll-region'
 import { dateTimeUtc } from '@/lib/format'
 import {
   ML_MODELS,
@@ -155,7 +156,7 @@ function Calibration({ calibration }: { calibration: MlCalibration }) {
                 <span className="text-[11px] text-muted-foreground">{MODEL_LABEL[m]}</span>
               </h4>
               <CalibrationChart model={m} bins={bins} />
-              <div className="overflow-x-auto">
+              <ScrollRegion label={`Grupos de ${m}`}>
                 <table className="w-full text-[11px]" aria-label={`Grupos de ${m}`}>
                   <thead>
                     <tr className="border-b border-border">
@@ -189,7 +190,7 @@ function Calibration({ calibration }: { calibration: MlCalibration }) {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </ScrollRegion>
             </section>
           )
         })}
@@ -290,7 +291,7 @@ function Experiment({ entry }: { entry: MlExperimentEntry }) {
           Sin métricas: ninguna validación entró en la medición conjunta.
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <ScrollRegion label="Métricas por modelo">
           <table className="w-full text-[12px]" aria-label="Métricas por modelo">
             <thead>
               <tr className="border-b border-border">
@@ -319,7 +320,7 @@ function Experiment({ entry }: { entry: MlExperimentEntry }) {
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       )}
       {e.calibration ? (
         <Calibration calibration={e.calibration} />

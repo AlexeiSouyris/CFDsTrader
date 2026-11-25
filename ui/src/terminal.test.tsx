@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
+import { exampleChart } from '@/test/example-chart'
 import App from '@/App'
 import { signed } from '@/lib/format'
 import { CHART_SIGNALS, CURRENT_MEMBER, MEMBERS, PAPER_ACCOUNT, PAPER_POSITIONS } from '@/mocks'
@@ -62,8 +63,9 @@ describe('terminal de trading (fase 10, #275)', () => {
     ])
   })
 
-  it('marca las señales del motor en el gráfico', () => {
+  it('marca las señales del motor en el gráfico', async () => {
     const { container } = render(<TerminalView member={CURRENT_MEMBER} />)
+    await exampleChart()
     expect(container.querySelectorAll('[data-signal]')).toHaveLength(CHART_SIGNALS.length)
   })
 
