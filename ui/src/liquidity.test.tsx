@@ -413,4 +413,56 @@ describe('vista de liquidez en vivo (#231)', () => {
       expect.anything(),
     )
   })
+
+  it('abre en automática: si IG no tiene velas muestra futuros, dice por qué y se puede elegir a mano (#628)', async () => {
+    const auto = 'automática (IG; sin velas de IG, futuros)'
+    const fut = 'futuros CME/Eurex (base distinta al CFD)'
+    const note =
+      'IG todavía no tiene velas de este instrumento y timeframe: se muestran futuros de CME/Eurex (Databento). Base distinta al CFD: los niveles no son precios del CFD.'
+    const withSources = {
+      ...INSTRUMENTS,
+      sources: [
+        { id: 'auto', label: auto },
+        { id: 'ig', label: 'IG CFD' },
+        { id: 'futures', label: fut },
+      ],
+    }
+    const fetch = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input), 'http://ui.test')
+      const source = url.searchParams.get('source')
+      const body =
+        url.pathname === '/api/v1/instruments'
+          ? withSources
+          : source === 'auto'
+            ? { ...DATA, source: { id: 'futures', label: fut }, fallback: { from: 'ig', note } }
+            : source === 'futures'
+              ? { ...DATA, source: { id: 'futures', label: fut } }
+              : { ...DATA, source: { id: 'ig', label: 'IG CFD' } }
+      return new Response(JSON.stringify(body), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetch)
+    render(<LiquidityView />)
+    // la etiqueta es la de la fuente que de verdad se usó, con el motivo
+    expect(await screen.findByText(fut, { selector: 'strong' })).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(`Fuente automática: ${note}`)
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/liquidity?instrument=US100&timeframe=15m&source=auto',
+      expect.anything(),
+    )
+    expect(screen.getByRole('button', { name: auto })).toHaveAttribute('aria-pressed', 'true')
+    // a mano, IG: sin reemplazo ni motivo
+    fireEvent.click(screen.getByRole('button', { name: 'IG CFD' }))
+    expect(await screen.findByText('IG CFD', { selector: 'strong' })).toBeInTheDocument()
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/liquidity?instrument=US100&timeframe=15m',
+      expect.anything(),
+    )
+  })
+
+  it('con IG de vuelta, la automática muestra IG sin motivo (#628)', () => {
+    render(<LiquidityContent data={{ ...DATA, source: { id: 'ig', label: 'IG CFD' } }} />)
+    expect(screen.getByText('IG CFD', { selector: 'strong' })).toBeInTheDocument()
+    expect(screen.queryByText(/Fuente automática/)).not.toBeInTheDocument()
+  })
 })

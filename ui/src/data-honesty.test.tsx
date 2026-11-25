@@ -89,6 +89,14 @@ describe('honestidad de los datos (#577)', () => {
     expect(indices).not.toHaveTextContent('US Tech 100 ')
   })
 
+  it('el drawdown va sin signo, como en Performance (#612)', () => {
+    gateway()
+    render(<OverviewView onOpen={() => {}} />)
+    const dd = screen.getByText('Drawdown máximo').closest('section')!
+    expect(dd).toHaveTextContent('3,10%')
+    expect(dd).not.toHaveTextContent('−')
+  })
+
   it('Noticias sin gateway avisa que es de ejemplo; Diario y Trofeos no muestran ejemplos (#616)', () => {
     const { unmount } = render(<NewsView />)
     expect(screen.getByRole('note')).toHaveTextContent('EJEMPLO')

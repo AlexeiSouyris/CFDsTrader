@@ -27,7 +27,16 @@ import { PerformanceView } from '@/views/performance'
 import { ResearchView } from '@/views/research'
 import { TerminalView } from '@/views/terminal'
 import { HomeView } from '@/views/home'
-import { GLASS_VIEWS, HOME_VIEW, MAIN_TABS, NAV_SECTIONS, sectionOf, VIEWS } from '@/views/nav'
+import {
+  BAR_VIEWS,
+  GLASS_VIEWS,
+  HOME_VIEW,
+  MAIN_TABS,
+  MENU_GROUPS,
+  NAV_SECTIONS,
+  sectionOf,
+  VIEWS,
+} from '@/views/nav'
 import { FundView, GlossaryView, ProposalsView } from '@/views/phase10'
 
 /** La intro (#581, etapa 9) se carga aparte: no pesa en las visitas siguientes. */
@@ -63,7 +72,10 @@ const systemTheme = (): Theme =>
 /** Hacia dónde entra la vista nueva: por el orden de la navegación (para la transición). */
 const order = (id: string) => VIEWS.findIndex((v) => v.id === id)
 const TABS = MAIN_TABS.map((id) => VIEWS.find((v) => v.id === id)!)
-const NAV = NAV_SECTIONS.map((id) => VIEWS.find((v) => v.id === id)!)
+const byId = (id: string) => VIEWS.find((v) => v.id === id)!
+const NAV = NAV_SECTIONS.map(byId)
+const BAR = BAR_VIEWS.map(byId)
+const MENU = MENU_GROUPS.map((g) => ({ view: byId(g.id), children: g.children.map(byId) }))
 const navTo = (id: string) => (prev: { view: string; dir: number }) => ({
   view: id,
   dir: Math.sign(order(id) - order(prev.view)),
@@ -186,6 +198,8 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
           <GlassShell
             views={VIEWS}
             nav={NAV}
+            bar={BAR}
+            menu={MENU}
             section={sectionOf(view)}
             home={HOME_VIEW}
             tabs={TABS}

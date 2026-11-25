@@ -15,7 +15,7 @@ import { Segmented } from '@/components/ui/segmented'
 import { Term } from '@/components/ui/term'
 import { fetchOlderBars, useInstruments, useLiquidityView } from '@/lib/liquidity-api'
 import { chartBars } from '@/lib/liquidity-bars'
-import type { LiquidityViewData, ViewSource, ViewTimeframe } from '@/lib/liquidity-contracts'
+import type { LiquidityViewData, SourceChoice, ViewTimeframe } from '@/lib/liquidity-contracts'
 import { dateTimeUtc } from '@/lib/format'
 
 /**
@@ -132,12 +132,17 @@ function LiveLiquidity() {
   const [picked, setPicked] = useState<{
     instrument: string
     timeframe: ViewTimeframe
-    source?: ViewSource['id']
+    source?: SourceChoice
   } | null>(null)
+  // Sin elegir, la primera fuente que manda el motor (#628: `auto`, IG o, sin velas, futuros).
   const sel =
     picked ??
     (catalog.status === 'ok'
-      ? { instrument: catalog.data.default_instrument, timeframe: catalog.data.default_timeframe }
+      ? {
+          instrument: catalog.data.default_instrument,
+          timeframe: catalog.data.default_timeframe,
+          source: catalog.data.sources?.[0]?.id,
+        }
       : null)
   const state = useLiquidityView(sel)
   if (catalog.status === 'loading')
@@ -230,11 +235,17 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
         {TF_TEXT[tf][data.candles.length === 1 ? 0 : 1]} · fuente: <strong>{source}</strong>{' '}
         <StaleNote at={data.as_of} />
       </p>
-      {futures && (
-        <p role="note" className="text-[12px] text-muted-foreground">
-          Son precios del futuro, no del CFD: la diferencia entre los dos (la base) cambia con cada
-          vencimiento, así que los niveles no son precios del CFD.
+      {data.fallback ? (
+        <p role="note" className="text-[12px]">
+          <strong>Fuente automática:</strong> {data.fallback.note}
         </p>
+      ) : (
+        futures && (
+          <p role="note" className="text-[12px] text-muted-foreground">
+            Son precios del futuro, no del CFD: la diferencia entre los dos (la base) cambia con
+            cada vencimiento, así que los niveles no son precios del CFD.
+          </p>
+        )
       )}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">

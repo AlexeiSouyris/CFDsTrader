@@ -141,7 +141,7 @@ function RunsTable({
                     aria-expanded={isOpen}
                     aria-label={`Ver el detalle de ${r.run_id}`}
                     onClick={() => onOpen(r.run_id)}
-                    className="block rounded-sm text-left font-semibold [overflow-wrap:anywhere] underline-offset-4 hover:underline lg:whitespace-nowrap"
+                    className="block min-h-6 rounded-sm text-left font-semibold [overflow-wrap:anywhere] underline-offset-4 hover:underline lg:whitespace-nowrap"
                   >
                     {r.run_id}
                   </button>
@@ -353,7 +353,7 @@ export function PerformanceView({ onOpen }: { onOpen: (view: string) => void }) 
           <button
             type="button"
             onClick={() => onOpen('fondo')}
-            className="mt-3 rounded-sm text-[12px] font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            className="mt-3 inline-flex min-h-6 items-center rounded-sm text-[12px] font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           >
             Ver el fondo y cada miembro →
           </button>
