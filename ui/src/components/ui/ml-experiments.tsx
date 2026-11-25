@@ -305,9 +305,20 @@ function Experiment({ entry }: { entry: MlExperimentEntry }) {
               {models.map((m) => {
                 const s = e.pooled[m]!
                 return (
-                  <tr key={m} data-model={m} className="border-b border-border/60 last:border-0">
+                  // B1 es la referencia contra la que se mide M1 (#581): la fila queda marcada
+                  <tr
+                    key={m}
+                    data-model={m}
+                    data-reference={m === 'B1' || undefined}
+                    className="border-b border-border/60 last:border-0 data-reference:bg-[color-mix(in_srgb,var(--accent)_8%,transparent)]"
+                  >
                     <td className="py-2 pr-3">
                       <strong>{m}</strong>
+                      {m === 'B1' && (
+                        <span className="ml-1.5 rounded-sm border border-current px-1 align-[1px] text-[9.5px] font-bold tracking-[0.08em] text-accent uppercase">
+                          referencia
+                        </span>
+                      )}
                       <span className="block text-[11px] text-muted-foreground">
                         {MODEL_LABEL[m]}
                       </span>

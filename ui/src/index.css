@@ -160,6 +160,39 @@
   --accent: #5b3fb0;
 }
 
+/*
+ * Investigación como informe (#581, etapa 6): títulos en serif, tablas con cebra suave y números
+ * en mono, alineados a la derecha. Las tarjetas toman el tono del papel (tibio en el claro).
+ */
+[data-theme='light'] [data-section='research'],
+[data-theme='light'][data-section='research'] {
+  --card: #fffdf8;
+}
+[data-section='research'] :is(h2, h3),
+main:has([data-section='research']) > header h1 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+[data-section='research'] h2 {
+  font-size: 19px;
+  line-height: 1.2;
+}
+[data-section='research'] h3 {
+  font-size: 16px;
+}
+[data-section='research'] h2[data-research-title] {
+  font-size: clamp(28px, 2.8vw, 36px);
+  line-height: 1.05;
+}
+[data-section='research'] tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--foreground) 3.5%, transparent);
+}
+[data-section='research'] td.text-right {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
 /* Noticias y contexto: lector, acento verde azulado */
 [data-section='news'] {
   --density: var(--space-6);

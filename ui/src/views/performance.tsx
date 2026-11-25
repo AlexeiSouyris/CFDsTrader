@@ -15,11 +15,13 @@ import { useState, type ReactNode } from 'react'
 
 import { AnimatedNumber } from '@/components/ui/animated-number'
 import { RunDetailView } from '@/components/ui/run-detail'
+import { SortHeader } from '@/components/ui/sort-header'
 import { Term } from '@/components/ui/term'
 import { dateTimeUtc, decimal } from '@/lib/format'
 import { currencySign, useFund } from '@/lib/fund-api'
 import { dayYear, numOrDash, pctOrDash, signedPct, tone } from '@/lib/run-format'
 import { useBacktestRuns, useRunDetail } from '@/lib/paper-api'
+import { sortRows, useSort } from '@/lib/sort-rows'
 import { LearningSection, MlExperimentsSection, PaperVsBacktestSection } from '@/views/phase8'
 import { cn } from '@/lib/utils'
 import { BACKTEST_RUN_DETAIL, BACKTEST_RUNS, type BacktestRun } from '@/mocks'
@@ -66,6 +68,26 @@ function Kpi({ label, value, detail }: { label: ReactNode; value: ReactNode; det
 const cell =
   'py-2.5 max-lg:p-0 max-lg:before:block max-lg:before:text-[10px] max-lg:before:font-bold max-lg:before:tracking-[0.1em] max-lg:before:text-muted-foreground max-lg:before:uppercase max-lg:before:content-[attr(data-label)]'
 
+/** Las columnas de la tabla de corridas y qué valor de la corrida ordena cada una. */
+const COLUMNS = [
+  { key: 'run', label: 'Corrida', value: (r: BacktestRun) => r.run_id },
+  {
+    key: 'instruments',
+    label: 'Instrumentos',
+    value: (r: BacktestRun) => r.instruments.join(', '),
+  },
+  { key: 'tf', label: 'TF', value: (r: BacktestRun) => r.timeframe },
+  { key: 'period', label: 'Período', value: (r: BacktestRun) => r.from },
+  { key: 'trades', label: 'Operaciones', value: (r: BacktestRun) => r.metrics.trades },
+  { key: 'return', label: 'Retorno', value: (r: BacktestRun) => r.metrics.total_return },
+  { key: 'dd', label: 'DD máx.', value: (r: BacktestRun) => r.metrics.max_drawdown },
+  { key: 'sharpe', label: 'Sharpe', value: (r: BacktestRun) => r.metrics.sharpe },
+  { key: 'win', label: 'Acierto', value: (r: BacktestRun) => r.metrics.win_rate },
+  { key: 'kill', label: 'Kill switch', value: (r: BacktestRun) => r.metrics.kill_switch_at },
+] as const
+type Column = (typeof COLUMNS)[number]['key']
+const NUMERIC: Column[] = ['trades', 'return', 'dd', 'sharpe', 'win', 'kill']
+
 function RunsTable({
   runs,
   open,
@@ -76,6 +98,10 @@ function RunsTable({
   onOpen: (runId: string) => void
 }) {
   const th = 'py-2 pr-3 font-bold whitespace-nowrap last:pr-0'
+  // ordenar es presentación (#581): las corridas se reordenan tal como llegan del motor
+  const [sort, onSort] = useSort(NUMERIC)
+  const col = COLUMNS.find((c) => c.key === sort?.key)
+  const rows = sort && col ? sortRows(runs, col.value, sort.dir) : runs
   return (
     <ScrollRegion label="Corridas de backtest" className="max-lg:overflow-visible">
       <table
@@ -84,20 +110,21 @@ function RunsTable({
       >
         <thead className="max-lg:sr-only">
           <tr className="border-b border-border text-left text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
-            <th className={th}>Corrida</th>
-            <th className={th}>Instrumentos</th>
-            <th className={th}>TF</th>
-            <th className={th}>Período</th>
-            <th className={cn(th, 'text-right')}>Operaciones</th>
-            <th className={cn(th, 'text-right')}>Retorno</th>
-            <th className={cn(th, 'text-right')}>DD máx.</th>
-            <th className={cn(th, 'text-right')}>Sharpe</th>
-            <th className={cn(th, 'text-right')}>Acierto</th>
-            <th className={cn(th, 'text-right')}>Kill switch</th>
+            {COLUMNS.map((c) => (
+              <SortHeader
+                key={c.key}
+                label={c.label}
+                column={c.key}
+                sort={sort}
+                onSort={onSort}
+                right={NUMERIC.includes(c.key)}
+                className={th}
+              />
+            ))}
           </tr>
         </thead>
         <tbody className="max-lg:grid max-lg:gap-2 sm:max-lg:grid-cols-2">
-          {runs.map((r) => {
+          {rows.map((r) => {
             const isOpen = open === r.run_id
             return (
               <tr
