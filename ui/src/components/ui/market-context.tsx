@@ -118,7 +118,7 @@ function HorizonRows({ group }: { group: AnalogGroup }) {
                 <td
                   key={p}
                   className={cn(
-                    'py-1.5 text-right tabular-nums',
+                    'py-1.5 text-right whitespace-nowrap tabular-nums',
                     v && (v.startsWith('-') ? 'text-down' : 'text-up'),
                   )}
                 >
@@ -126,7 +126,9 @@ function HorizonRows({ group }: { group: AnalogGroup }) {
                 </td>
               )
             })}
-            <td className="py-1.5 text-right tabular-nums">{decimal(h.positive_pct, 0)} %</td>
+            <td className="py-1.5 text-right whitespace-nowrap tabular-nums">
+              {decimal(h.positive_pct, 0)} %
+            </td>
           </tr>
         ))}
       </tbody>
