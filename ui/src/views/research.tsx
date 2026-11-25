@@ -112,7 +112,7 @@ export function ResearchView({ onOpen }: { onOpen: (view: string) => void }) {
         <p className="mb-2 text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase max-lg:sr-only">
           En esta página
         </p>
-        <ol className="flex gap-1 overflow-x-auto pb-1 lg:grid lg:gap-0.5 lg:overflow-visible lg:border-l lg:border-border lg:pb-0">
+        <ol className="flex gap-1 overflow-x-auto pb-1 lg:grid lg:gap-0.5 lg:overflow-visible lg:pb-0">
           {RESEARCH_INDEX.map((p) => {
             const on = current === p.id
             const sub = !('view' in p)
@@ -123,11 +123,19 @@ export function ResearchView({ onOpen }: { onOpen: (view: string) => void }) {
                   aria-current={on ? 'location' : undefined}
                   onClick={() => jump(p.id)}
                   className={cn(
-                    'min-h-9 rounded-sm px-2.5 text-left text-[13px] whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring max-lg:rounded-full max-lg:border max-lg:border-border lg:-ml-px lg:min-h-8 lg:w-full lg:border-l-2 lg:border-transparent',
-                    sub && 'lg:pl-5 lg:text-[12.5px]',
-                    on && 'font-bold text-foreground max-lg:border-accent lg:border-accent',
+                    'inline-flex min-h-9 items-center gap-2 rounded-sm px-2.5 text-left text-[13px] whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring max-lg:rounded-full max-lg:border max-lg:border-border lg:min-h-8 lg:w-full lg:px-0',
+                    sub && 'lg:pl-4 lg:text-[12.5px]',
+                    on && 'font-bold text-accent',
                   )}
                 >
+                  {/* la parte que se lee: el texto en el acento y un punto chico, sin franja lateral */}
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'size-1.5 shrink-0 rounded-full bg-accent transition-opacity max-lg:hidden',
+                      !on && 'opacity-0',
+                    )}
+                  />
                   {p.label}
                 </button>
               </li>
