@@ -33,8 +33,8 @@ use crate::account::{PaperAccountError, PaperAccountId};
 use crate::config::{ContractKind, IbkrConfig, IbkrConfigError, WhatToShow};
 use crate::live::{LiveDataType, QuoteEvent};
 use crate::session::{
-    ApiError, BarSize, BarsRequest, BarsResponse, ContractChoice, IbkrApi, QuoteRequest, RawBar,
-    ReadOnlySession, SummaryItem, Trip,
+    ApiError, BarSize, BarsRequest, BarsResponse, ContractChoice, DetailsQuery, FutureDetails,
+    IbkrApi, QuoteRequest, RawBar, ReadOnlySession, SummaryItem, Trip,
 };
 
 /// Variables de `ibapi` que graban en disco los mensajes crudos (con cuentas y saldos). Con
@@ -531,6 +531,34 @@ impl IbkrApi for IbapiClient {
                 return Ok(());
             }
         }
+    }
+
+    async fn future_details(&self, query: &DetailsQuery) -> Result<Vec<FutureDetails>, ApiError> {
+        let q = Contract::futures(query.symbol.as_str())
+            .on_exchange(query.exchange.as_str())
+            .in_currency(query.currency.as_str())
+            .any_month()
+            .build();
+        let details = self.with_timeout(self.client.contract_details(&q)).await?;
+        details
+            .into_iter()
+            .map(|d| {
+                Ok(FutureDetails {
+                    local_symbol: d.contract.local_symbol.clone(),
+                    trading_class: d.contract.trading_class.clone(),
+                    exchange: d.contract.exchange.to_string(),
+                    currency: d.contract.currency.to_string(),
+                    multiplier: d.contract.multiplier.clone(),
+                    min_tick: to_decimal(d.min_tick, "min_tick")?,
+                    contract_month: d.contract_month,
+                    last_trade_date: d.contract.last_trade_date_or_contract_month,
+                    long_name: d.long_name,
+                    time_zone_id: d.time_zone_id,
+                    trading_hours: d.trading_hours,
+                    market_rule_ids: d.market_rule_ids,
+                })
+            })
+            .collect()
     }
 
     async fn disconnect(&self) {

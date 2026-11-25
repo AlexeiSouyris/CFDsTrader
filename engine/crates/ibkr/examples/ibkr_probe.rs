@@ -8,25 +8,30 @@
 //! # velas cerradas de un tamaño en [desde, hasta) (UTC, RFC 3339):
 //! cargo run -q -p cfds-ibkr --example ibkr_probe -- --bars MNQ 1h 2026-11-20T00:00:00Z 2026-11-21T00:00:00Z
 //! # lo mismo de un mes concreto (puede estar vencido): --month 202609
+//! # ficha de los vencimientos vigentes de cualquier futuro (no hace falta que esté en la config,
+//! # #672): multiplicador, tick, moneda, bolsa, vencimientos y horario. Sin precios ni cuentas.
+//! cargo run -q -p cfds-ibkr --example ibkr_probe -- --details ES CME USD
 //! ```
 //!
 //! Usa `config/ibkr.toml` y sus guardas (puerto, cuenta paper, kill switch); el `client_id` se
 //! puede cambiar con `IBKR_CLIENT_ID` para no chocar con otro programa conectado. Solo imprime la
-//! cantidad de velas, la primera y la última: no guarda nada ni muestra cuentas ni saldos.
+//! cantidad de velas, la primera y la última (o la ficha del contrato): no guarda nada ni muestra
+//! cuentas ni saldos.
 //!
 //! Salida: 0 bien; 1 error o rechazo de IBKR (se imprime); 2 kill switch.
 
 use std::process::ExitCode;
 
 use cfds_core::InstrumentId;
-use cfds_ibkr::{BarSize, ContractChoice, IbkrConfig, SessionError, connect};
+use cfds_ibkr::{BarSize, ContractChoice, DetailsQuery, IbkrConfig, SessionError, connect};
 use chrono::{DateTime, Utc};
 
 const CONFIG: &str = include_str!("../../../../config/ibkr.toml");
 
 fn usage() -> ExitCode {
     eprintln!(
-        "uso: ibkr_probe --head ID [--month AAAAMM] | --bars ID TAMAÑO DESDE HASTA [--month AAAAMM]"
+        "uso: ibkr_probe --head ID [--month AAAAMM] | --bars ID TAMAÑO DESDE HASTA [--month AAAAMM] \
+         | --details SÍMBOLO BOLSA MONEDA"
     );
     ExitCode::from(1)
 }
@@ -54,6 +59,19 @@ async fn main() -> ExitCode {
         },
         None => ContractChoice::Front,
     };
+    if args.first().map(String::as_str) == Some("--details") {
+        let (Some(symbol), Some(exchange), Some(currency)) =
+            (args.get(1), args.get(2), args.get(3))
+        else {
+            return usage();
+        };
+        let query = DetailsQuery {
+            symbol: symbol.clone(),
+            exchange: exchange.clone(),
+            currency: currency.clone(),
+        };
+        return details(cfg, &query).await;
+    }
     let Some(id) = args.get(1).and_then(|s| s.parse::<InstrumentId>().ok()) else {
         return usage();
     };
@@ -112,6 +130,60 @@ async fn main() -> ExitCode {
         }
         Err(e) => {
             eprintln!("{id}: {e}");
+            session.close().await;
+            ExitCode::from(1)
+        }
+    }
+}
+
+/// `--details`: una línea por vencimiento vigente, separada por tabuladores, y el horario del
+/// primero (el más cercano).
+async fn details(cfg: IbkrConfig, query: &DetailsQuery) -> ExitCode {
+    let session = match connect(cfg, |k| std::env::var(k).ok()).await {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("{e}");
+            return ExitCode::from(1);
+        }
+    };
+    match session.future_details(query, Utc::now()).await {
+        Ok(mut all) => {
+            all.sort_by(|a, b| a.last_trade_date.cmp(&b.last_trade_date));
+            println!(
+                "local_symbol\ttrading_class\texchange\tcurrency\tmultiplier\tmin_tick\tcontract_month\tlast_trade_date\ttime_zone\tmarket_rules\tlong_name"
+            );
+            for d in &all {
+                println!(
+                    "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                    d.local_symbol,
+                    d.trading_class,
+                    d.exchange,
+                    d.currency,
+                    d.multiplier,
+                    d.min_tick,
+                    d.contract_month,
+                    d.last_trade_date,
+                    d.time_zone_id,
+                    d.market_rule_ids.join(","),
+                    d.long_name
+                );
+            }
+            if let Some(first) = all.first() {
+                println!(
+                    "trading_hours {}: {}",
+                    first.local_symbol,
+                    first.trading_hours.join(";")
+                );
+            }
+            session.close().await;
+            ExitCode::SUCCESS
+        }
+        Err(SessionError::KillSwitch(t)) => {
+            eprintln!("KILL SWITCH ({}): {}", t.kind.as_str(), t.reason);
+            ExitCode::from(2)
+        }
+        Err(e) => {
+            eprintln!("{}: {e}", query.symbol);
             session.close().await;
             ExitCode::from(1)
         }

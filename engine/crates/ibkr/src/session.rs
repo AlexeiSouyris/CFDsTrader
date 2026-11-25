@@ -166,7 +166,52 @@ pub trait IbkrApi: Send + Sync {
             ))
         }
     }
+    /// Ficha de todos los vencimientos vigentes de un futuro (`reqContractDetails`, #672). Solo
+    /// lectura: no toca cuentas, órdenes ni posiciones.
+    fn future_details(
+        &self,
+        query: &DetailsQuery,
+    ) -> impl Future<Output = Result<Vec<FutureDetails>, ApiError>> + Send {
+        let _ = query;
+        async {
+            Err(ApiError::Rejected(
+                "este cliente no pide fichas de contratos".into(),
+            ))
+        }
+    }
     fn disconnect(&self) -> impl Future<Output = ()> + Send;
+}
+
+/// Qué futuro se busca para ver su ficha (#672): no tiene que estar en `config/ibkr.toml`, porque
+/// solo se leen datos del contrato (multiplicador, tick, horario), nunca precios ni cuentas.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DetailsQuery {
+    pub symbol: String,
+    pub exchange: String,
+    pub currency: String,
+}
+
+/// Ficha de un vencimiento, tal como la informa IBKR (`ContractDetails`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FutureDetails {
+    pub local_symbol: String,
+    pub trading_class: String,
+    pub exchange: String,
+    pub currency: String,
+    /// Multiplicador del contrato, como texto de IBKR (por ejemplo "50").
+    pub multiplier: String,
+    /// Tick mínimo, exacto.
+    pub min_tick: Decimal,
+    /// Mes del contrato (AAAAMM).
+    pub contract_month: String,
+    /// Último día de negociación (AAAAMMDD).
+    pub last_trade_date: String,
+    pub long_name: String,
+    pub time_zone_id: String,
+    /// Horario de negociación de IBKR ("AAAAMMDD:HHMM-AAAAMMDD:HHMM" o "AAAAMMDD:CLOSED").
+    pub trading_hours: Vec<String>,
+    /// Reglas de precio por bolsa (ticks variables).
+    pub market_rule_ids: Vec<String>,
 }
 
 /// Pedido de precios por streaming de un instrumento (#558): siempre el contrato vigente.
@@ -451,6 +496,19 @@ impl<A: IbkrApi> ReadOnlySession<A> {
         let req = self.request(instrument, contract, BarSize::H1, now, now)?;
         self.check_connection(now).await?;
         match self.api.head_timestamp(&req).await {
+            Ok(r) => Ok(r),
+            Err(e) => Err(self.api_error(e, now).await),
+        }
+    }
+
+    /// Ficha de los vencimientos vigentes de un futuro (#672), con las mismas guardas que el resto.
+    pub async fn future_details(
+        &self,
+        query: &DetailsQuery,
+        now: DateTime<Utc>,
+    ) -> Result<Vec<FutureDetails>, SessionError> {
+        self.check_connection(now).await?;
+        match self.api.future_details(query).await {
             Ok(r) => Ok(r),
             Err(e) => Err(self.api_error(e, now).await),
         }
