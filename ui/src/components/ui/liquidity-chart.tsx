@@ -28,6 +28,9 @@
  * Dibujos del usuario (#543, prop `drawTool`, `chart-drawings.tsx`): línea horizontal, línea de
  * tendencia y rectángulo, anclados a hora UTC y precio, guardados en el navegador por instrumento.
  * Son solo visuales. Sin `drawTool`, el gráfico no muestra ni toma dibujos.
+ *
+ * Cursor sincronizado (#544, prop `syncCursor`, `sync-cursor.tsx`): avisa la hora UTC de la vela
+ * bajo el cursor y marca con una línea vertical la del cursor de otro gráfico. Sin zoom compartido.
  */
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -46,6 +49,7 @@ import { ChartFollower } from '@/components/ui/chart-follower'
 import { ChartNavBar, ViewportLive } from '@/components/ui/chart-nav-bar'
 import { matchRange, useChartNav, useViewport, type HistoryState } from '@/components/ui/chart-nav'
 import { ChartReadout } from '@/components/ui/chart-readout'
+import { SyncCursor } from '@/components/ui/sync-cursor'
 import { ChartToolsMenu } from '@/components/ui/chart-tools'
 import { LineArea } from '@/components/ui/line-area'
 import { Segmented } from '@/components/ui/segmented'
@@ -70,6 +74,7 @@ import {
   type Drawing,
   type DrawTool,
 } from '@/lib/chart-drawings'
+import type { CursorSync } from '@/lib/cursor-sync'
 import { niceTicks, renderWindow, timeTicks, visibleRange } from '@/lib/chart-viewport'
 import { dateTimeUtc, decimal, timeTickLabel } from '@/lib/format'
 import { fvgKey, levelKey, levelName, levelShort, STATE_LABEL } from '@/lib/liquidity-labels'
@@ -161,6 +166,7 @@ export function LiquidityChart({
   controlsTarget,
   drawTool,
   onDrawToolChange,
+  syncCursor,
   className,
 }: {
   instrument: string
@@ -211,6 +217,11 @@ export function LiquidityChart({
    */
   drawTool?: DrawTool
   onDrawToolChange?: (t: DrawTool) => void
+  /**
+   * Cursor sincronizado (#544): con esto, el gráfico avisa la hora de la vela bajo su cursor y
+   * marca la del cursor de los otros gráficos que comparten el mismo `CursorSync`.
+   */
+  syncCursor?: CursorSync
   className?: string
 }) {
   const ranges = RANGES[timeframe]
@@ -401,6 +412,24 @@ export function LiquidityChart({
     frame: vp.frame,
     trend,
   })
+  // Cursor sincronizado (#544): la hora UTC (inicio) de la vela bajo el cursor, para los demás.
+  const syncId = useId()
+  useEffect(() => {
+    if (!syncCursor) return
+    let last: number | null | undefined
+    const push = () => {
+      const h = measure.store.get().hover
+      const t = h === null ? null : (startMs[h] ?? null)
+      if (t === last) return
+      last = t
+      syncCursor.set(syncId, t)
+    }
+    const unsub = measure.store.subscribe(push)
+    return () => {
+      unsub()
+      syncCursor.set(syncId, null)
+    }
+  }, [syncCursor, measure.store, syncId, startMs])
   const nav = useChartNav(svgRef, {
     vp,
     width,
@@ -959,6 +988,19 @@ export function LiquidityChart({
                   </g>
                 )
               })}
+
+              {/* cursor de otro gráfico (#544): la vela que contiene esa hora */}
+              {syncCursor && (
+                <SyncCursor
+                  hub={syncCursor}
+                  self={syncId}
+                  starts={startMs}
+                  ends={ends}
+                  x={baseMap.x}
+                  top={top}
+                  bottom={top + plotH}
+                />
+              )}
             </g>
           </g>
 
