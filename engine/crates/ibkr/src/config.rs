@@ -81,6 +81,7 @@ pub struct IbkrConfig {
     pub regular_hours_only: bool,
     pub source: String,
     pub instruments: Vec<FutureSpec>,
+    pub load: crate::load::LoadConfig,
 }
 
 #[derive(Deserialize)]
@@ -89,7 +90,20 @@ struct Raw {
     gateway: RawGateway,
     account: RawAccount,
     history: RawHistory,
+    load: RawLoad,
     instruments: Vec<RawInstrument>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawLoad {
+    source: String,
+    pause_secs: u64,
+    max_requests: usize,
+    backfill_days: u32,
+    window_1m_hours: u32,
+    window_15m_hours: u32,
+    window_1h_hours: u32,
 }
 
 #[derive(Deserialize)]
@@ -273,7 +287,51 @@ impl IbkrConfig {
                 currency: plain("instruments.currency", &i.currency)?,
             });
         }
+        let l = r.load;
+        if !(1..=32).contains(&l.source.len())
+            || !l.source.starts_with(|c: char| c.is_ascii_lowercase())
+            || !l
+                .source
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        {
+            return Err(invalid("load.source", "minúsculas, números y '_' (1-32)"));
+        }
+        // 60 pedidos en 10 minutos (límite de IBKR para velas chicas): nunca menos de 10 s.
+        if !(10..=600).contains(&l.pause_secs) {
+            return Err(invalid("load.pause_secs", "tiene que estar entre 10 y 600"));
+        }
+        if !(1..=60).contains(&l.max_requests) {
+            return Err(invalid("load.max_requests", "tiene que estar entre 1 y 60"));
+        }
+        if !(1..=3650).contains(&l.backfill_days) {
+            return Err(invalid(
+                "load.backfill_days",
+                "tiene que estar entre 1 y 3650",
+            ));
+        }
+        // Tabla de duraciones de IBKR: 1 min hasta 1 día, 15 min hasta 1 semana, 1 h hasta 1 mes.
+        let win = |field, v: u32, max: u32| {
+            if (1..=max).contains(&v) {
+                Ok(chrono::TimeDelta::hours(i64::from(v)))
+            } else {
+                Err(invalid(
+                    field,
+                    format!("tiene que estar entre 1 y {max} horas"),
+                ))
+            }
+        };
+        let load = crate::load::LoadConfig {
+            pause: Duration::from_secs(l.pause_secs),
+            max_requests: l.max_requests,
+            backfill: chrono::TimeDelta::days(i64::from(l.backfill_days)),
+            window_1m: win("load.window_1m_hours", l.window_1m_hours, 24)?,
+            window_15m: win("load.window_15m_hours", l.window_15m_hours, 24 * 7)?,
+            window_1h: win("load.window_1h_hours", l.window_1h_hours, 24 * 30)?,
+            source: l.source,
+        };
         Ok(Self {
+            load,
             host: g.host,
             port: g.port,
             client_id: g.client_id,

@@ -76,3 +76,19 @@ respondió 403 a la lectura automática: lo que sigue está **a confirmar** cont
 - Sobre el continuo (CONTFUT), `reqHeadTimeStamp` y si la cuenta paper comparte los permisos de datos
   de la real, esa página no dice nada: **a confirmar**.
 
+## Carga incremental (`ibkr_load`)
+
+`cargo run -p cfds-ibkr --example ibkr_load -- ID TAMAÑO [--month AAAAMM] [--from RFC3339] [--run]`
+guarda velas cerradas en `ibkr_bars` (`contracts/ibkr_bar.v1.schema.json`, migración 0048). Usa
+`[load]` de `config/ibkr.toml`:
+
+- una pausa entre pedidos (11 s: nunca llega a 60 pedidos en 10 minutos) y un tope de pedidos por corrida (30);
+- ventanas dentro de la tabla de duraciones (1m: 24 h; 15m: 1 semana; 1h: 30 días);
+- sigue desde la última vela guardada de la serie (instrumento, contrato, tamaño y precio); un error
+  de ritmo para la corrida (salida 3); "no data" en una ventana (fin de semana, contrato que todavía
+  no se operaba) sigue con la siguiente.
+- No guarda el continuo (repinta) ni las diarias. No rellena huecos **anteriores** a la última vela
+  guardada: para eso, una serie nueva o pedirlo aparte.
+
+Verificación del 25-11-2026: una carga de MNQ (MNQZ6) 1h de 7 días a una base de pruebas propia
+(`cfds_test_ibkr2`, no la real): 115 velas nuevas; la segunda corrida no pidió nada (ya estaba al día).

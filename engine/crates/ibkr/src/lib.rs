@@ -13,11 +13,13 @@
 //!    esos métodos y un test revisa el código fuente).
 //! 4. Desconexión de IB Gateway → kill switch, sin reconexión automática ([`session`], [`client`]).
 //!
-//! No guarda nada todavía: la persistencia de las velas (contrato y tabla) va en otro Issue.
+//! Como fuente de datos (#536), [`load`] planea la carga incremental de velas cerradas; el
+//! ejemplo `ibkr_load` las guarda en `ibkr_bars` (`ibkr_bar.v1`).
 
 pub mod account;
 pub mod client;
 pub mod config;
+pub mod load;
 pub mod session;
 
 pub use account::{PaperAccountError, PaperAccountId, check_session_accounts, mask};

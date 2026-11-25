@@ -19,6 +19,7 @@ mod economic_events;
 mod emotional_states;
 mod futures_bars;
 mod futures_candles;
+mod ibkr_bars;
 mod liquidity_levels;
 mod liquidity_stats;
 mod market_context;
@@ -34,6 +35,7 @@ mod stream;
 pub mod test_db;
 
 pub use futures_candles::CandleFeed;
+pub use ibkr_bars::{IbkrBarRow, IbkrSeries};
 pub use liquidity_levels::LevelsReport;
 pub use liquidity_stats::{StatsReport, StatsRunReport};
 pub use news_stream::{

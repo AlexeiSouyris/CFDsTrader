@@ -38,6 +38,23 @@ regular_hours_only = false
 # Fuente que acompaña a cada vela.
 source = "ibkr_paper"
 
+[load]
+# Carga incremental a PostgreSQL (`ibkr_bars`, #536) con el ejemplo ibkr_load. Límites de IBKR en
+# docs/analysis/2026-11-ibkr-medicion-historia.md.
+# Fuente que se guarda con cada vela (los datos son los mismos en paper y en real).
+source = "ibkr"
+# Pausa entre pedidos de velas: con 11 s nunca se llega a 60 pedidos en 10 minutos.
+pause_secs = 11
+# Tope de pedidos de velas por corrida; lo que falte sigue en la corrida siguiente.
+max_requests = 30
+# Sin nada guardado de una serie y sin --from: desde cuántos días atrás.
+backfill_days = 7
+# Ventana de cada pedido, dentro de la tabla de duraciones de IBKR (1 min: hasta 1 día; 15 min:
+# hasta 1 semana; 1 h: hasta 1 mes).
+window_1m_hours = 24
+window_15m_hours = 168
+window_1h_hours = 720
+
 # Futuros micro (ADR 0017). La bolsa y la moneda son a confirmar con la respuesta de IBKR
 # (contract_details): si no encuentra el contrato, el comando lo dice y no inventa nada. Se usa el
 # vencimiento vigente más cercano que informe IBKR.
