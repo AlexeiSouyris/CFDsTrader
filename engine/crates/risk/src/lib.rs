@@ -8,7 +8,9 @@ use cfds_core::InstrumentId;
 use cfds_market_data::InstrumentSpec;
 use rust_decimal::Decimal;
 
-pub use config::{CorrelationGroup, RiskConfig};
+pub use config::{
+    CorrelationGroup, DrawdownMode, DrawdownPoint, DrawdownScaling, RiskConfig, VolTarget,
+};
 
 /// Lo que el módulo necesita saber de un instrumento.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,6 +47,9 @@ pub struct Account {
     pub kill_switch: bool,
     /// Cada posición abierta (también las que esperan su fill).
     pub open_positions: Vec<OpenPosition>,
+    /// Volatilidad anual realizada del capital, en % (#671). Solo la usa la volatilidad
+    /// objetivo; `None` mientras no haya historia suficiente (calentamiento).
+    pub realized_vol_pct: Option<Decimal>,
 }
 
 /// Una posición abierta, para los límites de cantidad y el tope por grupo correlacionado.
@@ -84,6 +89,9 @@ pub struct Sizing {
     pub leverage_capped: bool,
     /// `true` si el tope de un grupo correlacionado redujo el tamaño (#670).
     pub group_capped: bool,
+    /// Factor aplicado al riesgo por operación por la caída y la volatilidad objetivo (#671);
+    /// 1 con las dos apagadas.
+    pub risk_scale: Decimal,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -203,7 +211,18 @@ pub fn check(
     } else {
         r + cfg.gap_atr * req.atr
     };
-    let mut size = pct(cfg.risk_per_trade_pct) * equity / per_unit;
+    // Reducción gradual por caída y volatilidad objetivo (#671): solo cambian el riesgo por
+    // operación. Con las dos apagadas el factor es 1 y no se multiplica nada.
+    let drawdown_pct = (Decimal::ONE - account.equity / account.peak_equity).max(Decimal::ZERO)
+        * Decimal::ONE_HUNDRED;
+    let risk_scale =
+        cfg.drawdown_scaling.scale(drawdown_pct) * cfg.vol_target.scale(account.realized_vol_pct);
+    let risk_pct = if risk_scale == Decimal::ONE {
+        cfg.risk_per_trade_pct
+    } else {
+        cfg.risk_per_trade_pct * risk_scale
+    };
+    let mut size = pct(risk_pct) * equity / per_unit;
     let group_capped = room.is_some_and(|room| size * per_unit > room * fx);
     if let Some(room) = room.filter(|_| group_capped) {
         size = room * fx / per_unit;
@@ -231,5 +250,6 @@ pub fn check(
         risk: size * per_unit,
         leverage_capped,
         group_capped,
+        risk_scale,
     })
 }

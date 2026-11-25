@@ -3,8 +3,8 @@
 use cfds_core::InstrumentId;
 use cfds_market_data::Catalog;
 use cfds_risk::{
-    Account, CorrelationGroup, InstrumentLimits, OpenPosition, Rejection, Request, RiskConfig,
-    Sizing, check,
+    Account, CorrelationGroup, DrawdownMode, DrawdownPoint, DrawdownScaling, InstrumentLimits,
+    OpenPosition, Rejection, Request, RiskConfig, Sizing, VolTarget, check,
 };
 use rust_decimal::{Decimal, dec};
 
@@ -33,6 +33,7 @@ fn account() -> Account {
         free_margin: dec!(1000),
         kill_switch: false,
         open_positions: vec![],
+        realized_vol_pct: None,
     }
 }
 
@@ -75,6 +76,7 @@ fn risks_one_percent_of_equity() {
             risk: dec!(10),
             leverage_capped: false,
             group_capped: false,
+            risk_scale: dec!(1),
         }
     );
 }
@@ -575,4 +577,105 @@ fn gap_and_group_combine() {
     let acc = with_open(vec![pos("MSFT", dec!(9))]);
     let s = check(&request(), &acc, &limits(), &cfg).unwrap();
     assert_eq!((s.size, s.risk, s.group_capped), (dec!(2), dec!(6), true));
+}
+
+// ---------- Caída gradual y volatilidad objetivo (#671) ----------
+
+/// 5 % → factor 1, 10 % → 0,5, lineal entre medio.
+fn with_drawdown(mode: DrawdownMode) -> RiskConfig {
+    RiskConfig {
+        drawdown_scaling: DrawdownScaling {
+            mode,
+            points: vec![
+                DrawdownPoint {
+                    drawdown_pct: dec!(5),
+                    scale: dec!(1),
+                },
+                DrawdownPoint {
+                    drawdown_pct: dec!(10),
+                    scale: dec!(0.5),
+                },
+            ],
+        },
+        ..cfg()
+    }
+}
+
+fn in_drawdown(equity: Decimal) -> Account {
+    Account {
+        equity,
+        day_start_equity: equity,
+        free_margin: equity,
+        ..account()
+    }
+}
+
+#[test]
+fn drawdown_scaling_lowers_the_risk_gradually() {
+    let cfg = with_drawdown(DrawdownMode::Linear);
+    // 7,5 % de caída: factor 0,75 → 0,75 % de 925 = 6,9375; R = 2.
+    let s = check(&request(), &in_drawdown(dec!(925)), &limits(), &cfg).unwrap();
+    assert_eq!((s.risk_scale, s.risk), (dec!(0.75), dec!(6.9375)));
+    // Sin caída, todo igual.
+    let s = check(&request(), &account(), &limits(), &cfg).unwrap();
+    assert_eq!((s.risk_scale, s.risk), (dec!(1), dec!(10)));
+    // Más allá del último punto, el último factor; al 15 % sigue el kill switch.
+    let s = check(&request(), &in_drawdown(dec!(870)), &limits(), &cfg).unwrap();
+    assert_eq!(s.risk_scale, dec!(0.5));
+    assert_eq!(
+        check(&request(), &in_drawdown(dec!(850)), &limits(), &cfg),
+        Err(Rejection::DrawdownLimit)
+    );
+    // En escalones, 7,5 % todavía es factor 1.
+    let step = with_drawdown(DrawdownMode::Step);
+    let s = check(&request(), &in_drawdown(dec!(925)), &limits(), &step).unwrap();
+    assert_eq!(s.risk_scale, dec!(1));
+}
+
+#[test]
+fn vol_target_scales_the_risk_with_caps() {
+    let cfg = RiskConfig {
+        vol_target: VolTarget {
+            target_annual_pct: dec!(10),
+            min_scale: dec!(0.5),
+            max_scale: dec!(1),
+        },
+        ..cfg()
+    };
+    let with_vol = |v: Option<Decimal>| Account {
+        realized_vol_pct: v,
+        ..account()
+    };
+    for (vol, scale) in [
+        (Some(dec!(20)), dec!(0.5)),
+        (Some(dec!(12.5)), dec!(0.8)),
+        (Some(dec!(40)), dec!(0.5)),
+        (Some(dec!(5)), dec!(1)),
+        (None, dec!(1)),
+    ] {
+        let s = check(&request(), &with_vol(vol), &limits(), &cfg).unwrap();
+        assert_eq!((s.risk_scale, s.risk), (scale, dec!(10) * scale), "{vol:?}");
+    }
+}
+
+#[test]
+fn drawdown_and_vol_multiply_and_the_group_cap_still_applies() {
+    let mut cfg = with_drawdown(DrawdownMode::Linear);
+    cfg.vol_target = VolTarget {
+        target_annual_pct: dec!(10),
+        min_scale: dec!(0.5),
+        max_scale: dec!(1),
+    };
+    cfg.groups = with_group().groups;
+    // Caída 7,5 % (0,75) × vol 12,5 % (0,8) = 0,6 → 0,6 % de 925 = 5,55; el grupo deja 15 × 0,925
+    // − 9 = 4,875 → manda el grupo.
+    let acc = Account {
+        realized_vol_pct: Some(dec!(12.5)),
+        open_positions: vec![pos("MSFT", dec!(9))],
+        ..in_drawdown(dec!(925))
+    };
+    let s = check(&request(), &acc, &limits(), &cfg).unwrap();
+    assert_eq!(s.risk_scale, dec!(0.6));
+    assert!(s.group_capped);
+    assert_eq!(s.risk, dec!(4.875));
 }

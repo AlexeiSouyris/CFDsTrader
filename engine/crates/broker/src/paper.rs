@@ -1179,6 +1179,8 @@ impl PaperBroker {
             free_margin: equity - margin_used,
             kill_switch: self.kill_switch.is_some(),
             open_positions,
+            // Volatilidad objetivo apagada en la config (#671): se conecta cuando se apruebe.
+            realized_vol_pct: None,
         };
         match check(&req, &account, &limits, &self.cfg.risk) {
             Ok(sizing) => Assessment {

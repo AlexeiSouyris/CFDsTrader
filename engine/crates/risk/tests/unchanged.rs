@@ -1,4 +1,5 @@
-//! #670: con `config/risk.toml` tal como está en el repositorio (gaps en 0 y sin grupos), `check`
+//! #670 y #671: con `config/risk.toml` tal como está en el repositorio (gaps en 0, sin grupos, sin
+//! caída gradual y sin volatilidad objetivo), `check`
 //! da exactamente lo mismo que antes, decimal por decimal, también con posiciones abiertas en los
 //! índices de EE. UU. El runner de paper (#382) no cambia hasta que el dueño apruebe valores.
 //! `legacy` es copia literal del cálculo anterior a #670.
@@ -154,6 +155,8 @@ fn the_shipped_config_reproduces_the_previous_behavior_exactly() {
                                         risk: *risk,
                                     })
                                     .collect(),
+                                // Con la volatilidad objetivo apagada, el dato no cambia nada.
+                                realized_vol_pct: Some(dec!(37.5)),
                             };
                             let req = Request {
                                 instrument: id(instrument),
@@ -185,6 +188,7 @@ fn the_shipped_config_reproduces_the_previous_behavior_exactly() {
                                     // También la escala decimal (lo que se imprime y se guarda).
                                     assert_eq!(format!("{got:?}"), format!("{b:?}"));
                                     assert!(!s.group_capped);
+                                    assert_eq!(s.risk_scale, dec!(1));
                                 }
                                 (Err(e), Err(b)) => assert_eq!(e, b, "{req:?} {account:?}"),
                                 _ => panic!("cambió: {now:?} vs {before:?} en {req:?} {account:?}"),

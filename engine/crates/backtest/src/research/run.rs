@@ -317,6 +317,7 @@ pub fn run_plans(
             free_margin: equity,
             kill_switch: false,
             open_positions: Vec::new(),
+            realized_vol_pct: None,
         };
         let request = Request {
             instrument: setup.instrument.clone(),
