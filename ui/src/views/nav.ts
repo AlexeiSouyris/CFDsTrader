@@ -116,7 +116,8 @@ export const VIEWS: ShellView[] = [
     label: 'Competencia',
     short: 'Competencia',
     icon: Trophy,
-    description: 'Los trofeos del día y de la semana, y la tabla del grupo.',
+    description:
+      'Logros del proceso: respetar el stop, anotar cada operación y cumplir las reglas. Nunca premian la ganancia.',
   },
   {
     id: 'glosario',

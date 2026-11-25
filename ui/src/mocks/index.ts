@@ -144,6 +144,10 @@ export type TradeRow = {
   netPnl: string | null
   status: 'Abierta' | 'Ganada' | 'Perdida'
   mode: 'simulación'
+  /** por qué la abrió la estrategia, tal como lo explica el motor (ejemplo) */
+  reason?: string
+  /** la nota que escribió el miembro en su diario (ejemplo) */
+  note?: string
 }
 
 /** Diario de operaciones en simulación (paper). */
@@ -158,6 +162,7 @@ export const TRADES: TradeRow[] = [
     netPnl: null,
     status: 'Abierta',
     mode: 'simulación',
+    reason: 'Ruptura del máximo de la sesión asiática con volumen sobre el promedio.',
   },
   {
     id: 'p-0118',
@@ -169,6 +174,8 @@ export const TRADES: TradeRow[] = [
     netPnl: '-18.40',
     status: 'Perdida',
     mode: 'simulación',
+    reason: 'Rechazo en un nivel de liquidez de 4 h.',
+    note: 'Entré tarde: la vela ya había corrido la mitad del rango. El stop se respetó.',
   },
   {
     id: 'p-0117',
@@ -180,6 +187,8 @@ export const TRADES: TradeRow[] = [
     netPnl: '41.25',
     status: 'Ganada',
     mode: 'simulación',
+    reason: 'Barrido del mínimo previo y vuelta dentro del rango.',
+    note: 'Seguí el plan; salida en el objetivo.',
   },
   {
     id: 'p-0116',
@@ -191,6 +200,7 @@ export const TRADES: TradeRow[] = [
     netPnl: '63.10',
     status: 'Ganada',
     mode: 'simulación',
+    reason: 'Hueco de valor (FVG) de 15 m rellenado en tendencia diaria alcista.',
   },
   {
     id: 'p-0115',
@@ -202,6 +212,8 @@ export const TRADES: TradeRow[] = [
     netPnl: '-22.75',
     status: 'Perdida',
     mode: 'simulación',
+    reason: 'Doble techo confirmado en 1 h.',
+    note: 'Noticia de la Fed 30 min después: revisar el calendario antes de entrar.',
   },
   {
     id: 'p-0114',
@@ -364,6 +376,73 @@ export const TROPHIES: Trophy[] = [
     date: '2026-11-17 / 21',
     serial: 'S-0004',
   },
+]
+
+/**
+ * Trofeos de proceso (#581): premian la disciplina y las reglas cumplidas, **nunca la ganancia**.
+ * Cada uno tiene una regla medible. El estado y el avance los calcularía el servidor; acá son de
+ * ejemplo y la UI solo los muestra.
+ */
+export type ProcessBadge = {
+  id: string
+  title: string
+  rule: string
+  period: 'día' | 'semana' | 'mes'
+  state: 'logrado' | 'en curso' | 'bloqueado'
+  /** avance tal como llega, por ejemplo "3 de 5 días" */
+  progress?: string
+  earned_at?: string
+}
+
+export const PROCESS_BADGES: ProcessBadge[] = [
+  {
+    id: 'stop',
+    title: 'Stop respetado',
+    rule: 'Ninguna operación de la semana movió ni quitó su stop-loss.',
+    period: 'semana',
+    state: 'logrado',
+    earned_at: '2026-11-21T21:00:00Z',
+  },
+  {
+    id: 'diario',
+    title: 'Diario completo',
+    rule: 'Cada operación cerrada tiene su nota en el diario antes del cierre del día.',
+    period: 'semana',
+    state: 'en curso',
+    progress: '4 de 5 días',
+  },
+  {
+    id: 'limite',
+    title: 'Dentro del límite',
+    rule: 'Ningún día llegó a la pérdida máxima diaria configurada.',
+    period: 'mes',
+    state: 'en curso',
+    progress: '15 de 20 días',
+  },
+  {
+    id: 'propuestas',
+    title: 'Propuestas a tiempo',
+    rule: 'Todas las propuestas se aprobaron o rechazaron antes de vencer.',
+    period: 'día',
+    state: 'logrado',
+    earned_at: '2026-11-20T21:00:00Z',
+  },
+  {
+    id: 'calendario',
+    title: 'Calendario revisado',
+    rule: 'Sin operaciones abiertas en los 15 minutos antes de un evento de impacto alto.',
+    period: 'semana',
+    state: 'bloqueado',
+  },
+]
+
+/** Reglas cumplidas por miembro en la semana (ejemplo): proceso, no resultado. */
+export type ProcessRow = { member: Member; stops: string; journal: string; limits: string }
+
+export const PROCESS_TABLE: ProcessRow[] = [
+  { member: MEMBERS[0], stops: '6 de 6', journal: '5 de 6', limits: '5 de 5 días' },
+  { member: MEMBERS[1], stops: '4 de 4', journal: '4 de 4', limits: '5 de 5 días' },
+  { member: MEMBERS[2], stops: '7 de 8', journal: '6 de 8', limits: '4 de 5 días' },
 ]
 
 export type Notice = { id: string; title: string; detail: string }

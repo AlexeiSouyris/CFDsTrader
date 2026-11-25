@@ -10,21 +10,23 @@
 import type { ReactNode } from 'react'
 
 import { CoinsIcon } from '@/components/ui/animated-icons'
-import { ExampleBadge, ExampleNotice } from '@/components/ui/data-honesty'
+import { ExampleBadge } from '@/components/ui/data-honesty'
 import { MarketHeatmap } from '@/components/ui/market-heatmap'
 import { SparkTable } from '@/components/ui/spark-table'
 import { TradeJournal } from '@/components/ui/trade-journal'
 import { Term } from '@/components/ui/term'
-import { TrophyCard } from '@/components/ui/trophy-card'
 import { dateTimeUtc, decimal, isNegative, signed } from '@/lib/format'
 import { useFund } from '@/lib/fund-api'
 import { useInstruments } from '@/lib/liquidity-api'
 import { cn } from '@/lib/utils'
-import { HEATMAP, INDEX_ROWS, KPIS, RANKING, TRADES, TROPHIES, type Kpi } from '@/mocks'
+import { HEATMAP, INDEX_ROWS, KPIS, RANKING, TRADES, type Kpi } from '@/mocks'
 import { MultichartView } from '@/views/multichart'
 
-// Noticias vive en su archivo (#581, etapa 7); se reexporta para no cambiar las importaciones.
+// Noticias, Diario y Trofeos viven en su archivo (#581, etapas 7 y 8); se reexportan para no
+// cambiar las importaciones.
 export { NewsView } from '@/views/news'
+export { JournalView } from '@/views/journal'
+export { CompetitionView } from '@/views/trophies'
 
 function Card({
   title,
@@ -174,40 +176,6 @@ export function OverviewView({ onOpen }: { onOpen: (view: string) => void }) {
  */
 export function ChartsView() {
   return <MultichartView single />
-}
-
-export function JournalView() {
-  return (
-    <div className="grid gap-3">
-      <ExampleNotice>
-        Operaciones de ejemplo: el diario todavía no lee las del broker simulado ni las de las
-        corridas (están en Performance).
-      </ExampleNotice>
-      <Card example>
-        <TradeJournal trades={TRADES} />
-      </Card>
-    </div>
-  )
-}
-
-export function CompetitionView() {
-  return (
-    <div className="grid gap-6">
-      <ExampleNotice>
-        Miembros, trofeos y resultados de ejemplo: la competencia todavía no tiene datos del motor.
-      </ExampleNotice>
-      <div className="grid gap-6 lg:grid-cols-[auto_1fr]">
-        <div className="flex flex-wrap justify-center gap-6">
-          {TROPHIES.map((t) => (
-            <TrophyCard key={t.serial} trophy={t} />
-          ))}
-        </div>
-        <Card title="Tabla de la semana (R, simulación)" example>
-          <Ranking />
-        </Card>
-      </div>
-    </div>
-  )
 }
 
 function Ranking({ compact = false }: { compact?: boolean }) {
