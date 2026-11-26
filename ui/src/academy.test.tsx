@@ -1,13 +1,14 @@
 /**
  * Academia (#769, #770): el mapa de niveles, la página de la lección, el examen y el progreso, tal
  * como los manda el motor. Los datos son los
- * fixtures del gateway simulado de las pruebas e2e (el catálogo de `config/academy.toml`, sin
- * preguntas todavía).
+ * fixtures del gateway simulado de las pruebas e2e (el catálogo de `config/academy.toml` con el
+ * texto de cada lección y sin preguntas, y el texto de la lección 0.1, #799).
  */
 import { render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import catalogFixture from '../e2e/fixtures/academy-catalog.json'
+import docFixture from '../e2e/fixtures/academy-lesson-doc.json'
 import progressFixture from '../e2e/fixtures/academy-progress.json'
 import { reloadAcademy, resetAcademy } from '@/lib/academy-api'
 import type { AcademyCatalog, AcademyProgress } from '@/lib/academy-contracts'
@@ -15,14 +16,23 @@ import { AcademyView } from '@/views/academy'
 
 const CATALOG = catalogFixture as AcademyCatalog
 const PROGRESS = progressFixture as AcademyProgress
+/** El mismo catálogo, como antes de que las lecciones tuvieran texto. */
+const NO_TEXT: AcademyCatalog = {
+  ...CATALOG,
+  levels: CATALOG.levels.map((lv) => ({
+    ...lv,
+    lessons: lv.lessons.map((l) => ({ ...l, doc: null })),
+  })),
+}
 
-/** Gateway falso de prueba: catálogo y progreso, o 503 si está caído. */
-function gateway(progress: AcademyProgress = PROGRESS, down = false) {
+/** Gateway falso de prueba: catálogo, progreso y el texto de la lección 0.1, o 503 si está caído. */
+function gateway(progress: AcademyProgress = PROGRESS, down = false, catalog = CATALOG) {
   const fetch = vi.fn(async (input: string | URL | Request) => {
     if (down) return new Response('sin gateway', { status: 503 })
     const path = new URL(String(input), 'http://ui.test').pathname
-    if (path === '/api/v1/academy/catalog') return Response.json(CATALOG)
+    if (path === '/api/v1/academy/catalog') return Response.json(catalog)
     if (path === '/api/v1/academy/progress') return Response.json(progress)
+    if (path === '/api/v1/academy/lessons/0.1/doc') return Response.json(docFixture)
     return new Response('sin ruta', { status: 404 })
   })
   vi.stubGlobal('fetch', fetch)
@@ -53,7 +63,7 @@ describe('Academia (#769)', () => {
   })
 
   it('sin contenido todavía: «Contenido en preparación», sin inventar lecciones', async () => {
-    gateway()
+    gateway(PROGRESS, false, NO_TEXT)
     render(<AcademyView />)
     const [note] = await screen.findAllByRole('note')
     expect(note).toHaveTextContent('Contenido en preparación')

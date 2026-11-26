@@ -7,6 +7,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import catalogFixture from '../e2e/fixtures/academy-catalog.json'
+import docFixture from '../e2e/fixtures/academy-lesson-doc.json'
 import progressFixture from '../e2e/fixtures/academy-progress.json'
 import { resetAcademy } from '@/lib/academy-api'
 import type { AcademyCatalog, AcademyProgress, QuizResult } from '@/lib/academy-contracts'
@@ -73,6 +74,8 @@ function gateway(post: (path: string, body: unknown) => Response) {
     if (init?.method === 'POST') return post(path, JSON.parse(String(init.body)))
     if (path === '/api/v1/academy/catalog') return Response.json(CATALOG)
     if (path === '/api/v1/academy/progress') return Response.json(PROGRESS)
+    // el texto de cualquier lección (#799): el de la 0.1, que es el que hay de prueba
+    if (/^\/api\/v1\/academy\/lessons\/[\d.]+\/doc$/.test(path)) return Response.json(docFixture)
     return new Response('sin ruta', { status: 404 })
   })
   vi.stubGlobal('fetch', fetch)
