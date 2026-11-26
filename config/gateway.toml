@@ -128,6 +128,20 @@ member_id = "owner"
 # Tamaño máximo del body de un POST (un quiz_answer.v1 de 20 preguntas ocupa ~1,5 KB).
 max_body_bytes = 16384
 
+# Laboratorio de estrategias (#776, docs/design/2026-11-laboratorio.md §5): /api/v1/lab/*. El
+# catálogo y la validación salen de config/lab.toml y config/risk.toml. El gateway nunca corre un
+# backtest: encolar (POST /jobs) y cancelar (DELETE /jobs/{id}) usan el mismo token local que
+# [paper] y escriben solo en las tablas del laboratorio (solo agregar); los corre el lab_worker.
+[lab]
+# Tamaño máximo del body de un POST (un lab_job_request.v1 con 20 variantes ocupa ~20 KB).
+max_body_bytes = 65536
+# Conexiones SSE de progreso abiertas a la vez, como máximo.
+sse_max_clients = 8
+# Cada cuánto va un comentario SSE (": ping") y cuánto espera cada lectura del stream de Redis.
+sse_heartbeat_secs = 15
+# Sin Redis (REDIS_URL), cada cuánto se miran los eventos del trabajo en PostgreSQL.
+sse_poll_secs = 2
+
 # Contexto de mercado del Panel (#294): /api/v1/sentiment y /api/v1/analogs, solo lectura.
 [context]
 # Valores del índice de sentimiento que devuelve la historia de un instrumento (los últimos).

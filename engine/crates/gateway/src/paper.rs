@@ -206,17 +206,24 @@ fn same_token(a: &str, b: &str) -> bool {
             == 0
 }
 
-/// Los chequeos de toda ruta de escritura del gateway (paper, Academia): token anti-CSRF, tipo de
-/// contenido y tamaño, en ese orden. `None` si pasa; si no, la respuesta de rechazo.
-pub(crate) fn write_guard(token: Option<&str>, req: &HttpIn, max_body: usize) -> Option<Reply> {
+/// Solo el token anti-CSRF (para una escritura sin body, como cancelar un trabajo del
+/// laboratorio). `None` si pasa.
+pub(crate) fn token_guard(token: Option<&str>, req: &HttpIn) -> Option<Reply> {
     let Some(expected) = token else {
         return Some(text(
             403,
             "escritura apagada: falta el token local del gateway",
         ));
     };
-    if !req.token.is_some_and(|t| same_token(t, expected)) {
-        return Some(text(403, "falta la cabecera x-cfds-token o no coincide"));
+    (!req.token.is_some_and(|t| same_token(t, expected)))
+        .then(|| text(403, "falta la cabecera x-cfds-token o no coincide"))
+}
+
+/// Los chequeos de toda ruta de escritura del gateway (paper, Academia): token anti-CSRF, tipo de
+/// contenido y tamaño, en ese orden. `None` si pasa; si no, la respuesta de rechazo.
+pub(crate) fn write_guard(token: Option<&str>, req: &HttpIn, max_body: usize) -> Option<Reply> {
+    if let Some(refused) = token_guard(token, req) {
+        return Some(refused);
     }
     let json = |c: &str| {
         c.split(';')

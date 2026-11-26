@@ -6,7 +6,8 @@
 //! ```
 //! Escucha en `[server] bind` de `config/gateway.toml` (por defecto solo 127.0.0.1). No corre
 //! migraciones. La sesión de PostgreSQL es de solo lectura; las únicas escrituras son el registro
-//! del broker simulado y los eventos de la Academia (`academy_events`, #719), cada una en una
+//! del broker simulado, los eventos de la Academia (`academy_events`, #719) y la cola del
+//! laboratorio (encolar y cancelar en `lab_jobs` y `lab_job_events`, #776), cada una en una
 //! transacción que se declara de escritura. La escritura exige el token local de
 //! `[paper] token_env`; sin él queda apagada. La UI llega con el proxy de Vite (`/api` → este
 //! servidor).
@@ -41,6 +42,10 @@ use cfds_gateway::ibkr_live::{
     HubEvent, LiveHub, LiveReply, is_ibkr_live_route, respond_ibkr_live,
 };
 use cfds_gateway::journal::{is_journal_route, respond_journal};
+use cfds_gateway::lab::{
+    LabDeps, LabEventsReply, LabSseClients, PgLabStore, is_lab_route, lab_events_job, respond_lab,
+    respond_lab_events,
+};
 use cfds_gateway::learning::{PgLearning, is_learning_route, respond_learning};
 use cfds_gateway::ml::{is_ml_route, respond_ml};
 use cfds_gateway::news::{NewsConfig, is_news_route, respond_news};
@@ -89,6 +94,7 @@ const TERMINAL: &str = include_str!("../../../../config/terminal.toml");
 const IBKR: &str = include_str!("../../../../config/ibkr.toml");
 const ACADEMY: &str = include_str!("../../../../config/academy.toml");
 const DATA_SPLIT: &str = include_str!("../../../../config/data_split.toml");
+const LAB: &str = include_str!("../../../../config/lab.toml");
 
 /// `config/` del repo (sesiones y feriados del calendario se leen de ahí).
 fn config_dir() -> PathBuf {
@@ -132,6 +138,10 @@ struct State {
     /// Replay de exámenes (#723): sesiones en memoria y su config.
     replay_sessions: ReplaySessions,
     replay_deps: ReplayDeps,
+    /// Laboratorio (#776): catálogo, separación y la cola en PostgreSQL; el progreso por SSE.
+    lab: LabDeps,
+    lab_store: PgLabStore,
+    lab_clients: Arc<LabSseClients>,
 }
 
 fn header<'a>(req: &'a Request<Incoming>, name: &str) -> Option<&'a str> {
@@ -210,6 +220,28 @@ async fn replay_reply(state: &State, req: Request<Incoming>) -> Reply {
     .await
 }
 
+async fn lab_reply(state: &State, req: Request<Incoming>) -> Reply {
+    let max = state.lab.routes.max_body_bytes;
+    let (method, path, token, content_type, body) = match read_request(req, max).await {
+        Ok(r) => r,
+        Err(reply) => return reply,
+    };
+    respond_lab(
+        &state.lab_store,
+        &state.lab,
+        state.token.as_deref(),
+        HttpIn {
+            method: &method,
+            path: &path,
+            token: token.as_deref(),
+            content_type: content_type.as_deref(),
+            body: &body,
+        },
+        chrono::Utc::now(),
+    )
+    .await
+}
+
 async fn paper_reply(state: &State, req: Request<Incoming>) -> Reply {
     let (method, path, token, content_type, body) =
         match read_request(req, state.paper_cfg.max_body_bytes).await {
@@ -274,7 +306,40 @@ async fn handle(state: Arc<State>, req: Request<Incoming>) -> Result<Response<Bo
         );
         return Ok(res);
     }
-    let reply = if is_paper_route(req.uri().path()) {
+    if lab_events_job(req.uri().path()).is_some() {
+        // Progreso de un trabajo del laboratorio (#776): SSE hasta su final.
+        let reply = respond_lab_events(
+            &state.lab_store,
+            &state.lab,
+            &state.lab_clients,
+            req.method().as_str(),
+            req.uri().path(),
+            header(&req, "last-event-id"),
+        )
+        .await;
+        let mut res = match reply {
+            LabEventsReply::Stream(body) => {
+                let mut res = Response::new(body.boxed());
+                no_store(&mut res, "text/event-stream");
+                res
+            }
+            LabEventsReply::Error { status, body } => {
+                let mut res = Response::new(Full::new(Bytes::from(body)).boxed());
+                *res.status_mut() = hyper::StatusCode::from_u16(status)
+                    .unwrap_or(hyper::StatusCode::INTERNAL_SERVER_ERROR);
+                no_store(&mut res, "text/plain; charset=utf-8");
+                res
+            }
+        };
+        res.headers_mut().insert(
+            "x-accel-buffering",
+            hyper::header::HeaderValue::from_static("no"),
+        );
+        return Ok(res);
+    }
+    let reply = if is_lab_route(req.uri().path()) {
+        lab_reply(&state, req).await
+    } else if is_paper_route(req.uri().path()) {
         paper_reply(&state, req).await
     } else if is_replay_route(req.uri().path()) {
         replay_reply(&state, req).await
@@ -474,6 +539,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(pass) = url_password(&database_url) {
         log.register_secret(pass);
     }
+    // Redis de los streams de progreso del laboratorio (#776); sin él, el SSE lee PostgreSQL.
+    let redis_url = std::env::var("REDIS_URL").ok();
+    if let Some(u) = &redis_url {
+        log.register_secret(u);
+        if let Some(pass) = url_password(u) {
+            log.register_secret(pass);
+        }
+    }
     let token = std::env::var(&paper_cfg.token_env)
         .ok()
         .filter(|t| t.len() >= 16);
@@ -637,6 +710,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         hub
     };
+    let sources = CandleSources::from_toml(SOURCES)?;
+    let lab = LabDeps::from_config(GATEWAY, LAB, &risk, &sources, DATA_SPLIT, redis_url)?;
+    let lab_store = PgLabStore {
+        lab: cfds_journal::lab::PgLab::new(store.pool().clone()),
+        store: store.clone(),
+        futures_source: sources.futures_source.clone(),
+    };
     let fund_cfg = FundConfig::from_toml(FUND)?;
     let fund = PgFund::new(store.pool().clone());
     let state = Arc::new(State {
@@ -664,11 +744,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         academy_routes,
         replay_sessions: ReplaySessions::default(),
         replay_deps,
+        lab,
+        lab_store,
+        lab_clients: Arc::default(),
         source: PgSource {
             store,
             config: cfg.clone(),
             reaction_bars: stats.reaction_bars,
-            sources: CandleSources::from_toml(SOURCES)?,
+            sources,
             analysis: Some(ViewAnalysis::from_toml(ANALYSIS, PATTERNS)?),
             cache: Default::default(),
         },
