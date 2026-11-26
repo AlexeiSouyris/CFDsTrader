@@ -15,6 +15,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import { AcademyQuiz } from '@/components/ui/academy-quiz'
 import { LessonText } from '@/components/ui/lesson-text'
 import { ReplayExamStart } from '@/components/ui/replay-lesson'
+import { ToolLock } from '@/components/ui/tool-lock'
 import type {
   AcademyCatalog,
   AcademyProgress,
@@ -79,16 +80,18 @@ function Academy({ catalog, progress }: { catalog: AcademyCatalog; progress: Aca
   return (
     <div data-section="hub" className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <ProgressStrip catalog={catalog} progress={progress} />
-      <a
-        href="#replay"
-        className="panel flex min-h-9 items-center justify-between gap-2 rounded-section px-2.5 text-[12.5px] font-semibold hover:bg-surface"
-      >
-        <span>
-          Replay: práctica vela a vela con velas del pasado{' '}
-          <span className="font-normal text-muted-foreground">· sin nota, se usa ya</span>
-        </span>
-        <ArrowUpRight aria-hidden="true" className="size-4 shrink-0" />
-      </a>
+      <ToolLock tool="tool.replay_practice" compact className="panel rounded-section px-2.5 py-2">
+        <a
+          href="#replay"
+          className="panel flex min-h-9 items-center justify-between gap-2 rounded-section px-2.5 text-[12.5px] font-semibold hover:bg-surface"
+        >
+          <span>
+            Replay: práctica vela a vela con velas del pasado{' '}
+            <span className="font-normal text-muted-foreground">· sin nota, se usa ya</span>
+          </span>
+          <ArrowUpRight aria-hidden="true" className="size-4 shrink-0" />
+        </a>
+      </ToolLock>
       <a
         href="#laboratorio"
         onClick={() => requestLabTool('propsim')}

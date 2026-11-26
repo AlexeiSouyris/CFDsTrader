@@ -16,6 +16,7 @@ import { LessonExamBanner, LessonVerdict } from '@/components/ui/replay-lesson'
 import { MarkForm, SessionLog, StudyTicket, type Picked } from '@/components/ui/replay-tools'
 import { ReplayResult } from '@/components/ui/replay-result'
 import { Segmented } from '@/components/ui/segmented'
+import { ToolLock } from '@/components/ui/tool-lock'
 import { reloadAcademy } from '@/lib/academy-api'
 import { decimal, priceDigits } from '@/lib/format'
 import { GatewayError } from '@/lib/paper-api'
@@ -117,51 +118,54 @@ export function ReplayView() {
     </p>
   )
   if (!live) {
+    // el replay libre (práctica y exámenes sin lección) tiene su candado en la Academia (#827)
     return (
-      <section aria-labelledby="replay-empezar" className="panel grid max-w-[72ch] gap-3 p-3">
-        <h2 id="replay-empezar" className="text-[15px] font-bold">
-          Vela a vela, con velas del pasado
-        </h2>
-        <p className="text-[13px] leading-relaxed text-muted-foreground">
-          El motor elige al azar el instrumento, el timeframe y la fecha, solo del período de
-          investigación (nunca de los meses fuera de muestra). La fecha queda oculta hasta el final:
-          el eje dice día y hora UTC. El cursor vive en el motor, así que nunca se ve una vela
-          futura. Todo en simulación.
-        </p>
-        {/* si no entra (menos de 375 px), se desliza la caja, nunca la página */}
-        <div className="max-w-full overflow-x-auto pb-0.5">
-          <Segmented
-            label="Qué hacer"
-            options={KINDS.map(([, l]) => l)}
-            value={KINDS.find(([k]) => k === kind)![1]}
-            onChange={(l) => setKind(KINDS.find(([, x]) => x === l)![0])}
-          />
-        </div>
-        <p className="text-[12px] text-muted-foreground">
-          {kind === 'practice'
-            ? 'Práctica: sin nota.'
-            : 'Examen libre (sin lección): el motor lo califica, primero el proceso; la nota todavía no se guarda en el progreso.'}
-        </p>
-        <label className="grid max-w-72 gap-1 text-[12px]">
-          <span className="font-semibold">Semilla (opcional, para repetir una sesión)</span>
-          <input
-            inputMode="numeric"
-            autoComplete="off"
-            value={seed}
-            onChange={(e) => setSeed(e.target.value.replace(/\D/g, ''))}
-            className="min-h-9 rounded-sm border border-border bg-surface px-2 font-mono text-[13px]"
-          />
-        </label>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void start()}
-          className="min-h-9 justify-self-start rounded-sm bg-primary px-3 text-[12.5px] font-bold text-primary-foreground disabled:opacity-60"
-        >
-          {busy ? 'Pidiendo la sesión…' : 'Empezar'}
-        </button>
-        {alert}
-      </section>
+      <ToolLock tool="tool.replay_practice" className="max-w-[72ch]">
+        <section aria-labelledby="replay-empezar" className="panel grid max-w-[72ch] gap-3 p-3">
+          <h2 id="replay-empezar" className="text-[15px] font-bold">
+            Vela a vela, con velas del pasado
+          </h2>
+          <p className="text-[13px] leading-relaxed text-muted-foreground">
+            El motor elige al azar el instrumento, el timeframe y la fecha, solo del período de
+            investigación (nunca de los meses fuera de muestra). La fecha queda oculta hasta el
+            final: el eje dice día y hora UTC. El cursor vive en el motor, así que nunca se ve una
+            vela futura. Todo en simulación.
+          </p>
+          {/* si no entra (menos de 375 px), se desliza la caja, nunca la página */}
+          <div className="max-w-full overflow-x-auto pb-0.5">
+            <Segmented
+              label="Qué hacer"
+              options={KINDS.map(([, l]) => l)}
+              value={KINDS.find(([k]) => k === kind)![1]}
+              onChange={(l) => setKind(KINDS.find(([, x]) => x === l)![0])}
+            />
+          </div>
+          <p className="text-[12px] text-muted-foreground">
+            {kind === 'practice'
+              ? 'Práctica: sin nota.'
+              : 'Examen libre (sin lección): el motor lo califica, primero el proceso; la nota todavía no se guarda en el progreso.'}
+          </p>
+          <label className="grid max-w-72 gap-1 text-[12px]">
+            <span className="font-semibold">Semilla (opcional, para repetir una sesión)</span>
+            <input
+              inputMode="numeric"
+              autoComplete="off"
+              value={seed}
+              onChange={(e) => setSeed(e.target.value.replace(/\D/g, ''))}
+              className="min-h-9 rounded-sm border border-border bg-surface px-2 font-mono text-[13px]"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void start()}
+            className="min-h-9 justify-self-start rounded-sm bg-primary px-3 text-[12.5px] font-bold text-primary-foreground disabled:opacity-60"
+          >
+            {busy ? 'Pidiendo la sesión…' : 'Empezar'}
+          </button>
+          {alert}
+        </section>
+      </ToolLock>
     )
   }
 

@@ -6,6 +6,7 @@ import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react
 import { ArrowRightToLine, Ruler } from 'lucide-react'
 
 import { useMapping, type HistoryState, type Viewport } from '@/components/ui/chart-nav'
+import { ToolLockButton } from '@/components/ui/tool-lock'
 import { atLatest, visibleRange, type Mapping } from '@/lib/chart-viewport'
 import { useCoarsePointer } from '@/lib/use-coarse-pointer'
 import { cn } from '@/lib/utils'
@@ -23,8 +24,9 @@ export function ViewportLive({
 }
 
 /**
- * Botones sobre el gráfico: la regla (medir arrastrando; en el celular es la forma de medir),
- * volver a la escala automática (si está en manual) e ir a la última vela (si no se ve).
+ * Botones sobre el gráfico: la regla (medir arrastrando; en el celular es la forma de medir; con su
+ * candado de la Academia, #827), volver a la escala automática (si está en manual) e ir a la última
+ * vela (si no se ve).
  * Se dibujan solo cuando cambia lo que muestran, no en cada cuadro.
  */
 export function ChartNavBar({
@@ -117,24 +119,30 @@ export function ChartNavBar({
             Escala auto
           </button>
         )}
-        <button
-          type="button"
-          aria-pressed={ruler}
-          aria-label="Regla: medir arrastrando"
-          title={
-            coarse
-              ? 'Medir: activá la regla o mantené apretado y arrastrá'
-              : 'Medir: activá la regla o usá Shift + arrastrar'
-          }
-          onClick={() => onRuler(!ruler)}
-          className={cn(
-            pill,
-            ruler &&
-              'border-primary bg-primary text-primary-foreground hover:text-primary-foreground',
-          )}
+        <ToolLockButton
+          tool="tool.ruler"
+          className={pill}
+          face={<Ruler className="size-3.5" aria-hidden />}
         >
-          <Ruler className="size-3.5" aria-hidden />
-        </button>
+          <button
+            type="button"
+            aria-pressed={ruler}
+            aria-label="Regla: medir arrastrando"
+            title={
+              coarse
+                ? 'Medir: activá la regla o mantené apretado y arrastrá'
+                : 'Medir: activá la regla o usá Shift + arrastrar'
+            }
+            onClick={() => onRuler(!ruler)}
+            className={cn(
+              pill,
+              ruler &&
+                'border-primary bg-primary text-primary-foreground hover:text-primary-foreground',
+            )}
+          >
+            <Ruler className="size-3.5" aria-hidden />
+          </button>
+        </ToolLockButton>
         {!latest && (
           <button
             type="button"

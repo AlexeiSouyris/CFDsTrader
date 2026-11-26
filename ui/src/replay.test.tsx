@@ -57,7 +57,8 @@ function gateway(reply: (path: string, body: unknown) => Response) {
     vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const path = new URL(String(input), 'http://ui.test').pathname
       const body = JSON.parse(String(init?.body ?? 'null'))
-      posts.push([path, body])
+      // solo los POST del replay: el candado de la Academia (#827) también lee catálogo y progreso
+      if (init?.method === 'POST') posts.push([path, body])
       return reply(path, body)
     }),
   )

@@ -42,6 +42,8 @@ import { PaneResizer } from '@/components/ui/pane-resizer'
 import { OpsEventFeed, OpsKillSwitchBanner, OpsStatusBar } from '@/components/ui/ops-status'
 import { ProposalCard } from '@/components/ui/proposal-card'
 import { Segmented } from '@/components/ui/segmented'
+import { ToolLock } from '@/components/ui/tool-lock'
+import { useToolLock } from '@/lib/academy-locks'
 import { SessionOrders, type SentOrder } from '@/components/ui/session-orders'
 import { TerminalNews } from '@/components/ui/terminal-news'
 import {
@@ -259,12 +261,14 @@ function ChartSlot({
             }}
           />
         </div>
-        <Segmented
-          label={`Timeframe del gráfico ${index + 1}`}
-          options={slotTimeframes(sel, timeframes)}
-          value={sel.timeframe}
-          onChange={(tf) => onChange({ ...sel, timeframe: tf as ChartTimeframe })}
-        />
+        <ToolLock tool="tool.timeframe_selector" compact>
+          <Segmented
+            label={`Timeframe del gráfico ${index + 1}`}
+            options={slotTimeframes(sel, timeframes)}
+            value={sel.timeframe}
+            onChange={(tf) => onChange({ ...sel, timeframe: tf as ChartTimeframe })}
+          />
+        </ToolLock>
       </div>
       <SlotChart
         slot={slot}
@@ -392,10 +396,12 @@ export function TerminalView({ member }: { member: Member }) {
   const count = Number(saved.layout)
   const current = Math.min(active, count - 1)
   const activeSel = saved.slots[current]
+  // con el selector de timeframe bloqueado en la Academia (#827), la paleta tampoco lo cambia
+  const tfOpen = !useToolLock('tool.timeframe_selector').locked
   // ajuste durante el render (sin efecto): solo si ese gráfico ofrece el timeframe pedido
   if (wantTf !== null) {
     setWantTf(null)
-    if ((slotTimeframes(activeSel, timeframes) as readonly string[]).includes(wantTf))
+    if (tfOpen && (slotTimeframes(activeSel, timeframes) as readonly string[]).includes(wantTf))
       setSaved((prev) => ({
         ...prev,
         slots: prev.slots.map((s, k) =>
