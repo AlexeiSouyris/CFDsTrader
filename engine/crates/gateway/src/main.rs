@@ -711,7 +711,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         hub
     };
     let sources = CandleSources::from_toml(SOURCES)?;
-    let lab = LabDeps::from_config(GATEWAY, LAB, &risk, &sources, DATA_SPLIT, redis_url)?;
+    let lab = LabDeps::from_config(
+        GATEWAY,
+        LAB,
+        &risk,
+        &sources,
+        DATA_SPLIT,
+        redis_url,
+        &catalog,
+        backtest.costs,
+    )?;
     let lab_store = PgLabStore {
         lab: cfds_journal::lab::PgLab::new(store.pool().clone()),
         store: store.clone(),

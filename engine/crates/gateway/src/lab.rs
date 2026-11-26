@@ -11,6 +11,7 @@
 //! | `DELETE /api/v1/lab/jobs/{job_id}` | `lab_job_event.v1` (cancelado, o el final si ya terminó) |
 //! | `GET /api/v1/lab/jobs/{job_id}/events` | SSE de `lab_job_event.v1` (`id` = `seq`, `Last-Event-ID`) |
 //! | `GET /api/v1/lab/reports/{report_id}` | `lab_report.v1` |
+//! | `POST /api/v1/lab/risk_preview` | `risk_preview.v1#/$defs/request` → `risk_preview.v1` (sin efectos) |
 //!
 //! Escritura (encolar, cancelar): el mismo token anti-CSRF que paper y la Academia, solo en las
 //! tablas del laboratorio (de solo agregar). La separación de datos sale de la hora de la última
@@ -26,19 +27,22 @@ use cfds_backtest::lab::{
     LabConfig, LabJobEvent, LabJobRequest, StrategyCatalog, StrategySpec, ValidSpec, catalog,
     check_variants, request_sha256, validate_spec, validate_spec_json,
 };
-use cfds_core::{InstrumentId, Timeframe};
+use cfds_backtest::{CostConfig, FxRates};
+use cfds_core::{Candle, InstrumentId, Timeframe};
 use cfds_journal::lab::{Appended, Enqueued, PgLab};
-use cfds_market_data::{CandleSources, DataSplit, Period, SplitConfig, plan};
+use cfds_market_data::{CandleSources, Catalog, DataSplit, Period, SplitConfig, plan};
 use cfds_risk::RiskConfig;
 use cfds_storage::{CandleFeed, LabStream, PgStore};
 use chrono::{DateTime, Utc};
 use hyper::body::Bytes;
+use rust_decimal::Decimal;
 use serde::Deserialize;
 use serde_json::Value;
 use tokio::sync::mpsc;
 
 use crate::Reply;
 use crate::ibkr_live::SseBody;
+use crate::lab_risk::{PreviewInputs, PreviewRequest, closed_at, preview};
 use crate::paper::{HttpIn, token_guard, write_guard};
 
 const PREFIX: &str = "/api/v1/lab/";
@@ -51,6 +55,8 @@ pub struct LabRoutes {
     pub sse_heartbeat: Duration,
     /// Sin Redis, cada cuánto se miran los eventos en PostgreSQL.
     pub sse_poll: Duration,
+    /// Días de velas que lee la vista previa de riesgo (para el ATR).
+    pub risk_preview_days: u32,
 }
 
 impl LabRoutes {
@@ -66,12 +72,14 @@ impl LabRoutes {
             sse_max_clients: usize,
             sse_heartbeat_secs: u64,
             sse_poll_secs: u64,
+            risk_preview_days: u32,
         }
         let r = toml::from_str::<Raw>(text).map_err(|e| e.to_string())?.lab;
         if r.max_body_bytes == 0
             || r.sse_max_clients == 0
             || r.sse_heartbeat_secs == 0
             || r.sse_poll_secs == 0
+            || r.risk_preview_days == 0
         {
             return Err("lab: todos los valores tienen que ser > 0".into());
         }
@@ -80,6 +88,7 @@ impl LabRoutes {
             sse_max_clients: r.sse_max_clients,
             sse_heartbeat: Duration::from_secs(r.sse_heartbeat_secs),
             sse_poll: Duration::from_secs(r.sse_poll_secs),
+            risk_preview_days: r.risk_preview_days,
         })
     }
 }
@@ -97,9 +106,18 @@ pub struct LabDeps {
     /// Vencimiento y tope de los streams (`[worker]` de `config/lab.toml`, como el worker).
     pub stream_ttl: Duration,
     pub stream_maxlen: usize,
+    /// Vista previa de riesgo (#777): los instrumentos y la cuenta del catálogo, el riesgo de
+    /// `config/risk.toml` y el slippage del backtest.
+    pub instruments: Catalog,
+    pub risk: RiskConfig,
+    pub costs: CostConfig,
 }
 
 impl LabDeps {
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "cada config del laboratorio, validada al arrancar"
+    )]
     pub fn from_config(
         gateway: &str,
         lab: &str,
@@ -107,6 +125,8 @@ impl LabDeps {
         sources: &CandleSources,
         data_split: &str,
         redis_url: Option<String>,
+        instruments: &Catalog,
+        costs: CostConfig,
     ) -> Result<Self, String> {
         let lab = LabConfig::from_toml(lab)?;
         Ok(Self {
@@ -117,6 +137,9 @@ impl LabDeps {
             redis_url,
             stream_ttl: lab.worker.stream_ttl(),
             stream_maxlen: lab.worker.stream_maxlen,
+            instruments: instruments.clone(),
+            risk: risk.clone(),
+            costs,
         })
     }
 }
@@ -151,6 +174,20 @@ pub trait LabStore: Sync {
     ) -> impl Future<Output = Result<Vec<LabJobEvent>, String>> + Send;
     fn report(&self, report_id: &str)
     -> impl Future<Output = Result<Option<Value>, String>> + Send;
+    /// Velas de futuros de `id` en `[from, to)` (para la vista previa de riesgo).
+    fn candles(
+        &self,
+        id: &InstrumentId,
+        timeframe: Timeframe,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> impl Future<Output = Result<Vec<Candle>, String>> + Send;
+    /// El tipo de cambio de `pair` (por ejemplo `EURUSD`) vigente en `at`, si hay uno publicado.
+    fn fx_rate(
+        &self,
+        pair: &str,
+        at: DateTime<Utc>,
+    ) -> impl Future<Output = Result<Option<Decimal>, String>> + Send;
 }
 
 /// La cola en PostgreSQL (`cfds_journal::lab`) y las velas de futuros guardadas.
@@ -203,6 +240,29 @@ impl LabStore for PgLabStore {
 
     async fn report(&self, report_id: &str) -> Result<Option<Value>, String> {
         self.lab.report(report_id).await.map_err(|e| e.to_string())
+    }
+
+    async fn candles(
+        &self,
+        id: &InstrumentId,
+        timeframe: Timeframe,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<Candle>, String> {
+        let feed = CandleFeed::Futures(&self.futures_source);
+        self.store
+            .candles_from(feed, id, id, timeframe, from, to)
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    async fn fx_rate(&self, pair: &str, at: DateTime<Utc>) -> Result<Option<Decimal>, String> {
+        let rates = self
+            .store
+            .fx_rates(pair, at)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(FxRates::new(rates).and_then(|r| r.at(at)))
     }
 }
 
@@ -298,7 +358,10 @@ pub async fn respond_lab<S: LabStore>(
         ("GET", "catalog") => return json(&deps.catalog),
         ("POST", "validate") => return validate(store, deps, token, &req).await,
         ("POST", "jobs") => return submit(store, deps, token, &req, now).await,
-        (_, "catalog" | "validate" | "jobs") => return text(405, "método no permitido"),
+        ("POST", "risk_preview") => return risk_preview(store, deps, token, &req, now).await,
+        (_, "catalog" | "validate" | "jobs" | "risk_preview") => {
+            return text(405, "método no permitido");
+        }
         _ => {}
     }
     if let Some(id) = rest.strip_prefix("reports/") {
@@ -433,6 +496,68 @@ async fn submit<S: LabStore>(
         Ok(Enqueued::Existing(e)) => json(&e),
         Err(e) => internal(e),
     }
+}
+
+/// La vista previa de riesgo (#777): las velas cerradas recientes de futuros, el instrumento del
+/// catálogo y el tipo de cambio vigente → `lab_risk::preview` (el mismo `cfds_risk::check`).
+async fn risk_preview<S: LabStore>(
+    store: &S,
+    deps: &LabDeps,
+    token: Option<&str>,
+    req: &HttpIn<'_>,
+    now: DateTime<Utc>,
+) -> Reply {
+    if let Some(refused) = write_guard(token, req, deps.routes.max_body_bytes) {
+        return refused;
+    }
+    let request: PreviewRequest = match serde_json::from_slice(req.body) {
+        Ok(r) => r,
+        Err(e) => return text(400, &format!("no es un pedido de vista previa válido: {e}")),
+    };
+    let timeframe = match request.timeframe.as_str() {
+        "15m" => Timeframe::M15,
+        "1h" => Timeframe::H1,
+        _ => return text(400, "timeframe: 15m o 1h"),
+    };
+    if !(1..=200).contains(&request.atr_period) {
+        return text(400, "atr_period: de 1 a 200");
+    }
+    let id = &request.instrument_id;
+    let in_lab = deps.catalog.markets.iter().any(|m| &m.instrument_id == id);
+    let Some(spec) = deps.instruments.instruments.get(id).filter(|_| in_lab) else {
+        return text(
+            404,
+            "ese instrumento no está en el catálogo del laboratorio",
+        );
+    };
+    let Some(account) = deps.instruments.account_currency.value() else {
+        return internal("el catálogo no tiene la moneda de la cuenta".into());
+    };
+    let from = now - chrono::Duration::days(i64::from(deps.routes.risk_preview_days));
+    let candles = match store.candles(id, timeframe, from, now).await {
+        Ok(c) => closed_at(c, now),
+        Err(e) => return internal(e),
+    };
+    let fx = if spec.instrument.currency == *account {
+        Some(Decimal::ONE)
+    } else {
+        let pair = format!("{account}{}", spec.instrument.currency);
+        match store.fx_rate(&pair, now).await {
+            Ok(r) => r,
+            Err(e) => return internal(e),
+        }
+    };
+    json(&preview(
+        &request,
+        &PreviewInputs {
+            candles: &candles,
+            spec,
+            risk: &deps.risk,
+            costs: &deps.costs,
+            account_currency: account.as_str(),
+            fx,
+        },
+    ))
 }
 
 /// Conexiones SSE abiertas del laboratorio.
