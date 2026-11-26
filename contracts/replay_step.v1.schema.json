@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/replay_step.v1.schema.json",
+  "title": "Replay step v1",
+  "description": "Las velas nuevas de un paso del replay de la Academia (#720): respuesta de POST /api/v1/academy/replay/{session_id}/step. El cursor vive en el motor: solo manda velas hasta el cursor nuevo, nunca una posterior, y nunca la fecha real. El pedido es $defs/request.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["session_id", "cursor", "bars", "done"],
+  "properties": {
+    "session_id": { "$ref": "replay_session.v1.schema.json#/$defs/session_id" },
+    "cursor": { "type": "integer", "minimum": 0 },
+    "bars": { "description": "Solo las velas que se hicieron visibles en este paso, en orden.", "type": "array", "items": { "$ref": "replay_session.v1.schema.json#/$defs/bar" } },
+    "done": { "description": "true si el cursor llegó a la última vela del examen.", "type": "boolean" }
+  },
+  "$defs": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bars"],
+      "properties": {
+        "bars": { "description": "Cuántas velas avanzar (1 o más; el motor corta en su máximo por paso y en el final).", "type": "integer", "minimum": 1, "maximum": 1000 }
+      }
+    }
+  }
+}

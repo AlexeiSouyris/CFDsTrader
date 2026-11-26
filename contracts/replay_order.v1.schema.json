@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/replay_order.v1.schema.json",
+  "title": "Replay order v1",
+  "description": "Una entrada que marca el estudiante en el replay de la Academia (#720), con el cursor del momento: respuesta de POST /api/v1/academy/replay/{session_id}/orders (el pedido es $defs/request; el cursor lo pone el motor). Se decide al cierre de la vela del cursor (t) y se ejecuta a mercado en la apertura de t+1 (CLAUDE.md §5b). El stop puede faltar a propósito: la calificación de proceso lo marca. Es simulación de estudio: no es una orden del broker.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["order_id", "side", "stop", "target", "risk_pct", "plan", "cursor"],
+  "properties": {
+    "order_id": { "description": "Número de la entrada dentro de la sesión (1, 2, ...).", "type": "integer", "minimum": 1 },
+    "side": { "enum": ["long", "short"] },
+    "stop": { "description": "Precio del stop, o null si no se puso (reprueba el proceso).", "oneOf": [{ "$ref": "replay_session.v1.schema.json#/$defs/price" }, { "type": "null" }] },
+    "target": { "description": "Precio del objetivo, o null (sale al final del examen si no toca el stop).", "oneOf": [{ "$ref": "replay_session.v1.schema.json#/$defs/price" }, { "type": "null" }] },
+    "risk_pct": { "description": "Riesgo de la entrada en % del capital, como el ticket.", "$ref": "academy_catalog.v1.schema.json#/$defs/decimal" },
+    "plan": { "description": "El plan escrito ANTES de entrar (vacío reprueba el proceso).", "type": "string", "maxLength": 2000 },
+    "cursor": { "description": "La vela de la decisión (t): la entrada es la apertura de t+1.", "type": "integer", "minimum": 0 }
+  },
+  "$defs": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["side", "risk_pct", "plan"],
+      "properties": {
+        "side": { "enum": ["long", "short"] },
+        "stop": { "$ref": "replay_session.v1.schema.json#/$defs/price" },
+        "target": { "$ref": "replay_session.v1.schema.json#/$defs/price" },
+        "risk_pct": { "$ref": "academy_catalog.v1.schema.json#/$defs/decimal" },
+        "plan": { "type": "string", "maxLength": 2000 }
+      }
+    }
+  }
+}
