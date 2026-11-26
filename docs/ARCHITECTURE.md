@@ -56,7 +56,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | [gateway](modules/gateway.md) | `engine/crates/gateway` (crate `cfds-gateway`) | Rust | API REST + WebSocket de solo lectura para la UI y la app del celular. | hecho |
 | [ibkr](modules/ibkr.md) | `engine/crates/ibkr` (crate `cfds-ibkr`) | Rust | IBKR como segundo broker, solo cuenta paper y solo lectura (ADR 0017): conexión, cuenta, velas e histórico. | en curso (#534) |
 | [ig](modules/ig.md) | `engine/crates/ig` (crate `cfds-ig`) | Rust | Proveedor de IG (cuenta demo, solo lectura): histórico y velas en vivo por REST, condiciones, spread y cupo. | hecho |
-| [indicators](modules/indicators.md) | `engine/crates/indicators` | Rust | Indicadores técnicos (SMA, EMA, RSI, ATR, VWAP...), tendencia de 1h y medidas de sentimiento desde precios diarios. | hecho |
+| [indicators](modules/indicators.md) | `engine/crates/indicators` | Rust | Indicadores técnicos (SMA, EMA, ATR, cruces, volatilidad realizada, pivotes diarios, caída), tendencia de 1h y medidas de sentimiento desde precios diarios. | hecho |
 | [ingest](modules/ingest.md) | `engine/crates/ingest` (crate `cfds-ingest`) | Rust | Único camino de entrada de velas (proveedor → cerradas → validación → PostgreSQL → Redis) y cálculos guardados de las diarias. | hecho |
 | [journal](modules/journal.md) | `engine/crates/journal` (crate `cfds-journal`) | Rust | Diario de propuestas y resultados, calibración de probabilidades y aporte de cada señal. | hecho |
 | [liquidity](modules/liquidity.md) | `engine/crates/liquidity` | Rust | Marco ICT (sweep, FVG, BOS/CHoCH, order blocks) y mapa de liquidez informativo de la spec §5.4.1. | hecho |
