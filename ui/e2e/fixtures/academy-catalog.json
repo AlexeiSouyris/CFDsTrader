@@ -1,5 +1,5 @@
 {
-  "catalog_version": "e1820742fdc5ff963b7abdae5d8f8da067dabefaa03efd8ef9323a1335121936",
+  "catalog_version": "b6d3ceea8300302cd37ca044138a8cb40d804ee51ec15e042fb510a42e3206c5",
   "levels": [
     {
       "level": 0,
@@ -12,8 +12,113 @@
           "doc": "docs/academia/nivel-00-1-que-es-un-mercado.md",
           "exam": {
             "kind": "quiz",
-            "ready": false,
-            "questions": []
+            "ready": true,
+            "questions": [
+              {
+                "id": "0.1.1",
+                "kind": "choice",
+                "prompt": "¿Qué es el «último precio» de un instrumento?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "El precio del último acuerdo entre alguien que compró y alguien que vendió."
+                  },
+                  {
+                    "id": "b",
+                    "text": "El precio que va a tener mañana."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Un precio que fija el gobierno cada día."
+                  },
+                  {
+                    "id": "d",
+                    "text": "El promedio de todos los precios del día."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "0.1.2",
+                "kind": "choice",
+                "prompt": "¿Qué hace falta para que haya una operación?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Solo alguien que quiera comprar."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Alguien que compra y alguien que vende, de acuerdo en el mismo precio."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Que el precio esté subiendo."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Que el regulador la apruebe."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "0.1.3",
+                "kind": "choice",
+                "prompt": "Cuando abrís un CFD del US 500 en IG, ¿con quién es el contrato?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Con la bolsa de Nueva York."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Con las 500 empresas del índice."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Con el broker (IG), que es el proveedor del CFD."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Con otro cliente elegido al azar."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "0.1.4",
+                "kind": "number",
+                "prompt": "El cierre de ayer fue 6.000 y el último precio es 6.030. ¿Cuál es la variación del día, en %?",
+                "options": null,
+                "unit": "%"
+              },
+              {
+                "id": "0.1.5",
+                "kind": "choice",
+                "prompt": "La pantalla muestra SELL 6.000,0 y BUY 6.000,9. Si querés comprar ahora mismo, ¿a qué precio comprás?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "A 6.000,0."
+                  },
+                  {
+                    "id": "b",
+                    "text": "A 6.000,9."
+                  },
+                  {
+                    "id": "c",
+                    "text": "A 6.000,45, el del medio."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Al que yo elija."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
           },
           "unlocks": [
             "tool.watchlist",
@@ -27,8 +132,120 @@
           "doc": "docs/academia/nivel-00-2-cuantos-pierden.md",
           "exam": {
             "kind": "quiz",
-            "ready": false,
-            "questions": []
+            "ready": true,
+            "questions": [
+              {
+                "id": "0.2.1",
+                "kind": "choice",
+                "prompt": "Según ESMA (2018), ¿qué parte de las cuentas minoristas de CFD pierde dinero?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Entre el 10 % y el 20 %."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Alrededor de la mitad."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Entre el 74 % y el 89 %."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Menos del 5 %."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "0.2.2",
+                "kind": "number",
+                "prompt": "El estudio de la CNMV que cita ESMA (España, de 2015 a 2016) encontró que perdió dinero aproximadamente qué porcentaje de los clientes minoristas de CFD?",
+                "options": null,
+                "unit": "%"
+              },
+              {
+                "id": "0.2.3",
+                "kind": "choice",
+                "prompt": "¿Qué tiene que publicar cada proveedor de CFD en su advertencia de riesgo (ESMA y CNMV)?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Cuánto ganó su mejor cliente."
+                  },
+                  {
+                    "id": "b",
+                    "text": "El porcentaje de sus propias cuentas minoristas que pierden dinero con CFD."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Nada: la advertencia es opcional."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Una promesa de devolver las pérdidas."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "0.2.4",
+                "kind": "choice",
+                "prompt": "Barber y Odean (2000): los hogares que más operaban ganaron 11,4 % al año y el mercado 17,9 %. ¿Qué muestra?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Que operar más hizo ganar más."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Que operar mucho tuvo un costo: los que más operaban quedaron por debajo del mercado."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Que el mercado siempre pierde."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Nada, porque eran acciones y no CFD."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "0.2.5",
+                "kind": "number",
+                "prompt": "Con esos números (11,4 % frente a 17,9 % al año), ¿cuántos puntos porcentuales por año quedaron por debajo del mercado los hogares que más operaban?",
+                "options": null,
+                "unit": "pp"
+              },
+              {
+                "id": "0.2.6",
+                "kind": "choice",
+                "prompt": "¿Qué dice el dato de ESMA sobre vos?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Que vas a perder, seguro."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Nada seguro: dice cuántos perdieron en el pasado. Es el punto de partida contra el que hay que medirse."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Que si estudiás vas a estar en el grupo que gana."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Que los CFD están prohibidos."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
           },
           "unlocks": [
             "tool.glossary"
@@ -42,7 +259,8 @@
           "exam": {
             "kind": "none",
             "ready": true,
-            "questions": []
+            "questions": [],
+            "replay_kind": null
           },
           "unlocks": []
         }
@@ -59,8 +277,104 @@
           "doc": "docs/academia/nivel-01-1-contado-futuros-y-cfd.md",
           "exam": {
             "kind": "quiz",
-            "ready": false,
-            "questions": []
+            "ready": true,
+            "questions": [
+              {
+                "id": "1.1.1",
+                "kind": "choice",
+                "prompt": "Comprás una acción al contado. ¿Qué tenés?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "El activo mismo: la acción es tuya."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Un contrato que vence en una fecha fija."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Una diferencia de precio con un broker."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "1.1.2",
+                "kind": "choice",
+                "prompt": "¿Qué tiene un futuro que no tiene el CFD al contado de IG?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Un vencimiento: el contrato termina en una fecha fija."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Un precio que se mueve."
+                  },
+                  {
+                    "id": "c",
+                    "text": "La posibilidad de ir largo o corto."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "1.1.3",
+                "kind": "number",
+                "prompt": "El futuro ES (E-mini S&P 500) vale 50 USD por punto. Si sube 4 puntos, ¿cuánto cambia el valor de 1 contrato, en USD?",
+                "options": null,
+                "unit": "USD"
+              },
+              {
+                "id": "1.1.4",
+                "kind": "choice",
+                "prompt": "El ES tiene vencimientos de marzo, junio, septiembre y diciembre (letras H, M, U y Z). ¿Cada cuánto hay que pasar de un contrato al siguiente para seguir posicionado?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Todos los días."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Cada tres meses, antes de que venza el contrato."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Nunca."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "1.1.5",
+                "kind": "choice",
+                "prompt": "¿Por qué la serie del futuro puede dar un salto el día del cambio de contrato y la del CFD no?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Porque pasa de un contrato a otro, y cada vencimiento tiene su propio precio."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Porque el CFD tiene spread y el futuro no."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Porque ese día la bolsa cierra antes."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "1.1.6",
+                "kind": "number",
+                "prompt": "Nuestros CFD de índices valen 1 € por punto. Con tamaño 1, si el US 500 sube 10 puntos, ¿cuánto cambia tu posición antes de costos, en €?",
+                "options": null,
+                "unit": "€"
+              }
+            ],
+            "replay_kind": null
           },
           "unlocks": [
             "tool.source_selector"
@@ -73,8 +387,71 @@
           "doc": "docs/academia/nivel-01-2-largo-y-corto.md",
           "exam": {
             "kind": "quiz",
-            "ready": false,
-            "questions": []
+            "ready": true,
+            "questions": [
+              {
+                "id": "1.2.1",
+                "kind": "number",
+                "prompt": "Largo de tamaño 2 (2 € por punto) en US500: entrás en 6.000 y salís en 6.025. ¿Cuál es el resultado antes de costos, en €?",
+                "options": null,
+                "unit": "€"
+              },
+              {
+                "id": "1.2.2",
+                "kind": "number",
+                "prompt": "Corto de tamaño 1 en US100: entrás en 25.000 y salís en 25.040. ¿Cuál es el resultado antes de costos, en € (negativo si perdés)?",
+                "options": null,
+                "unit": "€"
+              },
+              {
+                "id": "1.2.3",
+                "kind": "number",
+                "prompt": "Corto de tamaño 3 en DE40: entrás en 24.000 y salís en 23.950. ¿Cuál es el resultado antes de costos, en €?",
+                "options": null,
+                "unit": "€"
+              },
+              {
+                "id": "1.2.4",
+                "kind": "choice",
+                "prompt": "Sin stop, ¿cuál es la pérdida máxima teórica de un corto?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "El precio de entrada."
+                  },
+                  {
+                    "id": "b",
+                    "text": "No tiene techo en teoría: el precio puede subir sin límite."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Cero, porque el corto gana cuando baja."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "1.2.5",
+                "kind": "choice",
+                "prompt": "Con la protección de saldo negativo (ESMA y CNMV), un cliente minorista de CFD...",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "No puede perder nada."
+                  },
+                  {
+                    "id": "b",
+                    "text": "No puede perder más que el dinero de su cuenta de CFD."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Recupera lo que pierde al final del mes."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
           },
           "unlocks": []
         },
@@ -85,8 +462,122 @@
           "doc": "docs/academia/nivel-01-3-apalancamiento-y-margen.md",
           "exam": {
             "kind": "quiz",
-            "ready": false,
-            "questions": []
+            "ready": true,
+            "questions": [
+              {
+                "id": "1.3.1",
+                "kind": "choice",
+                "prompt": "Un margen del 5 % del nominal equivale a un apalancamiento máximo de...",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "5:1"
+                  },
+                  {
+                    "id": "b",
+                    "text": "10:1"
+                  },
+                  {
+                    "id": "c",
+                    "text": "20:1"
+                  },
+                  {
+                    "id": "d",
+                    "text": "50:1"
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "1.3.2",
+                "kind": "choice",
+                "prompt": "Nuestro tope propio en índices es 10:1. ¿Qué quiere decir?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "El nominal de una posición no puede pasar 10 veces el capital de la cuenta."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Se puede perder hasta 10 veces el capital."
+                  },
+                  {
+                    "id": "c",
+                    "text": "El broker presta 10 € por cada operación."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "1.3.3",
+                "kind": "number",
+                "prompt": "Capital 10.000 €, US100 en 25.000 (1 € por punto). Con el tope de 10:1, ¿cuál es el tamaño máximo, en € por punto?",
+                "options": null,
+                "unit": "€/pt"
+              },
+              {
+                "id": "1.3.4",
+                "kind": "number",
+                "prompt": "Con ese tamaño máximo (4 € por punto en 25.000) y un margen del 5 %, ¿cuánto margen bloquea el broker, en €?",
+                "options": null,
+                "unit": "€"
+              },
+              {
+                "id": "1.3.5",
+                "kind": "number",
+                "prompt": "Con un margen inicial de 5.000 € y el cierre por margen al 50 %, ¿por debajo de cuánto capital cierra el broker las posiciones, en €?",
+                "options": null,
+                "unit": "€"
+              },
+              {
+                "id": "1.3.6",
+                "kind": "number",
+                "prompt": "Capital 10.000 €, tamaño 4 en US100 y cierre cuando el capital baja de 2.500 €. ¿Cuántos puntos tiene que caer el US100 para que te cierren (con el margen de la entrada)?",
+                "options": null,
+                "unit": "pts"
+              },
+              {
+                "id": "1.3.7",
+                "kind": "choice",
+                "prompt": "El apalancamiento...",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Multiplica las ganancias y las pérdidas por igual."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Multiplica solo las ganancias."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Reduce el riesgo de la operación."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "1.3.8",
+                "kind": "choice",
+                "prompt": "En nuestro motor, ¿qué decide primero el tamaño de una operación?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "El margen libre de la cuenta."
+                  },
+                  {
+                    "id": "b",
+                    "text": "El riesgo del 1 % y la distancia al stop; el tope de apalancamiento lo achica si hace falta."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Lo decide el broker."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
           },
           "unlocks": []
         }
@@ -103,8 +594,58 @@
           "doc": "docs/academia/nivel-02-1-spread.md",
           "exam": {
             "kind": "quiz",
-            "ready": false,
-            "questions": []
+            "ready": true,
+            "questions": [
+              {
+                "id": "2.1.1",
+                "kind": "number",
+                "prompt": "Entrás largo en US500 y salís enseguida, sin que el precio medio se mueva. Con un spread de 0,9 puntos, ¿cuántos puntos perdiste por el spread (entrada más salida)?",
+                "options": null,
+                "unit": "pts"
+              },
+              {
+                "id": "2.1.2",
+                "kind": "number",
+                "prompt": "US30 con spread de 3,7 puntos y tamaño 2 € por punto: ¿cuánto pagás de spread por la operación completa, en €?",
+                "options": null,
+                "unit": "€"
+              },
+              {
+                "id": "2.1.3",
+                "kind": "number",
+                "prompt": "Stop a 1 ATR = 8 puntos en US500, así que 1 R = 8 puntos. ¿Cuántos R es un spread de 0,9 puntos?",
+                "options": null,
+                "unit": "R"
+              },
+              {
+                "id": "2.1.4",
+                "kind": "number",
+                "prompt": "El mismo spread de 0,9 puntos con un stop de 4 puntos (1 R = 4 puntos). ¿Cuántos R es el spread?",
+                "options": null,
+                "unit": "R"
+              },
+              {
+                "id": "2.1.5",
+                "kind": "choice",
+                "prompt": "En la demo de IG, el spread de US30 fue 3,7 puntos en la sesión y 12,2 entre las 21 y las 22 UTC. ¿Qué conviene recordar?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Fuera de la sesión regular el spread puede ser varias veces mayor."
+                  },
+                  {
+                    "id": "b",
+                    "text": "El spread es siempre el mismo."
+                  },
+                  {
+                    "id": "c",
+                    "text": "De noche no hay spread."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
           },
           "unlocks": [
             "tool.ticket_costs"
@@ -117,8 +658,78 @@
           "doc": "docs/academia/nivel-02-2-financiacion-nocturna.md",
           "exam": {
             "kind": "quiz",
-            "ready": false,
-            "questions": []
+            "ready": true,
+            "questions": [
+              {
+                "id": "2.2.1",
+                "kind": "number",
+                "prompt": "Precio 6.000, tasa total 7 % (4 % de referencia + 3 %), base 360 días. ¿Cuántos puntos por noche paga un largo de tamaño 1?",
+                "options": null,
+                "unit": "pts"
+              },
+              {
+                "id": "2.2.2",
+                "kind": "number",
+                "prompt": "US500 en 6.000 (precio de ejemplo), SOFR 3,94 % + 3 % de IG, base 360. Largo de tamaño 1 (1 € por punto): ¿cuánto pagás por noche, en €?",
+                "options": null,
+                "unit": "€"
+              },
+              {
+                "id": "2.2.3",
+                "kind": "number",
+                "prompt": "La misma posición (1,1567 € por noche) queda abierta 3 noches. ¿Cuánto pagás en total, en €?",
+                "options": null,
+                "unit": "€"
+              },
+              {
+                "id": "2.2.4",
+                "kind": "number",
+                "prompt": "Corto de tamaño 1 en US500 en 6.000: la tasa es 3 % − 3,94 % = −0,94 % (base 360). ¿Cuál es el costo por noche, en € (negativo si cobrás)?",
+                "options": null,
+                "unit": "€"
+              },
+              {
+                "id": "2.2.5",
+                "kind": "choice",
+                "prompt": "En DE40 la referencia es el €STR (2,441 %) y la tasa de IG es 3 %. Un corto...",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Cobra, como en US500."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Paga 0,559 % anual, porque 3 % − 2,441 % es positivo."
+                  },
+                  {
+                    "id": "c",
+                    "text": "No paga ni cobra nada."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "2.2.6",
+                "kind": "choice",
+                "prompt": "¿Cuándo se cobra la financiación de un CFD de índice?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Una vez, al abrir la posición."
+                  },
+                  {
+                    "id": "b",
+                    "text": "En cada corte de las 23:00 (hora de Madrid) en que la posición sigue abierta."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Solo si la posición pierde."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
           },
           "unlocks": []
         },
@@ -129,8 +740,85 @@
           "doc": "docs/academia/nivel-02-3-slippage-y-comision.md",
           "exam": {
             "kind": "quiz",
-            "ready": false,
-            "questions": []
+            "ready": true,
+            "questions": [
+              {
+                "id": "2.3.1",
+                "kind": "number",
+                "prompt": "El motor supone un slippage por ejecución de 0,1 × spread + 1 tick. En US500 (spread 0,9; tick 0,01), ¿cuántos puntos es?",
+                "options": null,
+                "unit": "pts"
+              },
+              {
+                "id": "2.3.2",
+                "kind": "number",
+                "prompt": "Con la misma regla, en US100 (spread 1,6; tick 0,1), ¿cuántos puntos de slippage por ejecución?",
+                "options": null,
+                "unit": "pts"
+              },
+              {
+                "id": "2.3.3",
+                "kind": "number",
+                "prompt": "Costo de ida y vuelta en US500 = spread + slippage de 2 ejecuciones (0,1 cada una). ¿Cuántos puntos da?",
+                "options": null,
+                "unit": "pts"
+              },
+              {
+                "id": "2.3.4",
+                "kind": "number",
+                "prompt": "CFD de una acción de EE. UU.: 0,02 USD por acción con un mínimo de 15 USD por ejecución. Comprás 100 acciones: ¿cuánto pagás de comisión al abrir, en USD?",
+                "options": null,
+                "unit": "USD"
+              },
+              {
+                "id": "2.3.5",
+                "kind": "number",
+                "prompt": "La misma comisión (0,02 USD por acción, mínimo 15 USD) con 2.000 acciones: ¿cuánto pagás al abrir, en USD?",
+                "options": null,
+                "unit": "USD"
+              },
+              {
+                "id": "2.3.6",
+                "kind": "choice",
+                "prompt": "Una señal aparece al cierre de la vela t. ¿Cuándo se ejecuta en el backtest y en el paper?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Al cierre de la misma vela t."
+                  },
+                  {
+                    "id": "b",
+                    "text": "En la apertura de la vela siguiente, t+1."
+                  },
+                  {
+                    "id": "c",
+                    "text": "En el mínimo de la vela t."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "2.3.7",
+                "kind": "choice",
+                "prompt": "Tenés un stop en 26.600. El viernes cierra en 26.750 y el lunes abre en 26.400. ¿Dónde se ejecuta el stop?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "En 26.600, siempre."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Cerca de 26.400: con un gap no hubo precios en el medio."
+                  },
+                  {
+                    "id": "c",
+                    "text": "No se ejecuta."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
           },
           "unlocks": []
         },
@@ -141,12 +829,1791 @@
           "doc": "docs/academia/nivel-02-4-caso-real-costos.md",
           "exam": {
             "kind": "quiz",
-            "ready": false,
-            "questions": []
+            "ready": true,
+            "questions": [
+              {
+                "id": "2.4.1",
+                "kind": "choice",
+                "prompt": "Estrategia en uso, US500, 2011–2025 (R001): −0,02 R por operación antes de costos y 0,18 R de costos. ¿De dónde sale casi toda la pérdida?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "De los costos."
+                  },
+                  {
+                    "id": "b",
+                    "text": "De las señales, que antes de costos pierden mucho."
+                  },
+                  {
+                    "id": "c",
+                    "text": "De la financiación nocturna sola."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "2.4.2",
+                "kind": "number",
+                "prompt": "En R001 (US500) los costos sumaron 56.162 € y el spread 43.528 €. ¿Qué porcentaje de los costos fue el spread? (redondeá a un decimal)",
+                "options": null,
+                "unit": "%"
+              },
+              {
+                "id": "2.4.3",
+                "kind": "choice",
+                "prompt": "Momentum de la última media hora (R017 y R026): la cartera dio un t de −11. ¿De dónde venía?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "De un efecto de mercado muy fuerte en contra."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Del costo casi fijo de cada operación: antes de costos estaba cerca de cero."
+                  },
+                  {
+                    "id": "c",
+                    "text": "De un error en los datos."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "2.4.4",
+                "kind": "choice",
+                "prompt": "Deriva nocturna de 02:00 a 03:00 de Nueva York (R021): el efecto existe en nuestros datos, pero...",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "El costo del CFD a esa hora es de 2 a 4 veces más grande que el efecto."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Solo funciona los lunes."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Es tan grande que cualquier costo se paga solo."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "2.4.5",
+                "kind": "number",
+                "prompt": "Una estrategia da 0 R por operación antes de costos y paga 0,10 R de costo por operación. ¿Cuál es el resultado total de 100 operaciones, en R?",
+                "options": null,
+                "unit": "R"
+              },
+              {
+                "id": "2.4.6",
+                "kind": "choice",
+                "prompt": "Desde 2020, el costo por operación de la estrategia en uso bajó a menos de la mitad. ¿Qué explicación da el informe?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Que IG bajó los spreads a la mitad en 2020."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Que el índice cotiza más alto y el mismo spread en puntos pesa menos frente al stop (y que el spread de 2011 no se conoce)."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Que la estrategia empezó a ganar."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
           },
           "unlocks": [
             "tool.cost_calculator"
           ]
+        }
+      ]
+    },
+    {
+      "level": 3,
+      "title": "Velas, timeframes y el primer replay",
+      "lessons": [
+        {
+          "id": "3.1",
+          "title": "La vela (OHLC)",
+          "objective": "Leer apertura, máximo, mínimo y cierre; vela cerrada frente a vela en formación.",
+          "doc": "docs/academia/nivel-03-1-la-vela.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "3.1.1",
+                "kind": "choice",
+                "prompt": "Vela de 15 m de US500 (precios de ejemplo): apertura 6.000, máximo 6.012, mínimo 5.996, cierre 6.010. ¿Qué vela es?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Alcista: cerró arriba de la apertura."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Bajista: el mínimo está abajo de la apertura."
+                  },
+                  {
+                    "id": "c",
+                    "text": "No se puede saber sin el volumen."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "3.1.2",
+                "kind": "number",
+                "prompt": "La misma vela (apertura 6.000, máximo 6.012, mínimo 5.996, cierre 6.010). ¿Cuánto mide el cuerpo, |cierre − apertura|, en puntos?",
+                "options": null,
+                "unit": "pts"
+              },
+              {
+                "id": "3.1.3",
+                "kind": "number",
+                "prompt": "La misma vela. ¿Cuánto mide el rango, máximo − mínimo, en puntos?",
+                "options": null,
+                "unit": "pts"
+              },
+              {
+                "id": "3.1.4",
+                "kind": "number",
+                "prompt": "La misma vela. ¿Cuánto mide la mecha inferior, min(apertura, cierre) − mínimo, en puntos?",
+                "options": null,
+                "unit": "pts"
+              },
+              {
+                "id": "3.1.5",
+                "kind": "choice",
+                "prompt": "Una vela de 15 m empieza a las 15:30. ¿Desde cuándo la puede usar el motor?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Desde las 15:30, apenas empieza."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Desde las 15:37, a la mitad."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Desde las 15:45:00, cuando cerró."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "3.1.6",
+                "kind": "choice",
+                "prompt": "Después de una caída, con un ATR de 20 puntos: apertura 6.000, máximo 6.005, mínimo 5.980, cierre 6.004. Con las reglas del martillo del motor (mecha inferior ≥ 2 × cuerpo, mecha superior ≤ 0,3 × rango, cuerpo ≥ 0,05 × rango, rango ≥ 0,5 × ATR), ¿cumple la forma?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Sí, cumple las cuatro reglas de forma."
+                  },
+                  {
+                    "id": "b",
+                    "text": "No: la mecha inferior es demasiado corta."
+                  },
+                  {
+                    "id": "c",
+                    "text": "No: el rango es menor que 0,5 ATR."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "3.1.7",
+                "kind": "choice",
+                "prompt": "La vela en formación de IBKR que se ve en el gráfico...",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "La usan los indicadores y la estrategia para decidir antes."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Es solo visual: puede cambiar hasta que cierra y ninguna señal la usa."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Es la vela de ayer."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": [
+            "tool.candle_chart"
+          ]
+        },
+        {
+          "id": "3.2",
+          "title": "Timeframes",
+          "objective": "Ver la misma hora en 1 m, 15 m, 1 h y 1 d, y saber que la vela mayor solo vale cuando cerró.",
+          "doc": "docs/academia/nivel-03-2-timeframes.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "3.2.1",
+                "kind": "number",
+                "prompt": "¿Cuántas velas de 15 m forman una vela de 1 h?",
+                "options": null,
+                "unit": "velas"
+              },
+              {
+                "id": "3.2.2",
+                "kind": "choice",
+                "prompt": "Son las 10:40 UTC. ¿Cuál es la última vela de 1 h cerrada?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "La de las 10:00 (de 10:00 a 11:00)."
+                  },
+                  {
+                    "id": "b",
+                    "text": "La de las 09:00 (de 09:00 a 10:00)."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Ninguna: las velas de 1 h cierran a medianoche."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "3.2.3",
+                "kind": "choice",
+                "prompt": "Una señal de 15 m se calcula al cierre de las 10:30 y necesita la tendencia de 1 h. ¿Qué vela de 1 h puede usar?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "La de las 10:00, aunque esté a la mitad."
+                  },
+                  {
+                    "id": "b",
+                    "text": "La de las 09:00, la última cerrada."
+                  },
+                  {
+                    "id": "c",
+                    "text": "La de las 11:00."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "3.2.4",
+                "kind": "number",
+                "prompt": "Calentamiento del motor: ¿cuántas velas de 1 h cerradas y válidas necesita antes de emitir una señal?",
+                "options": null,
+                "unit": "velas"
+              },
+              {
+                "id": "3.2.5",
+                "kind": "number",
+                "prompt": "El calentamiento pide 200 velas de 15 m. ¿Cuántas horas de mercado son?",
+                "options": null,
+                "unit": "h"
+              },
+              {
+                "id": "3.2.6",
+                "kind": "choice",
+                "prompt": "¿Por qué el motor no usa la vela de 1 h que todavía está en formación?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Porque su cierre puede cambiar: usarla sería mirar un dato que todavía no existía."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Porque las velas de 1 h no tienen máximo ni mínimo."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Porque la de 15 m siempre es más precisa."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": [
+            "tool.timeframe_selector",
+            "tool.multichart"
+          ]
+        },
+        {
+          "id": "3.3",
+          "title": "Primer replay",
+          "objective": "Avanzar vela por vela sin ver el futuro y escribir el plan antes.",
+          "doc": "docs/academia/nivel-03-3-primer-replay.md",
+          "exam": {
+            "kind": "none",
+            "ready": true,
+            "questions": [],
+            "replay_kind": null
+          },
+          "unlocks": [
+            "tool.replay_practice",
+            "tool.ruler"
+          ]
+        },
+        {
+          "id": "3.4",
+          "title": "Hábito: plan antes, nota después",
+          "objective": "Escribir el plan antes de cada ejercicio de replay y una nota después, sin juzgarse por el resultado.",
+          "doc": "docs/academia/nivel-03-4-habito-plan-y-nota.md",
+          "exam": {
+            "kind": "none",
+            "ready": true,
+            "questions": [],
+            "replay_kind": null
+          },
+          "unlocks": [
+            "tool.journal_notes"
+          ]
+        }
+      ]
+    },
+    {
+      "level": 4,
+      "title": "Estructura: pivotes, soportes, resistencias y tendencia",
+      "lessons": [
+        {
+          "id": "4.1",
+          "title": "Pivote confirmado",
+          "objective": "Saber que un máximo o mínimo local existe solo después de N velas de confirmación; antes es una suposición.",
+          "doc": "docs/academia/nivel-04-1-pivote-confirmado.md",
+          "exam": {
+            "kind": "replay",
+            "ready": true,
+            "questions": [],
+            "replay_kind": "pivots"
+          },
+          "unlocks": [
+            "tool.pivots_layer"
+          ]
+        },
+        {
+          "id": "4.2",
+          "title": "Soporte y resistencia objetivos",
+          "objective": "Armar un nivel como lo define el motor: tocado al menos 3 veces con una tolerancia medible.",
+          "doc": "docs/academia/nivel-04-2-soporte-y-resistencia.md",
+          "exam": {
+            "kind": "replay",
+            "ready": true,
+            "questions": [],
+            "replay_kind": "levels"
+          },
+          "unlocks": [
+            "tool.drawing"
+          ]
+        },
+        {
+          "id": "4.3",
+          "title": "Tendencia y ruptura",
+          "objective": "Reconocer una tendencia con pivotes confirmados, la tendencia de 1 h del motor, la ruptura y el doble techo o suelo.",
+          "doc": "docs/academia/nivel-04-3-tendencia-y-ruptura.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "4.3.1",
+                "kind": "choice",
+                "prompt": "Pivotes confirmados en orden: máximos 6.020, 6.035 y 6.050; mínimos 5.990, 6.005 y 6.015. ¿Qué tramo es?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Alcista: máximos y mínimos cada vez más altos."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Bajista."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Rango."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "4.3.2",
+                "kind": "choice",
+                "prompt": "Última vela de 1 h cerrada: cierre 6.040, SMA50 de 1 h 6.020, y esa SMA50 hace 5 velas valía 6.025. ¿Qué tendencia de 1 h da la regla del motor?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "ALCISTA, porque el cierre está arriba de la media."
+                  },
+                  {
+                    "id": "b",
+                    "text": "BAJISTA, porque la media baja."
+                  },
+                  {
+                    "id": "c",
+                    "text": "NEUTRAL: el cierre está arriba de la media, pero la pendiente es negativa."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "4.3.3",
+                "kind": "number",
+                "prompt": "Doble suelo con S1 = 6.000 y S2 = 6.015. ¿Cuál es la diferencia |S1 − S2| ÷ S1, en %?",
+                "options": null,
+                "unit": "%"
+              },
+              {
+                "id": "4.3.4",
+                "kind": "choice",
+                "prompt": "Dos pivotes bajos casi iguales con 8 velas entre ellos. ¿Forman un doble suelo para el motor?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Sí, si la diferencia es menor que 0,3 %."
+                  },
+                  {
+                    "id": "b",
+                    "text": "No: entre los dos suelos tiene que haber de 10 a 60 velas."
+                  },
+                  {
+                    "id": "c",
+                    "text": "No: tienen que estar exactamente a 60 velas."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "4.3.5",
+                "kind": "number",
+                "prompt": "Doble suelo con neckline en 6.030, el suelo más bajo en 6.000 y un ATR de 25 puntos. ¿Cuánto mide la altura del patrón, en ATR?",
+                "options": null,
+                "unit": "ATR"
+              },
+              {
+                "id": "4.3.6",
+                "kind": "choice",
+                "prompt": "Para el motor, ¿cuándo se rompe el neckline de un doble suelo?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Cuando el máximo de una vela pasa el neckline."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Cuando una vela cierra arriba del neckline y la anterior había cerrado en el neckline o abajo."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Cuando el precio vuelve a tocar el neckline desde arriba."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": [
+            "tool.levels_layer",
+            "tool.chart_patterns"
+          ]
+        },
+        {
+          "id": "4.4",
+          "title": "Evidencia: soportes y números redondos",
+          "objective": "Saber qué dicen los estudios sobre soportes y números redondos, y qué dio nuestra prueba con los índices (R020).",
+          "doc": "docs/academia/nivel-04-4-evidencia-soportes-y-redondos.md",
+          "exam": {
+            "kind": "none",
+            "ready": true,
+            "questions": [],
+            "replay_kind": null
+          },
+          "unlocks": []
+        }
+      ]
+    },
+    {
+      "level": 5,
+      "title": "Liquidez: niveles, barridas, FVG y order blocks (con advertencias)",
+      "lessons": [
+        {
+          "id": "5.1",
+          "title": "Mapa de liquidez",
+          "objective": "Conocer los niveles del mapa de liquidez del motor y su estado: intacto, barrido o roto.",
+          "doc": "docs/academia/nivel-05-1-mapa-de-liquidez.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "5.1.1",
+                "kind": "choice",
+                "prompt": "Dos pivotes altos de 15 m en 6.050,0 y 6.051,5, dentro de las últimas 200 velas, con un ATR de 20 puntos (tolerancia 0,10 ATR). ¿Qué marca el mapa?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Un EQH en 6.051,5, el más alto de los dos."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Un EQH en 6.050,75, el promedio."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Nada: la diferencia pasa la tolerancia."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "5.1.2",
+                "kind": "choice",
+                "prompt": "Nivel alto intacto en 6.100. La primera vela que lo pasa tiene máximo 6.104 y cierra en 6.096. ¿Cómo queda el nivel?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Intacto."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Barrido: pasó el nivel y cerró en el nivel o abajo."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Roto."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "5.1.3",
+                "kind": "choice",
+                "prompt": "El mismo nivel en 6.100, pero la primera vela que lo pasa tiene máximo 6.106 y cierra en 6.103. ¿Cómo queda?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Barrido."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Roto: pasó el nivel y cerró arriba."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Sigue intacto hasta que cierre otra vela arriba."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "5.1.4",
+                "kind": "number",
+                "prompt": "El US500 cierra en 6.020 y el paso de los números redondos es 50. ¿Cuál es el número redondo más cercano por encima del cierre?",
+                "options": null,
+                "unit": "pts"
+              },
+              {
+                "id": "5.1.5",
+                "kind": "choice",
+                "prompt": "¿Desde cuándo existe el máximo del día anterior (PDH) en el mapa?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Desde el cierre de esa sesión."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Desde la apertura de esa sesión."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Desde que el precio lo toca hoy."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "5.1.6",
+                "kind": "choice",
+                "prompt": "¿Qué papel tiene hoy el mapa de liquidez en el puntaje de la estrategia en uso?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Ninguno: es informativo y no suma al puntaje hasta validarse con su propio criterio."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Cada nivel barrido suma 3 puntos."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Reemplaza a la tendencia de 1 h."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": [
+            "tool.liquidity_map"
+          ]
+        },
+        {
+          "id": "5.2",
+          "title": "Sweep, BOS y CHoCH",
+          "objective": "Reconocer con la definición medible del motor una barrida, una ruptura de estructura y un cambio de carácter.",
+          "doc": "docs/academia/nivel-05-2-sweep-bos-y-choch.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "5.2.1",
+                "kind": "choice",
+                "prompt": "El último pivote bajo de 1 h confirmado está en 5.980. Una vela de 15 m tiene mínimo 5.975 y cierra en 5.986. ¿Qué es?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Un sweep: pinchó por debajo y volvió a cerrar adentro."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Una ruptura bajista."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Nada, porque no cerró en el pivote."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "5.2.2",
+                "kind": "choice",
+                "prompt": "El mismo pivote en 5.980. Otra vela tiene mínimo 5.976 y cierra en 5.978. ¿Es un sweep?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Sí, porque pinchó por debajo."
+                  },
+                  {
+                    "id": "b",
+                    "text": "No: cerró por debajo del pivote; para el mapa, ese mínimo quedó roto."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Depende del volumen."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "5.2.3",
+                "kind": "choice",
+                "prompt": "¿Qué pivote mira el sweep del motor?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "El último pivote bajo de 15 m, aunque no esté confirmado."
+                  },
+                  {
+                    "id": "b",
+                    "text": "El último pivote bajo de 1 h confirmado al cierre de la vela de 15 m."
+                  },
+                  {
+                    "id": "c",
+                    "text": "El mínimo del día anterior."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "5.2.4",
+                "kind": "choice",
+                "prompt": "Una vela de 15 m cierra arriba del último pivote alto de 15 m confirmado (la anterior había cerrado debajo) y la tendencia de 1 h es BAJISTA. ¿Qué es?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Un BOS."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Un CHoCH: ruptura alcista con tendencia de 1 h bajista, posible giro."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Un sweep."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "5.2.5",
+                "kind": "choice",
+                "prompt": "La misma ruptura, pero con la tendencia de 1 h NEUTRAL. ¿Qué marca el motor?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Un BOS."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Un CHoCH."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Ninguna de las dos."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "5.2.6",
+                "kind": "number",
+                "prompt": "Hay un CHoCH en la vela 100. Cuenta como reciente durante 12 velas, la suya incluida. ¿Cuál es la última vela en la que todavía cuenta?",
+                "options": null,
+                "unit": "vela"
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": [
+            "tool.sweep_structure"
+          ]
+        },
+        {
+          "id": "5.3",
+          "title": "FVG y order blocks",
+          "objective": "Saber qué son un FVG y un order block con la regla del motor y leer sus estadísticas de toque, mitad y llenado.",
+          "doc": "docs/academia/nivel-05-3-fvg-y-order-blocks.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "5.3.1",
+                "kind": "choice",
+                "prompt": "Vela i−2 con máximo 6.010 y vela i con mínimo 6.018. ¿Qué hay?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Un FVG alcista con zona [6.010, 6.018]."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Un FVG bajista."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Nada: hace falta que la vela i−1 sea bajista."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "5.3.2",
+                "kind": "number",
+                "prompt": "¿Cuál es la mitad de la zona [6.010, 6.018]?",
+                "options": null,
+                "unit": "pts"
+              },
+              {
+                "id": "5.3.3",
+                "kind": "choice",
+                "prompt": "¿Cuándo se llena (y deja de valer) un FVG alcista para el motor?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Cuando una vela toca su piso."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Cuando una vela posterior cierra por debajo del piso de la zona."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Cuando pasan 50 velas."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "5.3.4",
+                "kind": "choice",
+                "prompt": "Un order block alcista del motor es...",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "La última vela bajista antes del impulso alcista (cuerpo ≥ 1,5 ATR) que terminó en una ruptura de estructura."
+                  },
+                  {
+                    "id": "b",
+                    "text": "La vela de impulso misma."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Cualquier vela grande del día."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "5.3.5",
+                "kind": "number",
+                "prompt": "Con un ATR de 20 puntos, ¿qué cuerpo mínimo necesita la vela de impulso de un order block, en puntos?",
+                "options": null,
+                "unit": "pts"
+              },
+              {
+                "id": "5.3.6",
+                "kind": "choice",
+                "prompt": "La tabla de estadísticas muestra «datos insuficientes» en una fila con 12 casos. ¿Por qué?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Porque con menos de 30 casos la tasa no dice casi nada y el motor no la muestra."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Porque falló la conexión."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Porque ese FVG ya se llenó."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": [
+            "tool.fvg_order_blocks",
+            "tool.fvg_stats"
+          ]
+        },
+        {
+          "id": "5.4",
+          "title": "Caso real: el FVG frente al placebo",
+          "objective": "Leer una prueba propia completa sobre el FVG y entender qué es un placebo y por qué hace falta.",
+          "doc": "docs/academia/nivel-05-4-caso-real-fvg-placebo.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "5.4.1",
+                "kind": "choice",
+                "prompt": "En H5.1, ¿qué es el placebo de un toque de FVG?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Un precio cualquiera tocado en las mismas condiciones (mes, horario, distancia, tamaño y espera), pero que no es un FVG."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Un FVG de otro instrumento."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Un FVG de 1 h."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "5.4.2",
+                "kind": "choice",
+                "prompt": "R035: real − placebo dio −0,0233 ATR por mes. ¿Qué quiere decir?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Que el FVG rebotó un poco menos que el placebo."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Que el FVG rebotó mucho más que el placebo."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Que el FVG perdió 0,0233 € por operación."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "5.4.3",
+                "kind": "choice",
+                "prompt": "El nivel pre-registrado era p < 0,025 y H5.1 dio p = 0,963. ¿Cuál es el veredicto?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Pasa, porque 0,963 es casi 1."
+                  },
+                  {
+                    "id": "b",
+                    "text": "No pasa."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Hay que probar otros parámetros hasta que pase."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "5.4.4",
+                "kind": "choice",
+                "prompt": "R037: las operaciones de la estrategia en uso que coinciden con el primer toque de un FVG a favor dieron −0,018 R frente al resto (p 0,663). ¿Qué se concluye?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Que filtrar por FVG no mejora la estrategia."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Que filtrar por FVG la vuelve ganadora."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Que hay que operar solo en US100."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "5.4.5",
+                "kind": "choice",
+                "prompt": "La primera corrida de H5.1 (R034) tenía un error de código. ¿Qué se hizo?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Se borró y no se informó."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Se corrigió, se volvió a correr y se informaron las dos corridas."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Se eligió la corrida con mejor resultado."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "5.4.6",
+                "kind": "choice",
+                "prompt": "¿Cuál conclusión es correcta?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "El FVG nunca sirve en ningún mercado."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Con estas reglas, en US100 y US500 de 2013 a 2025, el primer toque de un FVG de 15 m no rebotó más que un placebo."
+                  },
+                  {
+                    "id": "c",
+                    "text": "El FVG funciona, pero solo en velas de 1 h."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": []
+        }
+      ]
+    },
+    {
+      "level": 6,
+      "title": "Indicadores",
+      "lessons": [
+        {
+          "id": "6.1",
+          "title": "ATR",
+          "objective": "Medir el tamaño normal del movimiento con el ATR de Wilder, calcularlo como el motor y usarlo para poner un stop que no sea ruido.",
+          "doc": "docs/academia/nivel-06-1-atr.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "6.1.1",
+                "kind": "number",
+                "prompt": "El cierre anterior fue 6.000. La vela siguiente tiene máximo 6.012 y mínimo 5.990. ¿Cuál es su True Range, en puntos?",
+                "options": null,
+                "unit": "pts"
+              },
+              {
+                "id": "6.1.2",
+                "kind": "number",
+                "prompt": "El cierre anterior fue 6.000. La vela siguiente abre con un gap y hace máximo 6.042 y mínimo 6.025. ¿Cuál es su True Range, en puntos?",
+                "options": null,
+                "unit": "pts"
+              },
+              {
+                "id": "6.1.3",
+                "kind": "number",
+                "prompt": "El ATR(14) anterior es 30 y la vela nueva tiene un True Range de 44. ¿Cuánto vale el ATR nuevo (suavizado de Wilder), en puntos?",
+                "options": null,
+                "unit": "pts"
+              },
+              {
+                "id": "6.1.4",
+                "kind": "number",
+                "prompt": "ATR de 20 puntos. Entrás largo en 6.000 con el stop a 1,5 ATR. ¿En qué precio va el stop?",
+                "options": null,
+                "unit": null
+              },
+              {
+                "id": "6.1.5",
+                "kind": "choice",
+                "prompt": "¿Con cuántas velas sale el primer valor del ATR(14) del motor?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Con la primera vela."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Con 13 velas."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Con 14 velas: es el promedio simple de los primeros 14 True Range."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Con 28 velas."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "6.1.6",
+                "kind": "choice",
+                "prompt": "Una vela ya cerrada tiene un ATR de 21. Después llegan 50 velas mucho más agitadas. ¿Qué pasa con el ATR de aquella vela?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Sube, porque el mercado se agitó."
+                  },
+                  {
+                    "id": "b",
+                    "text": "No cambia: el valor de una vela cerrada no se repinta; suben los ATR de las velas nuevas."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Baja, porque el promedio se diluye."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Se borra y se recalcula al final del día."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": [
+            "tool.atr"
+          ]
+        },
+        {
+          "id": "6.2",
+          "title": "Medias (SMA, EMA) y cruces",
+          "objective": "Calcular una SMA y una EMA como el motor, entender por qué llegan tarde y leer un cruce sin tomarlo como predicción.",
+          "doc": "docs/academia/nivel-06-2-medias-y-cruces.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "6.2.1",
+                "kind": "number",
+                "prompt": "¿Cuánto vale α en una EMA(9) del motor (α = 2 ÷ (n + 1))?",
+                "options": null,
+                "unit": null
+              },
+              {
+                "id": "6.2.2",
+                "kind": "number",
+                "prompt": "Los últimos 4 cierres son 6.000, 6.010, 6.020 y 6.030. ¿Cuánto vale la SMA(4)?",
+                "options": null,
+                "unit": null
+              },
+              {
+                "id": "6.2.3",
+                "kind": "number",
+                "prompt": "EMA(3) anterior = 6.000 (α = 0,5) y el cierre nuevo es 6.020. ¿Cuánto vale la EMA(3) nueva?",
+                "options": null,
+                "unit": null
+              },
+              {
+                "id": "6.2.4",
+                "kind": "number",
+                "prompt": "El precio sube 1 punto por vela, siempre igual. ¿Cuántas velas atrás queda la SMA(21) (dónde estaba el precio hace cuántas velas)?",
+                "options": null,
+                "unit": "velas"
+              },
+              {
+                "id": "6.2.5",
+                "kind": "choice",
+                "prompt": "Para el motor, ¿qué es un cruce dorado?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Que el precio toque la SMA 200 diaria."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Que la SMA 50 diaria pase por encima de la SMA 200 diaria, viniendo de abajo."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Que el precio suba 3 días seguidos."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Que la SMA 50 diaria baje por debajo de la SMA 200 diaria."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "6.2.6",
+                "kind": "choice",
+                "prompt": "Un día la SMA 50 y la SMA 200 diarias quedan iguales, y al día siguiente la SMA 50 vuelve a quedar abajo. ¿Hubo cruce?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Sí, un cruce dorado."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Sí, un cruce de la muerte."
+                  },
+                  {
+                    "id": "c",
+                    "text": "No: un toque que vuelve al mismo lado no es cruce."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Depende del volumen."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "6.2.7",
+                "kind": "choice",
+                "prompt": "La EMA 365 diaria y los cruces de la SMA 50 y la SMA 200 del gráfico, ¿entran al puntaje o a la estrategia en uso?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Sí, son la base de la estrategia en uso."
+                  },
+                  {
+                    "id": "b",
+                    "text": "No: solo se muestran (config/analysis.toml)."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Solo entran los cruces dorados."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Entran al riesgo, no al puntaje."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": [
+            "tool.moving_averages"
+          ]
+        },
+        {
+          "id": "6.3",
+          "title": "Volatilidad, RSI y VWAP",
+          "objective": "Medir la volatilidad como el motor y saber qué miden el RSI y el VWAP, que el motor todavía no calcula; ninguno es una señal por sí mismo.",
+          "doc": "docs/academia/nivel-06-3-volatilidad-rsi-y-vwap.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "6.3.1",
+                "kind": "choice",
+                "prompt": "¿El motor calcula hoy el RSI o el VWAP?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Sí, los dos, y la UI los dibuja."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Solo el RSI."
+                  },
+                  {
+                    "id": "c",
+                    "text": "No: no hay código para ninguno de los dos; por eso esta lección no abre ninguna capa."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Los calcula la UI."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "6.3.2",
+                "kind": "number",
+                "prompt": "En las últimas 14 velas, la ganancia media fue 2 puntos y la pérdida media 1 punto. ¿Cuánto da el RSI (100 − 100 ÷ (1 + RS))?",
+                "options": null,
+                "unit": null
+              },
+              {
+                "id": "6.3.3",
+                "kind": "number",
+                "prompt": "¿Cuántos retornos diarios usa la volatilidad realizada del motor?",
+                "options": null,
+                "unit": null
+              },
+              {
+                "id": "6.3.4",
+                "kind": "choice",
+                "prompt": "¿Cuál es la diferencia de unidades entre el ATR y la volatilidad realizada del motor?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Ninguna: los dos están en %."
+                  },
+                  {
+                    "id": "b",
+                    "text": "El ATR está en puntos por vela; la volatilidad realizada, en fracción por día, con los cierres diarios."
+                  },
+                  {
+                    "id": "c",
+                    "text": "El ATR está en %; la volatilidad, en puntos."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Los dos están en euros."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "6.3.5",
+                "kind": "choice",
+                "prompt": "Un RSI de 75, ¿qué dice?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Que el precio va a bajar."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Que conviene vender ya."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Que en las últimas velas las subas fueron más grandes que las bajas; nada más."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Que el volumen fue alto."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "6.3.6",
+                "kind": "choice",
+                "prompt": "R019 probó tener más índice con el mercado calmo y menos con el mercado agitado. ¿Qué dio?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Pasó con un Sharpe muy superior al de comprar y mantener."
+                  },
+                  {
+                    "id": "b",
+                    "text": "No pasó: alfa de +0,19 % por mes con p = 0,17 y un Sharpe menor que el de comprar y mantener."
+                  },
+                  {
+                    "id": "c",
+                    "text": "No se pudo correr por falta de datos."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Pasó en US100 y no en US500."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "6.3.7",
+                "kind": "choice",
+                "prompt": "¿Qué necesita el VWAP que no necesita una media móvil del cierre?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "El volumen de cada vela."
+                  },
+                  {
+                    "id": "b",
+                    "text": "El VIX."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Las noticias del día."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Nada más."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": []
+        },
+        {
+          "id": "6.4",
+          "title": "Herramientas que no puntúan",
+          "objective": "Saber qué dibujan Fibonacci, los pivotes diarios, el spring y el upthrust, los fondos y el régimen del VIX, con la regla del motor, y por qué no entran al puntaje.",
+          "doc": "docs/academia/nivel-06-4-herramientas-que-no-puntuan.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "6.4.1",
+                "kind": "number",
+                "prompt": "El último tramo subió de A = 6.000 a B = 6.100. ¿En qué precio está el retroceso 0,618 (B − 0,618 × (B − A))?",
+                "options": null,
+                "unit": null
+              },
+              {
+                "id": "6.4.2",
+                "kind": "number",
+                "prompt": "Con el mismo tramo (de 6.000 a 6.100), ¿en qué precio está el otro borde del golden pocket, el retroceso 0,65?",
+                "options": null,
+                "unit": null
+              },
+              {
+                "id": "6.4.3",
+                "kind": "number",
+                "prompt": "Ayer: máximo 6.150, mínimo 6.030 y cierre 6.120. ¿Cuánto vale el punto pivote diario P = (H + L + C) ÷ 3?",
+                "options": null,
+                "unit": null
+              },
+              {
+                "id": "6.4.4",
+                "kind": "number",
+                "prompt": "Con ese mismo día (P = 6.100, L = 6.030), ¿cuánto vale R1 = 2P − L?",
+                "options": null,
+                "unit": null
+              },
+              {
+                "id": "6.4.5",
+                "kind": "choice",
+                "prompt": "El VIX cerró en 22. ¿En qué régimen lo pone el motor?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Calma."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Normal."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Elevado (de 20 a 30)."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Estrés."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "6.4.6",
+                "kind": "choice",
+                "prompt": "Fibonacci, los pivotes diarios, el spring y el upthrust, los fondos y el VIX, ¿qué hacen en el motor?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Suman puntos a la señal."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Deciden el tamaño de la posición."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Solo se muestran: no entran al puntaje, ni a la estrategia en uso, ni al riesgo."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Abren órdenes automáticas."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "6.4.7",
+                "kind": "choice",
+                "prompt": "Soporte de un rango en 6.000. El mínimo de una vela llega a 5.955 y la vela siguiente cierra en 6.003. ¿Es un spring para el motor?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Sí, porque volvió a cerrar adentro."
+                  },
+                  {
+                    "id": "b",
+                    "text": "No: pasó el soporte más de 0,5 %, así que es una ruptura de verdad."
+                  },
+                  {
+                    "id": "c",
+                    "text": "No, porque tardó una vela en volver."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Sí, si el VIX está en calma."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": [
+            "tool.fibonacci",
+            "tool.floor_pivots",
+            "tool.spring_upthrust",
+            "tool.bottoms",
+            "tool.vix_regime"
+          ]
+        },
+        {
+          "id": "6.5",
+          "title": "Evidencia: reglas técnicas y fórmulas verificadas",
+          "objective": "Separar si la fórmula está bien calculada (tests) de si la regla sirve después de costos (estudios y nuestro registro).",
+          "doc": "docs/academia/nivel-06-5-evidencia-indicadores.md",
+          "exam": {
+            "kind": "none",
+            "ready": true,
+            "questions": [],
+            "replay_kind": null
+          },
+          "unlocks": []
+        }
+      ]
+    },
+    {
+      "level": 7,
+      "title": "Riesgo y tamaño de posición",
+      "lessons": [
+        {
+          "id": "7.1",
+          "title": "R",
+          "objective": "Medir todo en múltiplos del riesgo: 1 R es lo que perdés si toca el stop. Pasar de puntos a euros y a R.",
+          "doc": "docs/academia/nivel-07-1-r.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "7.1.1",
+                "kind": "number",
+                "prompt": "Tamaño 4 € por punto y stop a 15 puntos. ¿Cuánto es 1 R, en €?",
+                "options": null,
+                "unit": "€"
+              },
+              {
+                "id": "7.1.2",
+                "kind": "number",
+                "prompt": "Con esa misma operación (1 R = 60 €), cerrás con +45 puntos. ¿Cuántos R ganaste?",
+                "options": null,
+                "unit": "R"
+              },
+              {
+                "id": "7.1.3",
+                "kind": "number",
+                "prompt": "Perdiste 24 € en una operación con 1 R = 60 €. ¿Cuánto es en R (negativo si perdés)?",
+                "options": null,
+                "unit": "R"
+              },
+              {
+                "id": "7.1.4",
+                "kind": "number",
+                "prompt": "Capital 10.000 € y riesgo por operación del 1 % (1 R = 100 €). La operación gana 175 €. ¿Cuántos R?",
+                "options": null,
+                "unit": "R"
+              },
+              {
+                "id": "7.1.5",
+                "kind": "number",
+                "prompt": "Stop a 40 puntos de la entrada. ¿A cuántos puntos de la entrada va un objetivo de 2 R?",
+                "options": null,
+                "unit": "pts"
+              },
+              {
+                "id": "7.1.6",
+                "kind": "number",
+                "prompt": "Spread del US100 de 1,6 puntos y stop a 32 puntos. ¿Cuántos R cuesta el spread de la operación?",
+                "options": null,
+                "unit": "R"
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": []
+        },
+        {
+          "id": "7.2",
+          "title": "Stop obligatorio y su distancia",
+          "objective": "Poner siempre un stop, del lado correcto y entre 0,5 y 3 ATR de la entrada, sabiendo que un gap lo puede saltar.",
+          "doc": "docs/academia/nivel-07-2-stop-obligatorio.md",
+          "exam": {
+            "kind": "replay",
+            "ready": true,
+            "questions": [],
+            "replay_kind": "trades"
+          },
+          "unlocks": []
+        },
+        {
+          "id": "7.3",
+          "title": "Tamaño",
+          "objective": "Calcular el tamaño como el motor: 1 % de riesgo, colchón por gaps, tope del grupo de EE. UU., tope de apalancamiento de 10:1 y mínimo del broker.",
+          "doc": "docs/academia/nivel-07-3-tamano.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "7.3.1",
+                "kind": "number",
+                "prompt": "Capital 10.000 €, riesgo 1 %, US500 en 6.000, ATR 24 y stop a 36 puntos, con el colchón por gaps de 0,25 ATR. ¿Qué tamaño da el motor, en € por punto?",
+                "options": null,
+                "unit": "€/pt"
+              },
+              {
+                "id": "7.3.2",
+                "kind": "number",
+                "prompt": "Con ese tamaño (100 ÷ 42 € por punto), si un gap salta el stop y la salida queda 6 puntos más allá (42 puntos de la entrada), ¿cuánto perdés antes de costos, en €?",
+                "options": null,
+                "unit": "€"
+              },
+              {
+                "id": "7.3.3",
+                "kind": "number",
+                "prompt": "Capital 10.000 €. Hay un largo abierto en US30 que arriesga 80 €. Llega una señal en US500 con stop a 36 puntos y ATR 24 (42 puntos con el colchón). Con el tope del grupo de EE. UU. del 1,5 %, ¿qué tamaño da el motor, en € por punto?",
+                "options": null,
+                "unit": "€/pt"
+              },
+              {
+                "id": "7.3.4",
+                "kind": "number",
+                "prompt": "Capital 10.000 €, US100 en 20.000, ATR 16 y stop a 8 puntos (12 con el colchón). Por riesgo daría 8,33 € por punto. Con el tope de apalancamiento de 10:1, ¿qué tamaño da el motor, en € por punto?",
+                "options": null,
+                "unit": "€/pt"
+              },
+              {
+                "id": "7.3.5",
+                "kind": "choice",
+                "prompt": "Capital 10.000 €. Hay abiertos un US100 que arriesga 100 € y un US30 que arriesga 50 €. Llega una señal en US500. ¿Qué hace el motor?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "La abre al 1 %, como siempre."
+                  },
+                  {
+                    "id": "b",
+                    "text": "La rechaza: el grupo de EE. UU. ya usa el 1,5 % y no queda lugar."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Cierra el US30 para hacer lugar."
+                  },
+                  {
+                    "id": "d",
+                    "text": "La abre con el doble de tamaño."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "7.3.6",
+                "kind": "choice",
+                "prompt": "Al US500 le queda lugar para arriesgar 30 € en el grupo y la distancia con el colchón es de 42 puntos: el tamaño daría 0,71 € por punto, y el mínimo de IG en US500 es 1. ¿Qué hace el motor?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Lo sube a 1, el mínimo."
+                  },
+                  {
+                    "id": "b",
+                    "text": "La rechaza: queda por debajo del mínimo del broker."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Abre 0,57 igual."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Mueve el stop más cerca para que el tamaño llegue a 1."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": [
+            "tool.paper_ticket"
+          ]
+        },
+        {
+          "id": "7.4",
+          "title": "Límites de la cuenta",
+          "objective": "Conocer y calcular los frenos de la cuenta: pérdida diaria del 3 %, reducción gradual por caída y kill switch al 15 %.",
+          "doc": "docs/academia/nivel-07-4-limites-de-la-cuenta.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "7.4.1",
+                "kind": "number",
+                "prompt": "El día empezó con 12.000 € de capital. Con la pérdida diaria máxima del 3 %, ¿con qué capital se cortan las entradas nuevas, en €?",
+                "options": null,
+                "unit": "€"
+              },
+              {
+                "id": "7.4.2",
+                "kind": "number",
+                "prompt": "La caída desde el máximo es del 8 %. Con la reducción gradual lineal (5 %, 1) y (10 %, 0,5), ¿cuál es el riesgo por operación, en %?",
+                "options": null,
+                "unit": "%"
+              },
+              {
+                "id": "7.4.3",
+                "kind": "number",
+                "prompt": "La caída desde el máximo es del 11 %. Con los puntos (10 %, 0,5) y (12,5 %, 0,25), ¿cuál es el riesgo por operación, en %?",
+                "options": null,
+                "unit": "%"
+              },
+              {
+                "id": "7.4.4",
+                "kind": "number",
+                "prompt": "La caída desde el máximo es del 13 %, después del último punto (12,5 %, 0,25). ¿Cuál es el riesgo por operación, en %?",
+                "options": null,
+                "unit": "%"
+              },
+              {
+                "id": "7.4.5",
+                "kind": "number",
+                "prompt": "El máximo del capital fue 11.000 €. Con el kill switch al 15 % de caída, ¿con qué capital salta, en €?",
+                "options": null,
+                "unit": "€"
+              },
+              {
+                "id": "7.4.6",
+                "kind": "choice",
+                "prompt": "Saltó el kill switch en paper. ¿Qué pasa después?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Se reactiva solo al día siguiente."
+                  },
+                  {
+                    "id": "b",
+                    "text": "No se opera más hasta que el dueño decida; en vivo no se reactiva solo."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Se duplica el tamaño para recuperar."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Se reactiva a los 20 días hábiles, igual que en el backtest."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "7.4.7",
+                "kind": "choice",
+                "prompt": "¿Qué hacen la pérdida diaria, la reducción gradual y el kill switch con las señales de la estrategia?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Las mejoran."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Nada: no cambian ninguna señal; solo achican el tamaño o cortan las entradas nuevas."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Invierten las señales en una mala racha."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Eligen qué instrumento operar."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": [
+            "tool.trading_status_bar"
+          ]
+        },
+        {
+          "id": "7.5",
+          "title": "Caso real: los topes no crean ventaja",
+          "objective": "Leer R039: con los topes, la estrategia en uso pierde menos y más despacio, pero sigue perdiendo.",
+          "doc": "docs/academia/nivel-07-5-caso-real-topes.md",
+          "exam": {
+            "kind": "none",
+            "ready": true,
+            "questions": [],
+            "replay_kind": null
+          },
+          "unlocks": []
         }
       ]
     }
@@ -181,6 +2648,121 @@
       "id": "tool.cost_calculator",
       "name": "Calculadora de costos",
       "lesson_id": "2.4"
+    },
+    {
+      "id": "tool.candle_chart",
+      "name": "Gráfico de velas y OHLC bajo el cursor",
+      "lesson_id": "3.1"
+    },
+    {
+      "id": "tool.timeframe_selector",
+      "name": "Selector de timeframe",
+      "lesson_id": "3.2"
+    },
+    {
+      "id": "tool.multichart",
+      "name": "Multigráfico",
+      "lesson_id": "3.2"
+    },
+    {
+      "id": "tool.replay_practice",
+      "name": "Replay libre",
+      "lesson_id": "3.3"
+    },
+    {
+      "id": "tool.ruler",
+      "name": "Regla de medición",
+      "lesson_id": "3.3"
+    },
+    {
+      "id": "tool.journal_notes",
+      "name": "Notas del Diario",
+      "lesson_id": "3.4"
+    },
+    {
+      "id": "tool.pivots_layer",
+      "name": "Capa de pivotes del motor",
+      "lesson_id": "4.1"
+    },
+    {
+      "id": "tool.drawing",
+      "name": "Dibujo: líneas horizontales, de tendencia y rectángulos",
+      "lesson_id": "4.2"
+    },
+    {
+      "id": "tool.levels_layer",
+      "name": "Capa de soportes y resistencias",
+      "lesson_id": "4.3"
+    },
+    {
+      "id": "tool.chart_patterns",
+      "name": "Patrones chartistas",
+      "lesson_id": "4.3"
+    },
+    {
+      "id": "tool.liquidity_map",
+      "name": "Mapa de liquidez",
+      "lesson_id": "5.1"
+    },
+    {
+      "id": "tool.sweep_structure",
+      "name": "Capas de sweep y estructura (BOS y CHoCH)",
+      "lesson_id": "5.2"
+    },
+    {
+      "id": "tool.fvg_order_blocks",
+      "name": "Capas de FVG y order blocks",
+      "lesson_id": "5.3"
+    },
+    {
+      "id": "tool.fvg_stats",
+      "name": "Estadísticas de FVG",
+      "lesson_id": "5.3"
+    },
+    {
+      "id": "tool.atr",
+      "name": "ATR",
+      "lesson_id": "6.1"
+    },
+    {
+      "id": "tool.moving_averages",
+      "name": "EMA, SMA y cruces de medias",
+      "lesson_id": "6.2"
+    },
+    {
+      "id": "tool.fibonacci",
+      "name": "Fibonacci y golden pocket",
+      "lesson_id": "6.4"
+    },
+    {
+      "id": "tool.floor_pivots",
+      "name": "Puntos pivote diarios",
+      "lesson_id": "6.4"
+    },
+    {
+      "id": "tool.spring_upthrust",
+      "name": "Spring y upthrust",
+      "lesson_id": "6.4"
+    },
+    {
+      "id": "tool.bottoms",
+      "name": "Precios de fondo",
+      "lesson_id": "6.4"
+    },
+    {
+      "id": "tool.vix_regime",
+      "name": "Régimen del VIX",
+      "lesson_id": "6.4"
+    },
+    {
+      "id": "tool.paper_ticket",
+      "name": "Ticket de paper (preview y órdenes simuladas)",
+      "lesson_id": "7.3"
+    },
+    {
+      "id": "tool.trading_status_bar",
+      "name": "Barra de estado de la operación (kill switch y pérdida del día)",
+      "lesson_id": "7.4"
     }
   ],
   "thresholds": {
