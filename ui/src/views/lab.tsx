@@ -11,6 +11,7 @@ import { FlaskConical, Play, Plus, ShieldCheck, Trash2, X } from 'lucide-react'
 import { useId, useState, type ReactNode } from 'react'
 
 import { LabReports } from '@/components/ui/lab-report'
+import { RiskCalculator } from '@/components/ui/lab-risk'
 import { Segmented } from '@/components/ui/segmented'
 import type {
   BlockSchema,
@@ -701,6 +702,7 @@ function Builder({ cat }: { cat: StrategyCatalog }) {
         )}
         {jobError && <p className="text-[12.5px] text-down">{jobError}</p>}
         {event?.state === 'done' && <LabReports ids={event.report_ids} />}
+        <RiskCalculator cat={cat} />
       </div>
     </div>
   )
