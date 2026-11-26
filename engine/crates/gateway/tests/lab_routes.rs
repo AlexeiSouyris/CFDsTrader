@@ -115,6 +115,9 @@ impl Mem {
             variants_total: total,
             report_ids,
             error: (state == JobState::Failed).then(|| "x".to_owned()),
+            // la curva de la variante que terminó (#854) pasa tal cual por el SSE
+            curve: (state == JobState::Running)
+                .then(|| cfds_backtest::lab::TrialCurve::from_monthly(0, &[0.01, -0.02], 200)),
             recorded_at: now(),
         };
         g.events.push(e.clone());
@@ -549,6 +552,8 @@ async fn the_progress_stream_replays_from_the_last_event_and_ends_with_the_job()
         .map(|e| e["state"].as_str().unwrap())
         .collect();
     assert_eq!(states, ["queued", "running", "done"]);
+    assert_eq!(events[1]["curve"]["equity"][0], "1");
+    assert!(events[0].get("curve").is_none() && events[2].get("curve").is_none());
     for e in &events {
         assert_contract("lab_job_event.v1.schema.json", e);
         assert!(text.contains(&format!("id: {}\ndata: ", e["seq"])));

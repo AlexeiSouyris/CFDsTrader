@@ -1,11 +1,13 @@
 //! Laboratorio (#774): `lab_job_request.v1` y `lab_job_event.v1` contra sus schemas, el hash del
-//! pedido (normalizado), el id del trabajo y el chequeo de las variantes.
+//! pedido (normalizado), el id del trabajo y el chequeo de las variantes. La curva en vivo de cada
+//! variante (`curve`, #854): reducción de puntos y contrato.
 
 use std::path::PathBuf;
 
 use cfds_backtest::lab::{
     JobStage, JobState, LabConfig, LabJobEvent, LabJobRequest, StrategyCatalog, StrategySpec,
-    ValidSpec, catalog, check_variants, job_id, request_sha256, validate_spec,
+    TrialCurve, ValidSpec, catalog, check_variants, downsample, job_id, request_sha256,
+    validate_spec,
 };
 use cfds_market_data::{DataSplit, Period};
 use cfds_risk::RiskConfig;
@@ -214,4 +216,93 @@ fn variants_are_one_family_one_period_and_capped() {
             .unwrap_err()
             .contains("como mucho")
     );
+}
+
+#[test]
+fn downsample_keeps_the_ends_and_spreads_the_rest() {
+    let xs: Vec<u32> = (0..1000).collect();
+    let d = downsample(&xs, 200);
+    assert_eq!(d.len(), 200);
+    assert_eq!((d[0], d[199]), (0, 999));
+    assert!(d.windows(2).all(|w| w[0] < w[1]), "en orden y sin repetir");
+    // pasos parejos: ninguno se aleja más de uno del ideal (999 / 199 ≈ 5,02)
+    assert!(d.windows(2).all(|w| (5..=6).contains(&(w[1] - w[0]))));
+    // casos borde: corto, justo, vacío, tope 0, 1 y 2
+    assert_eq!(downsample(&xs[..5], 200), xs[..5].to_vec());
+    assert_eq!(downsample(&xs[..200], 200), xs[..200].to_vec());
+    assert!(downsample::<u32>(&[], 200).is_empty());
+    assert!(downsample(&xs, 0).is_empty());
+    assert_eq!(downsample(&xs, 1), vec![999]);
+    assert_eq!(downsample(&xs, 2), vec![0, 999]);
+    assert_eq!(downsample(&xs[..201], 200).len(), 200);
+}
+
+#[test]
+fn the_live_curve_is_the_report_curve_from_one_and_fits_the_contract() {
+    let v = validator("lab_job_event.v1.schema.json");
+    let c = TrialCurve::from_monthly(3, &[0.1, -0.5, 0.2], 200);
+    assert_eq!(c.variant, 3);
+    assert_eq!(c.months, 3);
+    // 1 → 1,1 → 0,55 → 0,66: capital compuesto, como months[].equity del informe
+    assert_eq!(c.equity, ["1", "1.1", "0.55", "0.66"]);
+    // sin meses: solo el punto de partida
+    assert_eq!(TrialCurve::from_monthly(0, &[], 200).equity, ["1"]);
+    // un mes sin valor corta la curva ahí (nunca se inventa)
+    assert_eq!(
+        TrialCurve::from_monthly(0, &[0.1, f64::NAN, 0.1], 200).equity,
+        ["1", "1.1"]
+    );
+    // 20 años de meses con el tope de config → 200 puntos, último = capital final
+    let long: Vec<f64> = vec![0.001; 240];
+    let big = TrialCurve::from_monthly(1, &long, 200);
+    assert_eq!((big.months, big.equity.len()), (240, 200));
+    let full = TrialCurve::from_monthly(1, &long, 1000);
+    assert_eq!(big.equity.last(), full.equity.last());
+
+    let with = |curve: Value, state: &str, stage: Value| {
+        let mut doc = event(state, stage, json!([]), json!(null), 40);
+        doc["curve"] = curve;
+        doc
+    };
+    let running = json!("running_variants");
+    let doc = with(
+        serde_json::to_value(&c).unwrap(),
+        "running",
+        running.clone(),
+    );
+    let errors: Vec<String> = v.iter_errors(&doc).map(|e| e.to_string()).collect();
+    assert!(errors.is_empty(), "{errors:?}");
+    let e: LabJobEvent = serde_json::from_value(doc.clone()).unwrap();
+    assert_eq!(e.curve.as_ref(), Some(&c));
+    assert_eq!(serde_json::to_value(&e).unwrap(), doc);
+    // sin curva no se escribe el campo (los eventos de antes siguen iguales)
+    let plain: LabJobEvent = serde_json::from_value(event(
+        "running",
+        running.clone(),
+        json!([]),
+        json!(null),
+        40,
+    ))
+    .unwrap();
+    assert!(serde_json::to_value(&plain).unwrap().get("curve").is_none());
+
+    let points = |n: usize| json!({ "variant": 0, "months": n, "equity": vec!["1"; n] });
+    for bad in [
+        with(points(201), "running", running.clone()),
+        with(points(0), "running", running.clone()),
+        with(
+            json!({ "variant": 0, "months": 1, "equity": ["uno"] }),
+            "running",
+            running.clone(),
+        ),
+        with(
+            json!({ "variant": 0, "months": 1, "equity": ["1"], "x": 1 }),
+            "running",
+            running,
+        ),
+        with(points(2), "running", json!("building_reports")),
+        with(points(2), "queued", json!(null)),
+    ] {
+        assert!(!v.is_valid(&bad), "el schema debería rechazar {bad}");
+    }
 }

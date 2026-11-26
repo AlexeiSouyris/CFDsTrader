@@ -251,6 +251,82 @@ describe('la vista Laboratorio', () => {
     expect(within(report).getByRole('table', { name: 'Bandas de Monte Carlo' })).toBeInTheDocument()
   })
 
+  it('dibuja en vivo la curva de cada variante que termina y al final la barra del PBO (#854)', async () => {
+    gateway(valid)
+    render(<LabView />)
+    await fillPeriod()
+    fireEvent.change(screen.getByLabelText(/Capital hipotético/), { target: { value: '100000' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Correr' }))
+    await waitFor(() => expect(FakeEventSource.all).toHaveLength(1))
+    const sse = FakeEventSource.all[0]
+    const running = { state: 'running', stage: 'running_variants', variants_total: 3 } as const
+    act(() => sse.emit(event({ ...running, seq: 3, percent: 10 })))
+    const live = screen.getByRole('region', { name: 'Variantes en vivo' })
+    expect(live.querySelector('[data-live-count]')?.textContent).toMatch(/^0 de 3/)
+    expect(live.querySelector('[data-live-label]')?.textContent).toBe(
+      'Exploratorio, no vota · resultados del pasado en simulación, no promesas',
+    )
+    // dos curvas en el mismo cuadro: se dibujan juntas
+    act(() => {
+      sse.emit(
+        event({
+          ...running,
+          seq: 4,
+          variants_done: 1,
+          curve: { variant: 0, months: 3, equity: ['1', '1.1', '1.2', '1.3'] },
+        }),
+      )
+      sse.emit(
+        event({
+          ...running,
+          seq: 5,
+          variants_done: 2,
+          curve: { variant: 1, months: 3, equity: ['1', '0.9', '0.95', '0.8'] },
+        }),
+      )
+    })
+    await waitFor(() => expect(live.querySelectorAll('path[data-variant]')).toHaveLength(2))
+    const first = live.querySelector('path[data-variant="0"]')
+    expect(first).toHaveAttribute('data-result', 'up')
+    expect(live.querySelector('path[data-variant="1"]')).toHaveAttribute('data-result', 'down')
+    expect(live.querySelector('[data-live-count]')?.textContent).toMatch(/^2 de 3/)
+    // una tercera que sale más arriba cambia la escala, pero no vuelve a crear las otras
+    act(() =>
+      sse.emit(
+        event({
+          ...running,
+          seq: 6,
+          variants_done: 3,
+          curve: { variant: 2, months: 1, equity: ['1', '1'] },
+        }),
+      ),
+    )
+    await waitFor(() => expect(live.querySelectorAll('path[data-variant]')).toHaveLength(3))
+    expect(live.querySelector('path[data-variant="0"]')).toBe(first)
+    expect(live.querySelector('path[data-variant="2"]')).toHaveAttribute('data-result', 'flat')
+    // ninguna curva se llama ganadora
+    // ninguna curva se llama ganadora: la única mención es para decir que no hay
+    expect(live.textContent).toMatch(/ninguna curva es una ganadora/)
+    expect(live.textContent?.replace('ninguna curva es una ganadora', '')).not.toMatch(/ganador/i)
+    act(() =>
+      sse.emit(
+        event({
+          seq: 9,
+          state: 'done',
+          percent: 100,
+          variants_done: 3,
+          variants_total: 3,
+          report_ids: [REPORT.report_id],
+        }),
+      ),
+    )
+    // al terminar quedan las curvas y llega el PBO del informe (este no lo tiene: dice por qué)
+    expect(live.querySelector('[data-live-count]')?.textContent).toMatch(/^3 de 3/)
+    expect(live.querySelectorAll('path[data-variant]')).toHaveLength(3)
+    const luck = await screen.findByRole('region', { name: 'Suerte o ventaja' })
+    expect(within(luck).getByText(/El PBO aparece desde 4 variantes/)).toBeInTheDocument()
+  })
+
   it('cancela el trabajo en curso', async () => {
     const calls = gateway(valid)
     render(<LabView />)

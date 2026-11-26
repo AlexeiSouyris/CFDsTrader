@@ -20,6 +20,8 @@
 //! trabajos:   lab_job_request.v1 (variantes de una familia y un período) y lab_job_event.v1
 //!             (en cola, corriendo, listo, falló, cancelado); id = hash del pedido + intento
 //!             → job (lo guarda cfds_journal::lab, lo corre el lab_worker)
+//! en vivo:    la curva de cada variante apenas termina (la del informe, reducida a pocos
+//!             puntos) en el evento de "corriendo variantes"                     → curve
 //! worker:     [worker] de config/lab.toml y el avance de cada etapa → worker (lo usa el
 //!             lab_worker, un proceso aparte que corre la cola)
 //! varianza:   variance_sim_request.v1 → research::variance (caminos de capital, rachas, caída,
@@ -32,6 +34,7 @@
 
 pub mod blocks;
 pub mod catalog;
+pub mod curve;
 pub mod job;
 pub mod plans;
 pub mod report;
@@ -45,6 +48,7 @@ pub mod worker;
 
 pub use blocks::{LabConfig, catalog};
 pub use catalog::StrategyCatalog;
+pub use curve::{TrialCurve, downsample};
 pub use job::{
     JobStage, JobState, JobStep, LabJobEvent, LabJobRequest, check_variants, job_id, request_sha256,
 };
