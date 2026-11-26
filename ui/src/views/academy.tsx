@@ -1,7 +1,8 @@
 /**
  * Academia (#769, plan de `docs/design/2026-11-academia.md` §8, PR 4): el mapa de niveles con sus
  * lecciones, la página de cada lección (#770: objetivo, texto, examen y qué desbloquea; una lección
- * sin examen se completa con un evento; el texto lo sirve el motor, #799) y el progreso, como lo manda el motor
+ * sin examen se completa con un evento; el texto lo sirve el motor, #799; un examen de replay se
+ * empieza desde acá y se rinde en la vista Replay, #826) y el progreso, como lo manda el motor
  * (`academy_catalog.v1` y `academy_progress.v1`). La UI no decide si algo se aprobó ni qué
  * herramienta está abierta: cuenta y ordena lo que llega.
  *
@@ -13,6 +14,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 
 import { AcademyQuiz } from '@/components/ui/academy-quiz'
 import { LessonText } from '@/components/ui/lesson-text'
+import { ReplayExamStart } from '@/components/ui/replay-lesson'
 import type {
   AcademyCatalog,
   AcademyProgress,
@@ -329,9 +331,7 @@ function LessonPage({
               ' Mientras tanto, lo que desbloquea se puede abrir a mano en Ajustes.'}
           </Preparing>
         ) : exam.kind === 'replay' ? (
-          <p className="text-[12.5px]">
-            Examen con velas del pasado (replay): lo califica el motor, primero el proceso.
-          </p>
+          <ReplayExamStart lesson={lesson} />
         ) : (
           <>
             <p className="text-[12.5px]">

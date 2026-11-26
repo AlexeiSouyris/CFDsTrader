@@ -27,8 +27,8 @@ export type Exam = {
   /** false: todavía sin preguntas; no se puede rendir (un examen de replay siempre está listo) */
   ready: boolean
   questions: Question[]
-  /** el tipo de sesión de un examen de replay (#759); null u omitido en los demás */
-  replay_kind?: Extract<ReplayKind, 'levels' | 'trades'> | null
+  /** el tipo de sesión de un examen de replay (#759, #800); null u omitido en los demás */
+  replay_kind?: Extract<ReplayKind, 'levels' | 'pivots' | 'trades'> | null
 }
 
 export type Lesson = {
