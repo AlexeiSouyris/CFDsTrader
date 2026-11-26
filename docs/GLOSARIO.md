@@ -277,8 +277,11 @@ Cuánto se operó en la vela del [sweep](#sweep) comparado con lo normal: su [vo
 
 <a id="numero-redondo"></a>
 ### Número redondo
-Un precio "redondo" como 5.000 o 5.050 en el US500. Mucha gente pone ahí sus objetivos y sus stops un poco más allá, así que el precio suele frenar en el número o acelerar al cruzarlo. En el mapa de liquidez se marca el número redondo más cercano por encima y por debajo del cierre, con un paso por instrumento (US500 cada 50 y 100 puntos). Pasa por los mismos estados que los otros niveles: intacto, barrido, roto o vencido. Es informativo: no suma al puntaje.
-*Ejemplo:* el US500 cierra en 5.020: los números redondos son 5.050 y 5.100 arriba y 5.000 abajo.
+Un precio "redondo" como 5.000 o 5.050 en el US500. **Lo que se cree:** mucha gente pone ahí sus objetivos y sus stops un poco más allá, así que el precio frenaría en el número o aceleraría al cruzarlo.
+**Lo que se midió afuera:** en divisas, con datos de órdenes reales, las de tomar ganancia se juntan en los números redondos y las de stop justo después ([Osler, 2003](https://ideas.repec.org/a/bla/jfinan/v58y2003i5p1791-1819.html)); los soportes y resistencias que publicaban seis firmas ayudaban a predecir dónde se cortaba una tendencia dentro del día, con un poder que variaba por firma y moneda ([Osler, 2000](https://www.newyorkfed.org/research/epr/00v06n2/0007osle.html)). Es otro mercado y datos de hace más de 20 años.
+**Lo que dio nuestra prueba ([R020](analysis/2026-11-ronda3-volatilidad-y-numeros-redondos.md)):** en los futuros de US500, US100 y US30 (02-2013 a 10-2025), seguir el precio al cruzar un número redondo dio lo mismo que cruzar un nivel intermedio (+0,041 R frente a +0,047 R por operación antes de costos) y perdió después de costos (−0,62 % por mes, t −2,37). No vimos que el número redondo frene ni acelere el precio en estos índices. Eso no prueba que nunca pase, y los redondos medidos son los del futuro, no los del CFD.
+En el mapa de liquidez se marca el número redondo más cercano por encima y por debajo del cierre, con un paso por instrumento (US500 cada 50 y 100 puntos). Pasa por los mismos estados que los otros niveles: intacto, barrido, roto o vencido. Es informativo: no suma al puntaje.
+*Ejemplo:* el US500 cierra en 5.020: los números redondos son 5.050 y 5.100 arriba y 5.000 abajo. Si un día el precio frena justo en 5.000, eso solo no prueba nada: en R020, los niveles intermedios como 5.025 se comportaron igual.
 
 <a id="order-block"></a>
 ### Order block
