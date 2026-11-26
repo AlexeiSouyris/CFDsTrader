@@ -105,6 +105,7 @@ Lista de todos los contratos, generada desde `contracts/*.schema.json` (`title` 
 | Stream | Contenido | ID de la entrada |
 |---|---|---|
 | `candles.v1.<instrumento>.<timeframe>` (ej. `candles.v1.US100.15m`) | Campo `data` = JSON de `candle.v1`. **Solo velas cerradas.** | `<inicio de la vela en ms>-0`: ordena y evita duplicados |
+| `lab_jobs.v1.<job_id>` (#775) | Campo `data` = JSON de `lab_job_event.v1`. Lo publica el `lab_worker`; el gateway lo pasa a SSE. Vence solo: la fuente de verdad es `lab_job_events` en PostgreSQL. | `<seq>-0` (el `seq` del evento): ordena y evita duplicados |
 
 Lo publica `cfds-storage::CandlePublisher` (Rust). Los consumidores (Python, UI) leen con `XREAD`/`XRANGE`.
 

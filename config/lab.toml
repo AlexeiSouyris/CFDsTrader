@@ -65,3 +65,23 @@ target_r = { min = "0.5", max = "10", default = "2" }
 confidence = "0.95"
 r_step = "0.5"
 luck_simulations = 1000
+
+[worker]
+# El lab_worker (#775): proceso aparte que corre los trabajos de la cola de a uno (§9 puntos 6 y
+# 7 del diseño, PENDIENTES: valores recomendados). Solo velas ya guardadas, nunca IG, y nunca el
+# fuera de muestra. No decide nada de ninguna estrategia.
+#
+# Cada cuánto mira la cola cuando está vacía (segundos).
+poll_secs = 5
+# Duración máxima de un trabajo (minutos): pasado eso falla. Se revisa entre etapas.
+max_minutes = 60
+# Desde cuándo se cargan las velas: el calentamiento de los indicadores antes del período (como el
+# ejemplo laboratorio).
+load_from = "2011-01-01T00:00:00Z"
+# Escenario de financiación de estudio: el tipo de EE. UU. sigue pendiente, así que se usa el €STR
+# guardado (como el ejemplo laboratorio y las rondas; €STR empieza en octubre de 2019). PENDIENTE.
+funding_scenario = "ESTR"
+# Los eventos de cada trabajo en Redis (lab_jobs.v1.<job_id>) vencen solos después de esto (horas);
+# PostgreSQL los guarda siempre.
+stream_ttl_hours = 24
+stream_maxlen = 1000

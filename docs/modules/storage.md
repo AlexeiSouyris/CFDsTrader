@@ -15,6 +15,7 @@ resumen: Esquema y migraciones de PostgreSQL, escritura idempotente y publicaci�
 - publicación de velas cerradas en Redis Streams
 - lectura de los cierres publicados del VIX (`vix_closes`, #491)
 - lectura de las interpretaciones de noticias del stream `news_interpretations.v1` sin perder ni repetir entre reinicios (`NewsInterpretationConsumer`, #197)
+- eventos de los trabajos del laboratorio en Redis Streams (`LabStream`, #775): `lab_jobs.v1.<job_id>`, una entrada por `lab_job_event.v1` con ID `<seq>-0` (sin duplicados), vencimiento con `EXPIRE`; lo publica el `lab_worker` y el gateway lo lee con `XREAD BLOCK` para el SSE. PostgreSQL (`lab_job_events`) es la fuente de verdad
 - docker-compose
 - `backtest_run_curves`, curva de cada corrida de solo agregar que escribe `cfds-journal` (migración 0030, #299)
 - guardia de los tests de integración (`test_db::test_database_url`, #376: solo corren contra una base `cfds_test…`, nunca la real)
