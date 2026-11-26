@@ -128,12 +128,26 @@ fn planned_exit(
     (exit > d && exit != LATER).then_some(exit)
 }
 
-/// Los planes de `spec` sobre la serie (ver el módulo). Cada plan es su propio evento.
-pub fn plans_from_spec(spec: &ValidSpec, s: &LabSeries) -> Vec<Plan> {
-    let candles = match spec.timeframe {
+/// Las velas del timeframe de la señal.
+fn signal_candles<'a>(spec: &ValidSpec, s: &LabSeries<'a>) -> &'a [Candle] {
+    match spec.timeframe {
         Timeframe::M15 => s.m15,
         Timeframe::H1 => s.h1,
-    };
+    }
+}
+
+/// Salida planificada, con la regla de la spec, de una decisión en la vela de 15m `d` (la usa el
+/// test de suerte: las entradas al azar salen igual que la estrategia). `None` si `d` no cierra
+/// junto con una vela del timeframe de la señal o si la salida no se conoce.
+pub fn planned_exit_for(spec: &ValidSpec, s: &LabSeries, d: usize) -> Option<usize> {
+    let candles = signal_candles(spec, s);
+    let t = index_ending(candles, s.m15.get(d)?.end())?;
+    planned_exit(spec, candles, s, t, d)
+}
+
+/// Los planes de `spec` sobre la serie (ver el módulo). Cada plan es su propio evento.
+pub fn plans_from_spec(spec: &ValidSpec, s: &LabSeries) -> Vec<Plan> {
+    let candles = signal_candles(spec, s);
     let StopRule::Atr { period, k } = spec.stop;
     let atr = wilder_atr(candles, period);
     let per_condition: Vec<Vec<Option<Side>>> = spec

@@ -37,3 +37,4 @@ resumen: Mensajes entre capas en JSON Schema (índice en `contracts/README.md`).
 - fomc_statement_novelty.v1 (#668)
 - strategy_catalog.v1, strategy_spec.v1, spec_validation.v1 (laboratorio, #725)
 - lab_report.v1 (laboratorio, #755)
+- lab_trial.v1 (laboratorio, #764)
