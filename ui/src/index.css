@@ -257,9 +257,8 @@ td.text-right {
 }
 
 /*
- * Superficies (#708). Sin vidrio: `.glass` y `.glass-strong` quedan como nombres viejos de
- * `.panel` y `.panel-raised` hasta la limpieza del código (PR 4 del #708). `panel-raised` es lo que
- * flota (menús, diálogos, tooltips): misma superficie con una sombra corta.
+ * Superficies (#708): sin vidrio en ninguna parte. `panel` es la superficie lisa con regla de 1 px;
+ * `panel-raised` es lo que flota (menús, diálogos, tooltips): la misma con una sombra corta.
  */
 @utility panel {
   background: var(--card);
@@ -267,17 +266,6 @@ td.text-right {
 }
 
 @utility panel-raised {
-  background: var(--card);
-  border: 1px solid var(--rule);
-  box-shadow: 0 10px 28px -14px var(--shadow);
-}
-
-@utility glass {
-  background: var(--card);
-  border: 1px solid var(--border);
-}
-
-@utility glass-strong {
   background: var(--card);
   border: 1px solid var(--rule);
   box-shadow: 0 10px 28px -14px var(--shadow);

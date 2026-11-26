@@ -16,7 +16,7 @@ import {
   Wallet,
 } from 'lucide-react'
 
-import type { ShellView } from '@/components/ui/glass-shell'
+import type { ShellView } from '@/components/ui/app-shell'
 
 export const VIEWS: ShellView[] = [
   {
@@ -131,12 +131,6 @@ export const VIEWS: ShellView[] = [
 
 /** La vista de inicio (sin hash). `#panel` sigue existiendo y abre el panel de siempre (#581). */
 export const HOME_VIEW = 'inicio'
-
-/**
- * Dónde hay vidrio y fondo animado (#581): solo en el Inicio (y en el ingreso, que no es una vista).
- * Las demás secciones tienen superficie lisa.
- */
-export const GLASS_VIEWS: readonly string[] = [HOME_VIEW]
 
 /**
  * Las secciones del mapa (#581): las que van en la barra lateral y en la del celular. Las demás

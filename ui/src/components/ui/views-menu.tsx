@@ -8,7 +8,7 @@
 import { Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
-import type { ShellView } from '@/components/ui/glass-shell'
+import type { ShellView } from '@/components/ui/app-shell'
 import { cn } from '@/lib/utils'
 
 export type MenuGroup = { view: ShellView; children: ShellView[] }

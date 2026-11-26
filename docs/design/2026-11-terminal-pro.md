@@ -66,9 +66,9 @@ queda para puntos de estado y avatares.
 | PR | Qué | Archivos principales |
 |---|---|---|
 | 1 | Este documento, tokens y tema: sin vidrio ni fondo animado, paleta, esquinas, mono, movimiento corto | `index.css`, `App.tsx`, `tokens.test.tsx` |
-| 2 | Armazón: barra fina con línea de comandos, navegación lateral en lista, barra de estado (relojes UTC, Nueva York, Londres y Tokio; frescura de las fuentes de datos del gateway), atajos F1–F9 y ayuda con `?` | `glass-shell.tsx`, `status-bar.tsx` |
+| 2 | Armazón: barra fina con línea de comandos, navegación lateral en lista, barra de estado (relojes UTC, Nueva York, Londres y Tokio; frescura de las fuentes de datos del gateway), atajos F1–F9 y ayuda con `?` | `glass-shell.tsx` (hoy `app-shell.tsx`), `status-bar.tsx` |
 | 3 | Inicio como espacio de trabajo: mercados, titulares, calendario y resultados de investigación en paneles, con las rutas que ya existen | `views/home*.tsx` |
-| 4 | Limpieza: borrar el fondo animado, los ajustes del vidrio, `GLASS_VIEWS` y los nombres `.glass` | varios |
+| 4 | Limpieza: borrar el fondo animado, los ajustes del vidrio, `GLASS_VIEWS` y las clases `.glass`; el armazón pasa a llamarse `app-shell.tsx` | varios |
 
 Cada PR actualiza las capturas de Playwright desde el artefacto de Linux del CI
 (`docs/guides/pruebas-e2e-ui.md`).

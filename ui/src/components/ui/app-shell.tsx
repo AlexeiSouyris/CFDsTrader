@@ -55,7 +55,7 @@ export type ShellView = {
 
 type Popover = 'notices' | 'settings' | 'keys' | null
 
-export function GlassShell({
+export function AppShell({
   brand = 'CFDsTrader',
   views,
   nav = views,

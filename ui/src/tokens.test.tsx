@@ -4,7 +4,7 @@
  * autoalojadas, escala de 4 px, colores de gráficos iguales en toda la app, variables por
  * `data-section`, contraste AA en claro y oscuro y ningún vidrio.
  */
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { render } from '@testing-library/react'
@@ -199,13 +199,13 @@ describe('sin vidrio (#708)', () => {
     expect(css).not.toMatch(/backdrop-filter|--glass-|data-glass/)
   })
 
-  it('`.glass` y `.glass-strong` son superficies lisas, iguales a `.panel` y `.panel-raised`', () => {
-    const body = (name: string) => {
-      const at = css.indexOf(`@utility ${name} {`)
-      return css.slice(css.indexOf('{', at) + 1, css.indexOf('}', at)).trim()
+  it('ya no existen las clases `.glass` ni `.glass-strong`, ni en el CSS ni en los componentes', () => {
+    expect(css).not.toMatch(/@utility glass/)
+    const files = readdirSync(join(process.cwd(), 'src'), { recursive: true, encoding: 'utf8' })
+    for (const f of files.filter((f) => /\.tsx?$/.test(f) && !f.endsWith('.test.tsx'))) {
+      const text = readFileSync(join(process.cwd(), 'src', f), 'utf8')
+      expect(text, f).not.toMatch(/className=[^>]*\bglass(-strong)?\b/)
     }
-    expect(body('glass')).toBe(body('panel'))
-    expect(body('glass-strong')).toBe(body('panel-raised'))
   })
 
   it('la app no monta el fondo animado ni activa el vidrio', () => {

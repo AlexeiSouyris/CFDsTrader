@@ -665,7 +665,7 @@ export function TerminalView({ member }: { member: Member }) {
             '--w-right': `${widths.right}px`,
           } as CSSProperties
         }
-        className="grid min-w-0 rounded-section border border-border lg:grid-cols-[var(--w-left)_minmax(0,1fr)] xl:grid-cols-[var(--w-left)_minmax(0,1fr)_var(--w-right)] [&_.glass]:border-transparent [&_.glass]:bg-transparent"
+        className="grid min-w-0 rounded-section border border-border lg:grid-cols-[var(--w-left)_minmax(0,1fr)] xl:grid-cols-[var(--w-left)_minmax(0,1fr)_var(--w-right)]"
       >
         <div
           id="terminal-markets"

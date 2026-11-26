@@ -2,7 +2,7 @@
  * Piezas de la terminal de trading (fase 10, prototipo, #275): la franja de la cuenta con el modo
  * simulación, el aviso de kill switch, el ticket de orden y las posiciones abiertas.
  *
- * Diseño propio del sistema de `ui/` (vidrio, Manrope, pocos colores con sentido: verde y rojo
+ * Diseño propio del sistema de `ui/` (superficies lisas, Manrope, pocos colores con sentido: verde y rojo
  * solo para dirección y P/L, ámbar solo para "simulación"). **No calcula nada:** el P/L, el
  * margen, el apalancamiento y la validación de riesgo llegan del motor; la UI los muestra.
  */
@@ -114,10 +114,10 @@ const tone = (v: string) => (isNegative(v) ? 'text-down' : 'text-up')
 export function AccountStrip({ account, aside }: { account: PaperAccount; aside?: ReactNode }) {
   const used = Number(account.daily_loss_used_pct)
   return (
-    // la usan el Inicio (con vidrio) y la Terminal (lisa): `.glass` es vidrio solo en el Inicio
+    // la usan el Inicio y la Terminal: superficie lisa, como todo desde #708
     <section
       aria-label="Cuenta de simulación"
-      className="glass relative flex min-w-0 flex-wrap items-center gap-x-6 gap-y-3 rounded-section px-4 py-3"
+      className="panel relative flex min-w-0 flex-wrap items-center gap-x-6 gap-y-3 rounded-section px-4 py-3"
     >
       <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
         <PaperBadge compact />
