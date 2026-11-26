@@ -9,6 +9,10 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use cfds_backtest::research::variance::Payoff;
+use rust_decimal::prelude::ToPrimitive;
+
+use crate::montecarlo::{DaySource, McConfig, McParams, monte_carlo_json};
 use crate::rules::{PropsimConfig, RuleError, Rules, RulesDoc};
 use crate::walk::{DayRef, End, FailRule, StageResult, Walk, group_days, walk};
 
@@ -257,12 +261,100 @@ pub fn result_json(req: &PropSimRequest, p: &Prepared, monte_carlo: Value) -> Va
     })
 }
 
-/// Corre el pedido completo.
+/// Los parámetros del Monte Carlo (pedido + `[monte_carlo]`), dentro de los topes.
+pub fn mc_params(req: &PropSimRequest, cfg: &McConfig) -> Result<McParams, PropSimError> {
+    let m = req.monte_carlo.unwrap_or_default();
+    let p = McParams {
+        paths: m.paths.unwrap_or(cfg.default_paths),
+        seed: m.seed.unwrap_or(cfg.default_seed),
+        block_len_days: m.block_len_days.unwrap_or(cfg.default_block_len_days),
+        horizon_days: m.horizon_days.unwrap_or(cfg.default_horizon_days),
+        max_attempts: m.max_attempts.unwrap_or(cfg.default_max_attempts),
+    };
+    let bad = |what: &str, max: usize| {
+        Err(PropSimError::Bad(format!(
+            "monte_carlo.{what} tiene que estar en [1, {max}]"
+        )))
+    };
+    if p.paths == 0 || p.paths > cfg.max_paths {
+        return bad("paths", cfg.max_paths);
+    }
+    if p.horizon_days == 0 || p.horizon_days > cfg.max_horizon_days {
+        return bad("horizon_days", cfg.max_horizon_days);
+    }
+    if p.max_attempts == 0 || p.max_attempts > cfg.max_attempts {
+        return bad("max_attempts", cfg.max_attempts as usize);
+    }
+    if p.block_len_days == 0 {
+        return bad("block_len_days", usize::MAX);
+    }
+    if p.paths.saturating_mul(p.horizon_days) > cfg.max_day_steps {
+        return Err(PropSimError::Bad(format!(
+            "monte_carlo: paths × horizon_days tiene que ser ≤ {}",
+            cfg.max_day_steps
+        )));
+    }
+    Ok(p)
+}
+
+fn ratio(d: Decimal) -> f64 {
+    d.to_f64().unwrap_or(f64::NAN)
+}
+
+/// Corre el pedido completo: recorrido determinista (con una lista real) y Monte Carlo.
 pub fn run(
     req: &PropSimRequest,
     cfg: &PropsimConfig,
     report_trades: Option<&[(DateTime<Utc>, Decimal)]>,
 ) -> Result<Value, PropSimError> {
     let p = prepare(req, cfg, report_trades)?;
-    Ok(result_json(req, &p, Value::Null))
+    let mut mc = mc_params(req, &cfg.monte_carlo)?;
+    let days: Vec<Vec<Decimal>> = p.days.iter().map(|(_, xs)| xs.clone()).collect();
+    let (source, block) = match &req.source {
+        SourceRequest::Model {
+            win_rate,
+            avg_win_r,
+            avg_loss_r,
+            observed_trades,
+            trades_per_day,
+        } => {
+            let hundred = Decimal::ONE_HUNDRED;
+            if *win_rate > Decimal::ONE
+                || avg_win_r.is_zero()
+                || avg_loss_r.is_zero()
+                || *avg_win_r > hundred
+                || *avg_loss_r > hundred
+            {
+                return Err(PropSimError::Bad(
+                    "win_rate en [0, 1] y avg_win_r y avg_loss_r en (0, 100]".into(),
+                ));
+            }
+            if *trades_per_day == 0 || *trades_per_day > cfg.monte_carlo.max_trades_per_day {
+                return Err(PropSimError::Bad(format!(
+                    "trades_per_day tiene que estar en [1, {}]",
+                    cfg.monte_carlo.max_trades_per_day
+                )));
+            }
+            let payoff = Payoff {
+                win_rate: ratio(*win_rate),
+                avg_win_r: ratio(*avg_win_r),
+                avg_loss_r: ratio(*avg_loss_r),
+                observed_trades: *observed_trades,
+            };
+            let source = DaySource::Model {
+                payoff,
+                trades_per_day: *trades_per_day,
+                win: *avg_win_r * p.risk_amount,
+                loss: *avg_loss_r * p.risk_amount,
+            };
+            (source, None)
+        }
+        _ => {
+            // Con pocos días, el bloque no puede ser más largo que la serie.
+            mc.block_len_days = mc.block_len_days.min(days.len()).max(1);
+            (DaySource::Days(&days), Some(mc.block_len_days))
+        }
+    };
+    let mc_json = monte_carlo_json(&p.rules, &source, &mc, block, cfg.monte_carlo.confidence);
+    Ok(result_json(req, &p, mc_json))
 }

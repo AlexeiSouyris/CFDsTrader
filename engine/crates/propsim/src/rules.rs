@@ -394,6 +394,7 @@ impl RulesDoc {
 #[serde(deny_unknown_fields)]
 pub struct PropsimConfig {
     pub limits: Limits,
+    pub monte_carlo: crate::montecarlo::McConfig,
     pub templates: Vec<RulesDoc>,
 }
 
@@ -416,6 +417,7 @@ impl PropsimConfig {
         {
             return Err("propsim.toml: [limits] inválido".into());
         }
+        cfg.monte_carlo.validate()?;
         if cfg.templates.is_empty() {
             return Err("propsim.toml: hace falta al menos la plantilla genérica".into());
         }
