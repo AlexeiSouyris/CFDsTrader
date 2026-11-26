@@ -127,6 +127,36 @@ describe('puertas a las secciones', () => {
   })
 })
 
+describe('espacio de trabajo (#708)', () => {
+  it('paneles de mercados, noticias y calendario, resultados y secciones, con la vista completa', () => {
+    render(<App initialStage="app" />)
+    expect(screen.getByRole('region', { name: 'Mercados' })).toBeInTheDocument()
+    const news = screen.getByRole('region', { name: 'Noticias y calendario' })
+    expect(within(news).getByRole('link', { name: /Noticias/ })).toHaveAttribute(
+      'aria-keyshortcuts',
+      'F6',
+    )
+    expect(screen.getByRole('region', { name: 'Resultados recientes' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Secciones' })).toContainElement(doors())
+  })
+
+  it('sin gateway, noticias y calendario lo dicen: sin ejemplo inventado', async () => {
+    render(<App initialStage="app" />)
+    const news = screen.getByRole('region', { name: 'Noticias y calendario' })
+    expect(
+      await within(news).findByText(/Sin conexión con el gateway: no hay noticias/),
+    ).toBeInTheDocument()
+  })
+
+  it('elegir un mercado abre la Terminal', async () => {
+    render(<App initialStage="app" />)
+    const markets = screen.getByRole('region', { name: 'Mercados' })
+    fireEvent.click((await within(markets).findAllByRole('button', { name: /US100/ }))[0])
+    expect(location.hash).toBe('#terminal')
+    expect(heading()).toHaveTextContent('Terminal')
+  })
+})
+
 describe('cuenta de simulación', () => {
   it('sin motor, la cuenta de ejemplo lleva el sello y el aviso', () => {
     render(<App initialStage="app" />)
