@@ -80,6 +80,8 @@ describe('barra de estado', () => {
 
   it('la frescura de cada fuente, tal como la manda el gateway', async () => {
     gateway()
+    // una vista liviana: la barra es la misma en todas
+    history.replaceState(null, '', '/#glosario')
     render(<App initialStage="app" />)
     const sources = within(status()).getByRole('list', { name: 'Fuentes de datos' })
     expect(await within(sources).findByText('listo · hace 30 s')).toBeInTheDocument()

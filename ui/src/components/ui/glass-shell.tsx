@@ -689,8 +689,10 @@ let lastCatalog: { instruments: InstrumentInfo[]; timeframes: readonly string[] 
 /** Las partes del Inicio a las que se puede saltar (ids de `views/home.tsx`). */
 const HOME_PARTS = [
   { id: 'inicio-cuenta', label: 'Cuenta' },
-  { id: 'inicio-secciones', label: 'Secciones' },
+  { id: 'inicio-mercados', label: 'Mercados' },
+  { id: 'inicio-noticias', label: 'Noticias y calendario' },
   { id: 'inicio-resultados', label: 'Resultados recientes' },
+  { id: 'inicio-secciones', label: 'Secciones' },
 ] as const
 
 /**
