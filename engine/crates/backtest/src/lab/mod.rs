@@ -5,15 +5,19 @@
 //! ```text
 //! contratos:  spec (spec), catálogo (catalog) y resultado de la validación con la spec tipada
 //!             (validation)
+//! catálogo:   bloques y parámetros del código + rangos de config/lab.toml + riesgo y distancia
+//!             del stop de config/risk.toml                                   → blocks::catalog
 //! hash:       SHA-256 de la spec canónica (claves ordenadas, decimales normalizados, sin
 //!             espacios); familia = mismo instrumento y mismos tipos de bloque (PENDIENTE §9.2)
 //! ```
 //! Funciones puras, sin base de datos ni red. La UI nunca calcula nada de esto.
 
+pub mod blocks;
 pub mod catalog;
 pub mod spec;
 pub mod validation;
 
+pub use blocks::{LabConfig, catalog};
 pub use catalog::StrategyCatalog;
 pub use spec::{StrategySpec, canonical_json, family_sha256, sha256_hex, spec_sha256};
 pub use validation::{

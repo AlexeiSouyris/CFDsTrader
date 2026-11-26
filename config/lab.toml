@@ -1,0 +1,58 @@
+# Laboratorio de estrategias (#710, docs/design/2026-11-laboratorio.md). Lo lee el motor
+# (cfds_backtest::lab) para armar el catálogo (contracts/strategy_catalog.v1) y validar cada spec.
+# Ni el runner ni el paper ni la estrategia en uso lo leen.
+#
+# PENDIENTE del dueño (§9 del diseño, puntos 3, 4 y 7): estos son los valores RECOMENDADOS en el
+# diseño. Se usan para poder construir el laboratorio, pero cambiarlos es decisión del dueño.
+# Son límites de lo que se puede pedir, no parámetros de ninguna estrategia: no deciden ninguna
+# operación. El riesgo máximo por operación y la distancia del stop en ATR NO están acá: salen
+# de config/risk.toml (nunca más que eso, CLAUDE.md §5).
+
+# Sube cuando un bloque o un parámetro cambia de forma incompatible: una spec armada con otra
+# versión no se corre.
+catalog_version = 1
+
+[limits]
+# §9 punto 3 (PENDIENTE): como mucho 3 condiciones de entrada (unidas con "y") y 2 filtros.
+max_entry_conditions = 3
+max_filters = 2
+# Los costos solo se pueden subir (1 = los del catálogo de instrumentos) hasta este tope.
+max_cost_multiplier = "5"
+# §9 punto 7 (PENDIENTE): variantes de una misma familia por corrida.
+max_variants_per_run = 20
+
+# Rango (inclusivo) y valor propuesto de cada parámetro numérico de cada bloque. Los tipos de
+# bloque y los nombres de los parámetros son del motor; acá solo van los números. El motor
+# rechaza un bloque o parámetro de acá que no conozca, y uno suyo que falte acá.
+#
+# `default` es solo lo que la UI propone: una spec sin el parámetro nunca se rellena con él.
+
+[params.ma_cross]
+# Cruce de dos medias de los cierres (SMA o EMA), en velas del timeframe de la señal.
+average = { default = "ema" }
+fast = { min = "2", max = "200", default = "20" }
+slow = { min = "3", max = "400", default = "50" }
+
+[params.opening_range_breakout]
+# Ruptura del rango de apertura (familia C de la ronda 1, research::orb_plans): velas de 15m del
+# rango y última hora local de la bolsa a la que puede cerrar la vela de la ruptura.
+range_candles = { min = "1", max = "8", default = "2" }
+last_breakout_close = { default = "15:00" }
+
+[params.entry_hours_utc]
+# Solo entra si la decisión (cierre de la vela de la señal) cae en [from, to) UTC.
+from = { default = "13:30" }
+to = { default = "20:00" }
+
+[params.atr]
+# Stop a k × ATR de Wilder de `period` velas del timeframe de la señal. El rango de k sale de
+# config/risk.toml ([stop_distance] min_atr y max_atr).
+period = { min = "2", max = "100", default = "14" }
+k = { default = "1.5" }
+
+[params.time_target]
+# Salida a las N velas del timeframe de la señal y/o al cierre de la sesión de contado (hace
+# falta al menos una), con objetivo opcional en múltiplos de R.
+max_candles = { min = "1", max = "500", default = "8" }
+session_close = { default = "true" }
+target_r = { min = "0.5", max = "10", default = "2" }

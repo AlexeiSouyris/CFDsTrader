@@ -277,6 +277,19 @@ mod rust_types {
     }
 
     #[test]
+    fn the_engine_catalog_from_config_matches_the_schema() {
+        let c = cfds_backtest::lab::catalog(
+            &cfds_backtest::lab::LabConfig::from_toml(include_str!("../../../../config/lab.toml"))
+                .unwrap(),
+            &cfds_risk::RiskConfig::from_toml(include_str!("../../../../config/risk.toml"))
+                .unwrap(),
+            ["US500".parse().unwrap(), "US100".parse().unwrap()],
+        )
+        .unwrap();
+        roundtrip(CATALOG, &c);
+    }
+
+    #[test]
     fn a_spec_roundtrips_and_rust_rejects_what_the_schema_rejects() {
         let s: StrategySpec = serde_json::from_value(spec()).unwrap();
         roundtrip(SPEC, &s);
