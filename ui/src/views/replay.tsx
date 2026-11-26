@@ -1,5 +1,6 @@
 /**
- * Replay de la Academia (#772, diseño §5): práctica vela a vela con velas del pasado. El motor
+ * Replay de la Academia (#772, diseño §5): práctica vela a vela con velas del pasado, con marcas
+ * de niveles y pivotes (#773). El motor
  * elige instrumento, timeframe y fecha (solo del período de investigación) y guarda el cursor: la
  * UI pide «avanzar N» y dibuja solo las velas que vuelven, nunca una posterior. La fecha real no
  * viaja hasta el final. La UI no calcula nada de trading.
@@ -7,9 +8,19 @@
 import { useState, type KeyboardEvent } from 'react'
 
 import { ReplayChart } from '@/components/ui/replay-chart'
+import { MarkForm, SessionLog, type Picked } from '@/components/ui/replay-tools'
 import { decimal, priceDigits } from '@/lib/format'
 import { GatewayError } from '@/lib/paper-api'
-import { kept, keep, openReplay, stepReplay, withStep, type Live } from '@/lib/replay-api'
+import {
+  kept,
+  keep,
+  markReplay,
+  openReplay,
+  stepReplay,
+  withStep,
+  type Live,
+} from '@/lib/replay-api'
+import type { MarkRequest } from '@/lib/replay-contracts'
 
 const STEPS = [1, 5, 20, 100] as const
 
@@ -30,6 +41,7 @@ export function ReplayView() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [seed, setSeed] = useState('')
+  const [picked, setPicked] = useState<Picked>(null)
   const setLive = (l: Live | null) => {
     keep(l)
     setLiveState(l)
@@ -48,13 +60,19 @@ export function ReplayView() {
   const start = () =>
     run(async () => {
       const s = await openReplay({ kind: 'practice', ...(seed.trim() && { seed: seed.trim() }) })
-      setLive({ session: s, bars: s.bars, cursor: s.cursor, done: false })
+      setLive({ session: s, bars: s.bars, cursor: s.cursor, done: false, marks: [] })
     })
   const step = (n: number) =>
     live &&
     run(async () => {
       const st = await stepReplay(live.session.session_id, n)
       setLive({ ...live, bars: withStep(live.bars, st), cursor: st.cursor, done: st.done })
+    })
+  const mark = (req: MarkRequest) =>
+    live &&
+    run(async () => {
+      const m = await markReplay(live.session.session_id, req)
+      setLive({ ...live, marks: [...live.marks, m] })
     })
 
   const alert = error && (
@@ -97,7 +115,7 @@ export function ReplayView() {
     )
   }
 
-  const { session: s, bars, cursor, done } = live
+  const { session: s, bars, cursor, done, marks } = live
   const total = s.warmup_bars + s.exam_bars
   const digits = priceDigits(bars.slice(0, 50).flatMap((b) => [b.open, b.high, b.low, b.close]))
   const r = s.rules
@@ -122,37 +140,57 @@ export function ReplayView() {
           </div>
         ))}
       </dl>
-      <ReplayChart bars={bars} digits={digits} />
-      <div
-        role="group"
-        aria-label="Avanzar velas"
-        aria-keyshortcuts="ArrowRight"
-        className="flex flex-wrap items-center gap-2"
-      >
-        {STEPS.map((n) => (
-          <button
-            key={n}
-            type="button"
-            disabled={busy || done}
-            onClick={() => void step(n)}
-            className={button}
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="grid min-w-0 content-start gap-3">
+          <ReplayChart
+            bars={bars}
+            digits={digits}
+            onPick={setPicked}
+            lines={marks
+              .filter((m) => m.kind === 'level')
+              .map((m) => ({ price: m.price, label: `M${m.mark_id}`, tone: 'mark' as const }))}
+            points={marks.flatMap((m) =>
+              m.bar_index === null
+                ? []
+                : [{ index: m.bar_index, price: m.price, label: `M${m.mark_id}` }],
+            )}
+          />
+          <div
+            role="group"
+            aria-label="Avanzar velas"
+            aria-keyshortcuts="ArrowRight"
+            className="flex flex-wrap items-center gap-2"
           >
-            Avanzar {n}
-          </button>
-        ))}
-        <button type="button" disabled={busy} onClick={() => setLive(null)} className={button}>
-          Nueva práctica
-        </button>
-        <span className="text-[11.5px] text-muted-foreground">
-          → avanza una vela. Las velas las manda el motor hasta el cursor.
-        </span>
+            {STEPS.map((n) => (
+              <button
+                key={n}
+                type="button"
+                disabled={busy || done}
+                onClick={() => void step(n)}
+                className={button}
+              >
+                Avanzar {n}
+              </button>
+            ))}
+            <button type="button" disabled={busy} onClick={() => setLive(null)} className={button}>
+              Nueva práctica
+            </button>
+            <span className="text-[11.5px] text-muted-foreground">
+              → avanza una vela. Las velas las manda el motor hasta el cursor.
+            </span>
+          </div>
+        </div>
+        <div className="panel grid content-start gap-4 p-3">
+          <MarkForm picked={picked} busy={busy} onMark={(r) => void mark(r)} />
+        </div>
       </div>
+      {alert}
       {done && (
         <p role="status" className="text-[13px] font-semibold">
           Llegaste a la última vela de la práctica.
         </p>
       )}
-      {alert}
+      <SessionLog marks={marks} bars={bars} digits={digits} />
       <p className="text-[12px] text-muted-foreground">
         Reglas con las que se califica un examen
         {r.provisional ? ' (provisorias, del dueño)' : ''}: al menos {r.trades_per_exam}{' '}

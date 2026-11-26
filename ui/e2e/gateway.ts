@@ -140,9 +140,12 @@ function ibkrLive(query: URLSearchParams): unknown {
 const REPLAY_ID = replay.session.session_id
 let replayCursor = replay.session.warmup_bars - 1
 
+let replaySaved = { marks: 0 }
+
 function replaySession(_query: URLSearchParams, request?: unknown): unknown {
   const req = (request ?? { kind: 'practice' }) as { kind: string; seed?: string }
   replayCursor = replay.session.warmup_bars - 1
+  replaySaved = { marks: 0 }
   const bars = replay.bars.slice(0, replayCursor + 1)
   return { ...replay.session, kind: req.kind, seed: req.seed ?? '42', cursor: replayCursor, bars }
 }
@@ -157,6 +160,19 @@ function replayStep(_query: URLSearchParams, request?: unknown): unknown {
     cursor: replayCursor,
     bars: replay.bars.slice(from, replayCursor + 1),
     done,
+  }
+}
+
+/** `replay_mark.v1`: lo pedido, con su número y el cursor (#773). */
+function replayMark(_query: URLSearchParams, request?: unknown): unknown {
+  const req = (request ?? { kind: 'level', price: '19900' }) as Record<string, unknown>
+  const mark_id = (replaySaved.marks += 1)
+  return {
+    mark_id,
+    kind: req.kind,
+    price: req.price,
+    bar_index: req.bar_index ?? null,
+    cursor: replayCursor,
   }
 }
 
@@ -286,6 +302,12 @@ export const ROUTES: MockRoute[] = [
     method: 'POST',
     schema: 'replay_step.v1.schema.json',
     body: replayStep,
+  },
+  {
+    path: `/api/v1/academy/replay/${REPLAY_ID}/marks`,
+    method: 'POST',
+    schema: 'replay_mark.v1.schema.json',
+    body: replayMark,
   },
   {
     path: '/api/v1/academy/events',

@@ -39,3 +39,20 @@ for (const mobile of [false, true]) {
     expect(overflow).toBeLessThanOrEqual(0)
   })
 }
+
+test('marcas: van al motor y se dibujan como vuelven (#773)', async ({ page }) => {
+  const { unmocked, errors } = await openView(page, 'replay')
+  await page.getByRole('button', { name: 'Empezar práctica' }).click()
+  const chart = page.getByRole('img', { name: /Velas del replay/ })
+  const box = (await chart.boundingBox())!
+  // tocar el gráfico propone el precio del nivel
+  await chart.click({ position: { x: box.width / 3, y: box.height / 2 } })
+  const marks = page.getByRole('form', { name: 'Marcar en el gráfico' })
+  await expect(marks.getByRole('textbox', { name: 'Precio' })).not.toHaveValue('')
+  await marks.getByRole('button', { name: 'Marcar' }).click()
+  const log = page.getByRole('list', { name: 'Guardado por el motor' })
+  await expect(log).toContainText('M1 · Nivel')
+  expect(unmocked).toEqual([])
+  expect(errors).toEqual([])
+  expect(await serious(page)).toEqual([])
+})
