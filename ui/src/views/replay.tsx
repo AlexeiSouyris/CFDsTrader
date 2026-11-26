@@ -112,7 +112,7 @@ export function ReplayView() {
     return (
       <section aria-labelledby="replay-empezar" className="panel grid max-w-[72ch] gap-3 p-3">
         <h2 id="replay-empezar" className="text-[15px] font-bold">
-          Práctica vela a vela
+          Vela a vela, con velas del pasado
         </h2>
         <p className="text-[13px] leading-relaxed text-muted-foreground">
           El motor elige al azar el instrumento, el timeframe y la fecha, solo del período de
