@@ -19,7 +19,6 @@ export const DOORS: Door[] = [
     description: 'Mercados, gráfico, ticket y posiciones. Solo simulación: ninguna orden real.',
     icon: CandlestickChart,
     shortcut: '1',
-    size: 'tall',
   },
   {
     view: 'graficos',
@@ -60,7 +59,6 @@ export const DOORS: Door[] = [
     description: 'Cada operación simulada, con su motivo y su nota.',
     icon: NotebookPen,
     shortcut: '6',
-    size: 'wide',
   },
   {
     view: 'competencia',
@@ -69,6 +67,5 @@ export const DOORS: Door[] = [
     description: 'Trofeos de proceso: disciplina, respetar el stop, completar el diario.',
     icon: Trophy,
     shortcut: '7',
-    size: 'wide',
   },
 ]

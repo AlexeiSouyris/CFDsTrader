@@ -15,7 +15,6 @@ export default defineConfig({
       maxDiffPixelRatio: 0.01,
       animations: 'disabled',
       caret: 'hide',
-      stylePath: './e2e/screenshot.css',
     },
   },
   snapshotPathTemplate: '{testDir}/__screenshots__/{testFilePath}/{arg}{ext}',

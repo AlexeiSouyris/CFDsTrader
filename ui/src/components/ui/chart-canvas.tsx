@@ -33,7 +33,7 @@ export function FloatingBar({
       data-floating-bar
       data-idle={idle || undefined}
       className={cn(
-        'relative z-30 flex min-w-0 flex-wrap items-center gap-2 rounded-section border border-border bg-card px-2 py-1.5 shadow-[0_8px_24px_-16px_var(--glass-shade)] transition-opacity duration-300 lg:sticky lg:top-2',
+        'relative z-30 flex min-w-0 flex-wrap items-center gap-2 rounded-section border border-border bg-card px-2 py-1.5 shadow-[0_8px_24px_-16px_var(--shadow)] transition-opacity duration-300 lg:sticky lg:top-2',
         idle && 'opacity-85 hover:opacity-100 has-[:focus-visible]:opacity-100',
       )}
     >

@@ -2,8 +2,8 @@
  * Capa flotante para los popovers de la UI (#570): menú "Herramientas", definiciones del glosario
  * (`Term`) y cualquier panel que se abra desde un botón dentro de una tarjeta.
  *
- * Por qué existe: cada tarjeta `.glass` usa `backdrop-filter` (y al entrar, una animación con
- * `transform`), y eso crea su propio contexto de apilamiento. Un panel `absolute` con `z-40` dentro
+ * Por qué existe: una tarjeta con `transform`, `backdrop-filter` o `isolation` (como lo eran las
+ * de vidrio antes de #708) crea su propio contexto de apilamiento. Un panel `absolute` con `z-40` dentro
  * de una tarjeta solo compite dentro de esa tarjeta: la tarjeta siguiente (por ejemplo, el gráfico
  * de abajo) se pinta encima. Por eso el panel se dibuja en un portal a `document.body`, con
  * posición fija calculada desde el botón y un z-index por encima de todas las tarjetas.

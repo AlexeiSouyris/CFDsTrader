@@ -31,7 +31,7 @@ export function ProposalsView({ member }: { member: Member }) {
       {/* cada tarjeta lleva un h3: este h2 deja el orden de títulos sin saltos (axe heading-order) */}
       <h2 className="mt-1 text-[14px] font-bold">En espera ({PROPOSALS.length})</h2>
       {PROPOSALS.length === 0 ? (
-        <p className="panel rounded-[20px] p-6 text-center text-[13px] text-muted-foreground">
+        <p className="panel rounded-section p-6 text-center text-[13px] text-muted-foreground">
           No hay propuestas esperando.
         </p>
       ) : (
@@ -119,14 +119,8 @@ export function FundView() {
     </div>
   )
   return (
-    // Fondo (#581, etapa 8): resumen con vidrio, como una extensión del Inicio. El vidrio se
-    // prende solo en esta vista (`data-glass`); el fondo animado sigue siendo solo del Inicio.
-    <div
-      className="grid gap-4"
-      data-section="fund"
-      data-glass="on"
-      data-fund-source={live ? 'engine' : 'example'}
-    >
+    // Fondo (#581, etapa 8): resumen del valor de la unidad. Superficie lisa como todo (#708).
+    <div className="grid gap-4" data-section="fund" data-fund-source={live ? 'engine' : 'example'}>
       <p className="max-w-3xl text-[12.5px] text-muted-foreground">
         {live ? (
           <>
@@ -142,7 +136,7 @@ export function FundView() {
       </p>
       <section
         aria-labelledby="fondo-unidad"
-        className="glass relative grid min-w-0 gap-6 rounded-section p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]"
+        className="panel relative grid min-w-0 gap-6 rounded-section p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]"
       >
         <div className="grid min-w-0 content-between gap-6">
           <div className="grid gap-2">
@@ -173,7 +167,7 @@ export function FundView() {
         <NavCurve movements={movements} />
       </section>
 
-      <section className="glass relative min-w-0 rounded-section p-4 sm:p-5">
+      <section className="panel relative min-w-0 rounded-section p-4 sm:p-5">
         <h2 className="mb-3 flex flex-wrap items-center gap-x-2 text-[14px] font-bold">
           Cada miembro: <Term id="unidades">unidades</Term> y <Term id="pl">P&amp;L</Term>{' '}
           {originMark}
@@ -223,7 +217,7 @@ export function FundView() {
         )}
       </section>
 
-      <section className="glass min-w-0 rounded-section p-4 sm:p-5">
+      <section className="panel min-w-0 rounded-section p-4 sm:p-5">
         <h2 className="flex flex-wrap items-center gap-2 text-[14px] font-bold">
           Historial {originMark}
         </h2>
@@ -284,7 +278,7 @@ export function FundView() {
           muestran.
         </p>
       ) : (
-        <section className="glass rounded-section p-4 sm:p-5" data-example>
+        <section className="panel rounded-section p-4 sm:p-5" data-example>
           <h2 className="flex flex-wrap items-center gap-2 text-[14px] font-bold">
             Movimientos pendientes <ExampleBadge />
           </h2>

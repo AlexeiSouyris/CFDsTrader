@@ -69,14 +69,12 @@ describe('armazón', () => {
     expect(within(dialog).getAllByRole('link')).toHaveLength(VIEWS.length)
   })
 
-  it('los deslizadores del vidrio tienen nombre y el popover se cierra con un clic afuera', () => {
+  it('el popover de ajustes se cierra con un clic afuera', () => {
     render(<App initialStage="app" />)
     fireEvent.click(screen.getByRole('button', { name: 'Ajustes' }))
     expect(screen.getByRole('button', { name: 'Ver la intro otra vez' })).toBeInTheDocument()
-    expect(screen.getByRole('slider', { name: 'Desenfoque' })).toHaveAttribute('aria-valuetext')
-    expect(screen.getByRole('slider', { name: 'Opacidad' })).toBeInTheDocument()
     fireEvent.pointerDown(screen.getByRole('main'))
-    expect(screen.queryByRole('slider', { name: 'Desenfoque' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Ver la intro otra vez' })).not.toBeInTheDocument()
   })
 })
 

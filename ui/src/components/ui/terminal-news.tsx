@@ -1,7 +1,7 @@
 /**
- * Pestaña "Noticias" de la Terminal (#275): las últimas noticias y lo que viene en el calendario
- * económico, tal como los sirve el gateway (`gateway_news.v1`, `gateway_calendar.v1`, #600). Solo
- * se piden con la pestaña abierta. Sin gateway no hay ejemplo: se dice. Sin cálculos: ordena por
+ * Pestaña "Noticias" de la Terminal (#275) y panel de noticias del Inicio (#708): las últimas
+ * noticias y lo que viene en el calendario económico, tal como los sirve el gateway
+ * (`gateway_news.v1`, `gateway_calendar.v1`, #600). Solo se piden con el panel a la vista. Sin gateway no hay ejemplo: se dice. Sin cálculos: ordena por
  * hora lo que llega y nada más (CLAUDE.md §1). Cada noticia muestra su hora de publicación real.
  */
 import { dateTimeUtc } from '@/lib/format'
@@ -95,7 +95,7 @@ export function TerminalNews() {
                 >
                   <span
                     className={cn(
-                      'min-w-12 rounded-full border px-1.5 text-center text-[10.5px] font-bold',
+                      'min-w-12 rounded-sm border px-1.5 text-center text-[10.5px] font-bold',
                       IMPACT[e.impact].tone,
                     )}
                   >

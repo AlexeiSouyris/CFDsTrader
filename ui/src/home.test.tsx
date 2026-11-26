@@ -39,20 +39,19 @@ afterEach(() => {
 })
 
 describe('Inicio como vista de entrada', () => {
-  it('sin hash abre el Inicio, con vidrio y fondo animado', () => {
+  it('sin hash abre el Inicio, sin vidrio ni fondo animado (#708)', () => {
     const { container } = render(<App initialStage="app" />)
     expect(heading()).toHaveTextContent('Inicio')
-    expect(container.firstElementChild).toHaveAttribute('data-glass', 'on')
-    expect(container.querySelector('[data-wallpaper]')).not.toBeNull()
+    expect(container.querySelector('[data-glass]')).toBeNull()
+    expect(container.querySelector('[data-wallpaper]')).toBeNull()
     expect(container.querySelector('[data-section="hub"]')).not.toBeNull()
   })
 
-  it('las demás vistas no tienen vidrio ni fondo animado; los hashes viejos siguen', () => {
+  it('las demás vistas tampoco; los hashes viejos siguen', () => {
     history.replaceState(null, '', '/#terminal')
     const { container } = render(<App initialStage="app" />)
     expect(heading()).toHaveTextContent('Terminal')
-    expect(container.firstElementChild).not.toHaveAttribute('data-glass')
-    expect(container.querySelector('[data-wallpaper]')).toBeNull()
+    expect(container.querySelector('[data-glass]')).toBeNull()
 
     act(() => {
       history.pushState(null, '', '/#panel')
@@ -62,10 +61,10 @@ describe('Inicio como vista de entrada', () => {
     expect(container.querySelector('[data-wallpaper]')).toBeNull()
   })
 
-  it('el ingreso conserva el vidrio y el fondo', () => {
+  it('el ingreso tampoco tiene vidrio ni fondo animado', () => {
     const { container } = render(<App initialStage="signin" />)
-    expect(container.firstElementChild).toHaveAttribute('data-glass', 'on')
-    expect(container.querySelector('[data-wallpaper]')).not.toBeNull()
+    expect(container.querySelector('[data-glass]')).toBeNull()
+    expect(container.querySelector('[data-wallpaper]')).toBeNull()
   })
 })
 
@@ -125,6 +124,36 @@ describe('puertas a las secciones', () => {
     fireEvent.keyDown(radio, { key: '1' })
     fireEvent.keyDown(window, { key: '1', ctrlKey: true })
     expect(heading()).toHaveTextContent('Inicio')
+  })
+})
+
+describe('espacio de trabajo (#708)', () => {
+  it('paneles de mercados, noticias y calendario, resultados y secciones, con la vista completa', () => {
+    render(<App initialStage="app" />)
+    expect(screen.getByRole('region', { name: 'Mercados' })).toBeInTheDocument()
+    const news = screen.getByRole('region', { name: 'Noticias y calendario' })
+    expect(within(news).getByRole('link', { name: /Noticias/ })).toHaveAttribute(
+      'aria-keyshortcuts',
+      'F6',
+    )
+    expect(screen.getByRole('region', { name: 'Resultados recientes' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Secciones' })).toContainElement(doors())
+  })
+
+  it('sin gateway, noticias y calendario lo dicen: sin ejemplo inventado', async () => {
+    render(<App initialStage="app" />)
+    const news = screen.getByRole('region', { name: 'Noticias y calendario' })
+    expect(
+      await within(news).findByText(/Sin conexión con el gateway: no hay noticias/),
+    ).toBeInTheDocument()
+  })
+
+  it('elegir un mercado abre la Terminal', async () => {
+    render(<App initialStage="app" />)
+    const markets = screen.getByRole('region', { name: 'Mercados' })
+    fireEvent.click((await within(markets).findAllByRole('button', { name: /US100/ }))[0])
+    expect(location.hash).toBe('#terminal')
+    expect(heading()).toHaveTextContent('Terminal')
   })
 })
 
