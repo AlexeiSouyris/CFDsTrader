@@ -90,6 +90,8 @@ Es la parte más útil, porque convierte el "análisis técnico" en reglas que s
 
 Fuente primaria: la transcripción completa de la entrevista, hecha con Whisper el 25-11-2026 (§9). Es la estrategia que dice haber usado en el campeonato. La explica en NQ, en velas de 15 minutos.
 
+Lo que escribe en la pizarra y muestra en el gráfico y en su software está en `2026-11-bruni-video-iqcapital-pizarra.md` (#855).
+
 - **[dice] Tendencia por perfil de volumen de sesión.** Usa el perfil de volumen **por sesión** de TradingView ("Session Volume Profile HD"). Si el área de valor (la franja donde se operó el 70 % del volumen) y el punto de control (POC, el precio con más volumen) de la sesión **actual, en desarrollo,** quedan por encima de los de la sesión anterior, el mercado está "en tendencia alcista". En el ejemplo compara la sesión anterior con la actual.
 - **[dice] Mínimo de la estructura.** Se busca hacia atrás, desde la ruptura de la estructura, la **vela bajista válida más cercana** a esa ruptura (cuerpo mayor que la mecha más larga). Su **mínimo** es el mínimo de la estructura. Si esa vela no es válida, se sigue buscando hacia atrás. Si el precio **perfora** ese mínimo, el setup queda anulado: según él, el disparador que viene después tiene expectativa negativa.
 - **[dice] Setup.** Hay que esperar que el precio vuelva al **área de valor de la sesión anterior**; alcanza con que la toque, no hace falta que cierre adentro. Los largos se toman **siempre** con una ruptura por encima del **VAH** (el borde superior de esa área).
