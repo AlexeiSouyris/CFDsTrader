@@ -468,16 +468,21 @@ function CompactHeading({ slot }: { slot: SlotData }) {
   const { sel, view, ibkr } = slot
   const last = lastClosed(slot)
   return (
+    // mide lo que su texto (`flex-auto`): si no entra en la línea de la barra, baja a la siguiente en
+    // vez de achicarse; ahí, si sigue sin entrar, se corta el instrumento y el precio queda entero (#842)
     <p
       data-compact-heading
-      className="flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden text-[12px] whitespace-nowrap"
+      className="flex min-w-0 flex-auto items-baseline gap-2 overflow-hidden text-[12px] whitespace-nowrap"
     >
       <span className="truncate font-bold tracking-[0.08em] text-muted-foreground uppercase">
         {view?.instrument_id ?? ibkr?.instrument_id ?? sel.instrument} ·{' '}
         {view?.timeframe ?? ibkr?.timeframe ?? sel.timeframe}
       </span>
       {last && (
-        <span className="font-bold tabular-nums" title={`Última vela: ${closedAt(last.end)}`}>
+        <span
+          className="shrink-0 font-bold tabular-nums"
+          title={`Última vela: ${closedAt(last.end)}`}
+        >
           <span className="sr-only">Último cierre: </span>
           {price(last.close, slotDigits(slot))}
         </span>
