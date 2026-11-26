@@ -3,7 +3,7 @@
 # academy_catalog.v1 (GET /api/v1/academy/catalog). Nada de esto toca el motor de trading, el
 # riesgo ni el paper: solo qué se enseña, cómo se corrige y qué se ve en la UI.
 #
-# Por ahora, niveles 0 a 7, con su contenido (#760, #819 y #828; §8 PR 6, 11 y 15): el texto de
+# Por ahora, niveles 0 a 8, con su contenido (#760, #819, #828 y #838; §8 PR 6, 11 y 15): el texto de
 # cada lección está en `doc` (docs/academia/*.md, formato que valida cfds_academy::lesson_doc: secciones fijas, aviso,
 # sin promesas y una tabla de cifras que el motor compara con su fuente del repo). Mientras una
 # lección con examen no tenga preguntas, su examen sale `ready = false` y no se puede rendir (sus
@@ -197,6 +197,12 @@ name = "Ticket de paper (preview y órdenes simuladas)"
 id = "tool.trading_status_bar"
 name = "Barra de estado de la operación (kill switch y pérdida del día)"
 
+# Nivel 8 (#838). El «visor de Monte Carlo» del temario es el simulador de varianza del
+# Laboratorio (research::variance, #801): bandas de caminos, caída, rachas y ruina.
+[[tools]]
+id = "tool.variance_simulator"
+name = "Simulador de varianza y Monte Carlo (Laboratorio)"
+
 [[levels]]
 level = 0
 title = "Orientación: qué es esto y por qué la mayoría pierde"
@@ -228,6 +234,10 @@ title = "Indicadores"
 [[levels]]
 level = 7
 title = "Riesgo y tamaño de posición"
+
+[[levels]]
+level = 8
+title = "Expectativa, varianza y suerte"
 
 # exam: quiz (preguntas que corrige el motor) | none (se completa sin nota).
 # Las fuentes de cada número están en la tabla «Cifras y fuentes» del `doc` de la lección.
@@ -1894,5 +1904,295 @@ id = "7.5"
 title = "Caso real: los topes no crean ventaja"
 objective = "Leer R039: con los topes, la estrategia en uso pierde menos y más despacio, pero sigue perdiendo."
 doc = "docs/academia/nivel-07-5-caso-real-topes.md"
+exam = "none"
+unlocks = []
+
+# --- Nivel 8: expectativa, varianza y suerte (#838). Expectativa en R después de costos (R001 a
+# R003), rachas con la cuenta exacta de Schilling (1990), Monte Carlo por bloques de
+# research::montecarlo ([montecarlo] de config/research.toml) sobre series del registro (R041) y el
+# simulador de varianza del Laboratorio ([variance] de config/lab.toml), cuántas operaciones hacen
+# falta para separar ventaja de ruido, y qué quiere decir «ganarle a la varianza» (R039). Los
+# ejemplos usan números redondos de práctica, no resultados de ninguna estrategia. ---
+
+[[lessons]]
+id = "8.1"
+title = "Expectativa"
+objective = "Calcular la expectativa por operación en R, después de costos, y el porcentaje de aciertos mínimo para no perder."
+doc = "docs/academia/nivel-08-1-expectativa.md"
+exam = "quiz"
+unlocks = []
+
+[[lessons.questions]]
+id = "8.1.1"
+kind = "number"
+prompt = "Una regla acierta el 40 % de las veces; cada ganadora gana 2 R y cada perdedora pierde 1 R. ¿Cuál es la expectativa por operación antes de costos, en R?"
+answer = "0.2"
+tolerance = "0"
+unit = "R"
+
+[[lessons.questions]]
+id = "8.1.2"
+kind = "number"
+prompt = "La misma regla (40 %, +2 R, −1 R) paga 0,18 R de costos en cada operación, como la estrategia en uso en US500 (R001). ¿Cuál es la expectativa después de costos, en R?"
+answer = "0.02"
+tolerance = "0"
+unit = "R"
+
+[[lessons.questions]]
+id = "8.1.3"
+kind = "number"
+prompt = "Objetivo de 1,5 R y stop de 1 R, sin costos. ¿Qué porcentaje de aciertos hace falta, como mínimo, para que la expectativa no sea negativa?"
+answer = "40"
+tolerance = "0"
+unit = "%"
+
+[[lessons.questions]]
+id = "8.1.4"
+kind = "number"
+prompt = "Objetivo de 1,5 R y stop de 1 R, con 0,13 R de costos por operación (US100, R002). ¿Qué porcentaje de aciertos hace falta, como mínimo, para no perder?"
+answer = "45.2"
+tolerance = "0.1"
+unit = "%"
+
+[[lessons.questions]]
+id = "8.1.5"
+kind = "choice"
+prompt = "Una regla acierta el 70 % de las veces, pero cada ganadora gana 0,4 R y cada perdedora pierde 1 R. ¿Qué pasa?"
+options = [
+  { id = "a", text = "Gana: acertar 7 de cada 10 alcanza." },
+  { id = "b", text = "Pierde un poco aun antes de costos: 0,7 × 0,4 − 0,3 × 1 = −0,02 R por operación." },
+  { id = "c", text = "Queda exactamente en cero." },
+  { id = "d", text = "No se puede saber sin ver el gráfico." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "8.1.6"
+kind = "choice"
+prompt = "H4.2 (programa 4) ganaba +0,069 R por operación antes de costos y el costo se comía 0,11 R. ¿Por qué el mismo spread pesa más en R en una regla con stops cortos?"
+options = [
+  { id = "a", text = "Porque 1 R es la distancia al stop: el mismo costo en puntos es una parte más grande de un stop corto." },
+  { id = "b", text = "Porque con stops cortos el broker cobra un spread más alto." },
+  { id = "c", text = "No pesa más: el costo en R no depende del stop." },
+  { id = "d", text = "Porque los stops cortos pagan financiación nocturna doble." },
+]
+answer = "a"
+
+[[lessons]]
+id = "8.2"
+title = "Rachas"
+objective = "Saber qué racha de pérdidas es normal: con 50 % de aciertos, 10 pérdidas seguidas en 1.000 operaciones pasan más de 1 de cada 3 veces."
+doc = "docs/academia/nivel-08-2-rachas.md"
+exam = "quiz"
+unlocks = []
+
+[[lessons.questions]]
+id = "8.2.1"
+kind = "choice"
+prompt = "Con 50 % de aciertos y 1.000 operaciones independientes, ¿cuál es, aproximadamente, la racha de pérdidas seguidas más larga que se espera?"
+options = [
+  { id = "a", text = "3" },
+  { id = "b", text = "5" },
+  { id = "c", text = "9" },
+  { id = "d", text = "25" },
+]
+answer = "c"
+
+[[lessons.questions]]
+id = "8.2.2"
+kind = "choice"
+prompt = "Una regla con 50 % de aciertos tiene una racha de 10 pérdidas seguidas en sus primeras 1.000 operaciones. ¿Qué dice eso, por sí solo?"
+options = [
+  { id = "a", text = "Que la regla se rompió y hay que cambiarla." },
+  { id = "b", text = "Nada raro: con 50 % pasa en más de 1 de cada 3 series de 1.000 operaciones (≈ 38 %)." },
+  { id = "c", text = "Que la próxima operación tiene que ganar." },
+  { id = "d", text = "Que el win rate real es del 10 %." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "8.2.3"
+kind = "number"
+prompt = "Arriesgás el 1 % del capital del momento en cada operación y perdés 10 seguidas de 1 R. ¿Cuánto cae el capital en total, en %? (dos decimales)"
+answer = "9.56"
+tolerance = "0.01"
+unit = "%"
+
+[[lessons.questions]]
+id = "8.2.4"
+kind = "number"
+prompt = "La misma racha de 10 pérdidas de 1 R, pero arriesgando el 5 % del capital del momento en cada operación. ¿Cuánto cae el capital, en %? (un decimal)"
+answer = "40.1"
+tolerance = "0.1"
+unit = "%"
+
+[[lessons.questions]]
+id = "8.2.5"
+kind = "choice"
+prompt = "Comparás dos reglas, cada una con 1.000 operaciones: una acierta el 50 % y la otra el 40 % (con un objetivo más lejos). ¿Cuál tiene rachas de pérdidas más largas?"
+options = [
+  { id = "a", text = "La del 50 %." },
+  { id = "b", text = "Las dos iguales: la racha no depende del win rate." },
+  { id = "c", text = "La del 40 %: su racha más larga esperada ronda las 12 pérdidas, frente a unas 9." },
+  { id = "d", text = "Ninguna tiene rachas si la expectativa es positiva." },
+]
+answer = "c"
+
+[[lessons.questions]]
+id = "8.2.6"
+kind = "choice"
+prompt = "Con 50 % de aciertos, ¿qué le pasa a la racha más larga esperada si pasás de 100 a 1.000 operaciones?"
+options = [
+  { id = "a", text = "Se multiplica por 10." },
+  { id = "b", text = "Crece poco, como el logaritmo de n: de unas 6 a unas 9 pérdidas." },
+  { id = "c", text = "No cambia." },
+  { id = "d", text = "Se achica, porque hay más operaciones para compensar." },
+]
+answer = "b"
+
+[[lessons]]
+id = "8.3"
+title = "Monte Carlo"
+objective = "Leer muchos caminos posibles de la misma serie (caída máxima, racha, tiempo bajo el agua y riesgo de ruina) y saber qué es normal y qué no."
+doc = "docs/academia/nivel-08-3-monte-carlo.md"
+exam = "quiz"
+unlocks = ["tool.variance_simulator"]
+
+[[lessons.questions]]
+id = "8.3.1"
+kind = "choice"
+prompt = "En el Monte Carlo de comprar y mantener (R041), el p95 de la caída máxima es 35,58 %. ¿Qué quiere decir?"
+options = [
+  { id = "a", text = "Que la próxima caída va a ser de 35,58 %." },
+  { id = "b", text = "Que el 95 % de los caminos simulados tuvo una caída máxima de 35,58 % o menos; 1 de cada 20, peor." },
+  { id = "c", text = "Que el 95 % de los meses cae 35,58 %." },
+  { id = "d", text = "Que hay un 95 % de probabilidad de ganar." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "8.3.2"
+kind = "choice"
+prompt = "¿Por qué el motor remuestrea bloques de 5 meses seguidos y no meses sueltos?"
+options = [
+  { id = "a", text = "Para que corra más rápido." },
+  { id = "b", text = "Para conservar la dependencia de corto plazo (meses malos que vienen juntos), que con meses sueltos se pierde." },
+  { id = "c", text = "Para que todos los caminos den lo mismo." },
+  { id = "d", text = "Porque el año tiene 5 meses hábiles." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "8.3.3"
+kind = "number"
+prompt = "La ruina del Monte Carlo es tocar −30 % del capital inicial en algún momento. Con 10.000 € de capital inicial, ¿a qué capital se cuenta ruina, en €?"
+answer = "7000"
+tolerance = "0"
+unit = "€"
+
+[[lessons.questions]]
+id = "8.3.4"
+kind = "choice"
+prompt = "En H2 (US100), la racha perdedora real fue de 11 meses y el p95 de los caminos remuestreados es 10. ¿Qué es lo más razonable concluir?"
+options = [
+  { id = "a", text = "Que fue pura mala suerte y no hay nada que mirar." },
+  { id = "b", text = "Que la serie real tuvo algo que el remuestreo no reproduce (por ejemplo, un cambio desde 2021) y que conviene mirarlo, sin sacar conclusiones de un solo dato." },
+  { id = "c", text = "Que H2 pasa la prueba." },
+  { id = "d", text = "Que el Monte Carlo está mal calculado." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "8.3.5"
+kind = "choice"
+prompt = "¿Qué hace y qué no hace un Monte Carlo de una serie del pasado?"
+options = [
+  { id = "a", text = "Predice el futuro con un 95 % de confianza." },
+  { id = "b", text = "Reordena lo que ya pasó para ver cuánto pudo variar por suerte; supone que el futuro se parece a ese pasado." },
+  { id = "c", text = "Corrige los costos de la estrategia." },
+  { id = "d", text = "Convierte una estrategia perdedora en ganadora." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "8.3.6"
+kind = "number"
+prompt = "Arrancás con 10.000 € y sufrís una caída igual al p95 de comprar y mantener (35,58 %). ¿Cuánto capital queda en el fondo de la caída, en €?"
+answer = "6442"
+tolerance = "1"
+unit = "€"
+
+[[lessons]]
+id = "8.4"
+title = "Suerte y habilidad"
+objective = "Separar una buena decisión de un buen resultado y calcular cuántas operaciones hacen falta para distinguir una ventaja del ruido."
+doc = "docs/academia/nivel-08-4-suerte-y-habilidad.md"
+exam = "quiz"
+unlocks = []
+
+[[lessons.questions]]
+id = "8.4.1"
+kind = "number"
+prompt = "Una regla tiene una expectativa de 0,1 R por operación y un desvío de 1 R por operación. Con 400 operaciones, ¿cuál es el error estándar del R medio (desvío ÷ √N), en R?"
+answer = "0.05"
+tolerance = "0"
+unit = "R"
+
+[[lessons.questions]]
+id = "8.4.2"
+kind = "number"
+prompt = "Con esa misma regla (0,1 R de expectativa, error estándar 0,05 R con 400 operaciones), ¿cuál es el estadístico t = expectativa ÷ error estándar?"
+answer = "2"
+tolerance = "0"
+
+[[lessons.questions]]
+id = "8.4.3"
+kind = "number"
+prompt = "Expectativa de 0,1 R y desvío de 1 R por operación. ¿Cuántas operaciones hacen falta para llegar a t = 3, la vara de Harvey, Liu y Zhu (2016)?"
+answer = "900"
+tolerance = "0"
+unit = "operaciones"
+
+[[lessons.questions]]
+id = "8.4.4"
+kind = "choice"
+prompt = "Probaste una regla nueva y ganaste 8 de 10 operaciones. ¿Qué dice eso de la regla?"
+options = [
+  { id = "a", text = "Que tiene ventaja: 80 % de aciertos." },
+  { id = "b", text = "Casi nada: con 10 operaciones el ruido es mucho más grande que cualquier ventaja realista." },
+  { id = "c", text = "Que hay que subir el tamaño." },
+  { id = "d", text = "Que va a perder las próximas 8." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "8.4.5"
+kind = "choice"
+prompt = "¿Qué es «resulting», según Annie Duke?"
+options = [
+  { id = "a", text = "Anotar los resultados en el Diario." },
+  { id = "b", text = "Atar demasiado la calidad de una decisión a la calidad de su resultado." },
+  { id = "c", text = "Calcular el R de cada operación." },
+  { id = "d", text = "Repetir solo las operaciones que ganaron." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "8.4.6"
+kind = "choice"
+prompt = "¿Qué compara el test de suerte de nuestros informes?"
+options = [
+  { id = "a", text = "La estrategia contra el S&P 500." },
+  { id = "b", text = "La estrategia contra muchas entradas al azar con las mismas salidas y el mismo tamaño: dice en qué percentil queda." },
+  { id = "c", text = "Dos meses al azar." },
+  { id = "d", text = "La estrategia contra sí misma con costos × 1,5." },
+]
+answer = "b"
+
+[[lessons]]
+id = "8.5"
+title = "Qué significa «ganarle a la varianza»"
+objective = "Entender que a la varianza no se le gana: se la sobrevive con tamaño chico y se la mide con muestras grandes; sin ventaja, ningún manejo de riesgo la crea."
+doc = "docs/academia/nivel-08-5-ganarle-a-la-varianza.md"
 exam = "none"
 unlocks = []
