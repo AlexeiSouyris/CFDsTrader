@@ -3,6 +3,7 @@
 //! usa un instrumento propio (no hace falta que exista en `instruments`).
 
 use cfds_core::{Candle, FuturesCandle, InstrumentId, Timeframe};
+use cfds_storage::test_db::{unique_id, unique_number};
 use cfds_storage::{PgStore, StorageError};
 use chrono::{DateTime, Utc};
 use rust_decimal::{Decimal, dec};
@@ -44,8 +45,7 @@ fn fc(
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn futures_candles_are_idempotent_separate_from_ig_and_refuse_to_repaint() {
     let s = store().await;
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let id: InstrumentId = format!("ITFC{nanos}").parse().unwrap();
+    let id: InstrumentId = unique_id("ITFC").parse().unwrap();
     let batch = vec![
         fc(
             &id,
@@ -148,10 +148,11 @@ async fn futures_candles_are_idempotent_separate_from_ig_and_refuse_to_repaint()
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn the_loaded_range_comes_from_the_loads_of_the_instrument_dataset_and_symbol() {
     let s = store().await;
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let id: InstrumentId = format!("ITFL{nanos}").parse().unwrap();
-    let dataset = format!("T{nanos}.TEST");
-    let other = format!("O{nanos}.TEST");
+    let id: InstrumentId = unique_id("ITFL").parse().unwrap();
+    // El dataset no admite guiones: un número propio.
+    let n = unique_number();
+    let dataset = format!("T{n}.TEST");
+    let other = format!("O{n}.TEST");
     let range = |dataset: String, symbol: &'static str| {
         let (s, id) = (s.clone(), id.clone());
         async move {

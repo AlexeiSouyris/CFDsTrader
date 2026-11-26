@@ -176,8 +176,9 @@ async fn the_store_reads_sentiment_and_analogs_as_their_contracts() {
     let url = cfds_storage::test_db::test_database_url();
     let store = PgStore::connect(&url).await.unwrap();
     store.migrate().await.unwrap();
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let id: InstrumentId = format!("ITCX{nanos}.FUT").parse().unwrap();
+    let id: InstrumentId = format!("{}.FUT", cfds_storage::test_db::unique_id("ITCX"))
+        .parse()
+        .unwrap();
     store
         .upsert_instrument(&Instrument {
             id: id.clone(),

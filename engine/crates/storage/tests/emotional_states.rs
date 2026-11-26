@@ -19,8 +19,7 @@ async fn store() -> PgStore {
 
 /// Un instrumento propio de esta corrida (la tabla no se puede vaciar).
 fn fresh_id() -> InstrumentId {
-    let n = Utc::now().timestamp_nanos_opt().unwrap();
-    format!("EMO{n}").parse().unwrap()
+    cfds_storage::test_db::unique_id("EMO").parse().unwrap()
 }
 
 fn at(s: &str) -> DateTime<Utc> {

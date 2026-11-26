@@ -3,8 +3,6 @@
 //! Necesitan `REDIS_URL`. Marcados `#[ignore]`; el CI los corre en el job de integración con
 //! `-- --ignored`. Cada test usa su propio stream (nombre único) y lo borra al terminar.
 
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use cfds_storage::{NewsBatch, NewsInterpretationConsumer, StartAt};
 use redis::aio::MultiplexedConnection;
 
@@ -21,13 +19,12 @@ struct Stream {
 
 impl Stream {
     async fn new(tag: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
         let client = redis::Client::open(url()).unwrap();
         Self {
-            name: format!("test.news_interpretations.v1.{tag}.{nanos}"),
+            name: format!(
+                "test.news_interpretations.v1.{}",
+                cfds_storage::test_db::unique_id(tag)
+            ),
             conn: client.get_multiplexed_async_connection().await.unwrap(),
         }
     }

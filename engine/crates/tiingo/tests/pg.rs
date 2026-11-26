@@ -22,14 +22,13 @@ fn url() -> String {
     cfds_storage::test_db::test_database_url()
 }
 
-/// Símbolo único por corrida: las tablas son de solo agregar y no se limpian.
+/// Símbolo único por corrida: las tablas son de solo agregar y no se limpian. Un `unique_id` no
+/// entra en los 16 caracteres del símbolo: va `T` y 15 cifras hexadecimales de un número propio.
 fn symbol() -> String {
-    let n = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos()
-        % 1_000_000_000_000;
-    format!("T{n}")
+    format!(
+        "T{:015X}",
+        cfds_storage::test_db::unique_number() & ((1 << 60) - 1)
+    )
 }
 
 /// Config con un plan enorme, para que los topes de la prueba no dependan del uso de otras corridas.

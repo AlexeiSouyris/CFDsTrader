@@ -19,7 +19,7 @@ async fn store() -> PgStore {
 
 /// Un miembro propio por corrida: la tabla no se puede borrar.
 fn member() -> String {
-    format!("t{}", Utc::now().timestamp_micros())
+    cfds_storage::test_db::unique_id("t")
 }
 
 #[tokio::test]

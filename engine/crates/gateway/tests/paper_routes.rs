@@ -431,13 +431,12 @@ async fn the_read_only_session_writes_only_the_broker_journal() {
     let ro = cfds_storage::PgStore::connect(&cfds_gateway::read_only_url(&url))
         .await
         .unwrap();
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap();
-    let id = format!("gw-ro-{nanos}");
+    let id = cfds_storage::test_db::unique_id("gw-ro");
     let decided: Order = serde_json::from_value(order(&id, dec!(98))).unwrap();
     let report = paper().0.lock().await.submit(&decided);
     assert!(ro.insert_paper_order(&decided, &report).await.unwrap());
     // #479: también las pendientes guardadas y su final, cada uno en su transacción de escritura.
-    let pid = format!("gw-ro-pending-{nanos}");
+    let pid = cfds_storage::test_db::unique_id("gw-ro-pending");
     let pending: Order = serde_json::from_value(order(&pid, dec!(98))).unwrap();
     assert!(ro.insert_paper_pending(&pending).await.unwrap());
     let stored = |p: Vec<Order>| p.iter().any(|o| o.order_id == pending.order_id);
@@ -566,7 +565,7 @@ async fn the_read_only_session_can_write_the_paper_journal() {
     let ro = cfds_storage::PgStore::connect(&cfds_gateway::read_only_url(&url))
         .await
         .unwrap();
-    let tag = format!("ro{}", Utc::now().timestamp_nanos_opt().unwrap());
+    let tag = cfds_storage::test_db::unique_id("ro");
     let p = Proposal {
         id: format!("{tag}:US100:2026-01-05T10:00:00Z:long"),
         source: Source::Paper,

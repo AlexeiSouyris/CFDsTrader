@@ -179,7 +179,7 @@ async fn the_database_rejects_impossible_proposals() {
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn a_backtest_run_is_stored_once_and_never_rewritten() {
     // La tabla es de solo agregar: un run_id propio por corrida del test.
-    let run_id = format!("bt-run-{}", Utc::now().timestamp_nanos_opt().unwrap());
+    let run_id = cfds_storage::test_db::unique_id("bt-run");
     let j = journal(&run_id).await;
     let run = run_sample::sample(&run_id);
     assert!(j.run(&run_id).await.unwrap().is_none());
@@ -273,7 +273,7 @@ async fn ml_features_are_stored_once_and_never_rewritten() {
 async fn the_run_detail_joins_the_run_its_curve_and_its_trades() {
     use cfds_journal::{RunCurve, RunTrade};
     // Tablas de solo agregar: un run_id propio por corrida del test.
-    let run_id = format!("bt-detail-{}", Utc::now().timestamp_nanos_opt().unwrap());
+    let run_id = cfds_storage::test_db::unique_id("bt-detail");
     let j = journal(&run_id).await;
     assert!(j.run_detail(&run_id).await.unwrap().is_none());
 
