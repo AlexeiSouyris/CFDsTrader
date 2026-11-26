@@ -3,12 +3,18 @@
 # academy_catalog.v1 (GET /api/v1/academy/catalog). Nada de esto toca el motor de trading, el
 # riesgo ni el paper: solo qué se enseña, cómo se corrige y qué se ve en la UI.
 #
-# Por ahora, niveles 0 a 2. Las preguntas y sus claves llegan con el PR de contenido de cada nivel
-# (§8, PR 6), con cada cifra verificada contra su fuente: mientras una lección con examen no tenga
-# preguntas, su examen sale `ready = false` y no se puede rendir (sus herramientas se abren solo a
-# mano, en Ajustes).
+# Por ahora, niveles 0 a 2, con su contenido (#760, §8 PR 6): el texto de cada lección está en
+# `doc` (docs/academia/*.md, formato que valida cfds_academy::lesson_doc: secciones fijas, aviso,
+# sin promesas y una tabla de cifras que el motor compara con su fuente del repo). Mientras una
+# lección con examen no tenga preguntas, su examen sale `ready = false` y no se puede rendir (sus
+# herramientas se abren solo a mano, en Ajustes).
 #
-# Formato de las preguntas (cuando lleguen), dentro de la lección:
+# Las preguntas dicen en su texto los números que usan (spread, tasa, tope...): si la config de
+# instrumentos o de riesgo cambia, falla el test de la lección (su tabla de cifras) y hay que
+# revisar también sus preguntas. Los precios redondos (6.000, 25.000, 24.000) son de ejemplo, no
+# cotizaciones. Educativo: nada de esto es consejo de inversión ni promete ganancias.
+#
+# Formato de las preguntas, dentro de la lección:
 #   [[lessons.questions]]
 #   id = "2.2.1"             # <lección>.<n>
 #   kind = "choice"          # choice | number
@@ -99,24 +105,149 @@ level = 2
 title = "Costos reales: lo que se come la ventaja"
 
 # exam: quiz (preguntas que corrige el motor) | none (se completa sin nota).
+# Las fuentes de cada número están en la tabla «Cifras y fuentes» del `doc` de la lección.
+
 [[lessons]]
 id = "0.1"
 title = "Qué es un mercado"
 objective = "Entender que del otro lado hay alguien, y que el precio es el último acuerdo."
+doc = "docs/academia/nivel-00-1-que-es-un-mercado.md"
 exam = "quiz"
 unlocks = ["tool.watchlist", "tool.instrument_panel"]
+
+[[lessons.questions]]
+id = "0.1.1"
+kind = "choice"
+prompt = "¿Qué es el «último precio» de un instrumento?"
+options = [
+  { id = "a", text = "El precio del último acuerdo entre alguien que compró y alguien que vendió." },
+  { id = "b", text = "El precio que va a tener mañana." },
+  { id = "c", text = "Un precio que fija el gobierno cada día." },
+  { id = "d", text = "El promedio de todos los precios del día." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "0.1.2"
+kind = "choice"
+prompt = "¿Qué hace falta para que haya una operación?"
+options = [
+  { id = "a", text = "Solo alguien que quiera comprar." },
+  { id = "b", text = "Alguien que compra y alguien que vende, de acuerdo en el mismo precio." },
+  { id = "c", text = "Que el precio esté subiendo." },
+  { id = "d", text = "Que el regulador la apruebe." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "0.1.3"
+kind = "choice"
+prompt = "Cuando abrís un CFD del US 500 en IG, ¿con quién es el contrato?"
+options = [
+  { id = "a", text = "Con la bolsa de Nueva York." },
+  { id = "b", text = "Con las 500 empresas del índice." },
+  { id = "c", text = "Con el broker (IG), que es el proveedor del CFD." },
+  { id = "d", text = "Con otro cliente elegido al azar." },
+]
+answer = "c"
+
+[[lessons.questions]]
+id = "0.1.4"
+kind = "number"
+prompt = "El cierre de ayer fue 6.000 y el último precio es 6.030. ¿Cuál es la variación del día, en %?"
+answer = "0.5"
+tolerance = "0.01"
+unit = "%"
+
+[[lessons.questions]]
+id = "0.1.5"
+kind = "choice"
+prompt = "La pantalla muestra SELL 6.000,0 y BUY 6.000,9. Si querés comprar ahora mismo, ¿a qué precio comprás?"
+options = [
+  { id = "a", text = "A 6.000,0." },
+  { id = "b", text = "A 6.000,9." },
+  { id = "c", text = "A 6.000,45, el del medio." },
+  { id = "d", text = "Al que yo elija." },
+]
+answer = "b"
 
 [[lessons]]
 id = "0.2"
 title = "Cuántos pierden"
 objective = "Saber el dato duro antes de empezar: cuántas cuentas minoristas de CFD pierden dinero, con su fuente."
+doc = "docs/academia/nivel-00-2-cuantos-pierden.md"
 exam = "quiz"
 unlocks = ["tool.glossary"]
+
+[[lessons.questions]]
+id = "0.2.1"
+kind = "choice"
+prompt = "Según ESMA (2018), ¿qué parte de las cuentas minoristas de CFD pierde dinero?"
+options = [
+  { id = "a", text = "Entre el 10 % y el 20 %." },
+  { id = "b", text = "Alrededor de la mitad." },
+  { id = "c", text = "Entre el 74 % y el 89 %." },
+  { id = "d", text = "Menos del 5 %." },
+]
+answer = "c"
+
+[[lessons.questions]]
+id = "0.2.2"
+kind = "number"
+prompt = "El estudio de la CNMV que cita ESMA (España, de 2015 a 2016) encontró que perdió dinero aproximadamente qué porcentaje de los clientes minoristas de CFD?"
+answer = "82"
+tolerance = "0"
+unit = "%"
+
+[[lessons.questions]]
+id = "0.2.3"
+kind = "choice"
+prompt = "¿Qué tiene que publicar cada proveedor de CFD en su advertencia de riesgo (ESMA y CNMV)?"
+options = [
+  { id = "a", text = "Cuánto ganó su mejor cliente." },
+  { id = "b", text = "El porcentaje de sus propias cuentas minoristas que pierden dinero con CFD." },
+  { id = "c", text = "Nada: la advertencia es opcional." },
+  { id = "d", text = "Una promesa de devolver las pérdidas." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "0.2.4"
+kind = "choice"
+prompt = "Barber y Odean (2000): los hogares que más operaban ganaron 11,4 % al año y el mercado 17,9 %. ¿Qué muestra?"
+options = [
+  { id = "a", text = "Que operar más hizo ganar más." },
+  { id = "b", text = "Que operar mucho tuvo un costo: los que más operaban quedaron por debajo del mercado." },
+  { id = "c", text = "Que el mercado siempre pierde." },
+  { id = "d", text = "Nada, porque eran acciones y no CFD." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "0.2.5"
+kind = "number"
+prompt = "Con esos números (11,4 % frente a 17,9 % al año), ¿cuántos puntos porcentuales por año quedaron por debajo del mercado los hogares que más operaban?"
+answer = "6.5"
+tolerance = "0"
+unit = "pp"
+
+[[lessons.questions]]
+id = "0.2.6"
+kind = "choice"
+prompt = "¿Qué dice el dato de ESMA sobre vos?"
+options = [
+  { id = "a", text = "Que vas a perder, seguro." },
+  { id = "b", text = "Nada seguro: dice cuántos perdieron en el pasado. Es el punto de partida contra el que hay que medirse." },
+  { id = "c", text = "Que si estudiás vas a estar en el grupo que gana." },
+  { id = "d", text = "Que los CFD están prohibidos." },
+]
+answer = "b"
 
 [[lessons]]
 id = "0.3"
 title = "Cómo se usa la Academia"
 objective = "Simulación siempre, proceso antes que resultado, nada de promesas."
+doc = "docs/academia/nivel-00-3-como-se-usa-la-academia.md"
 exam = "none"
 unlocks = []
 
@@ -124,47 +255,456 @@ unlocks = []
 id = "1.1"
 title = "Contado, futuros y CFD"
 objective = "Saber qué se compra en cada uno: el activo, un contrato con vencimiento o una diferencia de precio con un broker."
+doc = "docs/academia/nivel-01-1-contado-futuros-y-cfd.md"
 exam = "quiz"
 unlocks = ["tool.source_selector"]
+
+[[lessons.questions]]
+id = "1.1.1"
+kind = "choice"
+prompt = "Comprás una acción al contado. ¿Qué tenés?"
+options = [
+  { id = "a", text = "El activo mismo: la acción es tuya." },
+  { id = "b", text = "Un contrato que vence en una fecha fija." },
+  { id = "c", text = "Una diferencia de precio con un broker." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "1.1.2"
+kind = "choice"
+prompt = "¿Qué tiene un futuro que no tiene el CFD al contado de IG?"
+options = [
+  { id = "a", text = "Un vencimiento: el contrato termina en una fecha fija." },
+  { id = "b", text = "Un precio que se mueve." },
+  { id = "c", text = "La posibilidad de ir largo o corto." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "1.1.3"
+kind = "number"
+prompt = "El futuro ES (E-mini S&P 500) vale 50 USD por punto. Si sube 4 puntos, ¿cuánto cambia el valor de 1 contrato, en USD?"
+answer = "200"
+tolerance = "0"
+unit = "USD"
+
+[[lessons.questions]]
+id = "1.1.4"
+kind = "choice"
+prompt = "El ES tiene vencimientos de marzo, junio, septiembre y diciembre (letras H, M, U y Z). ¿Cada cuánto hay que pasar de un contrato al siguiente para seguir posicionado?"
+options = [
+  { id = "a", text = "Todos los días." },
+  { id = "b", text = "Cada tres meses, antes de que venza el contrato." },
+  { id = "c", text = "Nunca." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "1.1.5"
+kind = "choice"
+prompt = "¿Por qué la serie del futuro puede dar un salto el día del cambio de contrato y la del CFD no?"
+options = [
+  { id = "a", text = "Porque pasa de un contrato a otro, y cada vencimiento tiene su propio precio." },
+  { id = "b", text = "Porque el CFD tiene spread y el futuro no." },
+  { id = "c", text = "Porque ese día la bolsa cierra antes." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "1.1.6"
+kind = "number"
+prompt = "Nuestros CFD de índices valen 1 € por punto. Con tamaño 1, si el US 500 sube 10 puntos, ¿cuánto cambia tu posición antes de costos, en €?"
+answer = "10"
+tolerance = "0"
+unit = "€"
 
 [[lessons]]
 id = "1.2"
 title = "Largo y corto"
 objective = "Ganar si sube o si baja, y qué se pierde en cada caso."
+doc = "docs/academia/nivel-01-2-largo-y-corto.md"
 exam = "quiz"
 unlocks = []
+
+[[lessons.questions]]
+id = "1.2.1"
+kind = "number"
+prompt = "Largo de tamaño 2 (2 € por punto) en US500: entrás en 6.000 y salís en 6.025. ¿Cuál es el resultado antes de costos, en €?"
+answer = "50"
+tolerance = "0"
+unit = "€"
+
+[[lessons.questions]]
+id = "1.2.2"
+kind = "number"
+prompt = "Corto de tamaño 1 en US100: entrás en 25.000 y salís en 25.040. ¿Cuál es el resultado antes de costos, en € (negativo si perdés)?"
+answer = "-40"
+tolerance = "0"
+unit = "€"
+
+[[lessons.questions]]
+id = "1.2.3"
+kind = "number"
+prompt = "Corto de tamaño 3 en DE40: entrás en 24.000 y salís en 23.950. ¿Cuál es el resultado antes de costos, en €?"
+answer = "150"
+tolerance = "0"
+unit = "€"
+
+[[lessons.questions]]
+id = "1.2.4"
+kind = "choice"
+prompt = "Sin stop, ¿cuál es la pérdida máxima teórica de un corto?"
+options = [
+  { id = "a", text = "El precio de entrada." },
+  { id = "b", text = "No tiene techo en teoría: el precio puede subir sin límite." },
+  { id = "c", text = "Cero, porque el corto gana cuando baja." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "1.2.5"
+kind = "choice"
+prompt = "Con la protección de saldo negativo (ESMA y CNMV), un cliente minorista de CFD..."
+options = [
+  { id = "a", text = "No puede perder nada." },
+  { id = "b", text = "No puede perder más que el dinero de su cuenta de CFD." },
+  { id = "c", text = "Recupera lo que pierde al final del mes." },
+]
+answer = "b"
 
 [[lessons]]
 id = "1.3"
 title = "Apalancamiento y margen"
 objective = "Entender el margen minorista, nuestro tope propio de apalancamiento y el cierre por margen."
+doc = "docs/academia/nivel-01-3-apalancamiento-y-margen.md"
 exam = "quiz"
 unlocks = []
+
+[[lessons.questions]]
+id = "1.3.1"
+kind = "choice"
+prompt = "Un margen del 5 % del nominal equivale a un apalancamiento máximo de..."
+options = [
+  { id = "a", text = "5:1" },
+  { id = "b", text = "10:1" },
+  { id = "c", text = "20:1" },
+  { id = "d", text = "50:1" },
+]
+answer = "c"
+
+[[lessons.questions]]
+id = "1.3.2"
+kind = "choice"
+prompt = "Nuestro tope propio en índices es 10:1. ¿Qué quiere decir?"
+options = [
+  { id = "a", text = "El nominal de una posición no puede pasar 10 veces el capital de la cuenta." },
+  { id = "b", text = "Se puede perder hasta 10 veces el capital." },
+  { id = "c", text = "El broker presta 10 € por cada operación." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "1.3.3"
+kind = "number"
+prompt = "Capital 10.000 €, US100 en 25.000 (1 € por punto). Con el tope de 10:1, ¿cuál es el tamaño máximo, en € por punto?"
+answer = "4"
+tolerance = "0"
+unit = "€/pt"
+
+[[lessons.questions]]
+id = "1.3.4"
+kind = "number"
+prompt = "Con ese tamaño máximo (4 € por punto en 25.000) y un margen del 5 %, ¿cuánto margen bloquea el broker, en €?"
+answer = "5000"
+tolerance = "0"
+unit = "€"
+
+[[lessons.questions]]
+id = "1.3.5"
+kind = "number"
+prompt = "Con un margen inicial de 5.000 € y el cierre por margen al 50 %, ¿por debajo de cuánto capital cierra el broker las posiciones, en €?"
+answer = "2500"
+tolerance = "0"
+unit = "€"
+
+[[lessons.questions]]
+id = "1.3.6"
+kind = "number"
+prompt = "Capital 10.000 €, tamaño 4 en US100 y cierre cuando el capital baja de 2.500 €. ¿Cuántos puntos tiene que caer el US100 para que te cierren (con el margen de la entrada)?"
+answer = "1875"
+tolerance = "0"
+unit = "pts"
+
+[[lessons.questions]]
+id = "1.3.7"
+kind = "choice"
+prompt = "El apalancamiento..."
+options = [
+  { id = "a", text = "Multiplica las ganancias y las pérdidas por igual." },
+  { id = "b", text = "Multiplica solo las ganancias." },
+  { id = "c", text = "Reduce el riesgo de la operación." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "1.3.8"
+kind = "choice"
+prompt = "En nuestro motor, ¿qué decide primero el tamaño de una operación?"
+options = [
+  { id = "a", text = "El margen libre de la cuenta." },
+  { id = "b", text = "El riesgo del 1 % y la distancia al stop; el tope de apalancamiento lo achica si hace falta." },
+  { id = "c", text = "Lo decide el broker." },
+]
+answer = "b"
 
 [[lessons]]
 id = "2.1"
 title = "Spread"
 objective = "Saber que se entra pagando, y cuánto es nuestro spread típico en cada instrumento."
+doc = "docs/academia/nivel-02-1-spread.md"
 exam = "quiz"
 unlocks = ["tool.ticket_costs"]
+
+[[lessons.questions]]
+id = "2.1.1"
+kind = "number"
+prompt = "Entrás largo en US500 y salís enseguida, sin que el precio medio se mueva. Con un spread de 0,9 puntos, ¿cuántos puntos perdiste por el spread (entrada más salida)?"
+answer = "0.9"
+tolerance = "0"
+unit = "pts"
+
+[[lessons.questions]]
+id = "2.1.2"
+kind = "number"
+prompt = "US30 con spread de 3,7 puntos y tamaño 2 € por punto: ¿cuánto pagás de spread por la operación completa, en €?"
+answer = "7.4"
+tolerance = "0"
+unit = "€"
+
+[[lessons.questions]]
+id = "2.1.3"
+kind = "number"
+prompt = "Stop a 1 ATR = 8 puntos en US500, así que 1 R = 8 puntos. ¿Cuántos R es un spread de 0,9 puntos?"
+answer = "0.1125"
+tolerance = "0.005"
+unit = "R"
+
+[[lessons.questions]]
+id = "2.1.4"
+kind = "number"
+prompt = "El mismo spread de 0,9 puntos con un stop de 4 puntos (1 R = 4 puntos). ¿Cuántos R es el spread?"
+answer = "0.225"
+tolerance = "0.005"
+unit = "R"
+
+[[lessons.questions]]
+id = "2.1.5"
+kind = "choice"
+prompt = "En la demo de IG, el spread de US30 fue 3,7 puntos en la sesión y 12,2 entre las 21 y las 22 UTC. ¿Qué conviene recordar?"
+options = [
+  { id = "a", text = "Fuera de la sesión regular el spread puede ser varias veces mayor." },
+  { id = "b", text = "El spread es siempre el mismo." },
+  { id = "c", text = "De noche no hay spread." },
+]
+answer = "a"
 
 [[lessons]]
 id = "2.2"
 title = "Financiación nocturna (swap)"
 objective = "Calcular el costo de dormir con una posición abierta."
+doc = "docs/academia/nivel-02-2-financiacion-nocturna.md"
 exam = "quiz"
 unlocks = []
+
+[[lessons.questions]]
+id = "2.2.1"
+kind = "number"
+prompt = "Precio 6.000, tasa total 7 % (4 % de referencia + 3 %), base 360 días. ¿Cuántos puntos por noche paga un largo de tamaño 1?"
+answer = "1.1667"
+tolerance = "0.01"
+unit = "pts"
+
+[[lessons.questions]]
+id = "2.2.2"
+kind = "number"
+prompt = "US500 en 6.000 (precio de ejemplo), SOFR 3,94 % + 3 % de IG, base 360. Largo de tamaño 1 (1 € por punto): ¿cuánto pagás por noche, en €?"
+answer = "1.1567"
+tolerance = "0.01"
+unit = "€"
+
+[[lessons.questions]]
+id = "2.2.3"
+kind = "number"
+prompt = "La misma posición (1,1567 € por noche) queda abierta 3 noches. ¿Cuánto pagás en total, en €?"
+answer = "3.47"
+tolerance = "0.02"
+unit = "€"
+
+[[lessons.questions]]
+id = "2.2.4"
+kind = "number"
+prompt = "Corto de tamaño 1 en US500 en 6.000: la tasa es 3 % − 3,94 % = −0,94 % (base 360). ¿Cuál es el costo por noche, en € (negativo si cobrás)?"
+answer = "-0.1567"
+tolerance = "0.01"
+unit = "€"
+
+[[lessons.questions]]
+id = "2.2.5"
+kind = "choice"
+prompt = "En DE40 la referencia es el €STR (2,441 %) y la tasa de IG es 3 %. Un corto..."
+options = [
+  { id = "a", text = "Cobra, como en US500." },
+  { id = "b", text = "Paga 0,559 % anual, porque 3 % − 2,441 % es positivo." },
+  { id = "c", text = "No paga ni cobra nada." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "2.2.6"
+kind = "choice"
+prompt = "¿Cuándo se cobra la financiación de un CFD de índice?"
+options = [
+  { id = "a", text = "Una vez, al abrir la posición." },
+  { id = "b", text = "En cada corte de las 23:00 (hora de Madrid) en que la posición sigue abierta." },
+  { id = "c", text = "Solo si la posición pierde." },
+]
+answer = "b"
 
 [[lessons]]
 id = "2.3"
 title = "Slippage y comisión"
 objective = "Saber que el precio de la orden no es el precio que te dan."
+doc = "docs/academia/nivel-02-3-slippage-y-comision.md"
 exam = "quiz"
 unlocks = []
+
+[[lessons.questions]]
+id = "2.3.1"
+kind = "number"
+prompt = "El motor supone un slippage por ejecución de 0,1 × spread + 1 tick. En US500 (spread 0,9; tick 0,01), ¿cuántos puntos es?"
+answer = "0.1"
+tolerance = "0"
+unit = "pts"
+
+[[lessons.questions]]
+id = "2.3.2"
+kind = "number"
+prompt = "Con la misma regla, en US100 (spread 1,6; tick 0,1), ¿cuántos puntos de slippage por ejecución?"
+answer = "0.26"
+tolerance = "0"
+unit = "pts"
+
+[[lessons.questions]]
+id = "2.3.3"
+kind = "number"
+prompt = "Costo de ida y vuelta en US500 = spread + slippage de 2 ejecuciones (0,1 cada una). ¿Cuántos puntos da?"
+answer = "1.1"
+tolerance = "0"
+unit = "pts"
+
+[[lessons.questions]]
+id = "2.3.4"
+kind = "number"
+prompt = "CFD de una acción de EE. UU.: 0,02 USD por acción con un mínimo de 15 USD por ejecución. Comprás 100 acciones: ¿cuánto pagás de comisión al abrir, en USD?"
+answer = "15"
+tolerance = "0"
+unit = "USD"
+
+[[lessons.questions]]
+id = "2.3.5"
+kind = "number"
+prompt = "La misma comisión (0,02 USD por acción, mínimo 15 USD) con 2.000 acciones: ¿cuánto pagás al abrir, en USD?"
+answer = "40"
+tolerance = "0"
+unit = "USD"
+
+[[lessons.questions]]
+id = "2.3.6"
+kind = "choice"
+prompt = "Una señal aparece al cierre de la vela t. ¿Cuándo se ejecuta en el backtest y en el paper?"
+options = [
+  { id = "a", text = "Al cierre de la misma vela t." },
+  { id = "b", text = "En la apertura de la vela siguiente, t+1." },
+  { id = "c", text = "En el mínimo de la vela t." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "2.3.7"
+kind = "choice"
+prompt = "Tenés un stop en 26.600. El viernes cierra en 26.750 y el lunes abre en 26.400. ¿Dónde se ejecuta el stop?"
+options = [
+  { id = "a", text = "En 26.600, siempre." },
+  { id = "b", text = "Cerca de 26.400: con un gap no hubo precios en el medio." },
+  { id = "c", text = "No se ejecuta." },
+]
+answer = "b"
 
 [[lessons]]
 id = "2.4"
 title = "Caso real: los costos mataron la estrategia"
 objective = "Leer un resultado propio antes de costos, con costos y neto."
+doc = "docs/academia/nivel-02-4-caso-real-costos.md"
 exam = "quiz"
 unlocks = ["tool.cost_calculator"]
+
+[[lessons.questions]]
+id = "2.4.1"
+kind = "choice"
+prompt = "Estrategia en uso, US500, 2011–2025 (R001): −0,02 R por operación antes de costos y 0,18 R de costos. ¿De dónde sale casi toda la pérdida?"
+options = [
+  { id = "a", text = "De los costos." },
+  { id = "b", text = "De las señales, que antes de costos pierden mucho." },
+  { id = "c", text = "De la financiación nocturna sola." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "2.4.2"
+kind = "number"
+prompt = "En R001 (US500) los costos sumaron 56.162 € y el spread 43.528 €. ¿Qué porcentaje de los costos fue el spread? (redondeá a un decimal)"
+answer = "77.5"
+tolerance = "0.5"
+unit = "%"
+
+[[lessons.questions]]
+id = "2.4.3"
+kind = "choice"
+prompt = "Momentum de la última media hora (R017 y R026): la cartera dio un t de −11. ¿De dónde venía?"
+options = [
+  { id = "a", text = "De un efecto de mercado muy fuerte en contra." },
+  { id = "b", text = "Del costo casi fijo de cada operación: antes de costos estaba cerca de cero." },
+  { id = "c", text = "De un error en los datos." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "2.4.4"
+kind = "choice"
+prompt = "Deriva nocturna de 02:00 a 03:00 de Nueva York (R021): el efecto existe en nuestros datos, pero..."
+options = [
+  { id = "a", text = "El costo del CFD a esa hora es de 2 a 4 veces más grande que el efecto." },
+  { id = "b", text = "Solo funciona los lunes." },
+  { id = "c", text = "Es tan grande que cualquier costo se paga solo." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "2.4.5"
+kind = "number"
+prompt = "Una estrategia da 0 R por operación antes de costos y paga 0,10 R de costo por operación. ¿Cuál es el resultado total de 100 operaciones, en R?"
+answer = "-10"
+tolerance = "0"
+unit = "R"
+
+[[lessons.questions]]
+id = "2.4.6"
+kind = "choice"
+prompt = "Desde 2020, el costo por operación de la estrategia en uso bajó a menos de la mitad. ¿Qué explicación da el informe?"
+options = [
+  { id = "a", text = "Que IG bajó los spreads a la mitad en 2020." },
+  { id = "b", text = "Que el índice cotiza más alto y el mismo spread en puntos pesa menos frente al stop (y que el spread de 2011 no se conoce)." },
+  { id = "c", text = "Que la estrategia empezó a ganar." },
+]
+answer = "b"

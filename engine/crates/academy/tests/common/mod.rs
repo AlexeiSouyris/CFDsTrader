@@ -1,5 +1,6 @@
 //! Soporte de los tests: los contratos con sus `$ref` resueltos desde el repo, y una config de
-//! ejemplo con preguntas (la real todavía no las tiene: llegan con el contenido de cada nivel).
+//! ejemplo con preguntas fijas (la real, sin sus preguntas, más unas de prueba): así los tests de
+//! corrección no dependen del contenido de las lecciones (#760).
 
 #![allow(dead_code)]
 
@@ -9,9 +10,28 @@ use serde_json::Value;
 
 pub const REAL: &str = include_str!("../../../../../config/academy.toml");
 
-/// La config real más preguntas de prueba en 0.1 (choice) y 2.1 (number).
+/// `text` sin ningún bloque `[[lessons.questions]]` (cada uno llega hasta la tabla siguiente que
+/// no es una pregunta, o al final).
+pub fn without_questions(text: &str) -> String {
+    let mut out = String::new();
+    let mut skipping = false;
+    for line in text.lines() {
+        if line == "[[lessons.questions]]" {
+            skipping = true;
+        } else if line.starts_with('[') {
+            skipping = false;
+        }
+        if !skipping {
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    out
+}
+
+/// La config real sin sus preguntas, más preguntas de prueba en 0.1 (choice) y 2.1 (number).
 pub fn with_questions() -> String {
-    let mut text = String::from(REAL);
+    let mut text = without_questions(REAL);
     let q01 = r#"
 [[lessons.questions]]
 id = "0.1.1"

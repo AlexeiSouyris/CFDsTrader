@@ -16,7 +16,26 @@ const GATEWAY: &str = include_str!("../../../../config/gateway.toml");
 const ACADEMY: &str = include_str!("../../../../config/academy.toml");
 const TOKEN: &str = "token-local-de-prueba-123";
 
-/// La config real con dos preguntas en la lección 0.1 (la real todavía no tiene preguntas).
+/// La config real sin sus preguntas (#760), para que los tests no dependan del contenido.
+fn without_questions(text: &str) -> String {
+    let mut out = String::new();
+    let mut skipping = false;
+    for line in text.lines() {
+        if line == "[[lessons.questions]]" {
+            skipping = true;
+        } else if line.starts_with('[') {
+            skipping = false;
+        }
+        if !skipping {
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    out
+}
+
+/// La config real sin sus preguntas, con dos de prueba en la lección 0.1: 1.1 queda sin preguntas
+/// (examen no listo).
 fn academy() -> AcademyConfig {
     let anchor = "unlocks = [\"tool.watchlist\", \"tool.instrument_panel\"]\n";
     let questions = r#"
@@ -33,7 +52,7 @@ kind = "number"
 prompt = "¿Cuánto es 1 + 1?"
 answer = "2"
 "#;
-    let text = ACADEMY.replacen(anchor, &format!("{anchor}{questions}"), 1);
+    let text = without_questions(ACADEMY).replacen(anchor, &format!("{anchor}{questions}"), 1);
     AcademyConfig::from_toml(&text).unwrap()
 }
 

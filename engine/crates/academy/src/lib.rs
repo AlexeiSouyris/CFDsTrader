@@ -10,9 +10,12 @@
 //! - [`replay`]: sesiones de replay de los exámenes (semilla, fecha oculta, cursor del motor).
 //! - [`grade::grade`]: la calificación de una sesión terminada (`exam_result.v1`), proceso
 //!   separado del R.
+//! - [`lesson_doc`]: el texto de cada lección (`docs/academia/*.md`): formato, aviso, sin
+//!   promesas y cada cifra comparada con su fuente del repo (#760).
 
 pub mod catalog;
 pub mod grade;
+pub mod lesson_doc;
 pub mod pg;
 pub mod progress;
 pub mod quiz;
@@ -28,4 +31,8 @@ pub use quiz::{QuizAnswer, QuizError, QuizResult, grade_quiz};
 pub enum AcademyError {
     #[error("config/academy.toml inválida: {0}")]
     Config(String),
+    /// El texto de una lección (`docs/academia/*.md`) no cumple el formato o una cifra no
+    /// coincide con su fuente ([`lesson_doc`]).
+    #[error("texto de lección inválido: {0}")]
+    LessonDoc(String),
 }
