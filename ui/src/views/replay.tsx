@@ -5,19 +5,25 @@
  * elige instrumento, timeframe y fecha (solo del período de investigación) y guarda el cursor: la
  * UI pide «avanzar N» y dibuja solo las velas que vuelven, nunca una posterior. La fecha real no
  * viaja hasta el final. La UI no calcula nada de trading.
+ *
+ * El examen de una lección (#826) se empieza desde la Academia y se sigue acá: al terminar, se
+ * vuelve a pedir el progreso y se muestra lo que dice el motor de la lección.
  */
 import { useState, type KeyboardEvent } from 'react'
 
 import { ReplayChart } from '@/components/ui/replay-chart'
+import { LessonExamBanner, LessonVerdict } from '@/components/ui/replay-lesson'
 import { MarkForm, SessionLog, StudyTicket, type Picked } from '@/components/ui/replay-tools'
 import { ReplayResult } from '@/components/ui/replay-result'
 import { Segmented } from '@/components/ui/segmented'
+import { reloadAcademy } from '@/lib/academy-api'
 import { decimal, priceDigits } from '@/lib/format'
 import { GatewayError } from '@/lib/paper-api'
 import { cn } from '@/lib/utils'
 import {
   barLabel,
   finishReplay,
+  fresh,
   kept,
   keep,
   markReplay,
@@ -27,7 +33,7 @@ import {
   withStep,
   type Live,
 } from '@/lib/replay-api'
-import type { MarkRequest, OrderRequest, ReplayKind } from '@/lib/replay-contracts'
+import type { MarkRequest, OrderRequest, ReplayKind, SessionRequest } from '@/lib/replay-contracts'
 
 const STEPS = [1, 5, 20, 100] as const
 
@@ -73,11 +79,9 @@ export function ReplayView() {
       setBusy(false)
     }
   }
-  const start = () =>
+  const start = (req: SessionRequest = { kind, ...(seed.trim() && { seed: seed.trim() }) }) =>
     run(async () => {
-      const s = await openReplay({ kind, ...(seed.trim() && { seed: seed.trim() }) })
-      const fresh = { done: false, marks: [], orders: [], result: null }
-      setLive({ session: s, bars: s.bars, cursor: s.cursor, ...fresh })
+      setLive(fresh(await openReplay(req)))
     })
   const step = (n: number) =>
     live &&
@@ -102,6 +106,8 @@ export function ReplayView() {
     live &&
     run(async () => {
       const result = await finishReplay(live.session.session_id)
+      // el examen de una lección: el motor ya guardó el intento; su progreso dice si se aprobó
+      if (result.lesson_id !== null) await reloadAcademy()
       setLive({ ...live, result })
     })
 
@@ -149,7 +155,7 @@ export function ReplayView() {
         <button
           type="button"
           disabled={busy}
-          onClick={start}
+          onClick={() => void start()}
           className="min-h-9 justify-self-start rounded-sm bg-primary px-3 text-[12.5px] font-bold text-primary-foreground disabled:opacity-60"
         >
           {busy ? 'Pidiendo la sesión…' : 'Empezar'}
@@ -161,6 +167,7 @@ export function ReplayView() {
 
   const { session: s, bars, cursor, done, marks, orders, result } = live
   const closed = result !== null
+  const lessonId = s.lesson_id
   const total = s.warmup_bars + s.exam_bars
   const digits = priceDigits(bars.slice(0, 50).flatMap((b) => [b.open, b.high, b.low, b.close]))
   const r = s.rules
@@ -173,6 +180,7 @@ export function ReplayView() {
   }
   return (
     <section aria-label="Sesión de replay" className="grid min-w-0 gap-3" onKeyDown={onKey}>
+      {lessonId !== null && <LessonExamBanner lessonId={lessonId} />}
       <dl className="panel flex flex-wrap gap-x-6 gap-y-1 px-2.5 py-2 text-[12px]">
         {[
           ['Instrumento', `${s.instrument_id} · ${s.timeframe}`],
@@ -251,6 +259,16 @@ export function ReplayView() {
                 Terminar y calificar
               </button>
             )}
+            {closed && lessonId !== null && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void start({ kind: s.kind, lesson_id: lessonId })}
+                className={button}
+              >
+                Otro intento del examen
+              </button>
+            )}
             <button type="button" disabled={busy} onClick={() => setLive(null)} className={button}>
               Nueva sesión
             </button>
@@ -266,6 +284,9 @@ export function ReplayView() {
           </div>
         )}
       </div>
+      {result && result.lesson_id !== null && (
+        <LessonVerdict lessonId={result.lesson_id} gradedAt={result.graded_at} />
+      )}
       {closed && (
         <ReplayResult
           result={result}

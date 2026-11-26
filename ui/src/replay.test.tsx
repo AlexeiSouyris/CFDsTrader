@@ -1,13 +1,22 @@
 /**
  * Replay de práctica (#772): la UI pide sesión y pasos al motor y dibuja solo las velas que
- * vuelven, sin la fecha real. Velas **de prueba** con la forma de `replay_session.v1`.
+ * vuelven, sin la fecha real. Velas **de prueba** con la forma de `replay_session.v1`. El examen de
+ * una lección (#826) muestra el aprobado que dice el progreso del motor, no el de la UI.
  */
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { keep } from '@/lib/replay-api'
+import catalogFixture from '../e2e/fixtures/academy-catalog.json'
+import progressFixture from '../e2e/fixtures/academy-progress.json'
+import { resetAcademy } from '@/lib/academy-api'
+import type { AcademyCatalog, AcademyProgress, LessonProgress } from '@/lib/academy-contracts'
+import { fresh, keep } from '@/lib/replay-api'
 import type { ExamResult, ReplayBar, ReplaySession, ReplayStep } from '@/lib/replay-contracts'
 import { ReplayView } from '@/views/replay'
+
+/** El catálogo y el progreso de las pruebas de la UI; la 2.2 se usa como lección de prueba. */
+const CATALOG = catalogFixture as AcademyCatalog
+const PROGRESS = progressFixture as AcademyProgress
 
 const bar = (index: number): ReplayBar => ({
   index,
@@ -320,5 +329,136 @@ describe('resultado del examen (#790)', () => {
     expect(result).toHaveTextContent('P2 · adelantada (el motor lo confirmó recién en la vela 4)')
     expect(result).toHaveTextContent('P3 · sin pivote del motor')
     expect(result).toHaveTextContent('Un pivote existe recién 3 velas después')
+  })
+})
+
+describe('examen de una lección (#826)', () => {
+  const LESSON_SESSION: ReplaySession = { ...SESSION, kind: 'pivots', lesson_id: '2.2' }
+  const RESULT: ExamResult = {
+    session_id: SESSION.session_id,
+    kind: 'pivots',
+    lesson_id: '2.2',
+    catalog_version: CATALOG.catalog_version,
+    passed: true,
+    rules: [{ rule: 'enough_pivots', passed: true }],
+    trades: [],
+    levels: null,
+    revealed: {
+      instrument_id: 'US500',
+      timeframe: '15m',
+      source: 'futures',
+      first_bar_at: '2019-03-12T00:00:00Z',
+      last_bar_at: '2019-03-12T01:00:00Z',
+    },
+    graded_at: '2026-11-26T05:00:00Z',
+  }
+  /** El progreso que manda el motor: antes de terminar (`before`) y después (`after`). */
+  const progress = (lesson: Partial<LessonProgress>, as_of: string): AcademyProgress => ({
+    ...PROGRESS,
+    as_of,
+    lessons: PROGRESS.lessons.map((l) => (l.lesson_id === '2.2' ? { ...l, ...lesson } : l)),
+  })
+
+  /** Gateway de prueba de la Academia: catálogo, progreso (uno por pedido) y el replay. */
+  function academy(
+    progresses: AcademyProgress[],
+    finish: () => Response = () => Response.json(RESULT),
+  ) {
+    const calls: string[] = []
+    const opened: unknown[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const path = new URL(String(input), 'http://ui.test').pathname
+        calls.push(`${init?.method ?? 'GET'} ${path}`)
+        if (path === '/api/v1/academy/catalog') return Response.json(CATALOG)
+        if (path === '/api/v1/academy/progress') {
+          const p = progresses.shift()
+          return p ? Response.json(p) : new Response('sin progreso', { status: 500 })
+        }
+        if (path.endsWith('/finish')) return finish()
+        opened.push(JSON.parse(String(init?.body)))
+        return Response.json(LESSON_SESSION)
+      }),
+    )
+    return { calls, opened }
+  }
+
+  beforeEach(() => resetAcademy())
+  afterEach(() => resetAcademy())
+
+  it('dice de qué lección es y, al terminar, muestra el aprobado del progreso del motor', async () => {
+    const { calls } = academy([
+      progress({ passed: false, attempts: 0 }, '2026-11-26T04:00:00Z'),
+      progress(
+        { passed: true, passed_at: '2026-11-26T05:00:00Z', attempts: 1, best_score_pct: '100' },
+        '2026-11-26T05:00:01Z',
+      ),
+    ])
+    keep(fresh(LESSON_SESSION))
+    render(<ReplayView />)
+    const session = screen.getByRole('region', { name: 'Sesión de replay' })
+    expect(
+      await within(session).findByText(/Examen de la lección 2\.2 · Financiación nocturna/),
+    ).toBeInTheDocument()
+    expect(session).toHaveTextContent('Cuenta para tu progreso')
+    fireEvent.click(within(session).getByRole('button', { name: 'Terminar y calificar' }))
+    const verdict = await screen.findByRole('region', { name: 'Progreso de la lección 2.2' })
+    // la fecha lleva el año solo si no es el de hoy
+    expect(verdict).toHaveTextContent(
+      /Lección 2\.2 aprobada, según el progreso del motor \(el 26 nov( 2026)?, 05:00 UTC\)\./,
+    )
+    expect(within(verdict).getByRole('link', { name: 'Volver a la lección' })).toHaveAttribute(
+      'href',
+      '#academia',
+    )
+    // el progreso se vuelve a pedir después de calificar, no antes
+    expect(calls.filter((c) => c.endsWith('/progress'))).toHaveLength(2)
+    expect(calls.indexOf('POST /api/v1/academy/replay/rp-0123456789abcdef/finish')).toBeLessThan(
+      calls.lastIndexOf('GET /api/v1/academy/progress'),
+    )
+  })
+
+  it('reprobado: lo dice con los intentos guardados y deja otro intento de la misma lección', async () => {
+    const { opened } = academy(
+      [
+        progress({ passed: false, attempts: 0 }, '2026-11-26T04:00:00Z'),
+        progress({ passed: false, attempts: 2, best_score_pct: '50' }, '2026-11-26T05:00:01Z'),
+      ],
+      () => Response.json({ ...RESULT, passed: false }),
+    )
+    keep(fresh(LESSON_SESSION))
+    render(<ReplayView />)
+    await screen.findByText(/Examen de la lección 2\.2 · /)
+    fireEvent.click(screen.getByRole('button', { name: 'Terminar y calificar' }))
+    const verdict = await screen.findByRole('region', { name: 'Progreso de la lección 2.2' })
+    expect(verdict).toHaveTextContent(
+      'Lección 2.2 todavía no aprobada, según el progreso del motor · 2 intentos guardados.',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Otro intento del examen' }))
+    await vi.waitFor(() => expect(opened).toEqual([{ kind: 'pivots', lesson_id: '2.2' }]))
+    expect(await screen.findByRole('button', { name: 'Terminar y calificar' })).toBeEnabled()
+  })
+
+  it('si el progreso es de antes del intento, no inventa el aprobado: deja pedirlo otra vez', async () => {
+    academy([
+      progress({ passed: false, attempts: 0 }, '2026-11-26T04:00:00Z'),
+      progress({ passed: false, attempts: 0 }, '2026-11-26T04:00:00Z'),
+      progress(
+        { passed: true, passed_at: '2026-11-26T05:00:00Z', attempts: 1 },
+        '2026-11-26T05:00:02Z',
+      ),
+    ])
+    keep(fresh(LESSON_SESSION))
+    render(<ReplayView />)
+    await screen.findByText(/Examen de la lección 2\.2 · /)
+    fireEvent.click(screen.getByRole('button', { name: 'Terminar y calificar' }))
+    const verdict = await screen.findByRole('region', { name: 'Progreso de la lección 2.2' })
+    expect(verdict).toHaveTextContent('El progreso del motor es de antes de este intento')
+    expect(verdict).not.toHaveTextContent('aprobada, según')
+    fireEvent.click(within(verdict).getByRole('button', { name: 'Pedir el progreso otra vez' }))
+    expect(
+      await within(verdict).findByText(/Lección 2\.2 aprobada, según el progreso del motor/),
+    ).toBeInTheDocument()
   })
 })

@@ -1,11 +1,15 @@
 /**
  * Replay de práctica (#772) en un navegador real, con el gateway simulado: empezar, avanzar velas
  * (solo llegan las que manda el motor), axe sin fallas serias ni críticas y 375 px sin
- * desplazamiento horizontal en la sesión.
+ * desplazamiento horizontal en la sesión. El examen de una lección (#826), desde su página.
  */
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
 
+import academyCatalog from './fixtures/academy-catalog.json' with { type: 'json' }
+import academyLessonDoc from './fixtures/academy-lesson-doc.json' with { type: 'json' }
+import academyProgress from './fixtures/academy-progress.json' with { type: 'json' }
+import { NOW } from './gateway'
 import { MOBILE, openView } from './support'
 
 async function serious(page: import('@playwright/test').Page) {
@@ -96,4 +100,54 @@ test('examen: al terminar, proceso → niveles → R → fecha real, y la fecha 
   expect(unmocked).toEqual([])
   expect(errors).toEqual([])
   expect(await serious(page)).toEqual([])
+})
+
+test('examen de una lección: se empieza en su página y el resultado dice lo del progreso del motor (#826)', async ({
+  page,
+}) => {
+  const { unmocked, errors } = await openView(page, 'replay')
+  // El catálogo de las pruebas es el de los niveles 0–2, sin exámenes de replay: la 1.2 pasa a
+  // ser uno de pivotes (de prueba). Después de terminar, el progreso la da por aprobada.
+  const catalog = structuredClone(academyCatalog)
+  const lesson = catalog.levels.flatMap((l) => l.lessons).find((l) => l.id === '1.2')!
+  Object.assign(lesson, {
+    exam: { kind: 'replay', ready: true, questions: [], replay_kind: 'pivots' },
+  })
+  let finished = false
+  await page.route('**/api/v1/academy/catalog', (r) => r.fulfill({ json: catalog }))
+  await page.route('**/api/v1/academy/lessons/1.2/doc', (r) =>
+    r.fulfill({ json: { ...academyLessonDoc, lesson_id: '1.2' } }),
+  )
+  await page.route('**/api/v1/academy/replay/*/finish', async (r) => {
+    finished = true
+    await r.fallback()
+  })
+  await page.route('**/api/v1/academy/progress', (r) => {
+    const progress = structuredClone(academyProgress)
+    const p = progress.lessons.find((l) => l.lesson_id === '1.2')!
+    if (finished) {
+      Object.assign(p, { passed: true, passed_at: NOW, attempts: 1, best_score_pct: '100' })
+      progress.as_of = new Date(Date.parse(NOW) + 1000).toISOString()
+    }
+    return r.fulfill({ json: progress })
+  })
+  await page.evaluate(() => {
+    location.hash = '#academia'
+  })
+  const map = page.getByRole('navigation', { name: 'Mapa de niveles' })
+  await map.getByRole('button', { name: /Largo y corto/ }).click()
+  const article = page.getByRole('article', { name: /Largo y corto/ })
+  await expect(article).toContainText('vas a marcar máximos y mínimos locales')
+  expect(await serious(page)).toEqual([])
+  await article.getByRole('button', { name: 'Empezar el examen' }).click()
+  const session = page.getByRole('region', { name: 'Sesión de replay' })
+  await expect(session).toContainText('Examen de la lección 1.2 · Largo y corto')
+  await page.getByRole('button', { name: 'Terminar y calificar' }).click()
+  const verdict = page.getByRole('region', { name: 'Progreso de la lección 1.2' })
+  await expect(verdict).toContainText('Lección 1.2 aprobada, según el progreso del motor')
+  expect(await serious(page)).toEqual([])
+  await verdict.getByRole('link', { name: 'Volver a la lección' }).click()
+  await expect(page.getByRole('article', { name: /Largo y corto/ })).toContainText('Aprobada')
+  expect(unmocked).toEqual([])
+  expect(errors).toEqual([])
 })
