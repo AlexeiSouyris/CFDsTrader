@@ -17,6 +17,7 @@ import { AnimatedNumber } from '@/components/ui/animated-number'
 import { RunDetailView } from '@/components/ui/run-detail'
 import { SortHeader } from '@/components/ui/sort-header'
 import { Term } from '@/components/ui/term'
+import { ToolLock } from '@/components/ui/tool-lock'
 import { dateTimeUtc, decimal } from '@/lib/format'
 import { currencySign, useFund } from '@/lib/fund-api'
 import { dayYear, numOrDash, pctOrDash, signedPct, tone } from '@/lib/run-format'
@@ -299,15 +300,18 @@ export function PerformanceView({ onOpen }: { onOpen: (view: string) => void }) 
         title="Corridas de backtest"
         aside={`${runs.length} ${runs.length === 1 ? 'corrida' : 'corridas'} ${live ? 'del motor' : '(ejemplo)'}`}
       >
-        {runs.length ? (
-          <RunsTable
-            runs={runs}
-            open={open}
-            onOpen={(id) => setOpen((cur) => (cur === id ? null : id))}
-          />
-        ) : (
-          <p className="text-[12.5px]">Todavía no hay corridas guardadas.</p>
-        )}
+        {/* candado de la lista (#846, lección 9.1): sin ella no se abre el detalle de una corrida */}
+        <ToolLock tool="tool.backtest_runs">
+          {runs.length ? (
+            <RunsTable
+              runs={runs}
+              open={open}
+              onOpen={(id) => setOpen((cur) => (cur === id ? null : id))}
+            />
+          ) : (
+            <p className="text-[12.5px]">Todavía no hay corridas guardadas.</p>
+          )}
+        </ToolLock>
       </Card>
 
       {open && (

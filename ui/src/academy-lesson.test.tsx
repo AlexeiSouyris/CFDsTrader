@@ -99,7 +99,7 @@ describe('página de la lección (#770)', () => {
     render(<AcademyView />)
     const page = await open(/Cómo se usa la Academia/)
     const map = screen.getByRole('navigation', { name: 'Mapa de niveles' })
-    expect(within(map).getByRole('button', { name: /0\.3/ })).toHaveAttribute(
+    expect(within(map).getByRole('button', { name: /^0\.3/ })).toHaveAttribute(
       'aria-current',
       'true',
     )

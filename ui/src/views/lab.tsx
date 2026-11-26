@@ -8,13 +8,15 @@
  * pre-registro). La UI no calcula nada de trading (CLAUDE.md §1) y ningún texto promete ganancias.
  */
 import { FlaskConical, Play, Plus, ShieldCheck, Trash2, X } from 'lucide-react'
-import { useId, useState, type ReactNode } from 'react'
+import { useId, useState, type ComponentProps, type ReactNode } from 'react'
 
 import { LabReports } from '@/components/ui/lab-report'
 import { PropSimulator } from '@/components/ui/lab-propsim'
 import { RiskCalculator } from '@/components/ui/lab-risk'
 import { VarianceSimulator } from '@/components/ui/lab-variance'
 import { Segmented } from '@/components/ui/segmented'
+import { ToolLock } from '@/components/ui/tool-lock'
+import { useToolLock } from '@/lib/academy-locks'
 import type {
   BlockSchema,
   LabJobEvent,
@@ -314,6 +316,19 @@ function Progress({ event, onCancel }: { event: LabJobEvent; onCancel: () => voi
   )
 }
 
+/**
+ * El formulario del constructor con el candado de su lección (#846, 10.3): bloqueado se ve gris y
+ * recortado, para que la calculadora de riesgo y el simulador de varianza (que no dependen de él)
+ * queden cerca, sobre todo en el celular.
+ */
+function BuilderForm(props: ComponentProps<'form'>) {
+  return (
+    <ToolLock tool="tool.lab_builder" className="max-h-96 overflow-hidden">
+      <form {...props} />
+    </ToolLock>
+  )
+}
+
 function message(e: unknown) {
   return e instanceof Error ? e.message : String(e)
 }
@@ -409,9 +424,11 @@ function Builder({ cat }: { cat: StrategyCatalog }) {
   }
 
   const running = event !== null && !isEnded(event)
+  // con el constructor bloqueado no hay corrida: no se invita a armar una
+  const builderLocked = useToolLock('tool.lab_builder').locked
   return (
     <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
-      <form
+      <BuilderForm
         aria-label="Constructor de estrategias"
         className="grid min-w-0 content-start gap-5"
         onSubmit={(e) => {
@@ -690,12 +707,12 @@ function Builder({ cat }: { cat: StrategyCatalog }) {
             />
           )}
         </div>
-      </form>
+      </BuilderForm>
 
       <div className="grid min-w-0 content-start gap-4">
         {event ? (
           <Progress event={event} onCancel={() => void cancel()} />
-        ) : (
+        ) : builderLocked ? null : (
           <p className="rounded-sm border border-dashed border-border p-4 text-[13px] text-pretty text-muted-foreground">
             Sin corrida todavía. Armá la estrategia, validala y corré: el motor la corre aparte con
             velas guardadas, nunca con el fuera de muestra, y arma un informe honesto con lo que la
@@ -705,7 +722,10 @@ function Builder({ cat }: { cat: StrategyCatalog }) {
         {jobError && <p className="text-[12.5px] text-down">{jobError}</p>}
         {event?.state === 'done' && <LabReports ids={event.report_ids} />}
         <RiskCalculator cat={cat} />
-        <VarianceSimulator reports={event?.state === 'done' ? event.report_ids : []} />
+        <ToolLock tool="tool.variance_simulator">
+          <VarianceSimulator reports={event?.state === 'done' ? event.report_ids : []} />
+        </ToolLock>
+        {/* sin candado todavía: su id (`tool.propsim`) no está en el catálogo de la Academia */}
         <PropSimulator reports={event?.state === 'done' ? event.report_ids : []} />
       </div>
     </div>

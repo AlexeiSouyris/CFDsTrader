@@ -7,6 +7,7 @@
  * Es simulación con datos del pasado: no anticipa resultados.
  */
 import { ScrollRegion } from '@/components/ui/scroll-region'
+import { ToolLock } from '@/components/ui/tool-lock'
 import { X } from 'lucide-react'
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 
@@ -530,20 +531,22 @@ export function RunDetailView({
       {/*
         Walk-forward y fuera de muestra (fase 5, #298 y #316): el último `walk_forward_report.v1`
         de cada instrumento de la corrida, tal cual lo manda el motor. Con los datos de ejemplo no
-        se inventa ninguno.
+        se inventa ninguno. Con el candado de su lección (#846, 9.4).
       */}
       <Block title="Walk-forward / fuera de muestra">
-        {example ? (
-          <p data-walk-forward="pending" className="text-[12.5px] text-muted-foreground">
-            Los datos de ejemplo no tienen walk-forward: solo las corridas del motor lo traen.
-          </p>
-        ) : (
-          <div className="grid gap-4">
-            {r.instruments.map((id) => (
-              <WalkForwardLive key={id} instrument={id} />
-            ))}
-          </div>
-        )}
+        <ToolLock tool="tool.walk_forward">
+          {example ? (
+            <p data-walk-forward="pending" className="text-[12.5px] text-muted-foreground">
+              Los datos de ejemplo no tienen walk-forward: solo las corridas del motor lo traen.
+            </p>
+          ) : (
+            <div className="grid gap-4">
+              {r.instruments.map((id) => (
+                <WalkForwardLive key={id} instrument={id} />
+              ))}
+            </div>
+          )}
+        </ToolLock>
       </Block>
     </section>
   )
