@@ -313,6 +313,37 @@ mod rust_types {
     }
 
     #[test]
+    fn what_validate_spec_json_returns_matches_the_schema() {
+        use cfds_backtest::lab::validate_spec_json;
+        use cfds_market_data::{DataSplit, Period};
+        let c = cfds_backtest::lab::catalog(
+            &cfds_backtest::lab::LabConfig::from_toml(include_str!("../../../../config/lab.toml"))
+                .unwrap(),
+            &cfds_risk::RiskConfig::from_toml(include_str!("../../../../config/risk.toml"))
+                .unwrap(),
+            ["US500".parse().unwrap()],
+        )
+        .unwrap();
+        let split = DataSplit {
+            windows: Vec::new(),
+            out_of_sample: Period {
+                start: "2025-11-01T00:00:00Z".parse().unwrap(),
+                end: "2026-11-01T00:00:00Z".parse().unwrap(),
+            },
+        };
+        let (ok, valid) = validate_spec_json(&spec().to_string(), &c, &split);
+        assert!(ok.valid && valid.is_some(), "{:?}", ok.errors);
+        roundtrip(VALIDATION, &ok);
+        let bad = with(&spec(), "/entry/0/params/fast", json!(1));
+        let (ko, none) = validate_spec_json(&bad.to_string(), &c, &split);
+        assert!(!ko.valid && none.is_none());
+        roundtrip(VALIDATION, &ko);
+        let (malformed, _) = validate_spec_json("{\"catalog_version\": 1}", &c, &split);
+        assert_eq!(malformed.errors.len(), 1);
+        roundtrip(VALIDATION, &malformed);
+    }
+
+    #[test]
     fn both_validation_shapes_roundtrip() {
         let hash = "0123456789abcdef".repeat(4);
         roundtrip(
