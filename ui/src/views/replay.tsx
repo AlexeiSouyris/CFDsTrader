@@ -42,8 +42,10 @@ const errorText = (e: unknown) =>
 
 const KINDS: [ReplayKind, string][] = [
   ['practice', 'Práctica'],
-  ['levels', 'Examen de niveles'],
-  ['trades', 'Examen de operaciones'],
+  // exámenes libres (sin lección); cortos para que los cuatro entren a 375 px
+  ['levels', 'Niveles'],
+  ['pivots', 'Pivotes'],
+  ['trades', 'Operaciones'],
 ]
 
 const button =
@@ -120,12 +122,15 @@ export function ReplayView() {
           el eje dice día y hora UTC. El cursor vive en el motor, así que nunca se ve una vela
           futura. Todo en simulación.
         </p>
-        <Segmented
-          label="Qué hacer"
-          options={KINDS.map(([, l]) => l)}
-          value={KINDS.find(([k]) => k === kind)![1]}
-          onChange={(l) => setKind(KINDS.find(([, x]) => x === l)![0])}
-        />
+        {/* si no entra (menos de 375 px), se desliza la caja, nunca la página */}
+        <div className="max-w-full overflow-x-auto pb-0.5">
+          <Segmented
+            label="Qué hacer"
+            options={KINDS.map(([, l]) => l)}
+            value={KINDS.find(([k]) => k === kind)![1]}
+            onChange={(l) => setKind(KINDS.find(([, x]) => x === l)![0])}
+          />
+        </div>
         <p className="text-[12px] text-muted-foreground">
           {kind === 'practice'
             ? 'Práctica: sin nota.'
@@ -280,9 +285,11 @@ export function ReplayView() {
       <SessionLog marks={marks} orders={orders} bars={bars} digits={digits} />
       <p className="text-[12px] text-muted-foreground">
         Reglas con las que se califica un examen
-        {r.provisional ? ' (provisorias, del dueño)' : ''}: al menos {r.trades_per_exam}{' '}
-        operaciones; stop entre {decimal(r.stop_min_atr)} y {decimal(r.stop_max_atr)} ATR; riesgo de
-        hasta {decimal(r.max_risk_pct)} % por operación; niveles con tolerancia de{' '}
+        {r.provisional ? ' (provisorias, del dueño)' : ''}: al menos {r.trades_per_exam} operaciones
+        {r.pivots_per_exam !== undefined &&
+          ` (o ${r.pivots_per_exam} pivotes en el de pivotes, marcados después de su confirmación)`}
+        ; stop entre {decimal(r.stop_min_atr)} y {decimal(r.stop_max_atr)} ATR; riesgo de hasta{' '}
+        {decimal(r.max_risk_pct)} % por operación; niveles con tolerancia de{' '}
         {decimal(r.level_tolerance_atr)} ATR.{' '}
         {s.kind === 'practice' && 'En la práctica no hay nota.'}
       </p>

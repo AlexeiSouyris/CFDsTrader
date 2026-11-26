@@ -25,6 +25,7 @@
       "required": ["trades_per_exam", "level_tolerance_atr", "stop_min_atr", "stop_max_atr", "max_risk_pct", "provisional"],
       "properties": {
         "trades_per_exam": { "type": "integer", "minimum": 1 },
+        "pivots_per_exam": { "description": "Pivotes marcados como mínimo en un examen de pivotes (#800). Opcional: las sesiones de antes no lo traen.", "type": "integer", "minimum": 1 },
         "level_tolerance_atr": { "$ref": "academy_catalog.v1.schema.json#/$defs/decimal" },
         "stop_min_atr": { "$ref": "academy_catalog.v1.schema.json#/$defs/decimal" },
         "stop_max_atr": { "$ref": "academy_catalog.v1.schema.json#/$defs/decimal" },
@@ -36,7 +37,7 @@
   "$defs": {
     "session_id": { "type": "string", "pattern": "^rp-[0-9a-f]{16}$" },
     "seed": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,19})$" },
-    "kind": { "description": "practice: sin nota; levels: marcar niveles; trades: operar con proceso.", "enum": ["practice", "levels", "trades"] },
+    "kind": { "description": "practice: sin nota; levels: marcar niveles; trades: operar con proceso; pivots: marcar pivotes confirmados (#800).", "enum": ["practice", "levels", "trades", "pivots"] },
     "price": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
     "bar": {
       "description": "Una vela cerrada, sin su fecha real.",

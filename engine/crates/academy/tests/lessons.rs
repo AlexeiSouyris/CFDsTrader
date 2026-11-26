@@ -75,6 +75,7 @@ fn lesson() -> Lesson {
             kind: ExamKind::Quiz,
             ready: true,
             questions: vec![],
+            replay_kind: None,
         },
         unlocks: vec![],
     }

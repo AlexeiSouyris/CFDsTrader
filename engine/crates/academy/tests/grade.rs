@@ -4,7 +4,7 @@
 mod common;
 
 use cfds_academy::AcademyConfig;
-use cfds_academy::grade::{ExitKind, GradeConfig, ReplayCosts, Rule, grade};
+use cfds_academy::grade::{ExitKind, GradeConfig, PivotStatus, ReplayCosts, Rule, grade};
 use cfds_academy::replay::{
     Draw, MarkKind, MarkRequest, OrderRequest, OrderSide, ProcessRules, ReplayKind, ReplaySession,
 };
@@ -12,6 +12,7 @@ use cfds_backtest::{BacktestConfig, Commission, InstrumentCosts};
 use cfds_core::{Candle, Timeframe};
 use cfds_market_data::Period;
 use cfds_patterns::PatternsConfig;
+use cfds_patterns::pivots::{PivotKind, confirmed_pivots};
 use chrono::{DateTime, NaiveTime, TimeDelta, Utc};
 use common::{REAL, assert_valid};
 use rust_decimal::{Decimal, dec};
@@ -87,9 +88,16 @@ fn costs() -> ReplayCosts {
 }
 
 fn run(s: &ReplaySession, trades_per_exam: usize) -> cfds_academy::grade::ExamResult {
+    run_with(s, |r| r.trades_per_exam = trades_per_exam)
+}
+
+fn run_with(
+    s: &ReplaySession,
+    set: impl FnOnce(&mut cfds_academy::replay::ReplayConfig),
+) -> cfds_academy::grade::ExamResult {
     let cfg = AcademyConfig::from_toml(REAL).unwrap();
     let mut replay = cfg.replay.clone();
-    replay.trades_per_exam = trades_per_exam;
+    set(&mut replay);
     let patterns = PatternsConfig::from_toml(PATTERNS).unwrap();
     let rules = ProcessRules {
         stop_min_atr: dec!(0.5),
@@ -314,4 +322,120 @@ fn an_open_session_cannot_be_graded() {
         catalog_version: "x",
     };
     assert!(grade(&s, g, &costs(), t0()).is_err());
+}
+
+/// Plano y después dos puntas y un valle bien marcados: 100 → 110 → 90 → 110 → 94.
+fn peaks() -> Vec<Candle> {
+    let mut tail = Vec::new();
+    let mut at = 100;
+    for to in [110, 90, 110, 94] {
+        while at != to {
+            at += if to > at { 2 } else { -2 };
+            tail.push(Decimal::from(at));
+        }
+    }
+    bars(&flat_then(&tail))
+}
+
+fn pivot(kind: MarkKind, bar: usize) -> MarkRequest {
+    let price = dec!(100);
+    MarkRequest {
+        kind,
+        price,
+        bar_index: Some(bar),
+    }
+}
+
+/// Avanza el cursor hasta `to` (o no hace nada si ya está ahí).
+fn step_to(s: &mut ReplaySession, to: usize) {
+    if to > s.cursor() {
+        s.step(to - s.cursor(), 10_000).unwrap();
+    }
+    assert_eq!(s.cursor(), to);
+}
+
+#[test]
+fn pivots_are_graded_against_the_confirmed_ones_and_an_early_mark_does_not_count() {
+    let candles = peaks();
+    let strength = PatternsConfig::from_toml(PATTERNS).unwrap().pivots.strength;
+    let all = confirmed_pivots(&candles, strength);
+    let (p1, p2, p3) = (all[0], all[1], all[2]);
+    assert_eq!(
+        (p1.kind, p2.kind, p3.kind),
+        (PivotKind::High, PivotKind::Low, PivotKind::High),
+        "{all:?}"
+    );
+    let mut s = session(ReplayKind::Pivots, candles, 30);
+    // Con el cursor en la vela de confirmación: acierta. Del otro tipo, no.
+    step_to(&mut s, p1.confirmed_at);
+    s.mark(pivot(MarkKind::PivotHigh, p1.index)).unwrap();
+    s.mark(pivot(MarkKind::PivotLow, p1.index)).unwrap();
+    // Antes de la confirmación: adelantada, aunque después se confirme.
+    step_to(&mut s, p2.index + 1);
+    s.mark(pivot(MarkKind::PivotLow, p2.index)).unwrap();
+    // El examen termina antes de que se confirme la segunda punta: todavía no existe.
+    step_to(&mut s, p3.confirmed_at - 1);
+    s.mark(pivot(MarkKind::PivotHigh, p3.index)).unwrap();
+    s.finish().unwrap();
+    let r = run_with(&s, |c| c.pivots_per_exam = 5);
+    let g = r.pivots.as_ref().unwrap();
+    let statuses: Vec<_> = g.marks.iter().map(|m| (m.status, m.confirmed_at)).collect();
+    assert_eq!(
+        statuses,
+        [
+            (PivotStatus::Hit, Some(p1.confirmed_at)),
+            (PivotStatus::Miss, None),
+            (PivotStatus::Early, Some(p2.confirmed_at)),
+            (PivotStatus::Miss, None),
+        ]
+    );
+    assert_eq!((g.strength, g.marked, g.hits, g.early), (strength, 4, 1, 1));
+    assert!(
+        g.engine_pivots.iter().all(|p| p.confirmed_at <= s.cursor()),
+        "ningún pivote confirmado después del cursor: {:?}",
+        g.engine_pivots
+    );
+    assert_eq!((g.engine, g.covered), (2, 1));
+    assert_eq!(
+        (g.precision_pct, g.coverage_pct),
+        (Some(dec!(25)), Some(dec!(50)))
+    );
+    assert_eq!(r.passed, Some(false));
+    assert_eq!(failed(&r.rules), [Rule::EnoughPivots, Rule::PivotPrecision]);
+
+    // Las dos confirmadas al marcarlas, con 2 por examen: aprueba.
+    let mut s = session(ReplayKind::Pivots, peaks(), 30);
+    step_to(&mut s, p2.confirmed_at);
+    s.mark(pivot(MarkKind::PivotHigh, p1.index)).unwrap();
+    s.mark(pivot(MarkKind::PivotLow, p2.index)).unwrap();
+    s.finish().unwrap();
+    let r = run_with(&s, |c| c.pivots_per_exam = 2);
+    let g = r.pivots.as_ref().unwrap();
+    assert_eq!(
+        (g.hits, g.precision_pct, g.coverage_pct),
+        (2, Some(dec!(100)), Some(dec!(100)))
+    );
+    assert_eq!(r.passed, Some(true));
+}
+
+#[test]
+fn pivot_marks_outside_a_pivot_exam_are_shown_but_do_not_decide() {
+    let candles = peaks();
+    let strength = PatternsConfig::from_toml(PATTERNS).unwrap().pivots.strength;
+    let p1 = confirmed_pivots(&candles, strength)[0];
+    let mut s = session(ReplayKind::Trades, candles.clone(), 30);
+    step_to(&mut s, p1.confirmed_at);
+    s.mark(pivot(MarkKind::PivotLow, p1.index)).unwrap();
+    s.finish().unwrap();
+    let r = run(&s, 1);
+    assert_eq!(r.pivots.as_ref().map(|g| g.hits), Some(0));
+    assert_eq!(
+        failed(&r.rules),
+        [Rule::EnoughTrades],
+        "los pivotes no deciden"
+    );
+    // Sin marcas de pivotes, no hay calificación de pivotes.
+    let mut s = session(ReplayKind::Trades, candles, 30);
+    s.finish().unwrap();
+    assert!(run(&s, 1).pivots.is_none());
 }

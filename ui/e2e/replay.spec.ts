@@ -69,7 +69,7 @@ test('examen: al terminar, proceso → niveles → R → fecha real, y la fecha 
   page,
 }) => {
   const { unmocked, errors } = await openView(page, 'replay')
-  await page.getByRole('button', { name: 'Examen de niveles' }).click()
+  await page.getByRole('button', { name: 'Niveles' }).click()
   await page.getByRole('button', { name: 'Empezar' }).click()
   const marks = page.getByRole('form', { name: 'Marcar en el gráfico' })
   await marks.getByRole('textbox', { name: 'Precio' }).fill('19880')
