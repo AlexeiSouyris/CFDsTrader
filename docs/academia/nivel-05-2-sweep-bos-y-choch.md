@@ -18,7 +18,7 @@ cortos es el espejo:
 
 **Sweep (barrida de liquidez externa).**
 
-```
+```text
 P = último pivote bajo de 1 h confirmado al cierre de la vela t (de 15 m)
 sweep: L[t] < P y C[t] > P      (pinchó por debajo y volvió a cerrar adentro)
 ```
@@ -28,7 +28,7 @@ que es pivote. En el puntaje de la estrategia en uso, un sweep a favor suma 2.
 
 **BOS y CHoCH (rupturas de estructura).**
 
-```
+```text
 P = último pivote alto de 15 m confirmado
 ruptura alcista en t: C[t] > P y C[t−1] ≤ P
   BOS   si la tendencia de 1 h es ALCISTA  (continuación)

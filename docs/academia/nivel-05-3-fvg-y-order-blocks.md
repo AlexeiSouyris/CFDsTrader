@@ -13,7 +13,7 @@ regla del motor, y leer sus estadísticas de toque, mitad y llenado con su inter
 
 **FVG (fair value gap, "hueco").** Tres velas seguidas, `i−2`, `i−1` e `i`. Para el lado alcista:
 
-```
+```text
 FVG alcista en la vela i:  L[i] > H[i−2]      zona = [H[i−2], L[i]]
 toque en t:   L[t] ≤ techo de la zona y C[t] ≥ piso   (entra sin llenarlo)
 lleno:        una vela posterior cierra por debajo de H[i−2]   (deja de valer)
@@ -28,7 +28,7 @@ block: "FVG u order block").
 **Order block (OB).** Para el lado alcista, por cada **ruptura de estructura** alcista (BOS o
 CHoCH, lección 5.2):
 
-```
+```text
 impulso k = la última vela alcista entre el pivote roto y la ruptura con cuerpo ≥ 1,5 × ATR
 OB        = la última vela bajista antes de k;  zona = [L, H] de esa vela
 vigente   desde el cierre de la vela de la ruptura, hasta que una vela cierre por debajo de L
