@@ -1,5 +1,6 @@
 /**
- * Academia (#769): el mapa de niveles y el progreso, tal como los manda el motor. Los datos son los
+ * Academia (#769, #770): el mapa de niveles, la página de la lección, el examen y el progreso, tal
+ * como los manda el motor. Los datos son los
  * fixtures del gateway simulado de las pruebas e2e (el catálogo de `config/academy.toml`, sin
  * preguntas todavía).
  */
@@ -35,15 +36,13 @@ describe('Academia (#769)', () => {
   it('mapa de niveles con cada lección y el progreso del motor', async () => {
     const fetch = gateway()
     render(<AcademyView />)
-    const map = await screen.findByRole('region', { name: 'Mapa de niveles' })
+    const map = await screen.findByRole('navigation', { name: 'Mapa de niveles' })
     expect(fetch).toHaveBeenCalledWith('/api/v1/academy/catalog', expect.anything())
     expect(fetch).toHaveBeenCalledWith('/api/v1/academy/progress', expect.anything())
     // tres niveles (0 a 2) y sus diez lecciones, en el orden del catálogo
     expect(within(map).getAllByRole('heading', { level: 2 })).toHaveLength(3)
     expect(within(map).getByRole('heading', { name: /N0.*Orientación.*0\/3/ })).toBeVisible()
-    const rows = within(map)
-      .getAllByRole('listitem')
-      .filter((li) => li.querySelector('h2') === null)
+    const rows = within(map).getAllByRole('button')
     expect(rows).toHaveLength(10)
     expect(rows[0]).toHaveTextContent('0.1Qué es un mercadoEn preparación')
     expect(rows[2]).toHaveTextContent('0.3Cómo se usa la AcademiaSin examen')
@@ -56,9 +55,16 @@ describe('Academia (#769)', () => {
   it('sin contenido todavía: «Contenido en preparación», sin inventar lecciones', async () => {
     gateway()
     render(<AcademyView />)
-    const note = await screen.findByRole('note')
+    const [note] = await screen.findAllByRole('note')
     expect(note).toHaveTextContent('Contenido en preparación')
     expect(note).toHaveTextContent('Las lecciones todavía no tienen texto ni preguntas')
+    // la primera lección: sin texto y con el examen sin preguntas
+    const page = screen.getByRole('article', { name: /Qué es un mercado/ })
+    expect(within(page).getByText(/Entender que del otro lado hay alguien/)).toBeVisible()
+    expect(within(page).getAllByText('Contenido en preparación')).toHaveLength(2)
+    expect(page).toHaveTextContent('lo que desbloquea se puede abrir a mano en Ajustes')
+    expect(page).toHaveTextContent('Watchlistbloqueada')
+    expect(within(page).queryByRole('form')).toBeNull()
   })
 
   it('muestra lo aprobado, los intentos y lo abierto a mano tal como lo calculó el motor', async () => {
@@ -78,7 +84,7 @@ describe('Academia (#769)', () => {
     }
     gateway(progress)
     render(<AcademyView />)
-    const map = await screen.findByRole('region', { name: 'Mapa de niveles' })
+    const map = await screen.findByRole('navigation', { name: 'Mapa de niveles' })
     expect(map).toHaveTextContent('0.1Qué es un mercadoAprobada el 24 nov, 10:00 UTC')
     expect(map).toHaveTextContent('0.2Cuántos pierden1 intento · mejor 60 %')
     expect(within(map).getByRole('heading', { name: /N0.*1\/3/ })).toBeVisible()
@@ -93,16 +99,16 @@ describe('Academia (#769)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'No se pudo leer la Academia del motor (el gateway respondió 503: sin gateway)',
     )
-    expect(screen.queryByRole('region', { name: 'Mapa de niveles' })).toBeNull()
+    expect(screen.queryByRole('navigation', { name: 'Mapa de niveles' })).toBeNull()
   })
 
   it('si el gateway falla después, se quedan los últimos datos del motor', async () => {
     const fetch = gateway()
     render(<AcademyView />)
-    await screen.findByRole('region', { name: 'Mapa de niveles' })
+    await screen.findByRole('navigation', { name: 'Mapa de niveles' })
     fetch.mockImplementation(async () => new Response('sin gateway', { status: 503 }))
     await reloadAcademy()
-    expect(screen.getByRole('region', { name: 'Mapa de niveles' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Mapa de niveles' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).toBeNull()
   })
 })

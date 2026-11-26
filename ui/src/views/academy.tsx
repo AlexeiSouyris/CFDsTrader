@@ -1,13 +1,15 @@
 /**
  * Academia (#769, plan de `docs/design/2026-11-academia.md` §8, PR 4): el mapa de niveles con sus
- * lecciones y el progreso, como lo manda el motor (`academy_catalog.v1` y `academy_progress.v1`).
- * La UI no decide si algo se aprobó ni qué herramienta está abierta: cuenta y ordena lo que llega.
+ * lecciones, la página de cada lección (#770: objetivo, texto, examen y qué desbloquea; una lección
+ * sin examen se completa con un evento) y el progreso, como lo manda el motor
+ * (`academy_catalog.v1` y `academy_progress.v1`). La UI no decide si algo se aprobó ni qué
+ * herramienta está abierta: cuenta y ordena lo que llega.
  *
  * Sin contenido todavía (#760): lo que no tiene texto ni preguntas lo dice («Contenido en
  * preparación»), sin inventar nada.
  */
-import { Check, Circle } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { Check, Circle, Lock, LockOpen } from 'lucide-react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 
 import type {
   AcademyCatalog,
@@ -16,7 +18,7 @@ import type {
   LessonProgress,
   Level,
 } from '@/lib/academy-contracts'
-import { useAcademy } from '@/lib/academy-api'
+import { postEvent, useAcademy } from '@/lib/academy-api'
 import { dateTimeUtc, decimal } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -45,9 +47,25 @@ export function AcademyView() {
       </Quiet>
     )
   }
-  const { catalog, progress } = academy
+  return <Academy catalog={academy.catalog} progress={academy.progress} />
+}
+
+function Academy({ catalog, progress }: { catalog: AcademyCatalog; progress: AcademyProgress }) {
   const lessons = catalog.levels.flatMap((l) => l.lessons)
   const byLesson = new Map(progress.lessons.map((l) => [l.lesson_id, l]))
+  // abre la primera lección sin aprobar; elegir otra mueve el foco a su página
+  const [selected, setSelected] = useState(
+    () => lessons.find((l) => !byLesson.get(l.id)?.passed)?.id ?? lessons[0]?.id ?? null,
+  )
+  const [moved, setMoved] = useState(false)
+  const heading = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    if (!moved) return
+    heading.current?.focus()
+    heading.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [selected, moved])
+  const level = catalog.levels.find((l) => l.lessons.some((x) => x.id === selected))
+  const lesson = level?.lessons.find((x) => x.id === selected)
   return (
     <div data-section="hub" className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <ProgressStrip catalog={catalog} progress={progress} />
@@ -57,7 +75,29 @@ export function AcademyView() {
           están, el contenido llega nivel por nivel, con cada cifra verificada contra su fuente.
         </Preparing>
       )}
-      <LevelMap levels={catalog.levels} progress={byLesson} />
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+        <LevelMap
+          levels={catalog.levels}
+          progress={byLesson}
+          selected={selected}
+          onSelect={(id) => {
+            setSelected(id)
+            setMoved(true)
+          }}
+        />
+        {level && lesson && (
+          <LessonPage
+            key={lesson.id}
+            headingRef={heading}
+            level={level}
+            lesson={lesson}
+            progress={byLesson.get(lesson.id)}
+            status={statusText(lesson, byLesson.get(lesson.id))}
+            catalog={catalog}
+            tools={progress.tools}
+          />
+        )}
+      </div>
     </div>
   )
 }
@@ -106,12 +146,16 @@ function Stat({ label, children }: { label: string; children: ReactNode }) {
 function LevelMap({
   levels,
   progress,
+  selected,
+  onSelect,
 }: {
   levels: Level[]
   progress: Map<string, LessonProgress>
+  selected: string | null
+  onSelect: (id: string) => void
 }) {
   return (
-    <section aria-label="Mapa de niveles" className="panel min-w-0 self-start rounded-section">
+    <nav aria-label="Mapa de niveles" className="panel min-w-0 self-start rounded-section">
       <ol>
         {levels.map((level) => {
           const done = level.lessons.filter((l) => progress.get(l.id)?.passed).length
@@ -126,40 +170,225 @@ function LevelMap({
               </h2>
               <ol className="pb-1.5">
                 {level.lessons.map((lesson) => (
-                  <LessonRow key={lesson.id} lesson={lesson} progress={progress.get(lesson.id)} />
+                  <LessonRow
+                    key={lesson.id}
+                    lesson={lesson}
+                    progress={progress.get(lesson.id)}
+                    on={lesson.id === selected}
+                    onSelect={() => onSelect(lesson.id)}
+                  />
                 ))}
               </ol>
             </li>
           )
         })}
       </ol>
-    </section>
+    </nav>
   )
 }
 
-function LessonRow({ lesson, progress }: { lesson: Lesson; progress?: LessonProgress }) {
+function LessonRow({
+  lesson,
+  progress,
+  on,
+  onSelect,
+}: {
+  lesson: Lesson
+  progress?: LessonProgress
+  on: boolean
+  onSelect: () => void
+}) {
   const passed = progress?.passed ?? false
   const Icon = passed ? Check : Circle
   return (
-    <li className="grid min-h-8 grid-cols-[1rem_2.25rem_minmax(0,1fr)_auto] items-center gap-1.5 px-2.5 text-[12.5px]">
-      <Icon
-        aria-hidden="true"
-        className={cn('size-3.5', passed ? 'text-accent' : 'text-muted-foreground')}
-      />
-      <span className="font-mono text-[11px] text-muted-foreground">{lesson.id}</span>
-      <span className="truncate font-semibold">{lesson.title}</span>
-      <span className="text-[11px] text-muted-foreground">
-        {statusText(lesson, progress)}
-        {passed && progress?.passed_at && (
-          <span className="sr-only"> el {dateTimeUtc(progress.passed_at)}</span>
+    <li>
+      <button
+        type="button"
+        aria-current={on ? 'true' : undefined}
+        onClick={onSelect}
+        className={cn(
+          'grid min-h-11 w-full grid-cols-[1rem_2.25rem_minmax(0,1fr)_auto] items-center gap-1.5 border-l-2 px-2.5 text-left text-[12.5px] hover:bg-surface sm:min-h-8',
+          on ? 'border-primary bg-surface' : 'border-transparent',
         )}
-      </span>
+      >
+        <Icon
+          aria-hidden="true"
+          className={cn('size-3.5', passed ? 'text-accent' : 'text-muted-foreground')}
+        />
+        <span className="font-mono text-[11px] text-muted-foreground">{lesson.id}</span>
+        <span className="truncate font-semibold">{lesson.title}</span>
+        <span className="text-[11px] text-muted-foreground">
+          {statusText(lesson, progress)}
+          {passed && progress?.passed_at && (
+            <span className="sr-only"> el {dateTimeUtc(progress.passed_at)}</span>
+          )}
+        </span>
+      </button>
     </li>
   )
 }
 
+function LessonPage({
+  headingRef,
+  level,
+  lesson,
+  progress,
+  status,
+  catalog,
+  tools,
+}: {
+  headingRef: RefObject<HTMLHeadingElement | null>
+  level: Level
+  lesson: Lesson
+  progress: LessonProgress | undefined
+  /** el estado en una frase, del motor */
+  status: string
+  catalog: AcademyCatalog
+  tools: AcademyProgress['tools']
+}) {
+  const names = new Map(catalog.tools.map((t) => [t.id, t.name]))
+  const state = new Map(tools.map((t) => [t.tool_id, t]))
+  const { exam } = lesson
+  return (
+    <article
+      aria-labelledby="academia-leccion"
+      className="panel grid min-w-0 content-start gap-3 rounded-section px-3 py-3 sm:px-4"
+    >
+      <header className="grid gap-1">
+        <p className="text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
+          Nivel {level.level} · {level.title}
+        </p>
+        <h2
+          id="academia-leccion"
+          ref={headingRef}
+          tabIndex={-1}
+          className="text-[18px] leading-tight font-bold outline-none"
+        >
+          <span className="mr-2 font-mono text-accent">{lesson.id}</span>
+          {lesson.title}
+        </h2>
+        <p className="text-[12px] text-muted-foreground">
+          {progress?.passed && progress.passed_at
+            ? `${status} el ${dateTimeUtc(progress.passed_at)}`
+            : status}
+          {progress && progress.attempts > 0 && ' · cada intento queda guardado'}
+        </p>
+      </header>
+
+      <Part title="Objetivo">
+        <p className="max-w-[68ch] text-[14px] leading-relaxed">{lesson.objective}</p>
+      </Part>
+
+      <Part title="Lección">
+        {lesson.doc === null ? (
+          <Preparing>
+            El texto de esta lección todavía no está escrito. Cuando esté, se lee acá, con las
+            cifras verificadas contra su fuente.
+          </Preparing>
+        ) : (
+          <p className="text-[12.5px] text-muted-foreground">
+            El texto está en <code className="font-mono">{lesson.doc}</code>.
+          </p>
+        )}
+      </Part>
+
+      <Part title="Examen">
+        {exam.kind === 'none' ? (
+          <Complete lesson={lesson} done={progress?.passed ?? false} />
+        ) : !exam.ready ? (
+          <Preparing>
+            El examen todavía no tiene preguntas, así que no se puede rendir.
+            {lesson.unlocks.length > 0 &&
+              ' Mientras tanto, lo que desbloquea se puede abrir a mano en Ajustes.'}
+          </Preparing>
+        ) : exam.kind === 'replay' ? (
+          <p className="text-[12.5px]">
+            Examen con velas del pasado (replay): lo califica el motor, primero el proceso.
+          </p>
+        ) : (
+          <p className="text-[12.5px]">
+            {exam.questions.length} preguntas; para aprobar,{' '}
+            {decimal(catalog.thresholds.quiz_pass_pct)} % de respuestas correctas
+            {catalog.thresholds.provisional && ' (umbral provisorio)'}. Corrige el motor.
+          </p>
+        )}
+      </Part>
+
+      <Part title="Desbloquea">
+        {lesson.unlocks.length === 0 ? (
+          <p className="text-[12.5px] text-muted-foreground">No abre ninguna herramienta.</p>
+        ) : (
+          <ul className="grid gap-1 text-[12.5px]">
+            {lesson.unlocks.map((id) => {
+              const t = state.get(id)
+              const Icon = t?.unlocked ? LockOpen : Lock
+              return (
+                <li key={id} className="flex items-center gap-2">
+                  <Icon aria-hidden="true" className="size-3.5 text-muted-foreground" />
+                  <span className="font-semibold">{names.get(id) ?? id}</span>
+                  <span className="text-muted-foreground">
+                    {!t?.unlocked
+                      ? 'bloqueada'
+                      : t.by === 'override'
+                        ? 'abierta a mano'
+                        : 'abierta por esta lección'}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </Part>
+    </article>
+  )
+}
+
+/** Una lección sin examen: se marca como completada y el motor lo guarda como evento. */
+function Complete({ lesson, done }: { lesson: Lesson; done: boolean }) {
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  if (done) return <p className="text-[12.5px]">Lección sin examen, ya completada.</p>
+  return (
+    <div className="grid gap-2">
+      <p className="text-[12.5px]">Esta lección no tiene examen: se completa al leerla.</p>
+      <button
+        type="button"
+        disabled={sending}
+        onClick={() => {
+          setSending(true)
+          setError(null)
+          postEvent({ kind: 'lesson_completed', lesson_id: lesson.id })
+            .catch((e: unknown) =>
+              setError(
+                `No se pudo guardar en el motor (${e instanceof Error ? e.message : String(e)}).`,
+              ),
+            )
+            .finally(() => setSending(false))
+        }}
+        className="min-h-9 justify-self-start rounded-sm bg-primary px-3 text-[12.5px] font-bold text-primary-foreground disabled:opacity-60"
+      >
+        {sending ? 'Guardando…' : 'Marcar como completada'}
+      </button>
+      {error && (
+        <p role="alert" className="text-[12.5px] text-down">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function Part({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="grid gap-1.5 border-t border-border pt-2.5">
+      <h3 className="text-[11px] font-extrabold tracking-[0.12em] uppercase">{title}</h3>
+      {children}
+    </section>
+  )
+}
+
 /** «Contenido en preparación»: lo que todavía no existe, dicho sin rodeos. */
-export function Preparing({ children }: { children: ReactNode }) {
+function Preparing({ children }: { children: ReactNode }) {
   return (
     <div
       role="note"

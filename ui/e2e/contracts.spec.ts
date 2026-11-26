@@ -29,7 +29,27 @@ const QUERIES: Record<string, string[]> = {
   '/api/v1/ibkr/live': ['instrument=MNQ&timeframe=15m', 'instrument=QQQ&timeframe=1h'],
 }
 
-for (const route of ROUTES) {
+/** Los pedidos con los que se prueba cada `POST` (sin pedido, el típico de su fixture). */
+const REQUESTS: Record<string, unknown[]> = {
+  '/api/v1/academy/events': [
+    { kind: 'lesson_completed', lesson_id: '0.3' },
+    { kind: 'tool_override', tool_id: '*', action: 'unlock' },
+    { kind: 'tool_override', tool_id: 'tool.watchlist', action: 'relock' },
+  ],
+}
+
+for (const route of ROUTES.filter((r) => r.method === 'POST')) {
+  for (const [i, request] of (REQUESTS[route.path] ?? [undefined]).entries()) {
+    test(`POST ${route.path} #${i + 1} cumple ${route.schema}`, () => {
+      const schema = JSON.parse(readFileSync(CONTRACTS + route.schema, 'utf8')) as { $id: string }
+      const validate = ajv.getSchema(schema.$id)!
+      const ok = validate(route.body(new URLSearchParams(), request))
+      expect(ok, JSON.stringify(validate.errors, null, 1)).toBe(true)
+    })
+  }
+}
+
+for (const route of ROUTES.filter((r) => r.method !== 'POST')) {
   for (const query of QUERIES[route.path] ?? ['']) {
     test(`${route.path}${query ? `?${query}` : ''} cumple ${route.schema}`, () => {
       const schema = JSON.parse(readFileSync(CONTRACTS + route.schema, 'utf8')) as { $id: string }

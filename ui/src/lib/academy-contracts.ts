@@ -1,6 +1,6 @@
 /**
- * Tipos de los contratos de la Academia (#709, #717) para la UI: `academy_catalog.v1` y
- * `academy_progress.v1` de `contracts/`. Son la misma forma del contrato: si cambia el contrato, se
+ * Tipos de los contratos de la Academia (#709, #717) para la UI: `academy_catalog.v1`,
+ * `academy_progress.v1`, `academy_event.v1` y `quiz_result.v1` de `contracts/`. Son la misma forma del contrato: si cambia el contrato, se
  * cambia acá. Las notas, el aprobado y qué herramienta está abierta los decide el motor.
  */
 
@@ -66,4 +66,35 @@ export type AcademyProgress = {
   lessons: LessonProgress[]
   tools: ToolProgress[]
   unlock_all: boolean
+}
+
+/** `academy_event.v1#/$defs/request` (`POST /api/v1/academy/events`). */
+export type EventRequest =
+  | { kind: 'lesson_completed'; lesson_id: LessonId }
+  | { kind: 'tool_override'; tool_id: ToolId | '*'; action: 'unlock' | 'relock' }
+
+/** `quiz_result.v1`: la corrección del motor (qué estuvo bien o mal, nunca la clave). */
+export type QuizResult = {
+  lesson_id: LessonId
+  catalog_version: string
+  score_pct: Decimal
+  pass_pct: Decimal
+  passed: boolean
+  correct: number
+  total: number
+  questions: { question_id: string; correct: boolean }[]
+  graded_at: Utc
+}
+
+/** `academy_event.v1`: el evento tal como lo guardó el motor. */
+export type AcademyEvent = {
+  seq: number
+  member_id: string
+  kind: 'lesson_completed' | 'exam_attempt' | 'tool_override'
+  lesson_id: LessonId | null
+  tool_id: ToolId | '*' | null
+  action: 'unlock' | 'relock' | null
+  quiz: QuizResult | null
+  catalog_version: string
+  recorded_at: Utc
 }
