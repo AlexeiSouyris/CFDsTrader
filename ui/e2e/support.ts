@@ -42,7 +42,17 @@ async function freezeDocs(page: Page) {
   }
 }
 
-export async function openView(page: Page, id: string, theme: Theme = 'dark'): Promise<Opened> {
+/**
+ * Abre una vista. `setup` agrega rutas propias de una prueba antes de cargar la página: se
+ * registran después del gateway simulado, así que le ganan (por ejemplo, otro progreso de la
+ * Academia).
+ */
+export async function openView(
+  page: Page,
+  id: string,
+  theme: Theme = 'dark',
+  setup?: (page: Page) => Promise<void>,
+): Promise<Opened> {
   const errors: string[] = []
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push(`console: ${m.text()}`)
@@ -50,6 +60,7 @@ export async function openView(page: Page, id: string, theme: Theme = 'dark'): P
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`))
   const unmocked = await mockGateway(page)
   await freezeDocs(page)
+  await setup?.(page)
   await page.clock.setFixedTime(new Date(NOW))
   await page.addInitScript((t) => {
     localStorage.setItem('cfds.intro.seen', '1')

@@ -12,6 +12,22 @@ import academyProgress from './fixtures/academy-progress.json' with { type: 'jso
 import { NOW } from './gateway'
 import { MOBILE, openView } from './support'
 
+/**
+ * El progreso de prueba es el de alguien que recién empieza: el replay libre tiene candado hasta la
+ * lección 3.3 (#827). Estas pruebas lo abren a mano, como desde Ajustes.
+ */
+async function practiceOpen(page: import('@playwright/test').Page) {
+  const progress = structuredClone(academyProgress)
+  Object.assign(
+    progress.tools.find((t) => t.tool_id === 'tool.replay_practice')!,
+    {
+      unlocked: true,
+      by: 'override',
+    },
+  )
+  await page.route('**/api/v1/academy/progress', (r) => r.fulfill({ json: progress }))
+}
+
 async function serious(page: import('@playwright/test').Page) {
   const { violations } = await new AxeBuilder({ page }).analyze()
   return violations
@@ -22,7 +38,7 @@ async function serious(page: import('@playwright/test').Page) {
 for (const mobile of [false, true]) {
   test(`práctica: empezar y avanzar${mobile ? ' (375 px)' : ''}`, async ({ page }) => {
     if (mobile) await page.setViewportSize(MOBILE)
-    const { unmocked, errors } = await openView(page, 'replay')
+    const { unmocked, errors } = await openView(page, 'replay', 'dark', practiceOpen)
     await page.getByRole('button', { name: 'Empezar' }).click()
     const session = page.getByRole('region', { name: 'Sesión de replay' })
     await expect(session).toContainText('Vela200 de 288')
@@ -47,7 +63,7 @@ for (const mobile of [false, true]) {
 test('marcas y ticket de estudio: van al motor y se dibujan como vuelven (#773, #791)', async ({
   page,
 }) => {
-  const { unmocked, errors } = await openView(page, 'replay')
+  const { unmocked, errors } = await openView(page, 'replay', 'dark', practiceOpen)
   await page.getByRole('button', { name: 'Empezar' }).click()
   const chart = page.getByRole('img', { name: /Velas del replay/ })
   const box = (await chart.boundingBox())!
@@ -72,7 +88,7 @@ test('marcas y ticket de estudio: van al motor y se dibujan como vuelven (#773, 
 test('examen: al terminar, proceso → niveles → R → fecha real, y la fecha solo al final (#790)', async ({
   page,
 }) => {
-  const { unmocked, errors } = await openView(page, 'replay')
+  const { unmocked, errors } = await openView(page, 'replay', 'dark', practiceOpen)
   await page.getByRole('button', { name: 'Niveles' }).click()
   await page.getByRole('button', { name: 'Empezar' }).click()
   const marks = page.getByRole('form', { name: 'Marcar en el gráfico' })
@@ -106,9 +122,10 @@ test('examen de una lección: se empieza en su página y el resultado dice lo de
   page,
 }) => {
   const { unmocked, errors } = await openView(page, 'replay')
-  // El catálogo de las pruebas es el de los niveles 0–2, sin exámenes de replay: la 1.2 pasa a
-  // ser uno de pivotes (de prueba). Después de terminar, el progreso la da por aprobada.
-  const catalog = structuredClone(academyCatalog)
+  // La 1.2 (un cuestionario en el catálogo real) pasa a ser un examen de replay de pivotes (de
+  // prueba), así la prueba no depende de las lecciones de los niveles 3–7. Después de terminar, el
+  // progreso la da por aprobada.
+  const catalog = structuredClone(academyCatalog) as { levels: { lessons: { id: string }[] }[] }
   const lesson = catalog.levels.flatMap((l) => l.lessons).find((l) => l.id === '1.2')!
   Object.assign(lesson, {
     exam: { kind: 'replay', ready: true, questions: [], replay_kind: 'pivots' },

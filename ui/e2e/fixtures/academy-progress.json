@@ -1,6 +1,6 @@
 {
   "member_id": "owner",
-  "catalog_version": "e1820742fdc5ff963b7abdae5d8f8da067dabefaa03efd8ef9323a1335121936",
+  "catalog_version": "b6d3ceea8300302cd37ca044138a8cb40d804ee51ec15e042fb510a42e3206c5",
   "as_of": "2026-11-25T16:00:00Z",
   "lessons": [
     {
@@ -72,6 +72,160 @@
       "passed_at": null,
       "attempts": 0,
       "best_score_pct": null
+    },
+    {
+      "lesson_id": "3.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "3.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "3.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "3.4",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "4.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "4.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "4.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "4.4",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "5.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "5.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "5.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "5.4",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "6.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "6.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "6.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "6.4",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "6.5",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "7.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "7.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "7.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "7.4",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "7.5",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
     }
   ],
   "tools": [
@@ -110,6 +264,144 @@
       "unlocked": false,
       "by": null,
       "lesson_id": "2.4"
+    },
+    {
+      "tool_id": "tool.candle_chart",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "3.1"
+    },
+    {
+      "tool_id": "tool.timeframe_selector",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "3.2"
+    },
+    {
+      "tool_id": "tool.multichart",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "3.2"
+    },
+    {
+      "tool_id": "tool.replay_practice",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "3.3"
+    },
+    {
+      "tool_id": "tool.ruler",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "3.3"
+    },
+    {
+      "tool_id": "tool.journal_notes",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "3.4"
+    },
+    {
+      "tool_id": "tool.pivots_layer",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "4.1"
+    },
+    {
+      "tool_id": "tool.drawing",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "4.2"
+    },
+    {
+      "tool_id": "tool.levels_layer",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "4.3"
+    },
+    {
+      "tool_id": "tool.chart_patterns",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "4.3"
+    },
+    {
+      "tool_id": "tool.liquidity_map",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "5.1"
+    },
+    {
+      "tool_id": "tool.sweep_structure",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "5.2"
+    },
+    {
+      "tool_id": "tool.fvg_order_blocks",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "5.3"
+    },
+    {
+      "tool_id": "tool.fvg_stats",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "5.3"
+    },
+    {
+      "tool_id": "tool.atr",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "6.1"
+    },
+    {
+      "tool_id": "tool.moving_averages",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "6.2"
+    },
+    {
+      "tool_id": "tool.fibonacci",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "6.4"
+    },
+    {
+      "tool_id": "tool.floor_pivots",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "6.4"
+    },
+    {
+      "tool_id": "tool.spring_upthrust",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "6.4"
+    },
+    {
+      "tool_id": "tool.bottoms",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "6.4"
+    },
+    {
+      "tool_id": "tool.vix_regime",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "6.4"
+    },
+    {
+      "tool_id": "tool.paper_ticket",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "7.3"
+    },
+    {
+      "tool_id": "tool.trading_status_bar",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "7.4"
     }
   ],
   "unlock_all": false

@@ -4,10 +4,11 @@
  * barra de pérdida usa el porcentaje del motor como ancho, recortado por CSS) y no tiene ningún
  * control para reiniciar el kill switch.
  */
-import { OctagonAlert } from 'lucide-react'
+import { Lock, OctagonAlert } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 
 import { Term } from '@/components/ui/term'
+import { focusLesson, useToolLock } from '@/lib/academy-locks'
 import { dateTimeUtc, decimal, leverageText } from '@/lib/format'
 import type { Gate, OpsEvent, OpsStatus } from '@/lib/ops-api'
 import { cn } from '@/lib/utils'
@@ -73,8 +74,22 @@ export function OpsKillSwitchBanner({ status }: { status: OpsStatus }) {
  * Fluye en bloques que bajan de línea enteros (#356): los chips juntos, la pérdida del día con su
  * barra (se estira, nunca baja de ~15rem), el apalancamiento sin cortar, y la reconciliación en
  * su propia franja abajo. Así ningún texto se encima con otro en ningún ancho.
+ *
+ * Candado de la Academia (`tool.trading_status_bar`, lección 7.4, #836), solo donde se pide con
+ * `academyLock` (la Terminal): bloqueada, la barra muestra solo la compuerta y el kill switch, y
+ * en lugar de la pérdida del día, el apalancamiento y la reconciliación, la lección que los abre.
+ * **Un candado nunca esconde un aviso:** con el kill switch activo, el broker sin aceptar órdenes,
+ * la cuenta sin datos o una reconciliación con diferencias, la barra se muestra entera igual.
  */
-export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
+export function OpsStatusBar({
+  status,
+  academyLock = false,
+}: {
+  status: OpsStatus | null
+  /** si se aplica el candado de la Academia (la Terminal; el Panel la muestra siempre entera) */
+  academyLock?: boolean
+}) {
+  const lock = useToolLock('tool.trading_status_bar')
   if (!status) {
     return (
       <section
@@ -92,6 +107,52 @@ export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
   const a = status.account
   const gate = GATE[status.gate]
   const rec = status.last_reconcile
+  const chips = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Chip className={gate.tone}>
+        <span className="size-2 shrink-0 rounded-full bg-current" aria-hidden="true" />
+        {gate.label}
+      </Chip>
+      {a && (
+        <Chip className={a.kill_switch.active ? 'border-down bg-down text-white' : 'border-border'}>
+          <Term id="kill-switch">Kill switch</Term> {a.kill_switch.active ? 'ACTIVO' : 'inactivo'}
+        </Chip>
+      )}
+    </div>
+  )
+  const quiet =
+    status.gate === 'ready' && a !== null && !a.kill_switch.active && (rec === null || rec.clean)
+  if (academyLock && lock.locked && quiet) {
+    const lesson = `lección ${lock.lessonId}${lock.lessonTitle ? ` · ${lock.lessonTitle}` : ''}`
+    return (
+      <section
+        aria-label="Estado de la operación"
+        data-ops-status={status.gate}
+        data-tool-lock="tool.trading_status_bar"
+        className="panel flex flex-wrap items-center gap-x-6 gap-y-2 rounded-section px-4 py-3 sm:px-5"
+      >
+        {chips}
+        {lock.visible && (
+          <p className="flex min-w-0 flex-[1_1_18rem] items-start gap-1.5 text-[12px] leading-snug">
+            <Lock aria-hidden="true" className="mt-px size-3.5 shrink-0" />
+            <span className="min-w-0">
+              <span className="text-muted-foreground">
+                El resto de la barra (pérdida del día contra el máximo, apalancamiento y
+                reconciliación) se desbloquea en la {lesson}. Con un aviso, se muestra entera.
+              </span>{' '}
+              <a
+                href="#academia"
+                onClick={() => focusLesson(lock.lessonId)}
+                className="font-semibold whitespace-nowrap text-foreground underline underline-offset-2"
+              >
+                Ir a la lección
+              </a>
+            </span>
+          </p>
+        )}
+      </section>
+    )
+  }
   return (
     <section
       aria-label="Estado de la operación"
@@ -99,20 +160,7 @@ export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
       className="panel relative grid gap-3 rounded-section px-4 py-3 sm:px-5"
     >
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Chip className={gate.tone}>
-            <span className="size-2 shrink-0 rounded-full bg-current" aria-hidden="true" />
-            {gate.label}
-          </Chip>
-          {a && (
-            <Chip
-              className={a.kill_switch.active ? 'border-down bg-down text-white' : 'border-border'}
-            >
-              <Term id="kill-switch">Kill switch</Term>{' '}
-              {a.kill_switch.active ? 'ACTIVO' : 'inactivo'}
-            </Chip>
-          )}
-        </div>
+        {chips}
         {a ? (
           <>
             <div className="grid min-w-[min(100%,15rem)] flex-[1_1_15rem] gap-1.5 text-[11.5px]">
