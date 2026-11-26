@@ -3,14 +3,14 @@ modulo: indicators
 ruta: `engine/crates/indicators`
 lenguaje: Rust
 estado: hecho
-resumen: Indicadores técnicos (SMA, EMA, RSI, ATR, VWAP...), tendencia de 1h y medidas de sentimiento desde precios diarios.
+resumen: Indicadores técnicos (SMA, EMA, ATR, cruces, volatilidad realizada, pivotes diarios, caída), tendencia de 1h y medidas de sentimiento desde precios diarios.
 ---
 
 # indicators
 
 ## Responsabilidad (única)
 
-- Indicadores técnicos (SMA, EMA, RSI, ATR, VWAP, volumen...) y tendencia de 1h
+- Indicadores técnicos (SMA, EMA, ATR, cruces, volatilidad realizada y terciles, pivotes diarios, caída, intervalo de Wilson) y tendencia de 1h. **No hay RSI ni VWAP** en el motor (lección 6.3 de la Academia)
 - medidas de sentimiento desde precios diarios (spec §9.1): volatilidad realizada, su tercio frente a su propia historia (`vol_terciles`, el único cálculo: lo leen los análogos y ML) y caída desde el máximo (`drawdown_from_high`)
 - intervalo de Wilson de una proporción (`wilson`, el único: lo usan `journal` y `liquidity`)
 - SMA y EMA de cualquier serie de valores (`sma_values`, `ema_values`), por ejemplo los cierres diarios (EMA 365 diaria del gráfico, #491)
