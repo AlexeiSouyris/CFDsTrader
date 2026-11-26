@@ -104,7 +104,7 @@ Con un máximo de 10.000 €, decí el factor de la reducción gradual con estos
 | Punto 2: (10 %, 0,5) | `{ drawdown_pct = "10", scale = "0.5" }` | `config/risk.toml` | A |
 | Punto 3: (12,5 %, 0,25) | `{ drawdown_pct = "12.5", scale = "0.25" }` | `config/risk.toml` | A |
 | Después del último punto vale el último factor | `Después del último punto vale el último factor` | `docs/analysis/2026-11-riesgo-propuesta.md` | A |
-| El máximo se actualiza al cierre de cada vela | `al cierre de **cada** vela cerrada` | `engine/crates/risk/src/lib.rs` | A |
+| El máximo se actualiza al cierre de cada vela | `vela cerrada, en orden, no solo cuando se decide una orden` | `engine/crates/risk/src/lib.rs` | A |
 | Causas del kill switch | `límite superado, error de datos, desconexión o reconciliación` | `engine/crates/broker/src/paper.rs` | A |
 | En paper no se reactiva solo | `no se opera más hasta la decisión del dueño` | `docs/analysis/2026-11-riesgo-con-sin-topes.md` | A |
 | En backtest se reactiva a los 20 días hábiles | 20 (`20`) | `config/backtest.toml` `kill_switch.reset_after_business_days` | A |

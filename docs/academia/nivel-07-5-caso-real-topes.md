@@ -102,7 +102,7 @@ Nada nuevo: el ticket de paper y la barra de estado se abren en 7.3 y 7.4.
 | Reducción gradual: operaciones con riesgo reducido | `1073 de 1352` | `docs/analysis/registro-de-resultados.csv` `R039` | A |
 | Descriptivo: no vota ni suma al N | `no vota ni suma al N` | `docs/analysis/registro-de-resultados.csv` `R039` | A |
 | Capital final sin topes | 242 € (`242`) | `docs/analysis/2026-11-riesgo-con-sin-topes.md` | A |
-| Capital final con topes | 841 € (`**841**`) | `docs/analysis/2026-11-riesgo-con-sin-topes.md` | A |
+| Capital final con topes | 841 € (`841`) | `docs/analysis/2026-11-riesgo-con-sin-topes.md` | A |
 | Riesgo medio por operación con / sin topes | `riesgo medio 0,52 % frente a 0,98 %` | `docs/analysis/2026-11-riesgo-con-sin-topes.md` | A |
 | Operaciones con / sin topes | `Hay más operaciones con topes (1 352 frente a 978)` | `docs/analysis/2026-11-riesgo-con-sin-topes.md` | A |
 | Capital final de solo caída y solo grupo | `671` | `docs/analysis/2026-11-riesgo-con-sin-topes.md` | A |
