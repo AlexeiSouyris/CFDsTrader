@@ -328,6 +328,7 @@ dependencies = [
  "cfds-market-data",
  "cfds-obs",
  "cfds-patterns",
+ "cfds-propsim",
  "cfds-risk",
  "cfds-runner",
  "cfds-storage",

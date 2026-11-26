@@ -17,6 +17,7 @@ cfds-journal = { version = "0.1.0", path = "../journal" }
 cfds-liquidity = { version = "0.1.0", path = "../liquidity" }
 cfds-market-data = { version = "0.1.0", path = "../market-data" }
 cfds-patterns = { version = "0.1.0", path = "../patterns" }
+cfds-propsim = { version = "0.1.0", path = "../propsim" }
 cfds-obs = { version = "0.1.0", path = "../obs" }
 cfds-risk = { version = "0.1.0", path = "../risk" }
 cfds-runner = { version = "0.1.0", path = "../runner" }

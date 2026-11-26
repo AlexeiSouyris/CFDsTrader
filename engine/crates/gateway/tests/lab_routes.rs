@@ -74,6 +74,7 @@ fn deps() -> LabDeps {
         cfds_backtest::BacktestConfig::from_toml(cfg!("backtest.toml"))
             .unwrap()
             .costs,
+        cfg!("propsim.toml"),
     )
     .unwrap()
 }
@@ -675,4 +676,187 @@ async fn the_risk_preview_route_reads_recent_candles_and_the_catalog() {
     tf["timeframe"] = json!("4h");
     assert_eq!(call(&store, post(path, &tf)).await.status, 400);
     assert_eq!(call(&store, get(path)).await.status, 405);
+}
+
+// ── Simuladores de varianza y de cuentas fondeadas (#805) ────────────────────────────────────
+
+fn report_with_trades(store: &Mem, id: &str, rows: Option<Value>) {
+    let mut report = json!({ "report_id": id });
+    if let Some(r) = rows {
+        report["trade_list"] = r;
+    }
+    store
+        .0
+        .lock()
+        .unwrap()
+        .reports
+        .insert(id.to_owned(), report);
+}
+
+fn prop_rules() -> Value {
+    json!({
+        "id": "prueba", "name": "Reglas de prueba", "source": null,
+        "account_size": "100000", "currency": "USD",
+        "day": { "timezone": "UTC", "cutoff": "00:00" },
+        "phases": [{ "name": "Evaluación", "profit_target_pct": "10", "min_trading_days": null,
+            "max_trading_days": null, "consistency_pct": null }],
+        "daily_loss": { "limit_pct": "5", "base": "account_size" },
+        "max_drawdown": { "limit_pct": "10", "mode": "static", "lock_at_initial": false },
+        "funded": { "payout_min_trading_days": null, "payout_min_profit_pct": null,
+            "profit_split_pct": "80", "consistency_pct": null },
+        "fees": { "evaluation": "100", "activation": null, "refund_with_first_payout": false }
+    })
+}
+
+#[tokio::test]
+async fn the_variance_simulator_answers_with_its_contract() {
+    let store = Mem::default();
+    let req = json!({ "source": { "kind": "model", "win_rate": "0.5", "avg_win_r": "1.5",
+        "avg_loss_r": "1", "observed_trades": 50 }, "risk_pct": "1", "trades": 100,
+        "paths": 200, "seed": 3 });
+    assert_contract("variance_sim_request.v1.schema.json", &req);
+    let r = call(&store, post("/api/v1/lab/variance", &req)).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let rep = body(&r);
+    assert_contract("variance_sim_report.v1.schema.json", &rep);
+    assert_eq!(rep["paths"], 200);
+    // Sin token, otro método, fuera de los topes o mal formado.
+    let mut no_token = post("/api/v1/lab/variance", &req);
+    no_token.token = None;
+    assert_eq!(call(&store, no_token).await.status, 403);
+    assert_eq!(call(&store, get("/api/v1/lab/variance")).await.status, 405);
+    let too_many = json!({ "source": req["source"], "risk_pct": "1", "trades": 100,
+        "paths": 1_000_000 });
+    assert_eq!(
+        call(&store, post("/api/v1/lab/variance", &too_many))
+            .await
+            .status,
+        422
+    );
+    let bad = json!({ "source": { "kind": "nope" }, "risk_pct": "1", "trades": 10 });
+    assert_eq!(
+        call(&store, post("/api/v1/lab/variance", &bad))
+            .await
+            .status,
+        400
+    );
+}
+
+#[tokio::test]
+async fn the_variance_simulator_reads_the_r_of_a_saved_report() {
+    let store = Mem::default();
+    let id = "c".repeat(64);
+    let req = json!({ "source": { "kind": "report", "report_id": id }, "risk_pct": "1",
+        "trades": 50, "paths": 100 });
+    assert_eq!(
+        call(&store, post("/api/v1/lab/variance", &req))
+            .await
+            .status,
+        404
+    );
+    report_with_trades(&store, &id, None);
+    let r = call(&store, post("/api/v1/lab/variance", &req)).await;
+    assert_eq!(r.status, 422, "informe anterior a #804: {}", r.body);
+    report_with_trades(
+        &store,
+        &id,
+        Some(json!([
+            { "closed_at": "2026-01-05T15:00:00Z", "r_net": "1.5" },
+            { "closed_at": "2026-01-06T15:00:00Z", "r_net": null },
+            { "closed_at": "2026-01-07T15:00:00Z", "r_net": "-1" }
+        ])),
+    );
+    let r = call(&store, post("/api/v1/lab/variance", &req)).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let rep = body(&r);
+    assert_contract("variance_sim_report.v1.schema.json", &rep);
+    assert_eq!(rep["source"]["count"], 2, "la operación sin R no entra");
+    assert_eq!(rep["source"]["report_id"], id);
+    let bad_id = json!({ "source": { "kind": "report", "report_id": "x" }, "risk_pct": "1",
+        "trades": 10 });
+    assert_eq!(
+        call(&store, post("/api/v1/lab/variance", &bad_id))
+            .await
+            .status,
+        400
+    );
+}
+
+#[tokio::test]
+async fn the_propsim_templates_are_only_the_blank_one() {
+    let store = Mem::default();
+    let r = call(&store, get("/api/v1/lab/propsim/templates")).await;
+    assert_eq!(r.status, 200);
+    let list = body(&r);
+    let list = list.as_array().unwrap();
+    assert_eq!(list.len(), 1);
+    assert_contract("prop_rules.v1.schema.json", &list[0]);
+    assert_eq!(list[0]["account_size"], Value::Null);
+    let wrong = post("/api/v1/lab/propsim/templates", &json!({}));
+    assert_eq!(call(&store, wrong).await.status, 405);
+}
+
+#[tokio::test]
+async fn the_propsim_simulator_runs_a_list_a_report_and_rejects_blank_rules() {
+    let store = Mem::default();
+    let trades: Vec<Value> = (0..20)
+        .map(|k| {
+            json!({ "closed_at": format!("2026-02-{:02}T15:00:00Z", k + 1),
+            "r": if k % 3 == 0 { "-1" } else { "1.5" } })
+        })
+        .collect();
+    let req = json!({ "rules": prop_rules(), "risk_per_trade_pct": "1",
+        "source": { "kind": "trades", "trades": trades },
+        "monte_carlo": { "paths": 200, "seed": 1, "horizon_days": 60 } });
+    assert_contract("prop_sim_request.v1.schema.json", &req);
+    let r = call(&store, post("/api/v1/lab/propsim", &req)).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let res = body(&r);
+    assert_contract("prop_sim_result.v1.schema.json", &res);
+    assert!(res["observed"].is_object());
+    assert!(res["monte_carlo"]["zero_edge"].is_object());
+
+    let id = "d".repeat(64);
+    report_with_trades(
+        &store,
+        &id,
+        Some(json!([{ "closed_at": "2026-01-05T15:00:00Z", "r_net": "2" }])),
+    );
+    let from_report = json!({ "rules": prop_rules(), "risk_per_trade_pct": "1",
+        "source": { "kind": "report", "report_id": id },
+        "monte_carlo": { "paths": 50, "horizon_days": 20 } });
+    let r = call(&store, post("/api/v1/lab/propsim", &from_report)).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(body(&r)["source"]["trades"], 1);
+
+    let blank = call(&store, get("/api/v1/lab/propsim/templates")).await;
+    let blank = body(&blank)[0].clone();
+    let req = json!({ "rules": blank, "risk_per_trade_pct": "1",
+        "source": { "kind": "trades", "trades": [{ "closed_at": "2026-01-05T15:00:00Z",
+            "r": "1" }] } });
+    let r = call(&store, post("/api/v1/lab/propsim", &req)).await;
+    assert_eq!(r.status, 422);
+    let err = body(&r);
+    assert!(
+        err["rules"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e["path"] == "/account_size")
+    );
+    let mut no_token = post("/api/v1/lab/propsim", &req);
+    no_token.token = None;
+    assert_eq!(call(&store, no_token).await.status, 403);
+}
+
+#[test]
+fn the_simulators_have_a_bigger_body_cap() {
+    let r = LabRoutes::from_toml(cfg!("gateway.toml")).unwrap();
+    assert!(r.sim_max_body_bytes > r.max_body_bytes);
+    assert_eq!(r.body_cap("/api/v1/lab/variance"), r.sim_max_body_bytes);
+    assert_eq!(r.body_cap("/api/v1/lab/propsim"), r.sim_max_body_bytes);
+    assert_eq!(r.body_cap("/api/v1/lab/jobs"), r.max_body_bytes);
+    let text =
+        cfg!("gateway.toml").replace("sim_max_body_bytes = 1048576", "sim_max_body_bytes = 0");
+    assert!(LabRoutes::from_toml(&text).is_err());
 }

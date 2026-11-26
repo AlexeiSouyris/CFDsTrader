@@ -95,6 +95,7 @@ const IBKR: &str = include_str!("../../../../config/ibkr.toml");
 const ACADEMY: &str = include_str!("../../../../config/academy.toml");
 const DATA_SPLIT: &str = include_str!("../../../../config/data_split.toml");
 const LAB: &str = include_str!("../../../../config/lab.toml");
+const PROPSIM: &str = include_str!("../../../../config/propsim.toml");
 
 /// `config/` del repo (sesiones y feriados del calendario se leen de ahí).
 fn config_dir() -> PathBuf {
@@ -230,7 +231,7 @@ async fn replay_reply(state: &State, req: Request<Incoming>) -> Reply {
 }
 
 async fn lab_reply(state: &State, req: Request<Incoming>) -> Reply {
-    let max = state.lab.routes.max_body_bytes;
+    let max = state.lab.routes.body_cap(req.uri().path());
     let (method, path, token, content_type, body) = match read_request(req, max).await {
         Ok(r) => r,
         Err(reply) => return reply,
@@ -730,6 +731,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         redis_url,
         &catalog,
         backtest.costs,
+        PROPSIM,
     )?;
     let lab_store = PgLabStore {
         lab: cfds_journal::lab::PgLab::new(store.pool().clone()),
