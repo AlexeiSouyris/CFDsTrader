@@ -454,7 +454,8 @@ export function LiquidityChart({
   )
   const fvgEnd = (f: FvgEvent) => f.fill?.at ?? f.expiry?.at ?? null
   const shownFvgs = fvgs.filter((f) => idxAt(fvgEnd(f)) > 0)
-  const [tools, toggleTool] = useChartTools()
+  // las capas que se dibujan: prendidas y abiertas en la Academia (#836)
+  const [tools, toggleTool, toolLocks] = useChartTools()
   const markers = layers ? layers.markers.filter((mk) => tools[MARKER_TOOL[mk.kind]]) : []
   const vix = tools.vix ? (layers?.vix ?? null) : null
   // Fibonacci: solo el último tramo confirmado (con decenas de tramos en la ventana, dibujarlos
@@ -589,7 +590,12 @@ export function LiquidityChart({
         value={range}
         onChange={(v) => vp.setRange((ranges.find((r) => r.label === v) ?? ranges[1]).bars)}
       />
-      <ChartToolsMenu tools={tools} onToggle={toggleTool} available={layers !== null} />
+      <ChartToolsMenu
+        tools={tools}
+        onToggle={toggleTool}
+        available={layers !== null}
+        locks={toolLocks}
+      />
     </div>
   )
 

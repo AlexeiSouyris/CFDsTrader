@@ -509,43 +509,46 @@ export function TerminalView({ member }: { member: Member }) {
 
   const ticket = (
     <Panel title="Ticket" aside={live ? 'simulación · broker simulado' : 'simulación · ejemplo'}>
-      {activeSel.feed === 'ibkr' && (
-        <p
-          role="note"
-          data-ibkr-not-tradable
-          className="mb-2 rounded-xl border border-[var(--chart-signal)]/50 px-3 py-2 text-[12px] leading-snug"
-        >
-          <strong className="block font-bold">
-            {activeSel.instrument} (IBKR): solo datos, no operable.
-          </strong>
-          <span className="text-muted-foreground">
-            El gráfico muestra las velas de IBKR; el ticket sigue con los instrumentos del broker
-            simulado.
-          </span>
-        </p>
-      )}
-      {ticketInstrument ? (
-        // arranca vacío (#578): ni stop ni TP1 de ejemplo
-        <OrderTicket
-          key={`${live ? 'live' : 'mock'}|${ticketInstrument}`}
-          instruments={ticketInstruments}
-          names={names}
-          unavailable={noCandles}
-          initial={{ instrument_id: ticketInstrument, side: 'long', stop: '', tp1: '' }}
-          examples={live ? [] : TICKET_EXAMPLES}
-          preview={live ? previewOrder : mockPreview}
-          submit={live ? submitOrder : undefined}
-          onFilled={() => setRefresh((n) => n + 1)}
-          onReport={(order, report) => setSent((all) => [{ order, report }, ...all])}
-          locked={locked}
-        />
-      ) : (
-        <p role="status" className="py-4 text-center text-[12.5px] text-muted-foreground">
-          {live && catalog.status !== 'error'
-            ? 'Pidiendo al motor los instrumentos que se pueden operar…'
-            : 'El motor no tiene instrumentos con velas para operar ahora.'}
-        </p>
-      )}
+      {/* el ticket de paper se abre en la lección 7.3 (#836); el gráfico y las posiciones, no */}
+      <ToolLock tool="tool.paper_ticket">
+        {activeSel.feed === 'ibkr' && (
+          <p
+            role="note"
+            data-ibkr-not-tradable
+            className="mb-2 rounded-xl border border-[var(--chart-signal)]/50 px-3 py-2 text-[12px] leading-snug"
+          >
+            <strong className="block font-bold">
+              {activeSel.instrument} (IBKR): solo datos, no operable.
+            </strong>
+            <span className="text-muted-foreground">
+              El gráfico muestra las velas de IBKR; el ticket sigue con los instrumentos del broker
+              simulado.
+            </span>
+          </p>
+        )}
+        {ticketInstrument ? (
+          // arranca vacío (#578): ni stop ni TP1 de ejemplo
+          <OrderTicket
+            key={`${live ? 'live' : 'mock'}|${ticketInstrument}`}
+            instruments={ticketInstruments}
+            names={names}
+            unavailable={noCandles}
+            initial={{ instrument_id: ticketInstrument, side: 'long', stop: '', tp1: '' }}
+            examples={live ? [] : TICKET_EXAMPLES}
+            preview={live ? previewOrder : mockPreview}
+            submit={live ? submitOrder : undefined}
+            onFilled={() => setRefresh((n) => n + 1)}
+            onReport={(order, report) => setSent((all) => [{ order, report }, ...all])}
+            locked={locked}
+          />
+        ) : (
+          <p role="status" className="py-4 text-center text-[12.5px] text-muted-foreground">
+            {live && catalog.status !== 'error'
+              ? 'Pidiendo al motor los instrumentos que se pueden operar…'
+              : 'El motor no tiene instrumentos con velas para operar ahora.'}
+          </p>
+        )}
+      </ToolLock>
     </Panel>
   )
 
@@ -620,7 +623,8 @@ export function TerminalView({ member }: { member: Member }) {
       </div>
       {opsLive && <OpsKillSwitchBanner status={opsLive} />}
       {!opsLive && <KillSwitchBanner account={account} />}
-      <OpsStatusBar status={opsLive} />
+      {/* sin la pérdida del día hasta la lección 7.4 (#836); los avisos, siempre */}
+      <OpsStatusBar status={opsLive} academyLock />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="max-w-2xl text-[12px] text-muted-foreground">

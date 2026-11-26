@@ -14,6 +14,7 @@ import {
   Keyboard,
   Layers,
   LineChart,
+  Lock,
   Moon,
   Play,
   SlidersHorizontal,
@@ -36,6 +37,7 @@ import {
 import { AcademySettings } from '@/components/ui/academy-settings'
 import { CandlestickIcon } from '@/components/ui/animated-icons'
 import { StatusBar } from '@/components/ui/status-bar'
+import { focusLesson } from '@/lib/academy-locks'
 import { TOOLS } from '@/lib/analysis-layers'
 import { useInstruments } from '@/lib/liquidity-api'
 import type { InstrumentInfo } from '@/lib/liquidity-contracts'
@@ -808,7 +810,7 @@ function CommandPalette({
     if (catalog.status === 'ok')
       lastCatalog = { instruments: catalog.data.instruments, timeframes: catalog.data.timeframes }
   }, [catalog])
-  const [layers, toggleLayer] = useChartTools()
+  const [layers, toggleLayer, layerLocks] = useChartTools()
   // Enter antes de que llegue el catálogo: se elige apenas llega (o falla)
   const waiting = useRef(false)
 
@@ -883,18 +885,41 @@ function CommandPalette({
         else onSelect('terminal')
       },
     })),
-    ...TOOLS.map((t) => ({
-      key: `layer:${t.id}`,
-      group: 'Capas' as const,
-      label: `${layers[t.id] ? 'Apagar' : 'Prender'} ${t.label}`,
-      detail: `Capa de análisis de los gráficos: ahora ${layers[t.id] ? 'prendida' : 'apagada'}.`,
-      text: `capa herramienta ${layers[t.id] ? 'apagar' : 'prender'} ${t.label}`,
-      icon: Layers,
-      run: () => {
-        toggleLayer(t.id, !layers[t.id])
-        onClose()
-      },
-    })),
+    ...TOOLS.flatMap((t) => {
+      const lock = layerLocks[t.id]
+      // con candado de la Academia (#836): lleva a la lección que la abre, no la prende
+      if (lock.locked)
+        return lock.visible
+          ? [
+              {
+                key: `layer:${t.id}`,
+                group: 'Capas' as const,
+                label: `${t.label} (con candado)`,
+                detail: `Se desbloquea en la lección ${lock.lessonId}${lock.lessonTitle ? ` · ${lock.lessonTitle}` : ''}: la abre en la Academia.`,
+                text: `capa herramienta candado bloqueada ${t.label}`,
+                icon: Lock,
+                run: () => {
+                  focusLesson(lock.lessonId)
+                  onSelect('academia')
+                },
+              },
+            ]
+          : []
+      return [
+        {
+          key: `layer:${t.id}`,
+          group: 'Capas' as const,
+          label: `${layers[t.id] ? 'Apagar' : 'Prender'} ${t.label}`,
+          detail: `Capa de análisis de los gráficos: ahora ${layers[t.id] ? 'prendida' : 'apagada'}.`,
+          text: `capa herramienta ${layers[t.id] ? 'apagar' : 'prender'} ${t.label}`,
+          icon: Layers,
+          run: () => {
+            toggleLayer(t.id, !layers[t.id])
+            onClose()
+          },
+        },
+      ]
+    }),
     {
       key: 'theme',
       group: 'Tema',

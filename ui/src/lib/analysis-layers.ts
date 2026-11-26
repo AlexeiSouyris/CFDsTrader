@@ -15,15 +15,34 @@ import type { ChartBar } from '@/lib/liquidity-bars'
 export type AnalysisTool =
   'ema' | 'fibonacci' | 'wyckoff' | 'bottoms' | 'crosses' | 'pivots' | 'vix'
 
-/** Las herramientas en el orden del menú; `term` es el id de su definición en `docs/GLOSARIO.md`. */
-export const TOOLS: { id: AnalysisTool; label: string; term: string }[] = [
-  { id: 'ema', label: 'EMA diaria', term: 'ema' },
-  { id: 'fibonacci', label: 'Fibonacci y golden pocket', term: 'fibonacci' },
-  { id: 'wyckoff', label: 'Spring y upthrust', term: 'spring' },
-  { id: 'bottoms', label: 'Precio de fondo', term: 'precio-de-fondo' },
-  { id: 'crosses', label: 'Cruce dorado / de la muerte', term: 'cruce-dorado' },
-  { id: 'pivots', label: 'Puntos pivote diarios', term: 'puntos-pivote' },
-  { id: 'vix', label: 'Régimen del VIX', term: 'vix' },
+/**
+ * Las herramientas en el orden del menú; `term` es el id de su definición en `docs/GLOSARIO.md` y
+ * `lock`, el de la herramienta de la Academia que la abre (`config/academy.toml`, #836): la EMA y
+ * los cruces son la misma lección (6.2, medias y cruces).
+ */
+export const TOOLS: { id: AnalysisTool; label: string; term: string; lock: string }[] = [
+  { id: 'ema', label: 'EMA diaria', term: 'ema', lock: 'tool.moving_averages' },
+  {
+    id: 'fibonacci',
+    label: 'Fibonacci y golden pocket',
+    term: 'fibonacci',
+    lock: 'tool.fibonacci',
+  },
+  { id: 'wyckoff', label: 'Spring y upthrust', term: 'spring', lock: 'tool.spring_upthrust' },
+  { id: 'bottoms', label: 'Precio de fondo', term: 'precio-de-fondo', lock: 'tool.bottoms' },
+  {
+    id: 'crosses',
+    label: 'Cruce dorado / de la muerte',
+    term: 'cruce-dorado',
+    lock: 'tool.moving_averages',
+  },
+  {
+    id: 'pivots',
+    label: 'Puntos pivote diarios',
+    term: 'puntos-pivote',
+    lock: 'tool.floor_pivots',
+  },
+  { id: 'vix', label: 'Régimen del VIX', term: 'vix', lock: 'tool.vix_regime' },
 ]
 
 export type ToolState = Record<AnalysisTool, boolean>
