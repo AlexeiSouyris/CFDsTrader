@@ -3,8 +3,8 @@
 # academy_catalog.v1 (GET /api/v1/academy/catalog). Nada de esto toca el motor de trading, el
 # riesgo ni el paper: solo qué se enseña, cómo se corrige y qué se ve en la UI.
 #
-# Por ahora, niveles 0 a 5, con su contenido (#760 y #819, §8 PR 6 y 11): el texto de cada lección
-# está en `doc` (docs/academia/*.md, formato que valida cfds_academy::lesson_doc: secciones fijas, aviso,
+# Por ahora, niveles 0 a 6, con su contenido (#760, #819 y #828; §8 PR 6, 11 y 15): el texto de
+# cada lección está en `doc` (docs/academia/*.md, formato que valida cfds_academy::lesson_doc: secciones fijas, aviso,
 # sin promesas y una tabla de cifras que el motor compara con su fuente del repo). Mientras una
 # lección con examen no tenga preguntas, su examen sale `ready = false` y no se puede rendir (sus
 # herramientas se abren solo a mano, en Ajustes).
@@ -159,6 +159,35 @@ name = "Capas de FVG y order blocks"
 id = "tool.fvg_stats"
 name = "Estadísticas de FVG"
 
+# Nivel 6 (#828). RSI y VWAP no tienen herramienta: el motor no los calcula (lección 6.3).
+[[tools]]
+id = "tool.atr"
+name = "ATR"
+
+[[tools]]
+id = "tool.moving_averages"
+name = "EMA, SMA y cruces de medias"
+
+[[tools]]
+id = "tool.fibonacci"
+name = "Fibonacci y golden pocket"
+
+[[tools]]
+id = "tool.floor_pivots"
+name = "Puntos pivote diarios"
+
+[[tools]]
+id = "tool.spring_upthrust"
+name = "Spring y upthrust"
+
+[[tools]]
+id = "tool.bottoms"
+name = "Precios de fondo"
+
+[[tools]]
+id = "tool.vix_regime"
+name = "Régimen del VIX"
+
 [[levels]]
 level = 0
 title = "Orientación: qué es esto y por qué la mayoría pierde"
@@ -182,6 +211,10 @@ title = "Estructura: pivotes, soportes, resistencias y tendencia"
 [[levels]]
 level = 5
 title = "Liquidez: niveles, barridas, FVG y order blocks (con advertencias)"
+
+[[levels]]
+level = 6
+title = "Indicadores"
 
 # exam: quiz (preguntas que corrige el motor) | none (se completa sin nota).
 # Las fuentes de cada número están en la tabla «Cifras y fuentes» del `doc` de la lección.
@@ -1334,3 +1367,305 @@ options = [
   { id = "c", text = "El FVG funciona, pero solo en velas de 1 h." },
 ]
 answer = "b"
+
+# --- Nivel 6: indicadores (#828). ATR, medias y cruces, volatilidad, y las herramientas que solo se
+# muestran, con las definiciones del motor (config/indicators.toml, config/analysis.toml,
+# cfds_indicators). El motor no calcula RSI ni VWAP: 6.3 lo dice y no abre ninguna capa. ---
+
+[[lessons]]
+id = "6.1"
+title = "ATR"
+objective = "Medir el tamaño normal del movimiento con el ATR de Wilder, calcularlo como el motor y usarlo para poner un stop que no sea ruido."
+doc = "docs/academia/nivel-06-1-atr.md"
+exam = "quiz"
+unlocks = ["tool.atr"]
+
+[[lessons.questions]]
+id = "6.1.1"
+kind = "number"
+prompt = "El cierre anterior fue 6.000. La vela siguiente tiene máximo 6.012 y mínimo 5.990. ¿Cuál es su True Range, en puntos?"
+answer = "22"
+tolerance = "0"
+unit = "pts"
+
+[[lessons.questions]]
+id = "6.1.2"
+kind = "number"
+prompt = "El cierre anterior fue 6.000. La vela siguiente abre con un gap y hace máximo 6.035 y mínimo 6.020. ¿Cuál es su True Range, en puntos?"
+answer = "35"
+tolerance = "0"
+unit = "pts"
+
+[[lessons.questions]]
+id = "6.1.3"
+kind = "number"
+prompt = "El ATR(14) anterior es 20 y la vela nueva tiene un True Range de 34. ¿Cuánto vale el ATR nuevo (suavizado de Wilder), en puntos?"
+answer = "21"
+tolerance = "0"
+unit = "pts"
+
+[[lessons.questions]]
+id = "6.1.4"
+kind = "number"
+prompt = "ATR de 20 puntos. Entrás largo en 6.000 con el stop a 1,5 ATR. ¿En qué precio va el stop?"
+answer = "5970"
+tolerance = "0"
+
+[[lessons.questions]]
+id = "6.1.5"
+kind = "choice"
+prompt = "¿Con cuántas velas sale el primer valor del ATR(14) del motor?"
+options = [
+  { id = "a", text = "Con la primera vela." },
+  { id = "b", text = "Con 13 velas." },
+  { id = "c", text = "Con 14 velas: es el promedio simple de los primeros 14 True Range." },
+  { id = "d", text = "Con 28 velas." },
+]
+answer = "c"
+
+[[lessons.questions]]
+id = "6.1.6"
+kind = "choice"
+prompt = "Una vela ya cerrada tiene un ATR de 21. Después llegan 50 velas mucho más agitadas. ¿Qué pasa con el ATR de aquella vela?"
+options = [
+  { id = "a", text = "Sube, porque el mercado se agitó." },
+  { id = "b", text = "No cambia: el valor de una vela cerrada no se repinta; suben los ATR de las velas nuevas." },
+  { id = "c", text = "Baja, porque el promedio se diluye." },
+  { id = "d", text = "Se borra y se recalcula al final del día." },
+]
+answer = "b"
+
+[[lessons]]
+id = "6.2"
+title = "Medias (SMA, EMA) y cruces"
+objective = "Calcular una SMA y una EMA como el motor, entender por qué llegan tarde y leer un cruce sin tomarlo como predicción."
+doc = "docs/academia/nivel-06-2-medias-y-cruces.md"
+exam = "quiz"
+unlocks = ["tool.moving_averages"]
+
+[[lessons.questions]]
+id = "6.2.1"
+kind = "number"
+prompt = "¿Cuánto vale α en una EMA(9) del motor (α = 2 ÷ (n + 1))?"
+answer = "0.2"
+tolerance = "0"
+
+[[lessons.questions]]
+id = "6.2.2"
+kind = "number"
+prompt = "Los últimos 4 cierres son 6.000, 6.010, 6.020 y 6.030. ¿Cuánto vale la SMA(4)?"
+answer = "6015"
+tolerance = "0"
+
+[[lessons.questions]]
+id = "6.2.3"
+kind = "number"
+prompt = "EMA(3) anterior = 6.000 (α = 0,5) y el cierre nuevo es 6.020. ¿Cuánto vale la EMA(3) nueva?"
+answer = "6010"
+tolerance = "0"
+
+[[lessons.questions]]
+id = "6.2.4"
+kind = "number"
+prompt = "El precio sube 1 punto por vela, siempre igual. ¿Cuántas velas atrás queda la SMA(21) (dónde estaba el precio hace cuántas velas)?"
+answer = "10"
+tolerance = "0"
+unit = "velas"
+
+[[lessons.questions]]
+id = "6.2.5"
+kind = "choice"
+prompt = "Para el motor, ¿qué es un cruce dorado?"
+options = [
+  { id = "a", text = "Que el precio toque la SMA 200 diaria." },
+  { id = "b", text = "Que la SMA 50 diaria pase por encima de la SMA 200 diaria, viniendo de abajo." },
+  { id = "c", text = "Que el precio suba 3 días seguidos." },
+  { id = "d", text = "Que la SMA 50 diaria baje por debajo de la SMA 200 diaria." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "6.2.6"
+kind = "choice"
+prompt = "Un día la SMA 50 y la SMA 200 diarias quedan iguales, y al día siguiente la SMA 50 vuelve a quedar abajo. ¿Hubo cruce?"
+options = [
+  { id = "a", text = "Sí, un cruce dorado." },
+  { id = "b", text = "Sí, un cruce de la muerte." },
+  { id = "c", text = "No: un toque que vuelve al mismo lado no es cruce." },
+  { id = "d", text = "Depende del volumen." },
+]
+answer = "c"
+
+[[lessons.questions]]
+id = "6.2.7"
+kind = "choice"
+prompt = "La EMA 365 diaria y los cruces de la SMA 50 y la SMA 200 del gráfico, ¿entran al puntaje o a la estrategia en uso?"
+options = [
+  { id = "a", text = "Sí, son la base de la estrategia en uso." },
+  { id = "b", text = "No: solo se muestran (config/analysis.toml)." },
+  { id = "c", text = "Solo entran los cruces dorados." },
+  { id = "d", text = "Entran al riesgo, no al puntaje." },
+]
+answer = "b"
+
+[[lessons]]
+id = "6.3"
+title = "Volatilidad, RSI y VWAP"
+objective = "Medir la volatilidad como el motor y saber qué miden el RSI y el VWAP, que el motor todavía no calcula; ninguno es una señal por sí mismo."
+doc = "docs/academia/nivel-06-3-volatilidad-rsi-y-vwap.md"
+exam = "quiz"
+unlocks = []
+
+[[lessons.questions]]
+id = "6.3.1"
+kind = "choice"
+prompt = "¿El motor calcula hoy el RSI o el VWAP?"
+options = [
+  { id = "a", text = "Sí, los dos, y la UI los dibuja." },
+  { id = "b", text = "Solo el RSI." },
+  { id = "c", text = "No: no hay código para ninguno de los dos; por eso esta lección no abre ninguna capa." },
+  { id = "d", text = "Los calcula la UI." },
+]
+answer = "c"
+
+[[lessons.questions]]
+id = "6.3.2"
+kind = "number"
+prompt = "En las últimas 14 velas, la ganancia media fue 2 puntos y la pérdida media 1 punto. ¿Cuánto da el RSI (100 − 100 ÷ (1 + RS))?"
+answer = "66.67"
+tolerance = "0.01"
+
+[[lessons.questions]]
+id = "6.3.3"
+kind = "number"
+prompt = "¿Cuántos retornos diarios usa la volatilidad realizada del motor?"
+answer = "20"
+tolerance = "0"
+
+[[lessons.questions]]
+id = "6.3.4"
+kind = "choice"
+prompt = "¿Cuál es la diferencia de unidades entre el ATR y la volatilidad realizada del motor?"
+options = [
+  { id = "a", text = "Ninguna: los dos están en %." },
+  { id = "b", text = "El ATR está en puntos por vela; la volatilidad realizada, en fracción por día, con los cierres diarios." },
+  { id = "c", text = "El ATR está en %; la volatilidad, en puntos." },
+  { id = "d", text = "Los dos están en euros." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "6.3.5"
+kind = "choice"
+prompt = "Un RSI de 75, ¿qué dice?"
+options = [
+  { id = "a", text = "Que el precio va a bajar." },
+  { id = "b", text = "Que conviene vender ya." },
+  { id = "c", text = "Que en las últimas velas las subas fueron más grandes que las bajas; nada más." },
+  { id = "d", text = "Que el volumen fue alto." },
+]
+answer = "c"
+
+[[lessons.questions]]
+id = "6.3.6"
+kind = "choice"
+prompt = "R019 probó tener más índice con el mercado calmo y menos con el mercado agitado. ¿Qué dio?"
+options = [
+  { id = "a", text = "Pasó con un Sharpe muy superior al de comprar y mantener." },
+  { id = "b", text = "No pasó: alfa de +0,19 % por mes con p = 0,17 y un Sharpe menor que el de comprar y mantener." },
+  { id = "c", text = "No se pudo correr por falta de datos." },
+  { id = "d", text = "Pasó en US100 y no en US500." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "6.3.7"
+kind = "choice"
+prompt = "¿Qué necesita el VWAP que no necesita una media móvil del cierre?"
+options = [
+  { id = "a", text = "El volumen de cada vela." },
+  { id = "b", text = "El VIX." },
+  { id = "c", text = "Las noticias del día." },
+  { id = "d", text = "Nada más." },
+]
+answer = "a"
+
+[[lessons]]
+id = "6.4"
+title = "Herramientas que no puntúan"
+objective = "Saber qué dibujan Fibonacci, los pivotes diarios, el spring y el upthrust, los fondos y el régimen del VIX, con la regla del motor, y por qué no entran al puntaje."
+doc = "docs/academia/nivel-06-4-herramientas-que-no-puntuan.md"
+exam = "quiz"
+unlocks = ["tool.fibonacci", "tool.floor_pivots", "tool.spring_upthrust", "tool.bottoms", "tool.vix_regime"]
+
+[[lessons.questions]]
+id = "6.4.1"
+kind = "number"
+prompt = "El último tramo subió de A = 6.000 a B = 6.100. ¿En qué precio está el retroceso 0,618 (B − 0,618 × (B − A))?"
+answer = "6038.2"
+tolerance = "0.01"
+
+[[lessons.questions]]
+id = "6.4.2"
+kind = "number"
+prompt = "Con el mismo tramo (de 6.000 a 6.100), ¿en qué precio está el otro borde del golden pocket, el retroceso 0,65?"
+answer = "6035"
+tolerance = "0.01"
+
+[[lessons.questions]]
+id = "6.4.3"
+kind = "number"
+prompt = "Ayer: máximo 6.120, mínimo 6.000 y cierre 6.090. ¿Cuánto vale el punto pivote diario P = (H + L + C) ÷ 3?"
+answer = "6070"
+tolerance = "0"
+
+[[lessons.questions]]
+id = "6.4.4"
+kind = "number"
+prompt = "Con ese mismo día (P = 6.070, L = 6.000), ¿cuánto vale R1 = 2P − L?"
+answer = "6140"
+tolerance = "0"
+
+[[lessons.questions]]
+id = "6.4.5"
+kind = "choice"
+prompt = "El VIX cerró en 22. ¿En qué régimen lo pone el motor?"
+options = [
+  { id = "a", text = "Calma." },
+  { id = "b", text = "Normal." },
+  { id = "c", text = "Elevado (de 20 a 30)." },
+  { id = "d", text = "Estrés." },
+]
+answer = "c"
+
+[[lessons.questions]]
+id = "6.4.6"
+kind = "choice"
+prompt = "Fibonacci, los pivotes diarios, el spring y el upthrust, los fondos y el VIX, ¿qué hacen en el motor?"
+options = [
+  { id = "a", text = "Suman puntos a la señal." },
+  { id = "b", text = "Deciden el tamaño de la posición." },
+  { id = "c", text = "Solo se muestran: no entran al puntaje, ni a la estrategia en uso, ni al riesgo." },
+  { id = "d", text = "Abren órdenes automáticas." },
+]
+answer = "c"
+
+[[lessons.questions]]
+id = "6.4.7"
+kind = "choice"
+prompt = "Soporte de un rango en 6.000. El mínimo de una vela llega a 5.960 y dos velas después el precio cierra en 6.002. ¿Es un spring para el motor?"
+options = [
+  { id = "a", text = "Sí, porque volvió a cerrar adentro." },
+  { id = "b", text = "No: pasó el soporte más de 0,5 %, así que es una ruptura de verdad." },
+  { id = "c", text = "No, porque tardó dos velas." },
+  { id = "d", text = "Sí, si el VIX está en calma." },
+]
+answer = "b"
+
+[[lessons]]
+id = "6.5"
+title = "Evidencia: reglas técnicas y fórmulas verificadas"
+objective = "Separar si la fórmula está bien calculada (tests) de si la regla sirve después de costos (estudios y nuestro registro)."
+doc = "docs/academia/nivel-06-5-evidencia-indicadores.md"
+exam = "none"
+unlocks = []
