@@ -327,6 +327,19 @@
         "by_side": { "type": "array", "items": { "$ref": "#/$defs/slice" } }
       }
     },
+    "trade_list": {
+      "description": "Opcional (#804): cada operación en orden de cierre, con su hora de cierre UTC y su R neto (con los costos de la spec), para remuestrear los R reales en los simuladores de varianza y de cuentas fondeadas. Los informes guardados antes no lo tienen. r_net es null si la operación no tiene riesgo medible.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["closed_at", "r_net"],
+        "properties": {
+          "closed_at": { "$ref": "#/$defs/utc" },
+          "r_net": { "$ref": "#/$defs/signed_or_null" }
+        }
+      }
+    },
     "notes": {
       "description": "Avisos para la persona, en español (por ejemplo: exploratorio, no vota; pocas operaciones; spread fijo histórico; por qué falta el PBO).",
       "type": "array",

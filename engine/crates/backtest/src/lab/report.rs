@@ -242,6 +242,21 @@ pub fn lab_report(i: &ReportInputs) -> Result<Value, RunError> {
             "by_hour_utc": by(&|t| format!("{:02}", t.entry_time.hour())),
             "by_side": by(&side),
         },
+        "trade_list": trade_list(trades, &net),
         "notes": notes,
     }))
+}
+
+/// Las operaciones en orden de cierre con su R neto (el mismo de la esperanza y el histograma),
+/// para los simuladores de varianza y de cuentas fondeadas (#804).
+fn trade_list(trades: &[StudyTrade], net: &[f64]) -> Vec<Value> {
+    let mut rows: Vec<(DateTime<Utc>, usize)> = trades
+        .iter()
+        .enumerate()
+        .map(|(k, t)| (t.exit_time, k))
+        .collect();
+    rows.sort();
+    rows.iter()
+        .map(|&(at, k)| json!({ "closed_at": utc(at), "r_net": num(net.get(k).copied()) }))
+        .collect()
 }

@@ -306,6 +306,31 @@ fn a_full_report_of_a_synthetic_run_matches_the_contract() {
         .sum();
     assert_eq!(per_month, r.trades.len() as u64);
     assert!(r.trades.iter().all(|t| t.exit_time.year() == 2024));
+    // La lista de operaciones (#804): una por operación, en orden de cierre, con el R neto de
+    // la esperanza.
+    let list = doc["trade_list"].as_array().unwrap();
+    assert_eq!(list.len(), r.trades.len());
+    let closed: Vec<&str> = list
+        .iter()
+        .map(|t| t["closed_at"].as_str().unwrap())
+        .collect();
+    assert!(closed.windows(2).all(|w| w[0] <= w[1]));
+    let rs: Vec<f64> = list
+        .iter()
+        .map(|t| t["r_net"].as_str().unwrap().parse().unwrap())
+        .collect();
+    let mean = rs.iter().sum::<f64>() / rs.len() as f64;
+    assert!((mean - r_net).abs() < 1e-5, "{mean} vs {r_net}");
+}
+
+#[test]
+fn an_old_report_without_the_trade_list_is_still_valid() {
+    let fx = fixture();
+    let s = spec(5);
+    let (r, setup) = run(&fx, &s);
+    let mut doc = report(&fx, &s, &r, &setup, &[]);
+    doc.as_object_mut().unwrap().remove("trade_list");
+    assert_schema(&doc);
 }
 
 #[test]
@@ -336,6 +361,7 @@ fn a_run_without_trades_reports_nulls() {
     let doc = report(&fx, &s, &StudyRun::default(), &setup, &[]);
     assert_schema(&doc);
     assert_eq!(doc["trades"]["count"], json!(0));
+    assert_eq!(doc["trade_list"], json!([]));
     for key in ["expectancy", "monte_carlo", "luck", "pbo"] {
         assert_eq!(doc[key], Value::Null, "{key}");
     }
