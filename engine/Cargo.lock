@@ -214,13 +214,16 @@ dependencies = [
 name = "cfds-academy"
 version = "0.1.0"
 dependencies = [
+ "cfds-storage",
  "chrono",
  "jsonschema",
  "rust_decimal",
  "serde",
  "serde_json",
  "sha2",
+ "sqlx",
  "thiserror 2.0.21",
+ "tokio",
  "toml",
 ]
 
