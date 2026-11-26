@@ -3,7 +3,7 @@
 # academy_catalog.v1 (GET /api/v1/academy/catalog). Nada de esto toca el motor de trading, el
 # riesgo ni el paper: solo qué se enseña, cómo se corrige y qué se ve en la UI.
 #
-# Por ahora, niveles 0 a 9, con su contenido (#760, #819, #828 y #838; §8 PR 6, 11 y 15): el texto de
+# Por ahora, niveles 0 a 10, con su contenido (#760, #819, #828 y #838; §8 PR 6, 11 y 15): el texto de
 # cada lección está en `doc` (docs/academia/*.md, formato que valida cfds_academy::lesson_doc: secciones fijas, aviso,
 # sin promesas y una tabla de cifras que el motor compara con su fuente del repo). Mientras una
 # lección con examen no tenga preguntas, su examen sale `ready = false` y no se puede rendir (sus
@@ -221,6 +221,18 @@ name = "Walk-forward y fuera de muestra de una corrida"
 id = "tool.results_registry"
 name = "Registro de resultados"
 
+# Nivel 10 (#838). El constructor del Laboratorio (exploratorio; el confirmatorio todavía no
+# existe en la app) y la pestaña Noticias de la Terminal. La «capa de régimen» del temario no
+# tiene herramienta: el régimen volatilidad × tendencia del motor está planeado, no hecho, y el
+# régimen del VIX ya lo abre la lección 6.4.
+[[tools]]
+id = "tool.lab_builder"
+name = "Laboratorio: constructor de estrategias, corridas e informes (exploratorio)"
+
+[[tools]]
+id = "tool.terminal_news"
+name = "Noticias y calendario de la Terminal"
+
 [[levels]]
 level = 0
 title = "Orientación: qué es esto y por qué la mayoría pierde"
@@ -260,6 +272,10 @@ title = "Expectativa, varianza y suerte"
 [[levels]]
 level = 9
 title = "Backtesting y sus trampas"
+
+[[levels]]
+level = 10
+title = "Tu propia estrategia: hipótesis, pre-registro, regímenes y noticias"
 
 # exam: quiz (preguntas que corrige el motor) | none (se completa sin nota).
 # Las fuentes de cada número están en la tabla «Cifras y fuentes» del `doc` de la lección.
@@ -2579,3 +2595,465 @@ options = [
   { id = "d", text = "Sí cuenta: el R es positivo." },
 ]
 answer = "a"
+
+# --- Nivel 10: tu propia estrategia (#838). De la idea a la hipótesis medible (bloques y topes de
+# config/lab.toml), pre-registro con hash, filtro de borde bruto y presupuesto global de alfa
+# ([alpha_budget] de config/research.toml, libro de registro-de-resultados.md, #660/#690),
+# exploratorio y confirmatorio en el Laboratorio, regímenes, tendencia (R016 y el borrador del
+# programa 6), noticias y macro (R027, R031) y el caso Bruni (R029, R030, R033). ---
+
+[[lessons]]
+id = "10.1"
+title = "De la idea a la hipótesis"
+objective = "Convertir una idea de «se ve como» en una regla medible y completa (entrada, stop, salida, tamaño, costos y período), con algo contra qué compararla."
+doc = "docs/academia/nivel-10-1-de-la-idea-a-la-hipotesis.md"
+exam = "quiz"
+unlocks = []
+
+[[lessons.questions]]
+id = "10.1.1"
+kind = "choice"
+prompt = "¿Cuál de estas es una regla que se puede probar?"
+options = [
+  { id = "a", text = "Comprar cuando el mercado se ve fuerte y salir cuando se pone feo." },
+  { id = "b", text = "Largo si, al cierre de una vela de 1 h, la EMA de 20 cruza arriba de la de 50; entrada en la apertura siguiente; stop a 2 ATR(14); salida a las 8 velas o en 2 R; 1 % de riesgo; costos del catálogo; período 2013–2025 sin el fuera de muestra." },
+  { id = "c", text = "Comprar en los soportes buenos." },
+  { id = "d", text = "Seguir a los que más ganan en las redes." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "10.1.2"
+kind = "choice"
+prompt = "«Comprar el primer toque de un soporte con el stop debajo.» ¿Qué le falta para ser una regla completa?"
+options = [
+  { id = "a", text = "Nada." },
+  { id = "b", text = "La definición medible de soporte y de toque, la distancia del stop, la salida, el tamaño, los costos y el período." },
+  { id = "c", text = "Solo el instrumento." },
+  { id = "d", text = "Un indicador más." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "10.1.3"
+kind = "choice"
+prompt = "Una regla de solo compras sobre los índices de EE. UU. gana +0,5 % por mes en 2013–2025. ¿Por qué no alcanza con eso?"
+options = [
+  { id = "a", text = "Porque tiene que ganarle a comprar y mantener con los mismos costos (+1,10 % por mes en R018): si no, solo está cobrando una parte de la suba del mercado." },
+  { id = "b", text = "Porque +0,5 % es demasiado." },
+  { id = "c", text = "Porque las reglas de compra no se pueden probar." },
+  { id = "d", text = "Sí alcanza." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "10.1.4"
+kind = "choice"
+prompt = "¿Para qué sirve un placebo en una prueba (como en el programa 5)?"
+options = [
+  { id = "a", text = "Para que el resultado salga mejor." },
+  { id = "b", text = "Para comparar la señal con precios cualquiera parecidos: si la señal no hace más que un placebo, no aporta nada." },
+  { id = "c", text = "Para no pagar costos." },
+  { id = "d", text = "Para probar en el fuera de muestra." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "10.1.5"
+kind = "number"
+prompt = "¿Cuántas condiciones de entrada, como máximo, acepta una estrategia del Laboratorio (unidas con «y»)?"
+answer = "3"
+tolerance = "0"
+unit = "condiciones"
+
+[[lessons]]
+id = "10.2"
+title = "Pre-registro, filtro de borde bruto y presupuesto de alfa"
+objective = "Congelar la regla, los criterios y el período antes de ver resultados, pasar el filtro de borde bruto (k = 2) y pagar la apuesta del presupuesto global de alfa."
+doc = "docs/academia/nivel-10-2-pre-registro.md"
+exam = "quiz"
+unlocks = []
+
+[[lessons.questions]]
+id = "10.2.1"
+kind = "choice"
+prompt = "Ya corriste una hipótesis pre-registrada y no pasó. ¿Qué podés hacer sin que cuente como una prueba nueva?"
+options = [
+  { id = "a", text = "Cambiar el período a uno que dé mejor." },
+  { id = "b", text = "Cambiar los costos o el corte de las mitades." },
+  { id = "c", text = "Corregir un error de código (no de la regla), volver a correr e informarlo con fecha, sin borrar el resultado anterior." },
+  { id = "d", text = "Pasar a otro timeframe porque dio mejor." },
+]
+answer = "c"
+
+[[lessons.questions]]
+id = "10.2.2"
+kind = "number"
+prompt = "Costo por operación en US100 intradía C = 2,12 puntos y factor k = 2. ¿Qué ventaja bruta esperada por operación hace falta, como mínimo, para pasar el filtro, en puntos?"
+answer = "4.24"
+tolerance = "0"
+unit = "pts"
+
+[[lessons.questions]]
+id = "10.2.3"
+kind = "number"
+prompt = "Sin cita en la literatura, la estimación previa es IC × σ_h con IC = 0,05. Si el desvío del retorno en el horizonte de la operación es σ_h = 40 puntos, ¿qué ventaja bruta se estima, en puntos?"
+answer = "2"
+tolerance = "0"
+unit = "pts"
+
+[[lessons.questions]]
+id = "10.2.4"
+kind = "number"
+prompt = "Una hipótesis apuesta α_j = 1,25 % del presupuesto global. ¿Cuánto paga al congelarse, α_j/(1 − α_j), en %? (cuatro decimales)"
+answer = "1.2658"
+tolerance = "0.0001"
+unit = "%"
+
+[[lessons.questions]]
+id = "10.2.5"
+kind = "number"
+prompt = "El presupuesto arranca en W = 4,75 %. Después de pagar esa primera apuesta (1,2658 %), ¿cuánto queda, en %? (cuatro decimales)"
+answer = "3.4842"
+tolerance = "0.0001"
+unit = "%"
+
+[[lessons.questions]]
+id = "10.2.6"
+kind = "choice"
+prompt = "¿Cuándo devuelve algo al presupuesto una hipótesis (el premio ω = 5 %)?"
+options = [
+  { id = "a", text = "Siempre que pase en el período de investigación." },
+  { id = "b", text = "Solo si pasa y el fuera de muestra la confirma." },
+  { id = "c", text = "Si no se corre." },
+  { id = "d", text = "Nunca." },
+]
+answer = "b"
+
+[[lessons]]
+id = "10.3"
+title = "Exploratorio y confirmatorio en el Laboratorio"
+objective = "Saber qué se puede hacer en el Laboratorio sin gastar presupuesto (explorar, que no vota) y qué hace falta para que una idea vote (confirmar, con un pre-registro congelado)."
+doc = "docs/academia/nivel-10-3-exploratorio-y-confirmatorio.md"
+exam = "quiz"
+unlocks = ["tool.lab_builder"]
+
+[[lessons.questions]]
+id = "10.3.1"
+kind = "choice"
+prompt = "Corriste una estrategia en el Laboratorio y el informe dice «exploratorio, no vota». ¿Qué quiere decir?"
+options = [
+  { id = "a", text = "Que el resultado es falso." },
+  { id = "b", text = "Que sirve para aprender y descartar ideas, pero no cuenta como evidencia de una ventaja: no tiene un pre-registro congelado." },
+  { id = "c", text = "Que ya se puede operar." },
+  { id = "d", text = "Que el motor no corrió los costos." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "10.3.2"
+kind = "choice"
+prompt = "Hoy, ¿cómo se congela una hipótesis confirmatoria?"
+options = [
+  { id = "a", text = "Con un botón del Laboratorio." },
+  { id = "b", text = "Con un PR: el pre-registro, su .sha256 y la fila del libro del presupuesto, con el CI en verde; el modo confirmatorio del Laboratorio todavía no existe." },
+  { id = "c", text = "Mandando un mensaje." },
+  { id = "d", text = "No hace falta congelar nada." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "10.3.3"
+kind = "choice"
+prompt = "¿Las corridas exploratorias gastan presupuesto de alfa?"
+options = [
+  { id = "a", text = "Sí, cada una paga 1,25 %." },
+  { id = "b", text = "No, pero cada variante distinta de la familia se cuenta: sube el N del Sharpe deflactado del Laboratorio y entra en el PBO." },
+  { id = "c", text = "No, y tampoco se cuentan." },
+  { id = "d", text = "Solo si ganan." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "10.3.4"
+kind = "number"
+prompt = "¿Cuántas variantes de una misma familia acepta, como máximo, una corrida del Laboratorio?"
+answer = "20"
+tolerance = "0"
+unit = "variantes"
+
+[[lessons.questions]]
+id = "10.3.5"
+kind = "choice"
+prompt = "En el Laboratorio, ¿qué podés hacer con los costos del catálogo?"
+options = [
+  { id = "a", text = "Bajarlos a cero para ver la ventaja pura." },
+  { id = "b", text = "Solo subirlos (multiplicador desde 1 hasta 5); además, cada informe trae la versión con costos × 1,5." },
+  { id = "c", text = "Elegir los del broker más barato." },
+  { id = "d", text = "Nada: no hay costos." },
+]
+answer = "b"
+
+[[lessons]]
+id = "10.4"
+title = "Regímenes"
+objective = "Ver cómo el mismo sistema cambia con la volatilidad y la tendencia, y por qué cortar los resultados por régimen es fácil de hacer mal."
+doc = "docs/academia/nivel-10-4-regimenes.md"
+exam = "quiz"
+unlocks = []
+
+[[lessons.questions]]
+id = "10.4.1"
+kind = "choice"
+prompt = "En el diagnóstico de la estrategia en uso, el tercio de volatilidad se calculó con cortes de toda la muestra. ¿Por qué sirve para describir pero no para decidir?"
+options = [
+  { id = "a", text = "Porque usa información de toda la muestra, incluido el futuro de cada operación: en vivo no se conocen esos cortes." },
+  { id = "b", text = "Porque la volatilidad no se puede medir." },
+  { id = "c", text = "Porque tiene pocas operaciones." },
+  { id = "d", text = "Sí sirve para decidir." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "10.4.2"
+kind = "choice"
+prompt = "En la estrategia en uso, el tercio bajo del ATR de 15 m es el peor en los tres índices. ¿Qué lo explica, según el diagnóstico?"
+options = [
+  { id = "a", text = "Que con poca volatilidad los stops son cortos y el costo pesa de 3 a 6 veces más en R." },
+  { id = "b", text = "Que con poca volatilidad no hay operaciones." },
+  { id = "c", text = "Que el ATR está mal calculado." },
+  { id = "d", text = "Que los lunes son peores." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "10.4.3"
+kind = "choice"
+prompt = "La deriva nocturna de 02:00 a 03:00 ET existía en 2013–2020 y desaparece desde 2021 (R022). ¿Qué enseña?"
+options = [
+  { id = "a", text = "Que hay que operarla igual." },
+  { id = "b", text = "Que un efecto puede depender de una época: por eso se exige que la ventaja exista en las dos mitades." },
+  { id = "c", text = "Que el reloj de ET cambió." },
+  { id = "d", text = "Que se necesitan más indicadores." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "10.4.4"
+kind = "choice"
+prompt = "Con los umbrales del motor (normal desde 15, elevado desde 20, estrés desde 30), ¿en qué régimen está un VIX de 25?"
+options = [
+  { id = "a", text = "Calma." },
+  { id = "b", text = "Normal." },
+  { id = "c", text = "Elevado." },
+  { id = "d", text = "Estrés." },
+]
+answer = "c"
+
+[[lessons.questions]]
+id = "10.4.5"
+kind = "choice"
+prompt = "Cortaste tus resultados por año, hora, día y régimen, y encontraste que los jueves de volatilidad alta ganan. ¿Qué hacés?"
+options = [
+  { id = "a", text = "Opero solo los jueves de volatilidad alta." },
+  { id = "b", text = "Lo anoto como una idea a pre-registrar y probar con datos nuevos: mirar cortes es probar más, y alguno sale bien por azar." },
+  { id = "c", text = "Lo borro." },
+  { id = "d", text = "Subo el tamaño los jueves." },
+]
+answer = "b"
+
+[[lessons]]
+id = "10.5"
+title = "Seguir la tendencia"
+objective = "Conocer la evidencia más larga del trading sistemático (seguir la tendencia en muchos mercados) y por qué nuestra prueba en tres índices no pasó."
+doc = "docs/academia/nivel-10-5-seguir-la-tendencia.md"
+exam = "quiz"
+unlocks = []
+
+[[lessons.questions]]
+id = "10.5.1"
+kind = "choice"
+prompt = "¿Qué encontraron Moskowitz, Ooi y Pedersen (2012) con el «momentum de serie de tiempo»?"
+options = [
+  { id = "a", text = "Que el retorno pasado de 1 a 12 meses de cada mercado tiende a seguir, en los 58 instrumentos líquidos que estudiaron, y después se revierte en parte." },
+  { id = "b", text = "Que la tendencia no existe." },
+  { id = "c", text = "Que solo funciona en acciones de tecnología." },
+  { id = "d", text = "Que funciona en velas de 1 minuto." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "10.5.2"
+kind = "choice"
+prompt = "Nuestra prueba A (tendencia de 12 meses en US500, US100 y US30, R016) dio +0,080 % por mes con p 0,14. ¿Por qué no pasó?"
+options = [
+  { id = "a", text = "Porque perdió plata." },
+  { id = "b", text = "Porque el resultado es chico y no se distingue del azar (hacía falta p < 0,0125), y su Sharpe fue un tercio del de comprar y mantener." },
+  { id = "c", text = "Porque tenía un error de código." },
+  { id = "d", text = "Sí pasó." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "10.5.3"
+kind = "choice"
+prompt = "¿Por qué la evidencia de tendencia usa muchos mercados (bolsas, bonos, monedas y materias primas) y no tres índices de EE. UU.?"
+options = [
+  { id = "a", text = "Porque tres índices que se mueven casi igual son casi una sola apuesta; muchos mercados distintos dan muchas tendencias más o menos independientes." },
+  { id = "b", text = "Porque los índices no tienen tendencia." },
+  { id = "c", text = "Por costumbre." },
+  { id = "d", text = "Porque es más barato." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "10.5.4"
+kind = "choice"
+prompt = "¿En qué estado está el programa 6 (tendencia en 16 mercados)?"
+options = [
+  { id = "a", text = "Corrido y aprobado." },
+  { id = "b", text = "Borrador sin congelar: no tiene .sha256 ni parámetros en la config, y no se corre nada hasta que el dueño lo apruebe y se congele." },
+  { id = "c", text = "Operando en paper." },
+  { id = "d", text = "Descartado." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "10.5.5"
+kind = "choice"
+prompt = "El criterio propuesto para el programa 6, ¿es «ganarle al S&P 500 en retorno»?"
+options = [
+  { id = "a", text = "Sí." },
+  { id = "b", text = "No: tener ventaja propia (alfa) frente al S&P 500 y no hundirse cuando la bolsa se hunde; una cartera de tendencia rara vez le gana en retorno en una década alcista." },
+  { id = "c", text = "No: el criterio es ganar el 60 % de las operaciones." },
+  { id = "d", text = "No hay criterio." },
+]
+answer = "b"
+
+[[lessons]]
+id = "10.6"
+title = "Noticias y macro"
+objective = "Usar una noticia o un dato solo desde su hora de publicación real, y conocer qué dieron nuestras pruebas con el FOMC, el CPI y el empleo."
+doc = "docs/academia/nivel-10-6-noticias-y-macro.md"
+exam = "quiz"
+unlocks = ["tool.terminal_news"]
+
+[[lessons.questions]]
+id = "10.6.1"
+kind = "choice"
+prompt = "Un comunicado del FOMC sale a las 14:00 ET y describe una decisión tomada en la reunión. ¿Desde cuándo puede influir en un backtest?"
+options = [
+  { id = "a", text = "Desde el inicio de la reunión." },
+  { id = "b", text = "Desde las 14:00 ET, cuando se publicó." },
+  { id = "c", text = "Desde la apertura del día." },
+  { id = "d", text = "Desde la semana anterior." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "10.6.2"
+kind = "number"
+prompt = "La estrategia no abre una operación si hay una noticia de alto impacto del instrumento o de su país cerca. ¿Cuántos minutos antes (y los mismos después) cubre esa ventana?"
+answer = "15"
+tolerance = "0"
+unit = "minutos"
+
+[[lessons.questions]]
+id = "10.6.3"
+kind = "choice"
+prompt = "H1 probó la deriva antes del comunicado del FOMC en US100 (R027). ¿Qué dio?"
+options = [
+  { id = "a", text = "Pasó con p 0,001." },
+  { id = "b", text = "No pasó: alfa de +0,071 % por mes con p 0,120 y Sharpe deflactado 0,036, y la ventaja vino casi toda de 2021–2025." },
+  { id = "c", text = "Perdió todo." },
+  { id = "d", text = "No se pudo correr." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "10.6.4"
+kind = "choice"
+prompt = "El intérprete de noticias del proyecto acertó el 60,8 %, con un intervalo de 47 % a 73 %. ¿Qué quiere decir?"
+options = [
+  { id = "a", text = "Que acierta 6 de cada 10 y conviene seguirlo." },
+  { id = "b", text = "Que con esa muestra no se distingue del azar: el intervalo incluye el 50 %." },
+  { id = "c", text = "Que es mejor que el ML." },
+  { id = "d", text = "Que hay que subirle el tamaño." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "10.6.5"
+kind = "choice"
+prompt = "Sabemos a qué hora sale el CPI. ¿Qué falta para medir la «sorpresa» del dato?"
+options = [
+  { id = "a", text = "Nada." },
+  { id = "b", text = "Cuánto se esperaba antes de la publicación, guardado con su hora: la sorpresa es el dato menos lo esperado." },
+  { id = "c", text = "El precio del oro." },
+  { id = "d", text = "La opinión de un analista en redes." },
+]
+answer = "b"
+
+[[lessons]]
+id = "10.7"
+title = "Caso Bruni: lo verificado y lo que no"
+objective = "Leer un caso completo separando lo verificado (títulos en la tabla oficial) de lo no verificado (backtests y pagos), y lo que dieron sus reglas con nuestro método."
+doc = "docs/academia/nivel-10-7-caso-bruni.md"
+exam = "quiz"
+unlocks = []
+
+[[lessons.questions]]
+id = "10.7.1"
+kind = "choice"
+prompt = "¿Qué de Gianluca Bruni está verificado en una fuente oficial?"
+options = [
+  { id = "a", text = "Sus backtests de 15 años y más de 5.000 operaciones." },
+  { id = "b", text = "Tres títulos finales del campeonato trimestral de forex de la WCC (2025 Q4, 2026 Q2 y 2026 Q3), en la tabla oficial." },
+  { id = "c", text = "Lo que cobró de empresas de fondeo." },
+  { id = "d", text = "Su Sharpe de 2,2." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "10.7.2"
+kind = "choice"
+prompt = "¿Por qué ganar una competencia trimestral no prueba que una estrategia sirva para una cuenta propia?"
+options = [
+  { id = "a", text = "Porque la competencia premia el mayor % en tres meses, sin límite de caída: favorece arriesgar mucho, y no se ven los intentos fallidos ni cuántas cuentas compiten." },
+  { id = "b", text = "Porque las competencias son falsas." },
+  { id = "c", text = "Porque tres meses es demasiado tiempo." },
+  { id = "d", text = "Sí lo prueba." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "10.7.3"
+kind = "number"
+prompt = "Con 4 % de riesgo por operación (sobre el capital del momento), una racha de 8 pérdidas de 1 R, ¿cuánto se lleva de la cuenta, en %? (un decimal)"
+answer = "27.9"
+tolerance = "0.1"
+unit = "%"
+
+[[lessons.questions]]
+id = "10.7.4"
+kind = "choice"
+prompt = "Probamos tres reglas suyas en US100 con reglas congeladas (H4.1, H4.2 y H4.3). ¿Qué dieron?"
+options = [
+  { id = "a", text = "Las tres pasaron." },
+  { id = "b", text = "Ninguna pasó: la literal no se distingue del azar, la normalizada pierde y la estrategia C pierde y no llega a 100 operaciones." },
+  { id = "c", text = "Solo H4.3 pasó." },
+  { id = "d", text = "No se pudieron probar." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "10.7.5"
+kind = "choice"
+prompt = "¿Cuál es un conflicto de interés documentado en el informe sobre Bruni?"
+options = [
+  { id = "a", text = "Ninguno." },
+  { id = "b", text = "Empresas de fondeo que lo patrocinan y un código de descuento a su nombre: gana más si más gente compra desafíos." },
+  { id = "c", text = "Que opera forex." },
+  { id = "d", text = "Que vive en otro país." },
+]
+answer = "b"
