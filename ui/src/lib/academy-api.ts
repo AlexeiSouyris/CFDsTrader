@@ -7,6 +7,7 @@
  * | `GET /api/v1/academy/progress` | `academy_progress.v1` (lo calcula el motor) |
  * | `POST /api/v1/academy/events` | `academy_event.v1#/$defs/request` → `academy_event.v1` |
  * | `POST /api/v1/academy/quiz/{lesson_id}` | `quiz_answer.v1` → `quiz_result.v1` (#781) |
+ * | `GET /api/v1/academy/lessons/{lesson_id}/doc` | `academy_lesson_doc.v1`: el texto de la lección (#799) |
  *
  * Un solo estado compartido (catálogo y progreso) para la vista, los candados y Ajustes: se pide
  * una vez y se vuelve a pedir después de cada cambio (`reloadAcademy`). La UI no decide si algo se
@@ -19,6 +20,7 @@ import type {
   AcademyEvent,
   AcademyProgress,
   EventRequest,
+  LessonDoc,
   QuizAnswer,
   QuizResult,
 } from '@/lib/academy-contracts'
@@ -30,6 +32,10 @@ export const fetchCatalog = (signal?: AbortSignal) =>
   request<AcademyCatalog>(`${BASE}/catalog`, { signal })
 export const fetchProgress = (signal?: AbortSignal) =>
   request<AcademyProgress>(`${BASE}/progress`, { signal })
+
+/** El texto de una lección, como lo leyó el motor al arrancar. */
+export const fetchLessonDoc = (lessonId: string, signal?: AbortSignal) =>
+  request<LessonDoc>(`${BASE}/lessons/${encodeURIComponent(lessonId)}/doc`, { signal })
 
 /** Un `POST` con cuerpo JSON (el token lo pone el proxy, nunca el cliente). */
 export const postJson = <T>(url: string, body: unknown) =>

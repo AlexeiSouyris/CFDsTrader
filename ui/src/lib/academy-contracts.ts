@@ -1,6 +1,7 @@
 /**
  * Tipos de los contratos de la Academia (#709, #717) para la UI: `academy_catalog.v1`,
- * `academy_progress.v1`, `academy_event.v1`, `quiz_answer.v1` y `quiz_result.v1` de `contracts/`. Son la misma forma del contrato: si cambia el contrato, se
+ * `academy_lesson_doc.v1`, `academy_progress.v1`, `academy_event.v1`, `quiz_answer.v1` y
+ * `quiz_result.v1` de `contracts/`. Son la misma forma del contrato: si cambia el contrato, se
  * cambia acá. Las notas, el aprobado y qué herramienta está abierta los decide el motor.
  */
 
@@ -37,6 +38,17 @@ export type Lesson = {
 }
 
 export type Level = { level: number; title: string; lessons: Lesson[] }
+
+/**
+ * `academy_lesson_doc.v1` (`GET /api/v1/academy/lessons/{lesson_id}/doc`, #798): el texto de la
+ * lección en Markdown, leído y validado por el motor. Se muestra sin inyectar HTML (#799).
+ */
+export type LessonDoc = {
+  lesson_id: LessonId
+  doc: string
+  catalog_version: string
+  markdown: string
+}
 
 /** `academy_catalog.v1` (`GET /api/v1/academy/catalog`). */
 export type AcademyCatalog = {

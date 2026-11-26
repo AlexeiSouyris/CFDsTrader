@@ -1,7 +1,7 @@
 /**
  * Academia (#769, plan de `docs/design/2026-11-academia.md` §8, PR 4): el mapa de niveles con sus
  * lecciones, la página de cada lección (#770: objetivo, texto, examen y qué desbloquea; una lección
- * sin examen se completa con un evento) y el progreso, como lo manda el motor
+ * sin examen se completa con un evento; el texto lo sirve el motor, #799) y el progreso, como lo manda el motor
  * (`academy_catalog.v1` y `academy_progress.v1`). La UI no decide si algo se aprobó ni qué
  * herramienta está abierta: cuenta y ordena lo que llega.
  *
@@ -12,6 +12,7 @@ import { ArrowUpRight, Check, Circle, Lock, LockOpen } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 
 import { AcademyQuiz } from '@/components/ui/academy-quiz'
+import { LessonText } from '@/components/ui/lesson-text'
 import type {
   AcademyCatalog,
   AcademyProgress,
@@ -19,7 +20,7 @@ import type {
   LessonProgress,
   Level,
 } from '@/lib/academy-contracts'
-import { postEvent, useAcademy } from '@/lib/academy-api'
+import { fetchLessonDoc, postEvent, useAcademy } from '@/lib/academy-api'
 import { takeFocusedLesson } from '@/lib/academy-locks'
 import { dateTimeUtc, decimal } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -302,9 +303,7 @@ function LessonPage({
             cifras verificadas contra su fuente.
           </Preparing>
         ) : (
-          <p className="text-[12.5px] text-muted-foreground">
-            El texto está en <code className="font-mono">{lesson.doc}</code>.
-          </p>
+          <LessonDocPart lessonId={lesson.id} doc={lesson.doc} />
         )}
       </Part>
 
@@ -359,6 +358,41 @@ function LessonPage({
         )}
       </Part>
     </article>
+  )
+}
+
+type DocState =
+  { status: 'loading' } | { status: 'error'; message: string } | { status: 'ok'; markdown: string }
+
+/** El texto de la lección, pedido al motor (#799): el mismo Markdown del repo, sin HTML inyectado. */
+function LessonDocPart({ lessonId, doc }: { lessonId: string; doc: string }) {
+  const [state, setState] = useState<DocState>({ status: 'loading' })
+  useEffect(() => {
+    const abort = new AbortController()
+    fetchLessonDoc(lessonId, abort.signal).then(
+      (d) =>
+        typeof d?.markdown === 'string'
+          ? setState({ status: 'ok', markdown: d.markdown })
+          : setState({ status: 'error', message: 'la respuesta no es el texto de una lección' }),
+      (e: unknown) => {
+        if (abort.signal.aborted) return
+        setState({ status: 'error', message: e instanceof Error ? e.message : String(e) })
+      },
+    )
+    return () => abort.abort()
+  }, [lessonId])
+  if (state.status === 'ok') return <LessonText markdown={state.markdown} />
+  if (state.status === 'loading')
+    return (
+      <p role="status" className="text-[12.5px] text-muted-foreground">
+        Pidiendo el texto al motor…
+      </p>
+    )
+  return (
+    <p role="alert" className="text-[12.5px] text-muted-foreground">
+      {`No se pudo leer el texto del motor (${state.message}). Está en el repo, en `}
+      <code className="font-mono">{doc}</code>.
+    </p>
   )
 }
 

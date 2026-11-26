@@ -15,6 +15,7 @@ import labCatalog from '../src/mocks/lab-catalog.json' with { type: 'json' }
 import labReport from '../src/mocks/lab-report.json' with { type: 'json' }
 import liquidityUs100 from '../src/mocks/liquidity-us100-15m.json' with { type: 'json' }
 import academyCatalog from './fixtures/academy-catalog.json' with { type: 'json' }
+import academyLessonDoc from './fixtures/academy-lesson-doc.json' with { type: 'json' }
 import academyProgress from './fixtures/academy-progress.json' with { type: 'json' }
 import analogs from './fixtures/analogs.json' with { type: 'json' }
 import backtestRuns from './fixtures/backtest-runs.json' with { type: 'json' }
@@ -358,7 +359,7 @@ export const ROUTES: MockRoute[] = [
     schema: 'lab_report.v1.schema.json',
     body: () => labReport,
   },
-  // la Academia (#769): el catálogo de config/academy.toml (niveles 0–2, sin preguntas todavía) y
+  // la Academia (#769): el catálogo de config/academy.toml (niveles 0–2 con su texto, sin preguntas) y
   // el progreso de alguien que recién empieza (nada aprobado, nada abierto a mano)
   {
     path: '/api/v1/academy/catalog',
@@ -369,6 +370,13 @@ export const ROUTES: MockRoute[] = [
     path: '/api/v1/academy/progress',
     schema: 'academy_progress.v1.schema.json',
     body: () => academyProgress,
+  },
+  // el texto de la lección que se abre primero (#799), una copia fija de docs/academia/: así un
+  // cambio en el texto no cambia las capturas
+  {
+    path: `/api/v1/academy/lessons/${academyLessonDoc.lesson_id}/doc`,
+    schema: 'academy_lesson_doc.v1.schema.json',
+    body: () => academyLessonDoc,
   },
   {
     path: '/api/v1/academy/replay',
