@@ -38,3 +38,21 @@ for (const view of VIEWS) {
     })
   })
 }
+
+// #842: el progreso de prueba bloquea todo, también el selector de timeframe; su línea de candado no
+// tiene que cortar el encabezado de Gráficos: el precio del último cierre se ve entero
+for (const mobile of [false, true]) {
+  test(`#graficos: el precio del encabezado se ve entero${mobile ? ' (375 px)' : ''}`, async ({
+    page,
+  }) => {
+    if (mobile) await page.setViewportSize(MOBILE)
+    await openView(page, 'graficos')
+    const heading = page.locator('[data-compact-heading]')
+    await expect(heading.locator('.tabular-nums')).toContainText(/\d/)
+    const cut = await heading.evaluate((el) => {
+      const price = el.querySelector('.tabular-nums')!.getBoundingClientRect()
+      return price.right - el.getBoundingClientRect().right
+    })
+    expect(cut, 'píxeles del precio fuera del encabezado').toBeLessThanOrEqual(0)
+  })
+}
