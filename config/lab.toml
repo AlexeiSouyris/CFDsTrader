@@ -85,3 +85,30 @@ funding_scenario = "ESTR"
 # PostgreSQL los guarda siempre.
 stream_ttl_hours = 24
 stream_maxlen = 1000
+
+[variance]
+# Simulador de varianza (§4.2 del diseño, #801; research::variance). PENDIENTE del dueño (§9
+# puntos 7 y 9 del diseño: valores recomendados). Son límites y valores por defecto de una
+# simulación EDUCATIVA, no parámetros de ninguna estrategia: no deciden ninguna operación.
+#
+# Topes de lo que se puede pedir (§9 punto 7: 10 000 caminos × 1 000 operaciones).
+max_paths = 10000
+max_trades = 1000
+# Largo máximo de una lista de R reales.
+max_r_values = 10000
+# Riesgo por operación máximo que se puede simular, en %. Más alto que el de config/risk.toml a
+# propósito: sirve para VER qué pasa con riesgos altos (la ruina). El informe avisa cuando el
+# pedido pasa el riesgo por operación del proyecto.
+max_risk_pct = "10"
+# Valores cuando el pedido no los trae.
+default_paths = 10000
+default_seed = 20261126
+# Ruina = el capital cayó un 30 % desde el inicial (el mismo umbral de [montecarlo] de
+# config/research.toml).
+default_ruin_threshold_pct = "30"
+# Bloques del bootstrap al remuestrear R reales (1 = bootstrap simple: operaciones independientes).
+default_block_len = 1
+# Rachas: P(racha perdedora más larga ≥ k) para k = 1..streak_max_k.
+streak_max_k = 20
+# Ancho de los tramos del histograma de la caída máxima (fracción: 0.05 = 5 %).
+drawdown_bin = "0.05"

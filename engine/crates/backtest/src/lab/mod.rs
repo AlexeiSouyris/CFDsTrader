@@ -22,6 +22,9 @@
 //!             → job (lo guarda cfds_journal::lab, lo corre el lab_worker)
 //! worker:     [worker] de config/lab.toml y el avance de cada etapa → worker (lo usa el
 //!             lab_worker, un proceso aparte que corre la cola)
+//! varianza:   variance_sim_request.v1 → research::variance (caminos de capital, rachas, caída,
+//!             ruina; incertidumbre del win rate con una Beta) → variance_sim_report.v1, con los
+//!             topes de [variance] de config/lab.toml                         → variance
 //! hash:       SHA-256 de la spec canónica (claves ordenadas, decimales normalizados, sin
 //!             espacios); familia = mismo instrumento y mismos tipos de bloque (PENDIENTE §9.2)
 //! ```
@@ -37,6 +40,7 @@ pub mod spec;
 pub mod trial;
 pub mod validate;
 pub mod validation;
+pub mod variance;
 pub mod worker;
 
 pub use blocks::{LabConfig, catalog};
@@ -54,4 +58,5 @@ pub use validation::{
     Average, EntryCondition, EntryFilter, ErrorCode, ExitRule, SpecError, SpecValidation, StopRule,
     ValidSpec,
 };
+pub use variance::{VarianceConfig, VarianceError, VarianceRequest, run_variance};
 pub use worker::{WorkerConfig, progress};

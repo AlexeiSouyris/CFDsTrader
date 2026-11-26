@@ -64,6 +64,12 @@ pub struct PathStats {
     pub ruined: bool,
 }
 
+/// Un paso del capital: `capital × (1 + fracción × r)`, nunca menos que 0. Lo usan también el
+/// simulador de varianza y el de cuentas fondeadas: un solo cálculo.
+pub fn grow(equity: f64, fraction: f64, r: f64) -> f64 {
+    (equity * (1.0 + fraction * r)).max(0.0)
+}
+
 /// Recorre una serie con el capital en 1 y la `fraction` dada. `ruin_level` es el capital que
 /// cuenta como ruina (`1 − ruin_threshold`).
 pub fn path_stats(returns: &[f64], fraction: f64, ruin_level: f64) -> PathStats {
@@ -77,7 +83,7 @@ pub fn path_stats(returns: &[f64], fraction: f64, ruin_level: f64) -> PathStats 
     };
     let (mut streak, mut under) = (0_usize, 0_usize);
     for &r in returns {
-        equity = (equity * (1.0 + fraction * r)).max(0.0);
+        equity = grow(equity, fraction, r);
         streak = if r < 0.0 { streak + 1 } else { 0 };
         out.longest_losing_streak = out.longest_losing_streak.max(streak);
         if equity >= peak {

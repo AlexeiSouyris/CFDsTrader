@@ -48,6 +48,7 @@ pub mod run;
 pub mod stats;
 pub mod trend;
 pub mod turn_of_month;
+pub mod variance;
 pub mod vol_managed;
 
 use cfds_core::Candle;
@@ -82,6 +83,7 @@ pub use run::{
 };
 pub use trend::{monthly_reviews, trend_plans};
 pub use turn_of_month::{SessionBar, session_bars, turn_of_month_plans};
+pub use variance::{Payoff, RSource, VarianceParams, VarianceReport};
 pub use vol_managed::{
     managed_returns, managed_returns_with_spreads, review_variances, session_close_indices,
     vol_constant, vol_weights,
