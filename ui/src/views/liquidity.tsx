@@ -5,6 +5,11 @@
  * Los datos llegan del gateway: los instrumentos y timeframes de `GET /api/v1/instruments` y la
  * vista de `GET /api/v1/liquidity` (`contracts/liquidity_view.v1`), que se vuelve a pedir cada
  * minuto. Sin velas guardadas muestra "sin datos todavía".
+ *
+ * Candados de la Academia (#771, #827): la fuente, la tabla de niveles (mapa de liquidez), las
+ * de FVG y las estadísticas. El timeframe no: el del motor por defecto puede no tener velas. El
+ * gráfico de precio no se bloquea; sus capas de niveles y FVG siguen a los mismos candados
+ * (`liquidity-chart.tsx`).
  */
 import { ToolLock } from '@/components/ui/tool-lock'
 import { StaleNote } from '@/components/ui/data-honesty'
@@ -174,6 +179,7 @@ function LiveLiquidity() {
           onChange={(instrument) => setPicked({ ...sel, instrument })}
         />
       </ScrollRow>
+      {/* sin candado de timeframe (#827): el del motor por defecto puede no tener velas guardadas */}
       <ScrollRow>
         <Segmented
           label="Timeframe"
@@ -288,36 +294,42 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
           </>
         }
       >
-        {data.levels.length ? (
-          <LevelsTable levels={data.levels} />
-        ) : (
-          <p className="text-[12.5px]">Todavía no hay niveles guardados en esta ventana.</p>
-        )}
+        <ToolLock tool="tool.liquidity_map">
+          {data.levels.length ? (
+            <LevelsTable levels={data.levels} />
+          ) : (
+            <p className="text-[12.5px]">Todavía no hay niveles guardados en esta ventana.</p>
+          )}
+        </ToolLock>
       </Card>
 
-      <div className="grid gap-6 2xl:grid-cols-2">
-        <Card n="03" title={`FVG abiertos (${open.length})`}>
-          {open.length ? (
-            <FvgTable fvgs={open} label="FVG abiertos" />
-          ) : (
-            <p className="text-[12.5px]">No hay FVG abiertos.</p>
-          )}
-        </Card>
-        <Card n="04" title={`FVG llenos o vencidos (${closed.length})`}>
-          {closed.length ? (
-            <FvgTable fvgs={closed} label="FVG llenos o vencidos" />
-          ) : (
-            <p className="text-[12.5px]">Ningún FVG se llenó todavía.</p>
-          )}
-        </Card>
-      </div>
+      <ToolLock tool="tool.fvg_order_blocks">
+        <div className="grid gap-6 2xl:grid-cols-2">
+          <Card n="03" title={`FVG abiertos (${open.length})`}>
+            {open.length ? (
+              <FvgTable fvgs={open} label="FVG abiertos" />
+            ) : (
+              <p className="text-[12.5px]">No hay FVG abiertos.</p>
+            )}
+          </Card>
+          <Card n="04" title={`FVG llenos o vencidos (${closed.length})`}>
+            {closed.length ? (
+              <FvgTable fvgs={closed} label="FVG llenos o vencidos" />
+            ) : (
+              <p className="text-[12.5px]">Ningún FVG se llenó todavía.</p>
+            )}
+          </Card>
+        </div>
+      </ToolLock>
 
       <Card n="05" title="Estadísticas">
-        {data.stats.length ? (
-          <StatsPanel stats={data.stats} />
-        ) : (
-          <p className="text-[12.5px]">Todavía no hay estadísticas guardadas.</p>
-        )}
+        <ToolLock tool="tool.fvg_stats">
+          {data.stats.length ? (
+            <StatsPanel stats={data.stats} />
+          ) : (
+            <p className="text-[12.5px]">Todavía no hay estadísticas guardadas.</p>
+          )}
+        </ToolLock>
       </Card>
     </div>
   )

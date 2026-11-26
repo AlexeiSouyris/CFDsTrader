@@ -131,6 +131,10 @@ test('examen de una lección: se empieza en su página y el resultado dice lo de
     }
     return r.fulfill({ json: progress })
   })
+  // la vista Replay ya leyó la Academia (el candado del replay libre, #827): se recarga para que
+  // tome el catálogo de prueba, y recién ahí se va a la Academia
+  await page.reload()
+  await page.waitForLoadState('networkidle')
   await page.evaluate(() => {
     location.hash = '#academia'
   })

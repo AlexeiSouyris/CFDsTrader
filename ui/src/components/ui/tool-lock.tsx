@@ -75,3 +75,40 @@ export function ToolLock({
     </div>
   )
 }
+
+/**
+ * El candado de un botón chico de una barra (la regla o el dibujo del gráfico, #827): bloqueado, en
+ * lugar del botón queda un enlace con el ícono de la herramienta y un candado, que lleva a la lección
+ * que lo abre (y lo dice en su nombre accesible). Abierto, el botón tal cual.
+ */
+export function ToolLockButton({
+  tool,
+  face,
+  className,
+  children,
+}: {
+  tool: string
+  /** lo que se ve bloqueado: el ícono (o el texto corto) del botón */
+  face: ReactNode
+  /** la forma del botón, para que la barra no se mueva */
+  className?: string
+  children: ReactNode
+}) {
+  const lock = useToolLock(tool)
+  if (!lock.locked) return <>{children}</>
+  if (!lock.visible) return null
+  const text = `${lock.name}: se desbloquea en la lección ${lock.lessonId}${lock.lessonTitle ? ` · ${lock.lessonTitle}` : ''}. Ir a la lección`
+  return (
+    <a
+      href="#academia"
+      onClick={() => focusLesson(lock.lessonId)}
+      data-tool-lock={tool}
+      aria-label={text}
+      title={text}
+      className={cn(className, 'gap-0.5 border-dashed text-muted-foreground')}
+    >
+      <Lock aria-hidden="true" className="size-3 shrink-0" />
+      {face}
+    </a>
+  )
+}

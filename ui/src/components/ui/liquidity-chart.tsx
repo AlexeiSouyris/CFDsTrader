@@ -31,6 +31,10 @@
  *
  * Cursor sincronizado (#544, prop `syncCursor`, `sync-cursor.tsx`): avisa la hora UTC de la vela
  * bajo el cursor y marca con una línea vertical la del cursor de otro gráfico. Sin zoom compartido.
+ *
+ * Candados de la Academia (#827): con la regla bloqueada no se mide (ni con el botón, ni con Shift
+ * + arrastrar, ni con el toque largo) y con el dibujo bloqueado no se dibuja nada nuevo (los dibujos
+ * guardados se siguen viendo). El gráfico de precio en sí no se bloquea nunca.
  */
 import { StaleNote } from '@/components/ui/data-honesty'
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -55,6 +59,7 @@ import { ChartToolsMenu } from '@/components/ui/chart-tools'
 import { LineArea } from '@/components/ui/line-area'
 import { Segmented } from '@/components/ui/segmented'
 import { Term } from '@/components/ui/term'
+import { ToolLock } from '@/components/ui/tool-lock'
 import type { ChartAnalysis, VixRegime } from '@/lib/analysis-contracts'
 import {
   activeAt,
@@ -82,6 +87,7 @@ import { fvgKey, levelKey, levelName, levelShort, STATE_LABEL } from '@/lib/liqu
 import { useChartTools } from '@/lib/use-chart-tools'
 import { useCoarsePointer } from '@/lib/use-coarse-pointer'
 import { useElementWidth } from '@/lib/use-element-width'
+import { useToolLock } from '@/lib/academy-locks'
 import { cn } from '@/lib/utils'
 import { mergeBars, type ChartBar, type ChartTimeframe } from '@/lib/liquidity-bars'
 import type { OlderPage } from '@/lib/liquidity-api'
@@ -153,6 +159,8 @@ type AxisLabel = {
 const isRound = (l: LiquidityLevel) => l.kind === 'round_high' || l.kind === 'round_low'
 
 const NO_DRAWINGS: readonly Drawing[] = []
+const NO_LEVELS: LiquidityLevel[] = []
+const NO_FVGS: FvgEvent[] = []
 
 const STATE_STYLE: Record<LevelState, { stroke: string; dash?: string; opacity: number }> = {
   intact: { stroke: 'var(--chart-accent)', opacity: 0.95 },
@@ -167,8 +175,8 @@ export function LiquidityChart({
   liquidity = true,
   bars,
   forming,
-  levels,
-  fvgs,
+  levels: levelsProp,
+  fvgs: fvgsProp,
   imbalance,
   signals = [],
   analysis,
@@ -180,7 +188,7 @@ export function LiquidityChart({
   onModeChange,
   compact = false,
   controlsTarget,
-  drawTool,
+  drawTool: drawToolProp,
   onDrawToolChange,
   syncCursor,
   ohlc = false,
@@ -262,7 +270,16 @@ export function LiquidityChart({
   const [modeState, setModeState] = useState<ChartMode>('Velas')
   const [rulerState, setRulerState] = useState(false)
   const mode = modeProp ?? modeState
-  const ruler = rulerProp ?? rulerState
+  // candados de la Academia (#827): bloqueadas, la regla no mide y el dibujo no toma dibujos nuevos
+  const canMeasure = !useToolLock('tool.ruler').locked
+  const canDraw = !useToolLock('tool.drawing').locked
+  // …y sin el mapa de liquidez o la capa de FVG, esas capas no se dibujan
+  const mapOpen = !useToolLock('tool.liquidity_map').locked
+  const fvgOpen = !useToolLock('tool.fvg_order_blocks').locked
+  const levels = mapOpen ? levelsProp : NO_LEVELS
+  const fvgs = fvgOpen ? fvgsProp : NO_FVGS
+  const ruler = canMeasure && (rulerProp ?? rulerState)
+  const drawTool = canDraw || drawToolProp === undefined ? drawToolProp : 'none'
   const setMode = (m: ChartMode) => {
     setModeState(m)
     onModeChange?.(m)
@@ -491,6 +508,7 @@ export function LiquidityChart({
     bottom: top + plotH,
     measure,
     ruler,
+    canMeasure,
   })
 
   // Las velas (o la línea) se arman una vez por tramo dibujado, ancho y modo: ni el cursor ni el
@@ -557,7 +575,7 @@ export function LiquidityChart({
           onChange={(v) => setMode(v as ChartMode)}
         />
       )}
-      {liquidity && (
+      {liquidity && mapOpen && (
         <Segmented
           label="Niveles"
           options={FILTERS}
@@ -1154,46 +1172,54 @@ export function LiquidityChart({
         <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
           {liquidity && (
             <>
-              {(Object.keys(STATE_STYLE) as LevelState[]).map((st) => (
-                <li key={st} className="flex items-center gap-1.5">
-                  <svg width={22} height={6} aria-hidden>
-                    <line
-                      x1={0}
-                      x2={22}
-                      y1={3}
-                      y2={3}
-                      stroke={STATE_STYLE[st].stroke}
-                      strokeWidth={1.6}
-                      strokeDasharray={STATE_STYLE[st].dash}
+              {mapOpen && (
+                <>
+                  {(Object.keys(STATE_STYLE) as LevelState[]).map((st) => (
+                    <li key={st} className="flex items-center gap-1.5">
+                      <svg width={22} height={6} aria-hidden>
+                        <line
+                          x1={0}
+                          x2={22}
+                          y1={3}
+                          y2={3}
+                          stroke={STATE_STYLE[st].stroke}
+                          strokeWidth={1.6}
+                          strokeDasharray={STATE_STYLE[st].dash}
+                        />
+                      </svg>
+                      {STATE_LABEL[st]}
+                    </li>
+                  ))}
+                  <li className="flex items-center gap-1.5">
+                    <svg width={22} height={6} aria-hidden opacity={0.3}>
+                      <line
+                        x1={0}
+                        x2={22}
+                        y1={3}
+                        y2={3}
+                        stroke="var(--chart-accent)"
+                        strokeWidth={1.6}
+                      />
+                    </svg>
+                    Vencido
+                  </li>
+                </>
+              )}
+              {fvgOpen && (
+                <>
+                  <li className="flex items-center gap-1.5">
+                    <span className="inline-block h-2.5 w-4 rounded-[2px] bg-up/30" aria-hidden />
+                    FVG abierto
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span
+                      className="inline-block h-2.5 w-4 rounded-[2px] border border-dashed border-muted-foreground/50"
+                      aria-hidden
                     />
-                  </svg>
-                  {STATE_LABEL[st]}
-                </li>
-              ))}
-              <li className="flex items-center gap-1.5">
-                <svg width={22} height={6} aria-hidden opacity={0.3}>
-                  <line
-                    x1={0}
-                    x2={22}
-                    y1={3}
-                    y2={3}
-                    stroke="var(--chart-accent)"
-                    strokeWidth={1.6}
-                  />
-                </svg>
-                Vencido
-              </li>
-              <li className="flex items-center gap-1.5">
-                <span className="inline-block h-2.5 w-4 rounded-[2px] bg-up/30" aria-hidden />
-                FVG abierto
-              </li>
-              <li className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-2.5 w-4 rounded-[2px] border border-dashed border-muted-foreground/50"
-                  aria-hidden
-                />
-                FVG lleno o vencido
-              </li>
+                    FVG lleno o vencido
+                  </li>
+                </>
+              )}
               <li>▲ ▼ vela de desplazamiento</li>
             </>
           )}
@@ -1203,7 +1229,9 @@ export function LiquidityChart({
                 Un dedo en horizontal te mueve en el tiempo · dos dedos: zoom · eje de precio:
                 arrastrá para estirarlo, doble toque vuelve a automático
               </li>
-              <li>Mantené apretado y arrastrá (o usá la regla) para medir; un toque la borra</li>
+              {canMeasure && (
+                <li>Mantené apretado y arrastrá (o usá la regla) para medir; un toque la borra</li>
+              )}
             </>
           ) : (
             <>
@@ -1211,7 +1239,9 @@ export function LiquidityChart({
                 Arrastrá para moverte en el tiempo · Ctrl/⌘ + rueda (o clic y rueda): zoom · eje de
                 precio: arrastrá para estirarlo, doble clic vuelve a automático
               </li>
-              <li>Shift + arrastrar (o la regla) mide; un clic o Esc borra la medición</li>
+              {canMeasure && (
+                <li>Shift + arrastrar (o la regla) mide; un clic o Esc borra la medición</li>
+              )}
             </>
           )}
           {layers && tools.ema && layers.ema.length > 0 && (
@@ -1261,6 +1291,17 @@ export function LiquidityChart({
             </li>
           )}
         </ul>
+      )}
+      {!compact && liquidity && !(mapOpen && fvgOpen) && (
+        // sin capas por un candado: dice cuál y dónde se abre
+        <div className="mt-1 grid gap-0.5">
+          <ToolLock tool="tool.liquidity_map" compact>
+            {null}
+          </ToolLock>
+          <ToolLock tool="tool.fvg_order_blocks" compact>
+            {null}
+          </ToolLock>
+        </div>
       )}
     </div>
   )

@@ -31,8 +31,12 @@
  * los controles van en una barra fina flotante que se atenúa cuando el mouse queda quieto, los
  * paneles se separan con líneas de 1 px y no hay vidrio. La vista Gráficos es este mismo lienzo
  * con un solo gráfico (`single`). La paleta de comandos cambia el timeframe del gráfico activo.
+ *
+ * Candados de la Academia (#827): el Multigráfico entero (`tool.multichart`) y el selector de
+ * timeframe (`tool.timeframe_selector`). Gráficos, con un solo gráfico, sigue abierto siempre.
  */
 import { ToolLock } from '@/components/ui/tool-lock'
+import { useToolLock } from '@/lib/academy-locks'
 import { StaleNote } from '@/components/ui/data-honesty'
 import { Crosshair, LayoutGrid } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -196,6 +200,8 @@ export function MultichartView({ single = false }: { single?: boolean }) {
   // el timeframe que pide la paleta de comandos (#581) desde esta vista, para el gráfico activo
   // (solo si ese gráfico lo ofrece: los de IBKR tienen los suyos)
   const [wantTf, setWantTf] = useState<string | null>(null)
+  // con el selector de timeframe bloqueado en la Academia (#827), la paleta tampoco lo cambia
+  const tfOpen = !useToolLock('tool.timeframe_selector').locked
   useEffect(() => {
     const onTf = (e: Event) => {
       clearFocusedTimeframe()
@@ -206,11 +212,11 @@ export function MultichartView({ single = false }: { single?: boolean }) {
   }, [])
   if (wantTf !== null) {
     setWantTf(null)
-    if ((slotTimeframes(sel, timeframes) as readonly string[]).includes(wantTf))
+    if (tfOpen && (slotTimeframes(sel, timeframes) as readonly string[]).includes(wantTf))
       setSel({ ...sel, timeframe: wantTf as ChartTimeframe })
   }
 
-  return (
+  const view = (
     <ChartCanvas canvasRef={canvasRef} data-multichart={single ? undefined : saved.layout}>
       {/* en el celular la barra no flota sobre el gráfico: no hace falta atenuarla */}
       <FloatingBar label="Gráfico activo" idle={idle && wide} barRef={barRef}>
@@ -247,12 +253,14 @@ export function MultichartView({ single = false }: { single?: boolean }) {
             )}
           </select>
         </label>
-        <Segmented
-          label="Timeframe del gráfico activo"
-          options={slotTimeframes(sel, timeframes)}
-          value={sel.timeframe}
-          onChange={(tf) => setSel({ ...sel, timeframe: tf as ChartTimeframe })}
-        />
+        <ToolLock tool="tool.timeframe_selector" compact>
+          <Segmented
+            label="Timeframe del gráfico activo"
+            options={slotTimeframes(sel, timeframes)}
+            value={sel.timeframe}
+            onChange={(tf) => setSel({ ...sel, timeframe: tf as ChartTimeframe })}
+          />
+        </ToolLock>
         {layout.compact ? (
           <div ref={setControlsEl} data-active-controls className="flex min-w-0" />
         ) : (
@@ -437,6 +445,8 @@ export function MultichartView({ single = false }: { single?: boolean }) {
       )}
     </ChartCanvas>
   )
+  // el Multigráfico tiene su candado (#827); Gráficos, con un solo gráfico, nunca se bloquea
+  return single ? view : <ToolLock tool="tool.multichart">{view}</ToolLock>
 }
 
 /** La última vela cerrada del lugar: la vela en formación (#558) no cuenta, como en el gráfico. */

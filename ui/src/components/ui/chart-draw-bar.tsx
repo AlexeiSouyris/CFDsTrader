@@ -2,7 +2,8 @@
  * La barra de dibujo de un gráfico (#540, #543): navegar, medir, línea horizontal, línea de
  * tendencia, rectángulo, velas o línea, y borrar los dibujos del instrumento. La comparten el
  * Multigráfico y la Terminal (#552) y maneja las herramientas del gráfico activo. Todo es visual:
- * no genera señales ni órdenes.
+ * no genera señales ni órdenes. Medir y dibujar llevan su candado de la Academia (#827): bloqueados,
+ * el botón lleva a la lección que los abre.
  */
 import {
   CandlestickChart,
@@ -16,6 +17,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
+import { ToolLockButton } from '@/components/ui/tool-lock'
 import { DRAW_LABEL, drawingStore, useDrawings, type ChartTools } from '@/lib/chart-drawings'
 import { cn } from '@/lib/utils'
 
@@ -25,6 +27,8 @@ const DRAW: {
   icon: LucideIcon
   on: (t: ChartTools) => boolean
   set: Partial<ChartTools>
+  /** el id de su candado en la Academia, si tiene */
+  tool?: string
 }[] = [
   {
     id: 'nav',
@@ -39,6 +43,7 @@ const DRAW: {
     icon: Ruler,
     on: (t) => t.ruler,
     set: { ruler: true, draw: 'none' },
+    tool: 'tool.ruler',
   },
   ...(
     [
@@ -52,6 +57,7 @@ const DRAW: {
     icon,
     on: (t: ChartTools) => !t.ruler && t.draw === kind,
     set: { ruler: false, draw: kind },
+    tool: 'tool.drawing',
   })),
   {
     id: 'candles',
@@ -100,7 +106,11 @@ export function ChartDrawBar({
       {DRAW.map((d, i) => {
         const on = d.on(tools)
         const Icon = d.icon
-        return (
+        const shape = cn(
+          'grid size-11 place-items-center rounded-xl text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring',
+          (i === 2 || i === 5) && 'max-lg:ml-2 lg:mt-2',
+        )
+        const button = (
           <button
             key={d.id}
             type="button"
@@ -109,13 +119,23 @@ export function ChartDrawBar({
             title={d.label}
             onClick={() => onChange(d.set)}
             className={cn(
-              'grid size-11 place-items-center rounded-xl text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring',
+              shape,
               on && 'bg-primary text-primary-foreground hover:text-primary-foreground',
-              (i === 2 || i === 5) && 'max-lg:ml-2 lg:mt-2',
             )}
           >
             <Icon className="size-4" aria-hidden />
           </button>
+        )
+        if (!d.tool) return button
+        return (
+          <ToolLockButton
+            key={d.id}
+            tool={d.tool}
+            className={cn(shape, 'flex items-center justify-center')}
+            face={<Icon className="size-4" aria-hidden />}
+          >
+            {button}
+          </ToolLockButton>
         )
       })}
       <button
