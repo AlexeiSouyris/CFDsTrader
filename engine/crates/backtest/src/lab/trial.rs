@@ -1,5 +1,6 @@
-//! `lab_trial.v1`: una variante probada en el laboratorio. Cada corrida agrega una a un archivo
-//! JSON Lines de solo agregar (la tabla llega en L8). Las variantes **distintas** de una familia
+//! `lab_trial.v1`: una variante probada en el laboratorio. Cada corrida agrega una a la tabla
+//! `lab_trials` (`cfds_journal::lab`, #774) o, con el ejemplo `laboratorio`, a un archivo JSON
+//! Lines; las dos son de solo agregar. Las variantes **distintas** de una familia
 //! suman al N del Sharpe deflactado del laboratorio; una spec repetida no suma de nuevo. Las
 //! exploratorias no suman al N del proyecto (regla #660 §4.1; §9 punto 1 del diseño, PENDIENTE).
 

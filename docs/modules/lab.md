@@ -33,3 +33,4 @@ Diseño: `docs/design/2026-11-laboratorio.md` (#710). Contratos: `strategy_catal
       [--supuestos archivo.toml] [--capital 100000] [--desde 2011-01-01T00:00:00Z] \
       [--salida carpeta] [--validar]
   ```
+- Trabajos (`job`, #774): `lab_job_request.v1` (de 1 a `max_variants_per_run` specs de una familia y un período, más el capital hipotético) y `lab_job_event.v1` (en cola, corriendo con etapa y %, listo con los `report_id`, falló, cancelado); `check_variants` (misma familia y período, tope) y el id del trabajo = SHA-256 del pedido normalizado y su intento. Se guardan en PostgreSQL con `cfds_journal::lab` (tablas de solo agregar `lab_jobs`, `lab_job_events`, `lab_reports` y `lab_trials`, migración 0053).
