@@ -1,9 +1,9 @@
 /**
  * Candados de las herramientas de los niveles 8–10 de la Academia (#846): cada uno tapa solo su
  * parte. En el Laboratorio, el constructor y el simulador de varianza por separado (la calculadora
- * de riesgo y el simulador de cuenta fondeada quedan abiertos); en Performance, la lista de
- * corridas; en los informes, el PBO con el Sharpe deflactado y el walk-forward; en el Inicio, el
- * registro de resultados; en la Terminal, la pestaña Noticias.
+ * de riesgo queda abierta; el simulador de cuenta fondeada tiene el suyo, del nivel 12, #851); en
+ * Performance, la lista de corridas; en los informes, el PBO con el Sharpe deflactado y el
+ * walk-forward; en el Inicio, el registro de resultados; en la Terminal, la pestaña Noticias.
  *
  * Catálogo y progreso: los fixtures e2e (el catálogo real, todo bloqueado); «abierto» los abre a
  * mano, como desde Ajustes.
@@ -96,9 +96,8 @@ describe('Laboratorio (#846)', () => {
     expect(screen.queryByRole('form', { name: 'Constructor de estrategias' })).toBeNull()
     expect(screen.queryByText(/Sin corrida todavía/)).toBeNull()
     expect(screen.queryByRole('region', { name: 'Simulador de varianza' })).toBeNull()
-    // la calculadora de riesgo no tiene candado, y el simulador de cuenta fondeada todavía no
+    // la calculadora de riesgo no tiene candado (el simulador de cuenta fondeada, el suyo: #851)
     expect(screen.getByRole('region', { name: 'Calculadora de riesgo' })).toBeVisible()
-    expect(screen.getByRole('region', { name: 'Simulador de cuenta fondeada' })).toBeVisible()
   })
 
   it('abierto: el constructor y el simulador como hoy', async () => {
@@ -107,7 +106,12 @@ describe('Laboratorio (#846)', () => {
     expect(await screen.findByRole('form', { name: 'Constructor de estrategias' })).toBeVisible()
     expect(screen.getByText(/Sin corrida todavía/)).toBeVisible()
     expect(screen.getByRole('region', { name: 'Simulador de varianza' })).toBeVisible()
-    expect(document.querySelector('[data-tool-lock]')).toBeNull()
+    // el único candado que queda es el del simulador de cuenta fondeada (nivel 12, #851)
+    expect(
+      [...document.querySelectorAll('[data-tool-lock]')].map((e) =>
+        e.getAttribute('data-tool-lock'),
+      ),
+    ).toEqual(['tool.propsim'])
   })
 
   it('sin la Academia del motor no se bloquea nada', async () => {
