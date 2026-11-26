@@ -31,10 +31,13 @@ const TOOLS = [
   ['tool.fvg_stats', 'Estadísticas de FVG', '5.3'],
 ] as const
 
+const IDS = new Set<string>(TOOLS.map(([id]) => id))
+
+// el catálogo de las pruebas ya trae estos ids (#837): se reemplazan por los de la tabla
 const CATALOG: AcademyCatalog = {
   ...(catalogFixture as AcademyCatalog),
   tools: [
-    ...(catalogFixture as AcademyCatalog).tools,
+    ...(catalogFixture as AcademyCatalog).tools.filter((t) => !IDS.has(t.id)),
     ...TOOLS.map(([id, name, lesson_id]) => ({ id, name, lesson_id })),
   ],
 }
@@ -42,7 +45,7 @@ const CATALOG: AcademyCatalog = {
 const progress = (open: boolean): AcademyProgress => ({
   ...(progressFixture as AcademyProgress),
   tools: [
-    ...(progressFixture as AcademyProgress).tools,
+    ...(progressFixture as AcademyProgress).tools.filter((t) => !IDS.has(t.tool_id)),
     ...TOOLS.map(([tool_id, , lesson_id]) =>
       open
         ? { tool_id, unlocked: true as const, by: 'override' as const, lesson_id }
@@ -165,7 +168,7 @@ describe('liquidez (#827)', () => {
     // el gráfico se ve y se usa, sin niveles ni FVG, y dice por qué
     expect(screen.getByRole('img', { name: /con 0 niveles de liquidez y 0 FVG/ })).toBeVisible()
     expect(
-      screen.getByText('Mapa de liquidez: se desbloquea en la lección 5.1.'),
+      screen.getByText(/^Mapa de liquidez: se desbloquea en la lección 5\.1\b/),
     ).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Niveles' })).toBeNull()
     // la regla del gráfico también tiene candado
@@ -200,7 +203,7 @@ describe('replay, Multigráfico y timeframe (#827)', () => {
     gateway(progress(false))
     render(<MultichartView single />)
     expect(
-      await screen.findByText('Selector de timeframe: se desbloquea en la lección 3.2.'),
+      await screen.findByText(/^Selector de timeframe: se desbloquea en la lección 3\.2\b/),
     ).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Multigráfico, bloqueada' })).toBeNull()
     expect(screen.queryByRole('group', { name: 'Timeframe del gráfico activo' })).toBeNull()

@@ -388,8 +388,9 @@ export const ROUTES: MockRoute[] = [
     array: true,
     body: () => propsimTemplates,
   },
-  // la Academia (#769): el catálogo de config/academy.toml (niveles 0–2 con su texto, sin preguntas) y
-  // el progreso de alguien que recién empieza (nada aprobado, nada abierto a mano)
+  // la Academia (#769): el catálogo que sirve el motor para config/academy.toml (niveles 0–7, con las
+  // preguntas y sin las claves, #837) y el progreso de alguien que recién empieza (nada aprobado,
+  // nada abierto a mano: todas las herramientas con candado)
   {
     path: '/api/v1/academy/catalog',
     schema: 'academy_catalog.v1.schema.json',

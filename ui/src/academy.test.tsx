@@ -1,8 +1,9 @@
 /**
  * Academia (#769, #770): el mapa de niveles, la página de la lección, el examen y el progreso, tal
  * como los manda el motor. Los datos son los
- * fixtures del gateway simulado de las pruebas e2e (el catálogo de `config/academy.toml` con el
- * texto de cada lección y sin preguntas, y el texto de la lección 0.1, #799).
+ * fixtures del gateway simulado de las pruebas e2e (el catálogo de `config/academy.toml`, niveles
+ * 0–7 con el texto y las preguntas de cada lección, sin las claves, #837, y el texto de la lección
+ * 0.1, #799).
  */
 import { render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,12 +17,16 @@ import { AcademyView } from '@/views/academy'
 
 const CATALOG = catalogFixture as AcademyCatalog
 const PROGRESS = progressFixture as AcademyProgress
-/** El mismo catálogo, como antes de que las lecciones tuvieran texto. */
+/** El mismo catálogo, como antes de que las lecciones tuvieran texto y preguntas. */
 const NO_TEXT: AcademyCatalog = {
   ...CATALOG,
   levels: CATALOG.levels.map((lv) => ({
     ...lv,
-    lessons: lv.lessons.map((l) => ({ ...l, doc: null })),
+    lessons: lv.lessons.map((l) => ({
+      ...l,
+      doc: null,
+      exam: l.exam.kind === 'none' ? l.exam : { ...l.exam, ready: false, questions: [] },
+    })),
   })),
 }
 
@@ -49,16 +54,16 @@ describe('Academia (#769)', () => {
     const map = await screen.findByRole('navigation', { name: 'Mapa de niveles' })
     expect(fetch).toHaveBeenCalledWith('/api/v1/academy/catalog', expect.anything())
     expect(fetch).toHaveBeenCalledWith('/api/v1/academy/progress', expect.anything())
-    // tres niveles (0 a 2) y sus diez lecciones, en el orden del catálogo
-    expect(within(map).getAllByRole('heading', { level: 2 })).toHaveLength(3)
+    // ocho niveles (0 a 7) y sus 32 lecciones, en el orden del catálogo
+    expect(within(map).getAllByRole('heading', { level: 2 })).toHaveLength(8)
     expect(within(map).getByRole('heading', { name: /N0.*Orientación.*0\/3/ })).toBeVisible()
     const rows = within(map).getAllByRole('button')
-    expect(rows).toHaveLength(10)
-    expect(rows[0]).toHaveTextContent('0.1Qué es un mercadoEn preparación')
+    expect(rows).toHaveLength(32)
+    expect(rows[0]).toHaveTextContent('0.1Qué es un mercadoPendiente')
     expect(rows[2]).toHaveTextContent('0.3Cómo se usa la AcademiaSin examen')
     const strip = screen.getByRole('region', { name: 'Progreso' })
-    expect(strip).toHaveTextContent('Lecciones aprobadas0 / 10')
-    expect(strip).toHaveTextContent('Herramientas abiertas0 / 6')
+    expect(strip).toHaveTextContent('Lecciones aprobadas0 / 32')
+    expect(strip).toHaveTextContent('Herramientas abiertas0 / 29')
     expect(strip).toHaveTextContent('80 % de respuestasprovisorio')
   })
 
@@ -99,8 +104,8 @@ describe('Academia (#769)', () => {
     expect(map).toHaveTextContent('0.2Cuántos pierden1 intento · mejor 60 %')
     expect(within(map).getByRole('heading', { name: /N0.*1\/3/ })).toBeVisible()
     const strip = screen.getByRole('region', { name: 'Progreso' })
-    expect(strip).toHaveTextContent('Lecciones aprobadas1 / 10')
-    expect(strip).toHaveTextContent('Herramientas abiertas1 / 6(todas a mano)')
+    expect(strip).toHaveTextContent('Lecciones aprobadas1 / 32')
+    expect(strip).toHaveTextContent('Herramientas abiertas1 / 29(todas a mano)')
   })
 
   it('sin gateway lo dice, sin lecciones inventadas', async () => {
