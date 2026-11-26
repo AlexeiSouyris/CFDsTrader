@@ -15,7 +15,7 @@ Un CFD al contado no vence. A cambio, **cada noche** que la posición sigue abie
 
 ```text
 costo = noches × precio de cierre × tamaño × tasa / 360
-largo: tasa = referencia + 3 %        (siempre paga)
+largo: tasa = referencia + 3 %        (paga)
 corto: tasa = 3 % − referencia        (paga si la referencia es menor que 3 %; si es mayor, cobra)
 ```
 
@@ -27,8 +27,8 @@ corto: tasa = 3 % − referencia        (paga si la referencia es menor que 3 %;
   motor cuenta cada corte que la posición cruza, también los del sábado y el domingo.
 
 Los valores de referencia en nuestra config hoy: SOFR **3,94 %** (Fed de Nueva York, valor del
-24-11-2026) y €STR **2,441 %** (BCE, valor del 19-11-2026). El backtest no usa una constante: usa la
-serie diaria guardada, con la tasa que estaba publicada **cada noche**.
+24-11-2026) y €STR **2,441 %** (BCE, valor del 19-11-2026). Son el respaldo: el backtest y el paper
+usan la serie diaria guardada cuando existe, con la tasa que estaba publicada **cada noche**.
 
 **El oro es distinto:** usa la base de la curva de futuros y no un tipo de referencia, y todavía le
 faltan datos (por eso no opera ni en paper).
@@ -100,6 +100,7 @@ Nada nuevo: la financiación aparece en la columna de costos que abrió la lecci
 | Referencia de DE40 | `ESTR` | `config/instruments.toml` `instruments.DE40.funding_benchmark` | A |
 | SOFR (valor del 24-11-2026) | 3,94 % (`3.94`) | `config/instruments.toml` `funding_benchmarks.SOFR` (Fed de Nueva York) | A |
 | €STR (valor del 19-11-2026) | 2,441 % (`2.441`) | `config/instruments.toml` `funding_benchmarks.ESTR` (BCE) | A |
+| Serie diaria cuando existe; la constante es el respaldo | `serie diaria guardada (config/reference_rates.toml, #79) cuando existe` | `config/instruments.toml` (comentario de funding_benchmarks) | A |
 | Hora del corte | 23:00 (`23:00`) | `config/instruments.toml` `account.funding_cutoff` | A |
 | Zona horaria del corte | `Europe/Madrid` | `config/instruments.toml` `account.funding_cutoff_timezone` | A |
 | Corto: tasa = tasa adm. − referencia | `corto: tasa = adm. − referencia (puede cobrar)` | `engine/crates/backtest/src/costs.rs` | A |
