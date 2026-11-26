@@ -144,6 +144,9 @@ sse_poll_secs = 2
 # Vista previa de riesgo (POST /api/v1/lab/risk_preview, #777): días de velas de futuros que se leen
 # para el ATR (el precio de referencia es el cierre de la última cerrada).
 risk_preview_days = 30
+# Simuladores de varianza y de cuentas fondeadas (#805): tope del body (una lista de hasta 20 000
+# operaciones con hora y R ocupa ~1 MB).
+sim_max_body_bytes = 1048576
 
 # Contexto de mercado del Panel (#294): /api/v1/sentiment y /api/v1/analogs, solo lectura.
 [context]

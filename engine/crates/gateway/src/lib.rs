@@ -36,6 +36,7 @@ pub mod ibkr_live;
 pub mod journal;
 pub mod lab;
 pub mod lab_risk;
+pub mod lab_sims;
 pub mod learning;
 pub mod ml;
 pub mod news;

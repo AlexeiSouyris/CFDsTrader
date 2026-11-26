@@ -12,6 +12,9 @@
 //! | `GET /api/v1/lab/jobs/{job_id}/events` | SSE de `lab_job_event.v1` (`id` = `seq`, `Last-Event-ID`) |
 //! | `GET /api/v1/lab/reports/{report_id}` | `lab_report.v1` |
 //! | `POST /api/v1/lab/risk_preview` | `risk_preview.v1#/$defs/request` → `risk_preview.v1` (sin efectos) |
+//! | `POST /api/v1/lab/variance` | `variance_sim_request.v1` → `variance_sim_report.v1` (sin efectos, #805) |
+//! | `GET /api/v1/lab/propsim/templates` | lista de `prop_rules.v1` (#805) |
+//! | `POST /api/v1/lab/propsim` | `prop_sim_request.v1` → `prop_sim_result.v1` (sin efectos, #805) |
 //!
 //! Escritura (encolar, cancelar): el mismo token anti-CSRF que paper y la Academia, solo en las
 //! tablas del laboratorio (de solo agregar). La separación de datos sale de la hora de la última
@@ -24,13 +27,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use cfds_backtest::lab::{
-    LabConfig, LabJobEvent, LabJobRequest, StrategyCatalog, StrategySpec, ValidSpec, catalog,
-    check_variants, request_sha256, validate_spec, validate_spec_json,
+    LabConfig, LabJobEvent, LabJobRequest, StrategyCatalog, StrategySpec, ValidSpec,
+    VarianceConfig, catalog, check_variants, request_sha256, validate_spec, validate_spec_json,
 };
 use cfds_backtest::{CostConfig, FxRates};
 use cfds_core::{Candle, InstrumentId, Timeframe};
 use cfds_journal::lab::{Appended, Enqueued, PgLab};
 use cfds_market_data::{CandleSources, Catalog, DataSplit, Period, SplitConfig, plan};
+use cfds_propsim::PropsimConfig;
 use cfds_risk::RiskConfig;
 use cfds_storage::{CandleFeed, LabStream, PgStore};
 use chrono::{DateTime, Utc};
@@ -57,6 +61,8 @@ pub struct LabRoutes {
     pub sse_poll: Duration,
     /// Días de velas que lee la vista previa de riesgo (para el ATR).
     pub risk_preview_days: u32,
+    /// Tope del body de los simuladores (una lista de R u operaciones es más grande).
+    pub sim_max_body_bytes: usize,
 }
 
 impl LabRoutes {
@@ -73,6 +79,7 @@ impl LabRoutes {
             sse_heartbeat_secs: u64,
             sse_poll_secs: u64,
             risk_preview_days: u32,
+            sim_max_body_bytes: usize,
         }
         let r = toml::from_str::<Raw>(text).map_err(|e| e.to_string())?.lab;
         if r.max_body_bytes == 0
@@ -80,6 +87,7 @@ impl LabRoutes {
             || r.sse_heartbeat_secs == 0
             || r.sse_poll_secs == 0
             || r.risk_preview_days == 0
+            || r.sim_max_body_bytes == 0
         {
             return Err("lab: todos los valores tienen que ser > 0".into());
         }
@@ -89,7 +97,16 @@ impl LabRoutes {
             sse_heartbeat: Duration::from_secs(r.sse_heartbeat_secs),
             sse_poll: Duration::from_secs(r.sse_poll_secs),
             risk_preview_days: r.risk_preview_days,
+            sim_max_body_bytes: r.sim_max_body_bytes,
         })
+    }
+
+    /// El tope del body según la ruta: el de los simuladores o el general.
+    pub fn body_cap(&self, path: &str) -> usize {
+        match path.strip_prefix(PREFIX) {
+            Some("variance" | "propsim") => self.sim_max_body_bytes.max(self.max_body_bytes),
+            _ => self.max_body_bytes,
+        }
     }
 }
 
@@ -111,6 +128,12 @@ pub struct LabDeps {
     pub instruments: Catalog,
     pub risk: RiskConfig,
     pub costs: CostConfig,
+    /// Simulador de varianza (#805): `[variance]` de `config/lab.toml` y el nivel de los
+    /// intervalos (`[report] confidence`).
+    pub variance: VarianceConfig,
+    pub confidence: Decimal,
+    /// Simulador de cuentas fondeadas (#805): `config/propsim.toml`.
+    pub propsim: PropsimConfig,
 }
 
 impl LabDeps {
@@ -127,6 +150,7 @@ impl LabDeps {
         redis_url: Option<String>,
         instruments: &Catalog,
         costs: CostConfig,
+        propsim: &str,
     ) -> Result<Self, String> {
         let lab = LabConfig::from_toml(lab)?;
         Ok(Self {
@@ -140,6 +164,9 @@ impl LabDeps {
             instruments: instruments.clone(),
             risk: risk.clone(),
             costs,
+            variance: lab.variance.clone(),
+            confidence: lab.report.confidence,
+            propsim: PropsimConfig::from_toml(propsim)?,
         })
     }
 }
@@ -278,13 +305,13 @@ pub fn lab_events_job(path: &str) -> Option<&str> {
         .strip_suffix("/events")
 }
 
-fn is_sha256(s: &str) -> bool {
+pub(crate) fn is_sha256(s: &str) -> bool {
     s.len() == 64
         && s.bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
-fn text(status: u16, body: &str) -> Reply {
+pub(crate) fn text(status: u16, body: &str) -> Reply {
     Reply {
         status,
         content_type: "text/plain; charset=utf-8",
@@ -292,7 +319,7 @@ fn text(status: u16, body: &str) -> Reply {
     }
 }
 
-fn json_with<T: serde::Serialize>(status: u16, v: &T) -> Reply {
+pub(crate) fn json_with<T: serde::Serialize>(status: u16, v: &T) -> Reply {
     match serde_json::to_string(v) {
         Ok(body) => Reply {
             status,
@@ -303,11 +330,11 @@ fn json_with<T: serde::Serialize>(status: u16, v: &T) -> Reply {
     }
 }
 
-fn json<T: serde::Serialize>(v: &T) -> Reply {
+pub(crate) fn json<T: serde::Serialize>(v: &T) -> Reply {
     json_with(200, v)
 }
 
-fn internal(e: String) -> Reply {
+pub(crate) fn internal(e: String) -> Reply {
     eprintln!("gateway: laboratorio: {e}");
     text(500, "error interno")
 }
@@ -359,7 +386,14 @@ pub async fn respond_lab<S: LabStore>(
         ("POST", "validate") => return validate(store, deps, token, &req).await,
         ("POST", "jobs") => return submit(store, deps, token, &req, now).await,
         ("POST", "risk_preview") => return risk_preview(store, deps, token, &req, now).await,
-        (_, "catalog" | "validate" | "jobs" | "risk_preview") => {
+        ("POST", "variance") => return crate::lab_sims::variance(store, deps, token, &req).await,
+        ("GET", "propsim/templates") => return crate::lab_sims::templates(deps),
+        ("POST", "propsim") => return crate::lab_sims::propsim(store, deps, token, &req).await,
+        (
+            _,
+            "catalog" | "validate" | "jobs" | "risk_preview" | "variance" | "propsim"
+            | "propsim/templates",
+        ) => {
             return text(405, "método no permitido");
         }
         _ => {}
