@@ -9,6 +9,7 @@ import { useId, useState } from 'react'
 
 import { ExampleBadge } from '@/components/ui/data-honesty'
 import { MetricBento, type Metric } from '@/components/ui/metric-bento'
+import { ToolLock } from '@/components/ui/tool-lock'
 import { WorkspacePanel } from '@/components/ui/workspace-panel'
 import type { BacktestRun } from '@/lib/backtest-contracts'
 import { REGISTRY, registryPrograms, type RegistryRow } from '@/lib/results-registry'
@@ -154,29 +155,34 @@ export function RecentResults({
             <h3 className="mb-1.5 text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
               Registro de resultados
             </h3>
-            <ol aria-label="Últimas pruebas del registro" className="grid gap-2">
-              {latest.map((r) => (
-                <motion.li
-                  key={r.id}
-                  // cada fila nueva del filtro entra suave (las que salen se van sin animación)
-                  initial={reduce ? false : { opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="grid min-w-0 gap-0.5 border-t border-border pt-2 first:border-t-0 first:pt-0"
-                >
-                  <span className="flex flex-wrap items-baseline justify-between gap-x-3 text-[11px] text-muted-foreground">
-                    <span className="font-mono">
-                      {r.id} · {r.fecha} · {r.instrumentos}
+            {/* candado del registro (#846, lección 9.5) */}
+            <ToolLock tool="tool.results_registry">
+              <ol aria-label="Últimas pruebas del registro" className="grid gap-2">
+                {latest.map((r) => (
+                  <motion.li
+                    key={r.id}
+                    // cada fila nueva del filtro entra suave (las que salen se van sin animación)
+                    initial={reduce ? false : { opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="grid min-w-0 gap-0.5 border-t border-border pt-2 first:border-t-0 first:pt-0"
+                  >
+                    <span className="flex flex-wrap items-baseline justify-between gap-x-3 text-[11px] text-muted-foreground">
+                      <span className="font-mono">
+                        {r.id} · {r.fecha} · {r.instrumentos}
+                      </span>
+                      <span>{r.issue_pr}</span>
                     </span>
-                    <span>{r.issue_pr}</span>
-                  </span>
-                  <span className="text-[12.5px] leading-snug">{r.prueba}</span>
-                  <span className="text-[12px] font-bold">{r.veredicto}</span>
-                </motion.li>
-              ))}
-            </ol>
-            {latest.length === 0 && (
-              <p className="text-[12px] text-muted-foreground">No hay pruebas de esa estrategia.</p>
-            )}
+                    <span className="text-[12.5px] leading-snug">{r.prueba}</span>
+                    <span className="text-[12px] font-bold">{r.veredicto}</span>
+                  </motion.li>
+                ))}
+              </ol>
+              {latest.length === 0 && (
+                <p className="text-[12px] text-muted-foreground">
+                  No hay pruebas de esa estrategia.
+                </p>
+              )}
+            </ToolLock>
           </div>
 
           <div className="min-w-0 lg:border-l lg:border-border lg:pl-4">
