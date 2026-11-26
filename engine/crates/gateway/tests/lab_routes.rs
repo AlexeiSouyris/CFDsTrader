@@ -70,6 +70,10 @@ fn deps() -> LabDeps {
         &sources,
         cfg!("data_split.toml"),
         None,
+        &cfds_market_data::Catalog::from_toml(cfg!("instruments.toml")).unwrap(),
+        cfds_backtest::BacktestConfig::from_toml(cfg!("backtest.toml"))
+            .unwrap()
+            .costs,
     )
     .unwrap()
 }
@@ -82,6 +86,8 @@ struct Inner {
     events: Vec<LabJobEvent>,
     reports: HashMap<String, Value>,
     candle_calls: usize,
+    candles: Vec<cfds_core::Candle>,
+    fx: Option<rust_decimal::Decimal>,
 }
 
 #[derive(Clone, Default)]
@@ -181,6 +187,24 @@ impl LabStore for Mem {
 
     async fn report(&self, id: &str) -> Result<Option<Value>, String> {
         Ok(self.0.lock().unwrap().reports.get(id).cloned())
+    }
+
+    async fn candles(
+        &self,
+        _: &InstrumentId,
+        _: cfds_core::Timeframe,
+        _: DateTime<Utc>,
+        _: DateTime<Utc>,
+    ) -> Result<Vec<cfds_core::Candle>, String> {
+        Ok(self.0.lock().unwrap().candles.clone())
+    }
+
+    async fn fx_rate(
+        &self,
+        _: &str,
+        _: DateTime<Utc>,
+    ) -> Result<Option<rust_decimal::Decimal>, String> {
+        Ok(self.0.lock().unwrap().fx)
     }
 }
 
@@ -612,4 +636,43 @@ async fn with_redis_the_progress_stream_wakes_up_at_once() {
         "{:?}",
         started.elapsed()
     );
+}
+
+#[tokio::test]
+async fn the_risk_preview_route_reads_recent_candles_and_the_catalog() {
+    let store = Mem::default();
+    let t0: DateTime<Utc> = "2026-11-25T00:00:00Z".parse().unwrap();
+    store.0.lock().unwrap().candles = (0..30)
+        .map(|i| cfds_core::Candle {
+            instrument_id: "US500".parse().unwrap(),
+            timeframe: cfds_core::Timeframe::H1,
+            start: t0 + chrono::Duration::hours(i),
+            open: "5000".parse().unwrap(),
+            high: "5005".parse().unwrap(),
+            low: "4995".parse().unwrap(),
+            close: "5000".parse().unwrap(),
+            volume: None,
+        })
+        .collect();
+    let req = json!({
+        "instrument_id": "US500", "timeframe": "1h", "direction": "long", "equity": "100000",
+        "risk_pct": "0.5", "atr_period": 14, "stop": { "kind": "atr", "k": "1.5" }
+    });
+    let path = "/api/v1/lab/risk_preview";
+    let r = call(&store, post(path, &req)).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let p = body(&r);
+    assert_contract("risk_preview.v1.schema.json", &p);
+    assert_eq!(p["accepted"], json!(true));
+    assert_eq!(p["as_of"], json!("2026-11-26T06:00:00Z"));
+    let mut r = post(path, &req);
+    r.token = None;
+    assert_eq!(call(&store, r).await.status, 403);
+    let mut other = req.clone();
+    other["instrument_id"] = json!("US100X");
+    assert_eq!(call(&store, post(path, &other)).await.status, 404);
+    let mut tf = req.clone();
+    tf["timeframe"] = json!("4h");
+    assert_eq!(call(&store, post(path, &tf)).await.status, 400);
+    assert_eq!(call(&store, get(path)).await.status, 405);
 }

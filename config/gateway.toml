@@ -141,6 +141,9 @@ sse_max_clients = 8
 sse_heartbeat_secs = 15
 # Sin Redis (REDIS_URL), cada cuánto se miran los eventos del trabajo en PostgreSQL.
 sse_poll_secs = 2
+# Vista previa de riesgo (POST /api/v1/lab/risk_preview, #777): días de velas de futuros que se leen
+# para el ATR (el precio de referencia es el cierre de la última cerrada).
+risk_preview_days = 30
 
 # Contexto de mercado del Panel (#294): /api/v1/sentiment y /api/v1/analogs, solo lectura.
 [context]
