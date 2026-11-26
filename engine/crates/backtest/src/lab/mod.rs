@@ -13,6 +13,8 @@
 //! planes:     señales con velas cerradas (decisión al cierre de t, entrada en t + 1), stop en
 //!             ATR, salida por tiempo o sesión, objetivo en R → plans_from_spec → research::Plan
 //! informe:    secciones del lab_report.v1 con stats, pbo, montecarlo y wilson → sections
+//!             run_plans + trade_return + secciones + suerte + comprar y mantener → lab_report
+//!             (lab_report.v1, "exploratorio, no vota")
 //! hash:       SHA-256 de la spec canónica (claves ordenadas, decimales normalizados, sin
 //!             espacios); familia = mismo instrumento y mismos tipos de bloque (PENDIENTE §9.2)
 //! ```
@@ -21,6 +23,7 @@
 pub mod blocks;
 pub mod catalog;
 pub mod plans;
+pub mod report;
 pub mod sections;
 pub mod spec;
 pub mod validate;
@@ -29,6 +32,7 @@ pub mod validation;
 pub use blocks::{LabConfig, catalog};
 pub use catalog::StrategyCatalog;
 pub use plans::{LabSeries, plans_from_spec};
+pub use report::{ReportInputs, lab_report, run_setup};
 pub use sections::ReportConfig;
 pub use spec::{StrategySpec, canonical_json, family_sha256, sha256_hex, spec_sha256};
 pub use validate::{validate_spec, validate_spec_json};
