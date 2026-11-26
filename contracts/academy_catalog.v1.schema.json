@@ -72,7 +72,7 @@
         "kind": { "description": "quiz: preguntas que corrige el motor; replay: examen con velas del pasado (#720, se guarda como intento desde #759); none: la lección se completa sin nota.", "enum": ["quiz", "replay", "none"] },
         "ready": { "description": "false si el examen todavía no tiene contenido (preguntas pendientes): no se puede rendir. Un examen de replay siempre está listo.", "type": "boolean" },
         "questions": { "type": "array", "items": { "$ref": "#/$defs/question" } },
-        "replay_kind": { "description": "El tipo de sesión de replay del examen (replay_session.v1 kind: levels o trades); null si el examen no es de replay (#759). Opcional: los catálogos anteriores no lo traen.", "oneOf": [{ "enum": ["levels", "trades"] }, { "type": "null" }] }
+        "replay_kind": { "description": "El tipo de sesión de replay del examen (replay_session.v1 kind: levels, pivots o trades); null si el examen no es de replay (#759, #800). Opcional: los catálogos anteriores no lo traen.", "oneOf": [{ "enum": ["levels", "pivots", "trades"] }, { "type": "null" }] }
       },
       "allOf": [
         {

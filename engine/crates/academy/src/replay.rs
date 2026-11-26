@@ -24,6 +24,8 @@ pub enum ReplayKind {
     Practice,
     Levels,
     Trades,
+    /// Marcar pivotes confirmados (#800).
+    Pivots,
 }
 
 /// `[replay]` de `config/academy.toml`. Umbrales educativos y PROVISORIOS.
@@ -39,6 +41,8 @@ pub struct ReplayConfig {
     pub exam_bars: usize,
     pub practice_bars: usize,
     pub trades_per_exam: usize,
+    /// Pivotes marcados como mínimo en un examen de pivotes (#800).
+    pub pivots_per_exam: usize,
     pub level_tolerance_atr: Decimal,
     pub shift_prices: bool,
     pub max_step_bars: usize,
@@ -53,6 +57,7 @@ impl ReplayConfig {
             self.exam_bars,
             self.practice_bars,
             self.trades_per_exam,
+            self.pivots_per_exam,
         ]
         .iter()
         .chain(&[self.max_step_bars, self.max_sessions])
@@ -80,7 +85,7 @@ impl ReplayConfig {
     pub fn bars_for(&self, kind: ReplayKind) -> usize {
         match kind {
             ReplayKind::Practice => self.practice_bars,
-            ReplayKind::Levels | ReplayKind::Trades => self.exam_bars,
+            ReplayKind::Levels | ReplayKind::Trades | ReplayKind::Pivots => self.exam_bars,
         }
     }
 }
@@ -491,6 +496,7 @@ impl ReplaySession {
             bars: self.visible_hidden(),
             rules: SessionRules {
                 trades_per_exam: cfg.trades_per_exam,
+                pivots_per_exam: cfg.pivots_per_exam,
                 level_tolerance_atr: cfg.level_tolerance_atr,
                 stop_min_atr: rules.stop_min_atr,
                 stop_max_atr: rules.stop_max_atr,
@@ -515,6 +521,9 @@ pub struct ProcessRules {
 #[serde(deny_unknown_fields)]
 pub struct SessionRules {
     pub trades_per_exam: usize,
+    /// Opcional en el contrato (llegó con #800).
+    #[serde(default)]
+    pub pivots_per_exam: usize,
     pub level_tolerance_atr: Decimal,
     pub stop_min_atr: Decimal,
     pub stop_max_atr: Decimal,

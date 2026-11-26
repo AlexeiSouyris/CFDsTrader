@@ -222,7 +222,7 @@ describe('resultado del examen (#790)', () => {
         : Response.json({ ...SESSION, kind: 'trades' }),
     )
     render(<ReplayView />)
-    fireEvent.click(screen.getByRole('button', { name: 'Examen de operaciones' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Operaciones' }))
     expect(screen.getByText(/Examen libre \(sin lección\)/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Empezar' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Terminar y calificar' }))
@@ -262,5 +262,63 @@ describe('resultado del examen (#790)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Terminar y calificar' }))
     const result = await screen.findByRole('article', { name: 'Práctica: sin nota' })
     expect(result).toHaveTextContent('No hubo entradas.')
+  })
+
+  it('examen de pivotes (#800): aciertos, adelantadas y sin pivote, como los calificó el motor', async () => {
+    const pivots: ExamResult = {
+      ...RESULT,
+      kind: 'pivots',
+      rules: [
+        { rule: 'enough_pivots', passed: false },
+        { rule: 'pivot_precision', passed: false },
+      ],
+      trades: [],
+      pivots: {
+        strength: 3,
+        marked: 3,
+        hits: 1,
+        early: 1,
+        engine: 2,
+        covered: 1,
+        precision_pct: '33.33',
+        coverage_pct: '50',
+        marks: [
+          { mark_id: 1, status: 'hit', confirmed_at: 4 },
+          { mark_id: 2, status: 'early', confirmed_at: 4 },
+          { mark_id: 3, status: 'miss', confirmed_at: null },
+        ],
+        engine_pivots: [
+          { bar_index: 1, kind: 'pivot_high', confirmed_at: 4 },
+          { bar_index: 1, kind: 'pivot_low', confirmed_at: 4 },
+        ],
+      },
+    }
+    const posts = gateway((path) =>
+      path.endsWith('/finish')
+        ? Response.json(pivots)
+        : Response.json({ ...SESSION, kind: 'pivots' }),
+    )
+    render(<ReplayView />)
+    fireEvent.click(screen.getByRole('button', { name: 'Pivotes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Empezar' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Terminar y calificar' }))
+    expect(posts[0]).toEqual(['/api/v1/academy/replay', { kind: 'pivots' }])
+    const result = await screen.findByRole('article', { name: 'Proceso no aprobado' })
+    const titles = within(result)
+      .getAllByRole('heading', { level: 3 })
+      .map((h) => h.textContent)
+    expect(titles).toEqual([
+      '1. Proceso',
+      '2. Pivotes',
+      '3. Resultado en R (no aprueba ni reprueba)',
+      '4. La fecha real',
+    ])
+    expect(result).toHaveTextContent('Pivotes suficientes para el examenno cumplida')
+    expect(result).toHaveTextContent('Precisión de pivotes suficienteno cumplida')
+    expect(result).toHaveTextContent('Aciertan1Adelantados1Del motor2Precisión33,33 %Cobertura50 %')
+    expect(result).toHaveTextContent('P1 · acierta')
+    expect(result).toHaveTextContent('P2 · adelantada (el motor lo confirmó recién en la vela 4)')
+    expect(result).toHaveTextContent('P3 · sin pivote del motor')
+    expect(result).toHaveTextContent('Un pivote existe recién 3 velas después')
   })
 })

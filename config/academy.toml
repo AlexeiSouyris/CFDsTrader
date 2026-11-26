@@ -24,8 +24,8 @@
 #   # tolerance = "0.01"     # solo number: |respuesta − clave| <= tolerancia
 #   # unit = "pts"           # solo number, opcional
 #
-# Examen de replay (#759): `exam = "replay"` con `replay_kind = "levels"` (marcar niveles) o
-# `"trades"` (operar con proceso), sin preguntas. Lo califica el motor al terminar la sesión
+# Examen de replay (#759): `exam = "replay"` con `replay_kind = "levels"` (marcar niveles),
+# `"pivots"` (marcar pivotes confirmados, #800) o `"trades"` (operar con proceso), sin preguntas. Lo califica el motor al terminar la sesión
 # (exam_result.v1) y el intento queda guardado como evento; la lección se aprueba con el proceso
 # aprobado. Ninguna lección de los niveles 0–2 lo usa todavía.
 
@@ -61,6 +61,9 @@ exam_bars = 400
 practice_bars = 200
 # Operaciones mínimas de un examen de operaciones, para que una sola no decida.
 trades_per_exam = 10
+# Pivotes marcados como mínimo en un examen de pivotes (#800; «marcar 5 pivotes», lección 4.1 del
+# temario). Aprueba con esa cantidad y la precisión >= quiz_pass_pct.
+pivots_per_exam = 5
 # Tolerancia de los niveles marcados contra los del motor, en múltiplos del ATR al cursor.
 level_tolerance_atr = "0.25"
 # Mover el precio para que no se reconozca el año: no (cambia los números redondos). Solo false.
