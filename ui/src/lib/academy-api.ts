@@ -60,8 +60,14 @@ function set(next: AcademyState) {
  */
 export function reloadAcademy(): Promise<void> {
   pending ??= Promise.all([fetchCatalog(), fetchProgress()])
+    .then(([catalog, progress]) => {
+      // los candados leen esto en toda la app: una respuesta con otra forma no rompe nada (#771)
+      const lists = [catalog?.levels, catalog?.tools, progress?.lessons, progress?.tools]
+      if (!lists.every(Array.isArray)) throw new Error('la respuesta no es de la Academia')
+      return { catalog, progress }
+    })
     .then(
-      ([catalog, progress]) => set({ status: 'ok', catalog, progress }),
+      ({ catalog, progress }) => set({ status: 'ok', catalog, progress }),
       (e: unknown) => {
         if (state.status !== 'ok') {
           set({ status: 'error', message: e instanceof Error ? e.message : String(e) })

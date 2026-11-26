@@ -20,6 +20,7 @@ import type {
   Level,
 } from '@/lib/academy-contracts'
 import { postEvent, useAcademy } from '@/lib/academy-api'
+import { takeFocusedLesson } from '@/lib/academy-locks'
 import { dateTimeUtc, decimal } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -54,9 +55,13 @@ export function AcademyView() {
 function Academy({ catalog, progress }: { catalog: AcademyCatalog; progress: AcademyProgress }) {
   const lessons = catalog.levels.flatMap((l) => l.lessons)
   const byLesson = new Map(progress.lessons.map((l) => [l.lesson_id, l]))
-  // abre la primera lección sin aprobar; elegir otra mueve el foco a su página
+  // la que pidió un candado (#771), o la primera sin aprobar; elegir otra mueve el foco a su página
   const [selected, setSelected] = useState(
-    () => lessons.find((l) => !byLesson.get(l.id)?.passed)?.id ?? lessons[0]?.id ?? null,
+    () =>
+      takeFocusedLesson() ??
+      lessons.find((l) => !byLesson.get(l.id)?.passed)?.id ??
+      lessons[0]?.id ??
+      null,
   )
   const [moved, setMoved] = useState(false)
   const heading = useRef<HTMLHeadingElement>(null)

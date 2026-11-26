@@ -6,6 +6,7 @@
  * vista de `GET /api/v1/liquidity` (`contracts/liquidity_view.v1`), que se vuelve a pedir cada
  * minuto. Sin velas guardadas muestra "sin datos todavía".
  */
+import { ToolLock } from '@/components/ui/tool-lock'
 import { StaleNote } from '@/components/ui/data-honesty'
 import { createContext, useContext, useState, type ReactNode } from 'react'
 
@@ -183,22 +184,24 @@ function LiveLiquidity() {
         />
       </ScrollRow>
       {sources.length > 1 && (
-        <ScrollRow>
-          <Segmented
-            label="Fuente"
-            options={sources.map((s) => s.label)}
-            value={(sources.find((s) => s.id === (sel.source ?? 'ig')) ?? sources[0]).label}
-            onChange={(label) => {
-              const source = sources.find((s) => s.label === label)?.id ?? 'ig'
-              // los futuros no tienen velas diarias: con 1d se pasa al primer timeframe que sí
-              const timeframe =
-                isFutures(source) && sel.timeframe === '1d'
-                  ? (catalog.data.timeframes.find((t) => t !== '1d') ?? sel.timeframe)
-                  : sel.timeframe
-              setPicked({ ...sel, source, timeframe })
-            }}
-          />
-        </ScrollRow>
+        <ToolLock tool="tool.source_selector" compact>
+          <ScrollRow>
+            <Segmented
+              label="Fuente"
+              options={sources.map((s) => s.label)}
+              value={(sources.find((s) => s.id === (sel.source ?? 'ig')) ?? sources[0]).label}
+              onChange={(label) => {
+                const source = sources.find((s) => s.label === label)?.id ?? 'ig'
+                // los futuros no tienen velas diarias: con 1d se pasa al primer timeframe que sí
+                const timeframe =
+                  isFutures(source) && sel.timeframe === '1d'
+                    ? (catalog.data.timeframes.find((t) => t !== '1d') ?? sel.timeframe)
+                    : sel.timeframe
+                setPicked({ ...sel, source, timeframe })
+              }}
+            />
+          </ScrollRow>
+        </ToolLock>
       )}
     </div>
   )
