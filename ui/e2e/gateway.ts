@@ -13,6 +13,8 @@ import type { Page } from '@playwright/test'
 import labCatalog from '../src/mocks/lab-catalog.json' with { type: 'json' }
 import labReport from '../src/mocks/lab-report.json' with { type: 'json' }
 import liquidityUs100 from '../src/mocks/liquidity-us100-15m.json' with { type: 'json' }
+import academyCatalog from './fixtures/academy-catalog.json' with { type: 'json' }
+import academyProgress from './fixtures/academy-progress.json' with { type: 'json' }
 import analogs from './fixtures/analogs.json' with { type: 'json' }
 import backtestRuns from './fixtures/backtest-runs.json' with { type: 'json' }
 import calendar from './fixtures/calendar.json' with { type: 'json' }
@@ -232,6 +234,18 @@ export const ROUTES: MockRoute[] = [
     path: `/api/v1/lab/reports/${labReport.report_id}`,
     schema: 'lab_report.v1.schema.json',
     body: () => labReport,
+  },
+  // la Academia (#769): el catálogo de config/academy.toml (niveles 0–2, sin preguntas todavía) y
+  // el progreso de alguien que recién empieza (nada aprobado, nada abierto a mano)
+  {
+    path: '/api/v1/academy/catalog',
+    schema: 'academy_catalog.v1.schema.json',
+    body: () => academyCatalog,
+  },
+  {
+    path: '/api/v1/academy/progress',
+    schema: 'academy_progress.v1.schema.json',
+    body: () => academyProgress,
   },
 ]
 

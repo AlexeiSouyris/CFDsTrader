@@ -34,7 +34,7 @@ export class GatewayError extends Error {
   }
 }
 
-async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
+export async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(url, {
     ...init,
     headers: { Accept: 'application/json', ...init.headers },

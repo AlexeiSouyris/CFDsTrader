@@ -114,7 +114,7 @@ describe('barra de estado', () => {
 describe('teclado de terminal', () => {
   beforeEach(() => gateway(true))
 
-  it('F1–F4 y F6–F9 abren cada sección; F5 queda para el navegador', () => {
+  it('F1–F4 y F6–F10 abren cada sección; F5 queda para el navegador', () => {
     render(<App initialStage="app" />)
     const go = (key: string) => act(() => void fireEvent.keyDown(window, { key }))
     go('F2')
@@ -125,8 +125,10 @@ describe('teclado de terminal', () => {
     expect(location.hash).toBe('#noticias')
     go('F9')
     expect(location.hash).toBe('#competencia')
+    go('F10')
+    expect(location.hash).toBe('#academia')
     go('F5')
-    expect(location.hash).toBe('#competencia')
+    expect(location.hash).toBe('#academia')
     go('F1')
     expect(screen.getByRole('heading', { level: 1, name: 'Inicio' })).toBeInTheDocument()
   })

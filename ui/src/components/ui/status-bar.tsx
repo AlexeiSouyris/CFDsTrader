@@ -129,7 +129,7 @@ export function StatusBar({ className }: { className?: string }) {
       </ul>
       <p className="ml-auto hidden items-center gap-3 whitespace-nowrap lg:flex">
         <span className="text-muted-foreground">
-          <kbd>F1</kbd>–<kbd>F9</kbd> secciones · <kbd>/</kbd> comando · <kbd>?</kbd> atajos
+          <kbd>F1</kbd>–<kbd>F10</kbd> secciones · <kbd>/</kbd> comando · <kbd>?</kbd> atajos
         </span>
         <strong className="font-bold tracking-[0.12em] text-primary">SIMULACIÓN</strong>
       </p>

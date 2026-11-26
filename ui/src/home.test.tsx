@@ -80,6 +80,7 @@ describe('puertas a las secciones', () => {
       'Fondo',
       'Diario',
       'Trofeos',
+      'Academia',
     ])
     expect(links.map((a) => a.getAttribute('href'))).toEqual(DOORS.map((d) => `#${d.view}`))
     expect(links.map((a) => a.getAttribute('data-section'))).toEqual([
@@ -90,6 +91,7 @@ describe('puertas a las secciones', () => {
       'fund',
       'journal',
       'trophies',
+      'hub',
     ])
     expect(links.map((a) => a.getAttribute('aria-keyshortcuts'))).toEqual(
       DOORS.map((d) => d.shortcut),

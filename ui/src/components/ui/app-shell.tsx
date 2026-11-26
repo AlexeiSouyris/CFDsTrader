@@ -1,7 +1,7 @@
 /**
  * Armazón de la app: barra superior con la línea de comandos, navegación (lateral en escritorio,
  * inferior en el celular), escenario, barra de estado, paleta de comandos (⌘K o `/`), atajos de
- * función (F1–F9, `?` los muestra), avisos y ajustes.
+ * función (F1–F10, `?` los muestra), avisos y ajustes.
  *
  * Nació de dos componentes de vidrio (#164). Desde #708 es una terminal profesional: superficies
  * lisas, reglas de 1 px y teclado primero. El contenido de cada vista lo decide la app.
@@ -131,7 +131,7 @@ export function AppShell({
       }
       if (e.key === 'Escape') setPopover(null)
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return
-      // F1–F9 (#708): a la sección, también mientras se escribe (las teclas de función no escriben)
+      // F1–F10 (#708, #769): a la sección, también mientras se escribe (las teclas de función no escriben)
       const target = Object.entries(keys.current.fkeys).find(([, k]) => k === e.key)?.[0]
       if (target && !e.shiftKey) {
         e.preventDefault()
