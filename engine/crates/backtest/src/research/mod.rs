@@ -75,8 +75,8 @@ pub use review_checks::{
 };
 pub use round_number::{Levels, round_number_plans};
 pub use run::{
-    StudyExit, StudyRejected, StudyRun, StudyTrade, execute_plan, monthly_returns, run_plans,
-    simulate_leg, trade_return,
+    StudyExit, StudyRejected, StudyRun, StudyTrade, excursions, execute_plan, monthly_returns,
+    run_plans, simulate_leg, trade_return,
 };
 pub use trend::{monthly_reviews, trend_plans};
 pub use turn_of_month::{SessionBar, session_bars, turn_of_month_plans};
