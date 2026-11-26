@@ -4,7 +4,7 @@
 mod common;
 
 use cfds_academy::{AcademyConfig, Catalog, ExamKind};
-use common::{REAL, assert_valid, validator, with_questions};
+use common::{REAL, assert_valid, validator, with_questions, without_questions};
 
 #[test]
 fn the_real_config_loads_with_levels_0_to_2_and_provisional_thresholds() {
@@ -18,8 +18,18 @@ fn the_real_config_loads_with_levels_0_to_2_and_provisional_thresholds() {
     assert!(c.thresholds.provisional);
     assert_eq!(c.thresholds.quiz_pass_pct.to_string(), "80");
     assert_eq!(c.catalog_version.len(), 64);
-    // Sin preguntas todavía: los exámenes de preguntas no están listos; 0.3 no tiene examen.
+    // Con el contenido de los niveles 0–2 (#760): todos los exámenes están listos, cada examen de
+    // preguntas tiene al menos 5 y cada lección tiene su texto.
     for l in cfg.lessons() {
+        assert!(l.exam.ready, "{}", l.id);
+        assert!(l.doc.is_some(), "{}", l.id);
+        if l.exam.kind == ExamKind::Quiz {
+            assert!(l.exam.questions.len() >= 5, "{}", l.id);
+        }
+    }
+    // Sin sus preguntas, un examen de preguntas no está listo (0.3 no tiene examen).
+    let bare = AcademyConfig::from_toml(&without_questions(REAL)).unwrap();
+    for l in bare.lessons() {
         assert_eq!(l.exam.ready, l.exam.kind == ExamKind::None, "{}", l.id);
     }
     let watchlist = c.tools.iter().find(|t| t.id == "tool.watchlist").unwrap();
@@ -90,7 +100,8 @@ fn invalid_configs_are_rejected_at_startup() {
         ("pregunta repetida", base.replace("id = \"0.1.2\"", "id = \"0.1.1\"")),
         ("clave numérica que no es número", base.replace("answer = \"0.25\"", "answer = \"un cuarto\"")),
         ("tolerancia negativa", base.replace("tolerance = \"0.01\"", "tolerance = \"-0.01\"")),
-        ("doc fuera de docs/academia", base.replace("title = \"Spread\"", "title = \"Spread\"\ndoc = \"../.env\"")),
+        ("doc fuera de docs/academia", base.replace("doc = \"docs/academia/nivel-02-1-spread.md\"", "doc = \"../.env\"")),
+        ("doc que no es .md", base.replace("nivel-02-1-spread.md", "nivel-02-1-spread.txt")),
     ];
     for (what, text) in cases {
         assert_ne!(text, base, "{what}: el reemplazo no cambió nada");
