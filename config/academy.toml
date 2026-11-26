@@ -3,7 +3,7 @@
 # academy_catalog.v1 (GET /api/v1/academy/catalog). Nada de esto toca el motor de trading, el
 # riesgo ni el paper: solo qué se enseña, cómo se corrige y qué se ve en la UI.
 #
-# Por ahora, niveles 0 a 10, con su contenido (#760, #819, #828 y #838; §8 PR 6, 11 y 15): el texto de
+# Por ahora, niveles 0 a 11, con su contenido (#760, #819, #828, #838 y #847; §8 PR 6, 11 y 15): el texto de
 # cada lección está en `doc` (docs/academia/*.md, formato que valida cfds_academy::lesson_doc: secciones fijas, aviso,
 # sin promesas y una tabla de cifras que el motor compara con su fuente del repo). Mientras una
 # lección con examen no tenga preguntas, su examen sale `ready = false` y no se puede rendir (sus
@@ -233,6 +233,14 @@ name = "Laboratorio: constructor de estrategias, corridas e informes (explorator
 id = "tool.terminal_news"
 name = "Noticias y calendario de la Terminal"
 
+# Nivel 11 (#847). El índice de desequilibrio aproximado de la vista Liquidez (imbalance.v1,
+# «aproximación desde el precio»). El «perfil de volumen (descriptivo)» del temario no tiene
+# herramienta en la app (solo existe dentro de la prueba H4.3) y queda pendiente; la GEX no se
+# puede medir sin datos de opciones.
+[[tools]]
+id = "tool.imbalance"
+name = "Índice de desequilibrio aproximado (Liquidez)"
+
 [[levels]]
 level = 0
 title = "Orientación: qué es esto y por qué la mayoría pierde"
@@ -276,6 +284,10 @@ title = "Backtesting y sus trampas"
 [[levels]]
 level = 10
 title = "Tu propia estrategia: hipótesis, pre-registro, regímenes y noticias"
+
+[[levels]]
+level = 11
+title = "Avanzado, con advertencias: flujo de órdenes, perfil de volumen y GEX"
 
 # exam: quiz (preguntas que corrige el motor) | none (se completa sin nota).
 # Las fuentes de cada número están en la tabla «Cifras y fuentes» del `doc` de la lección.
@@ -3055,5 +3067,196 @@ options = [
   { id = "b", text = "Empresas de fondeo que lo patrocinan y un código de descuento a su nombre: gana más si más gente compra desafíos." },
   { id = "c", text = "Que opera forex." },
   { id = "d", text = "Que vive en otro país." },
+]
+answer = "b"
+
+[[lessons]]
+id = "11.1"
+title = "Flujo de órdenes y desequilibrio aproximado"
+objective = "Saber qué es el libro de órdenes y el delta, qué datos hacen falta para medirlos, y por qué nuestro índice de desequilibrio es una aproximación desde el precio, no flujo de órdenes."
+doc = "docs/academia/nivel-11-1-flujo-de-ordenes.md"
+exam = "quiz"
+unlocks = ["tool.imbalance"]
+
+[[lessons.questions]]
+id = "11.1.1"
+kind = "choice"
+prompt = "¿Qué hace falta para calcular el delta de una vela?"
+options = [
+  { id = "a", text = "Solo la apertura, el máximo, el mínimo y el cierre." },
+  { id = "b", text = "Cada operación con su lado: si la mandó un comprador agresor o un vendedor agresor." },
+  { id = "c", text = "El ATR de 14 velas." },
+  { id = "d", text = "El volumen total de la vela." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "11.1.2"
+kind = "choice"
+prompt = "¿Qué datos de flujo de órdenes tiene hoy la app?"
+options = [
+  { id = "a", text = "El libro de órdenes del CME en tiempo real." },
+  { id = "b", text = "Cada operación de los futuros con su lado." },
+  { id = "c", text = "Ninguno: el CFD de IG no trae volumen ni libro, y de los futuros solo hay velas de 1 minuto con su volumen, sin el lado de cada operación." },
+  { id = "d", text = "El delta de cada vela del CFD." },
+]
+answer = "c"
+
+[[lessons.questions]]
+id = "11.1.3"
+kind = "choice"
+prompt = "¿Cuándo es «de desplazamiento» una vela para el índice del motor?"
+options = [
+  { id = "a", text = "Cuando su cuerpo es al menos 1,5 veces el ATR(14) y al menos el 70 % de su rango." },
+  { id = "b", text = "Cuando tiene más volumen que la media." },
+  { id = "c", text = "Cuando cierra en su máximo." },
+  { id = "d", text = "Cuando rompe un nivel de liquidez." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "11.1.4"
+kind = "number"
+prompt = "En una ventana de 20 velas el rango sumado (H − L) es 250 puntos. Hubo dos velas de desplazamiento alcistas con cuerpos de 30 y 20, y una bajista de 25. ¿Cuánto vale el índice? (dos decimales)"
+answer = "0.10"
+tolerance = "0.005"
+
+[[lessons.questions]]
+id = "11.1.5"
+kind = "choice"
+prompt = "El índice de desequilibrio marca +0,6. ¿Qué se puede decir?"
+options = [
+  { id = "a", text = "Que entraron compradores institucionales." },
+  { id = "b", text = "Que el precio va a seguir subiendo." },
+  { id = "c", text = "Que en las últimas 20 velas los cuerpos de desplazamiento alcistas fueron grandes frente al rango; no dice quién compró ni con qué órdenes." },
+  { id = "d", text = "Que el delta de la sesión es positivo." },
+]
+answer = "c"
+
+[[lessons]]
+id = "11.2"
+title = "Perfil de volumen"
+objective = "Leer un perfil de volumen (POC y área de valor), saber cómo lo arma el motor desde barras de 1 minuto y qué tiene de aproximado, y qué dio la única regla con perfil que probamos (H4.3)."
+doc = "docs/academia/nivel-11-2-perfil-de-volumen.md"
+exam = "quiz"
+unlocks = []
+
+[[lessons.questions]]
+id = "11.2.1"
+kind = "choice"
+prompt = "¿Qué es el POC de un perfil de volumen?"
+options = [
+  { id = "a", text = "El precio de cierre de la sesión." },
+  { id = "b", text = "El precio con más volumen operado en la sesión." },
+  { id = "c", text = "El punto medio entre el máximo y el mínimo." },
+  { id = "d", text = "El precio donde el delta fue más alto." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "11.2.2"
+kind = "number"
+prompt = "Con la regla del motor (casillero = tick × máx(1, redondeo(0,0002 × apertura ÷ tick)), tick 0,25), ¿de cuántos puntos es el casillero de una sesión que abre en 25.000?"
+answer = "5"
+tolerance = "0"
+unit = "pts"
+
+[[lessons.questions]]
+id = "11.2.3"
+kind = "choice"
+prompt = "¿Por qué el perfil que arma el motor es una aproximación?"
+options = [
+  { id = "a", text = "Porque usa velas de 15 minutos." },
+  { id = "b", text = "Porque de cada barra de 1 minuto se sabe el volumen total pero no a qué precio se operó cada contrato: el motor lo reparte en partes iguales a lo largo del rango." },
+  { id = "c", text = "Porque mezcla el CFD de IG con el futuro." },
+  { id = "d", text = "No es una aproximación: es el perfil exacto." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "11.2.4"
+kind = "number"
+prompt = "Un perfil de 1.000 contratos tiene, de abajo hacia arriba, casilleros con 100, 150, 400 (POC), 200, 100 y 50. Con la regla del motor (desde el POC se suma el vecino con más volumen hasta llegar al 70 %), ¿qué % del volumen queda dentro del área de valor?"
+answer = "75"
+tolerance = "0"
+unit = "%"
+
+[[lessons.questions]]
+id = "11.2.5"
+kind = "choice"
+prompt = "¿Qué dio H4.3, la regla de Bruni con perfil de volumen, probada con reglas congeladas en US100?"
+options = [
+  { id = "a", text = "Pasó todos los criterios." },
+  { id = "b", text = "No pasó: 85 operaciones (menos de las 100 mínimas), pierde antes y después de costos, y queda peor que la mayoría de las entradas al azar." },
+  { id = "c", text = "No se pudo probar por falta de datos." },
+  { id = "d", text = "Ganó antes de costos y perdió solo por el spread." },
+]
+answer = "b"
+
+[[lessons]]
+id = "11.3"
+title = "GEX (exposición gamma): qué es y por qué no la medimos"
+objective = "Entender qué intenta medir la exposición gamma, por qué cualquier número de GEX es una estimación con supuestos, qué dice la evidencia y por qué hoy no la podemos medir."
+doc = "docs/academia/nivel-11-3-gex.md"
+exam = "quiz"
+unlocks = []
+
+[[lessons.questions]]
+id = "11.3.1"
+kind = "choice"
+prompt = "Un dealer está corto en gamma (vendió opciones) y se cubre en delta. El precio sube. ¿Qué hace?"
+options = [
+  { id = "a", text = "Compra el activo, y eso puede empujar la suba." },
+  { id = "b", text = "Vende el activo, y eso frena la suba." },
+  { id = "c", text = "Nada: la cobertura no cambia con el precio." },
+  { id = "d", text = "Cierra todas sus opciones." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "11.3.2"
+kind = "choice"
+prompt = "¿Por qué todo número de GEX es una estimación?"
+options = [
+  { id = "a", text = "Porque la gamma no se puede calcular." },
+  { id = "b", text = "Porque el interés abierto no dice quién tiene cada opción: se suponen los lados (por ejemplo, que los dealers compran las calls y venden las puts), y si el supuesto falla puede cambiar hasta el signo." },
+  { id = "c", text = "Porque las opciones vencen." },
+  { id = "d", text = "No es una estimación: es un dato oficial de la bolsa." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "11.3.3"
+kind = "choice"
+prompt = "¿Qué tiene evidencia en artículos revisados?"
+options = [
+  { id = "a", text = "Que el strike con más gamma frena el precio como un soporte, cualquier día." },
+  { id = "b", text = "Que la GEX dice hacia dónde va a ir el precio." },
+  { id = "c", text = "Que la cobertura de los creadores de mercado afecta la volatilidad y el impulso intradía (Ni, Pearson, Poteshman y White, 2021; Baltussen, Da, Lammers y Martens, 2021)." },
+  { id = "d", text = "Nada de esto tiene evidencia." },
+]
+answer = "c"
+
+[[lessons.questions]]
+id = "11.3.4"
+kind = "choice"
+prompt = "Probamos la hipótesis de Baltussen (la última media hora sigue al resto del día) en US500, US100 y US30. ¿Qué dio?"
+options = [
+  { id = "a", text = "Ganó mucho con costos." },
+  { id = "b", text = "Antes de costos quedó en cero o negativa, y con los costos del CFD perdió alrededor de 2 % por mes: no pasó." },
+  { id = "c", text = "No se pudo probar." },
+  { id = "d", text = "Pasó en US100 y en US500." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "11.3.5"
+kind = "choice"
+prompt = "¿Por qué hoy no hay GEX en la app?"
+options = [
+  { id = "a", text = "Porque la GEX no sirve para nada." },
+  { id = "b", text = "Porque no tenemos datos de opciones: el dato por tipo de participante de Cboe es pago y de uso interno, sus términos no permiten guardar datos sin permiso escrito, y un proveedor nuevo va con su ADR." },
+  { id = "c", text = "Porque la calcula la UI." },
+  { id = "d", text = "Porque IG no la publica, pero la vamos a estimar con las velas." },
 ]
 answer = "b"
