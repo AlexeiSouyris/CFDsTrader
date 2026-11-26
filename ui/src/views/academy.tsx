@@ -23,6 +23,7 @@ import type {
 import { fetchLessonDoc, postEvent, useAcademy } from '@/lib/academy-api'
 import { takeFocusedLesson } from '@/lib/academy-locks'
 import { dateTimeUtc, decimal } from '@/lib/format'
+import { requestLabTool } from '@/lib/lab-focus'
 import { cn } from '@/lib/utils'
 
 /** El estado de una lección en una frase corta, tal como lo dejó el motor. */
@@ -83,6 +84,17 @@ function Academy({ catalog, progress }: { catalog: AcademyCatalog; progress: Aca
         <span>
           Replay: práctica vela a vela con velas del pasado{' '}
           <span className="font-normal text-muted-foreground">· sin nota, se usa ya</span>
+        </span>
+        <ArrowUpRight aria-hidden="true" className="size-4 shrink-0" />
+      </a>
+      <a
+        href="#laboratorio"
+        onClick={() => requestLabTool('propsim')}
+        className="panel flex min-h-9 items-center justify-between gap-2 rounded-section px-2.5 text-[12.5px] font-semibold hover:bg-surface"
+      >
+        <span>
+          Nivel 12 · Cuentas fondeadas: simulador de reglas contra el azar{' '}
+          <span className="font-normal text-muted-foreground">· en el Laboratorio</span>
         </span>
         <ArrowUpRight aria-hidden="true" className="size-4 shrink-0" />
       </a>
