@@ -47,7 +47,7 @@ function Card({
   return (
     <section
       data-example={example || undefined}
-      className={cn('panel relative min-w-0 rounded-[20px] p-4', className)}
+      className={cn('panel relative min-w-0 rounded-section p-4', className)}
     >
       {(title || stamp) && (
         <div className="mb-3 flex items-start justify-between gap-2">

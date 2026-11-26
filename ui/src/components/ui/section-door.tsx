@@ -53,7 +53,7 @@ export function SectionDoor({
       transition={{ type: 'spring', stiffness: 420, damping: 30 }}
       className={cn(
         // la forma es la del Inicio (no la de la sección): todas las puertas iguales
-        'glass group relative flex min-h-36 min-w-0 flex-col gap-3 overflow-hidden rounded-[20px] p-4 text-foreground',
+        'glass group relative flex min-h-36 min-w-0 flex-col gap-3 overflow-hidden rounded-section p-4 text-foreground',
         'focus-visible:outline-2 focus-visible:outline-accent',
         door.size === 'tall' && 'col-span-2 lg:row-span-2 lg:min-h-0',
         door.size === 'wide' && 'lg:col-span-2',
