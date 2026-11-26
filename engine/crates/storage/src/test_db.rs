@@ -7,6 +7,9 @@
 //!
 //! Es código de soporte de tests: el motor no lo usa en producción.
 
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
+
 /// Prefijo obligatorio del nombre de la base de los tests (`cfds_test`, `cfds_test_<agente>`…).
 pub const TEST_DB_PREFIX: &str = "cfds_test";
 
@@ -65,9 +68,54 @@ pub fn test_database_url() -> String {
     url
 }
 
+/// Un id propio de cada test (#688), por ejemplo para su instrumento: `<prefijo>-<proceso>-<n>`.
+///
+/// La hora sola no alcanza: los tests de un binario corren en paralelo, dos pueden leer el mismo
+/// valor del reloj y entonces comparten el instrumento y ven las velas del otro. Acá `n` sale de
+/// un reloj de microsegundos que **nunca se repite** dentro del proceso (si dos lecturas
+/// coinciden, la segunda toma el valor siguiente), y el número de proceso separa dos corridas
+/// simultáneas sobre la misma base. Con un prefijo de hasta 6 caracteres y un sufijo de fuente
+/// como `.IBKR`, entra en un `InstrumentId` (32 caracteres).
+pub fn unique_id(prefix: &str) -> String {
+    static LAST: AtomicU64 = AtomicU64::new(0);
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| u64::try_from(d.as_micros()).unwrap_or(u64::MAX));
+    let next = |prev: u64| now.max(prev.saturating_add(1));
+    let n = match LAST.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |p| Some(next(p))) {
+        Ok(prev) | Err(prev) => next(prev),
+    };
+    // Los últimos 12 dígitos (11 días y medio): ningún proceso de tests dura tanto.
+    format!("{prefix}-{}-{}", std::process::id(), n % 1_000_000_000_000)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #688: ids generados a la vez desde muchos hilos no se repiten nunca, aunque el reloj dé
+    /// el mismo valor, y entran en un `InstrumentId` con el sufijo más largo de las fuentes.
+    #[test]
+    fn unique_ids_never_repeat_across_threads() {
+        let threads: Vec<_> = (0..8)
+            .map(|_| {
+                std::thread::spawn(|| (0..2_000).map(|_| unique_id("ITGW")).collect::<Vec<_>>())
+            })
+            .collect();
+        let ids: Vec<String> = threads
+            .into_iter()
+            .flat_map(|t| t.join().unwrap())
+            .collect();
+        let distinct: std::collections::HashSet<&String> = ids.iter().collect();
+        assert_eq!(distinct.len(), ids.len(), "ids repetidos");
+        for id in &ids {
+            let derived: cfds_core::InstrumentId = format!("{id}.IBKR").parse().unwrap();
+            assert!(derived.as_str().starts_with("ITGW-"));
+        }
+        let longest: cfds_core::InstrumentId =
+            format!("{}.IBKR", unique_id("ITGWXY")).parse().unwrap();
+        assert!(longest.as_str().len() <= 32);
+    }
 
     #[test]
     fn reads_the_database_name() {
