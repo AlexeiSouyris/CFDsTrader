@@ -48,6 +48,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | [glosario](modules/glosario.md) | `docs/GLOSARIO.md` | Markdown | Única fuente de las definiciones de términos (la UI las reutiliza como tooltips). | hecho |
 | [academy](modules/academy.md) | `engine/crates/academy` (crate `cfds-academy`) | Rust | Academia: catálogo de lecciones y herramientas con candado, corrección de exámenes y progreso desde eventos de solo agregar. | en curso (#718, #740, #721, #722, #723) |
 | [auth](modules/auth.md) | `engine/crates/auth` | Rust | Cuentas de los miembros, 2FA (TOTP), roles, sesiones y registro de acciones. | planeado |
+| [lab](modules/lab.md) | `engine/crates/backtest/src/lab` (módulo `cfds_backtest::lab`) | Rust | Laboratorio de estrategias: specs por bloques (`strategy_spec.v1`), su catálogo, su validación con hash canónico y su corrida con el arnés de investigación. | en curso (#710) |
 | [backtest](modules/backtest.md) | `engine/crates/backtest` (crate `cfds-backtest`) | Rust | Simulación histórica y paper trading en tiempo real, P/L, costos, métricas y walk-forward. | hecho |
 | [broker](modules/broker.md) | `engine/crates/broker` (crate `cfds-broker`) | Rust | Interfaz de broker con envío idempotente; hoy el broker simulado (`PaperBroker`) con reconciliación y swap. | hecho |
 | [core](modules/core.md) | `engine/crates/core` (crate `cfds-core`) | Rust | Tipos compartidos del motor (Instrument, Candle, Order, Position, Money en decimal) y los tipos de los contratos que lee. | hecho |
