@@ -25,7 +25,7 @@ No calcula nada de trading ni toca el riesgo, el paper o las órdenes: el desblo
 ## Estado
 
 - Diseño: `docs/design/2026-11-academia.md` (#709). Contratos: #717. Base del motor (catálogo y corrección): #718. Eventos y progreso: #740. Replay: contratos #720, motor #721, calificación #722.
-- Rutas del gateway: #719. Rutas del replay: #723. Contenido de los niveles 0–2 (texto, preguntas y claves) y validación del texto: #760. Texto servido por el gateway: #798. Intento de replay de una lección guardado como evento: #759. Calificación de pivotes: #800. Contenido del nivel 3: #819. Pendiente: la UI para rendir el examen de replay de una lección (cuando haya lecciones con examen de replay) y el contenido de los niveles 4 a 12.
+- Rutas del gateway: #719. Rutas del replay: #723. Contenido de los niveles 0–2 (texto, preguntas y claves) y validación del texto: #760. Texto servido por el gateway: #798. Intento de replay de una lección guardado como evento: #759. Calificación de pivotes: #800. Contenido de los niveles 3 y 4 (4.1 y 4.2 con examen de replay de pivotes y de niveles): #819. Pendiente: la UI para rendir el examen de replay de una lección y el contenido de los niveles 5 a 12.
 
 ## Interfaces
 

@@ -3,7 +3,7 @@
 # academy_catalog.v1 (GET /api/v1/academy/catalog). Nada de esto toca el motor de trading, el
 # riesgo ni el paper: solo qué se enseña, cómo se corrige y qué se ve en la UI.
 #
-# Por ahora, niveles 0 a 3, con su contenido (#760 y #819, §8 PR 6 y 11): el texto de cada lección
+# Por ahora, niveles 0 a 4, con su contenido (#760 y #819, §8 PR 6 y 11): el texto de cada lección
 # está en `doc` (docs/academia/*.md, formato que valida cfds_academy::lesson_doc: secciones fijas, aviso,
 # sin promesas y una tabla de cifras que el motor compara con su fuente del repo). Mientras una
 # lección con examen no tenga preguntas, su examen sale `ready = false` y no se puede rendir (sus
@@ -27,7 +27,7 @@
 # Examen de replay (#759): `exam = "replay"` con `replay_kind = "levels"` (marcar niveles),
 # `"pivots"` (marcar pivotes confirmados, #800) o `"trades"` (operar con proceso), sin preguntas. Lo califica el motor al terminar la sesión
 # (exam_result.v1) y el intento queda guardado como evento; la lección se aprueba con el proceso
-# aprobado. Ninguna lección de los niveles 0–2 lo usa todavía.
+# aprobado. Lo usan 4.1 (pivots) y 4.2 (levels).
 
 [thresholds]
 # PROVISORIOS (propuesta del diseño, §10.3 y §10.5): son parámetros EDUCATIVOS, no de trading, y
@@ -125,6 +125,23 @@ name = "Regla de medición"
 id = "tool.journal_notes"
 name = "Notas del Diario"
 
+# Nivel 4 (#819).
+[[tools]]
+id = "tool.pivots_layer"
+name = "Capa de pivotes del motor"
+
+[[tools]]
+id = "tool.drawing"
+name = "Dibujo: líneas horizontales, de tendencia y rectángulos"
+
+[[tools]]
+id = "tool.levels_layer"
+name = "Capa de soportes y resistencias"
+
+[[tools]]
+id = "tool.chart_patterns"
+name = "Patrones chartistas"
+
 [[levels]]
 level = 0
 title = "Orientación: qué es esto y por qué la mayoría pierde"
@@ -140,6 +157,10 @@ title = "Costos reales: lo que se come la ventaja"
 [[levels]]
 level = 3
 title = "Velas, timeframes y el primer replay"
+
+[[levels]]
+level = 4
+title = "Estructura: pivotes, soportes, resistencias y tendencia"
 
 # exam: quiz (preguntas que corrige el motor) | none (se completa sin nota).
 # Las fuentes de cada número están en la tabla «Cifras y fuentes» del `doc` de la lección.
@@ -905,3 +926,102 @@ objective = "Escribir el plan antes de cada ejercicio de replay y una nota despu
 doc = "docs/academia/nivel-03-4-habito-plan-y-nota.md"
 exam = "none"
 unlocks = ["tool.journal_notes"]
+
+# --- Nivel 4: estructura (#819). Pivotes, soportes y resistencias, tendencia y dobles techos y
+# suelos con las definiciones del motor (spec §4, §5.2 y §5.3; config/patterns.toml y
+# config/indicators.toml). 4.1 y 4.2 tienen examen de replay: los umbrales son los de [replay] y
+# [thresholds], provisorios. ---
+
+[[lessons]]
+id = "4.1"
+title = "Pivote confirmado"
+objective = "Saber que un máximo o mínimo local existe solo después de N velas de confirmación; antes es una suposición."
+doc = "docs/academia/nivel-04-1-pivote-confirmado.md"
+exam = "replay"
+replay_kind = "pivots"
+unlocks = ["tool.pivots_layer"]
+
+[[lessons]]
+id = "4.2"
+title = "Soporte y resistencia objetivos"
+objective = "Armar un nivel como lo define el motor: tocado al menos 3 veces con una tolerancia medible."
+doc = "docs/academia/nivel-04-2-soporte-y-resistencia.md"
+exam = "replay"
+replay_kind = "levels"
+unlocks = ["tool.drawing"]
+
+[[lessons]]
+id = "4.3"
+title = "Tendencia y ruptura"
+objective = "Reconocer una tendencia con pivotes confirmados, la tendencia de 1 h del motor, la ruptura y el doble techo o suelo."
+doc = "docs/academia/nivel-04-3-tendencia-y-ruptura.md"
+exam = "quiz"
+unlocks = ["tool.levels_layer", "tool.chart_patterns"]
+
+[[lessons.questions]]
+id = "4.3.1"
+kind = "choice"
+prompt = "Pivotes confirmados en orden: máximos 6.020, 6.035 y 6.050; mínimos 5.990, 6.005 y 6.015. ¿Qué tramo es?"
+options = [
+  { id = "a", text = "Alcista: máximos y mínimos cada vez más altos." },
+  { id = "b", text = "Bajista." },
+  { id = "c", text = "Rango." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "4.3.2"
+kind = "choice"
+prompt = "Última vela de 1 h cerrada: cierre 6.040, SMA50 de 1 h 6.020, y esa SMA50 hace 5 velas valía 6.025. ¿Qué tendencia de 1 h da la regla del motor?"
+options = [
+  { id = "a", text = "ALCISTA, porque el cierre está arriba de la media." },
+  { id = "b", text = "BAJISTA, porque la media baja." },
+  { id = "c", text = "NEUTRAL: el cierre está arriba de la media, pero la pendiente es negativa." },
+]
+answer = "c"
+
+[[lessons.questions]]
+id = "4.3.3"
+kind = "number"
+prompt = "Doble suelo con S1 = 6.000 y S2 = 6.015. ¿Cuál es la diferencia |S1 − S2| ÷ S1, en %?"
+answer = "0.25"
+tolerance = "0.01"
+unit = "%"
+
+[[lessons.questions]]
+id = "4.3.4"
+kind = "choice"
+prompt = "Dos pivotes bajos casi iguales con 8 velas entre ellos. ¿Forman un doble suelo para el motor?"
+options = [
+  { id = "a", text = "Sí, si la diferencia es menor que 0,3 %." },
+  { id = "b", text = "No: entre los dos suelos tiene que haber de 10 a 60 velas." },
+  { id = "c", text = "No: tienen que estar exactamente a 60 velas." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "4.3.5"
+kind = "number"
+prompt = "Doble suelo con neckline en 6.030, el suelo más bajo en 6.000 y un ATR de 25 puntos. ¿Cuánto mide la altura del patrón, en ATR?"
+answer = "1.2"
+tolerance = "0.01"
+unit = "ATR"
+
+[[lessons.questions]]
+id = "4.3.6"
+kind = "choice"
+prompt = "Para el motor, ¿cuándo se rompe el neckline de un doble suelo?"
+options = [
+  { id = "a", text = "Cuando el máximo de una vela pasa el neckline." },
+  { id = "b", text = "Cuando una vela cierra arriba del neckline y la anterior había cerrado en el neckline o abajo." },
+  { id = "c", text = "Cuando el precio vuelve a tocar el neckline desde arriba." },
+]
+answer = "b"
+
+[[lessons]]
+id = "4.4"
+title = "Evidencia: soportes y números redondos"
+objective = "Saber qué dicen los estudios sobre soportes y números redondos, y qué dio nuestra prueba con los índices (R020)."
+doc = "docs/academia/nivel-04-4-evidencia-soportes-y-redondos.md"
+exam = "none"
+unlocks = []
