@@ -6,12 +6,12 @@
 use cfds_core::{AssetClass, Currency, Instrument};
 use cfds_journal::pg::PgJournal;
 use cfds_storage::PgStore;
-use chrono::Utc;
+use cfds_storage::test_db::{unique_id, unique_number};
 use serde_json::{Value, json};
 
 /// Un id hexadecimal de 64 caracteres distinto para cada experimento.
-fn hex64(n: i64, k: u8) -> String {
-    format!("{:0>62x}{k:02x}", n.unsigned_abs())
+fn hex64(n: u64, k: u8) -> String {
+    format!("{n:0>62x}{k:02x}")
 }
 
 fn document(id: &str, run: &str, source: &str, created: &str) -> Value {
@@ -41,9 +41,9 @@ async fn entries_carry_the_instrument_of_their_run() {
     let store = PgStore::connect(&url).await.unwrap();
     store.migrate().await.unwrap();
     let pool = store.pool().clone();
-    let n = Utc::now().timestamp_nanos_opt().unwrap();
-    let label_inst = format!("MLA{n}");
-    let (bt_a, bt_b) = (format!("MLB{n}"), format!("MLC{n}"));
+    let n = unique_number();
+    let label_inst = unique_id("MLA");
+    let (bt_a, bt_b) = (unique_id("MLB"), unique_id("MLC"));
     store
         .upsert_instrument(&Instrument {
             id: label_inst.parse().unwrap(),
@@ -55,7 +55,7 @@ async fn entries_carry_the_instrument_of_their_run() {
         .await
         .unwrap();
 
-    let label_run = format!("mll-{n}");
+    let label_run = unique_id("mll");
     sqlx::query(
         "INSERT INTO ml_label_runs (run_id, instrument_id, candle_source, from_at, to_at,
                                     method, config_sha256)
@@ -68,7 +68,7 @@ async fn entries_carry_the_instrument_of_their_run() {
     .await
     .unwrap();
     // una corrida de backtest con dos instrumentos: una entrada por cada uno
-    let bt_run = format!("mlbt-{n}");
+    let bt_run = unique_id("mlbt");
     sqlx::query(
         "INSERT INTO backtest_runs (run_id, instruments, timeframe, from_at, to_at, config_sha256,
                                     initial_equity, costs, metrics, started_at, finished_at)

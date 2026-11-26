@@ -77,16 +77,38 @@ pub fn test_database_url() -> String {
 /// simultáneas sobre la misma base. Con un prefijo de hasta 6 caracteres y un sufijo de fuente
 /// como `.IBKR`, entra en un `InstrumentId` (32 caracteres).
 pub fn unique_id(prefix: &str) -> String {
+    // Los últimos 12 dígitos (11 días y medio): ningún proceso de tests dura tanto.
+    format!(
+        "{prefix}-{}-{}",
+        std::process::id(),
+        next_micros() % 1_000_000_000_000
+    )
+}
+
+/// Un número propio de cada llamada (#768), para las claves que no aceptan el texto de
+/// [`unique_id`]: un id hexadecimal, un símbolo corto, una serie sin guiones, un día.
+///
+/// Junta el número de proceso (22 bits, el máximo de Linux) con el mismo reloj que nunca se
+/// repite (42 bits, 50 días): dos llamadas no dan el mismo número, aunque sean de procesos
+/// simultáneos sobre la misma base. Reducido a un rango chico (`% m`, por ejemplo para elegir
+/// un día) sí puede repetirse entre procesos, como cualquier clave de ese tamaño.
+pub fn unique_number() -> u64 {
+    const MICROS_BITS: u32 = 42;
+    let process = u64::from(std::process::id()) & ((1 << (64 - MICROS_BITS)) - 1);
+    (process << MICROS_BITS) | (next_micros() & ((1 << MICROS_BITS) - 1))
+}
+
+/// Microsegundos desde 1970 que **nunca se repiten** dentro del proceso: si dos lecturas del
+/// reloj coinciden, la segunda toma el valor siguiente.
+fn next_micros() -> u64 {
     static LAST: AtomicU64 = AtomicU64::new(0);
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| u64::try_from(d.as_micros()).unwrap_or(u64::MAX));
     let next = |prev: u64| now.max(prev.saturating_add(1));
-    let n = match LAST.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |p| Some(next(p))) {
+    match LAST.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |p| Some(next(p))) {
         Ok(prev) | Err(prev) => next(prev),
-    };
-    // Los últimos 12 dígitos (11 días y medio): ningún proceso de tests dura tanto.
-    format!("{prefix}-{}-{}", std::process::id(), n % 1_000_000_000_000)
+    }
 }
 
 #[cfg(test)]
@@ -115,6 +137,22 @@ mod tests {
         let longest: cfds_core::InstrumentId =
             format!("{}.IBKR", unique_id("ITGWXY")).parse().unwrap();
         assert!(longest.as_str().len() <= 32);
+    }
+
+    /// #768: los números tampoco se repiten entre hilos y llevan el proceso en los bits altos.
+    #[test]
+    fn unique_numbers_never_repeat_across_threads() {
+        let threads: Vec<_> = (0..8)
+            .map(|_| std::thread::spawn(|| (0..2_000).map(|_| unique_number()).collect::<Vec<_>>()))
+            .collect();
+        let numbers: Vec<u64> = threads
+            .into_iter()
+            .flat_map(|t| t.join().unwrap())
+            .collect();
+        let distinct: std::collections::HashSet<&u64> = numbers.iter().collect();
+        assert_eq!(distinct.len(), numbers.len(), "números repetidos");
+        let process = u64::from(std::process::id()) & ((1 << 22) - 1);
+        assert!(numbers.iter().all(|n| n >> 42 == process));
     }
 
     #[test]

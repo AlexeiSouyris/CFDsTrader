@@ -6,6 +6,7 @@
 
 use cfds_core::{FuturesBar, InstrumentId};
 use cfds_storage::PgStore;
+use cfds_storage::test_db::{unique_id, unique_number};
 use chrono::{DateTime, Utc};
 use rust_decimal::dec;
 
@@ -24,10 +25,11 @@ fn at(s: &str) -> DateTime<Utc> {
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn bars_are_read_in_order_for_the_instrument_and_period() {
     let s = store().await;
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let id: InstrumentId = format!("ITFB{nanos}").parse().unwrap();
-    let dataset = format!("T{nanos}.TEST");
-    let other_dataset = format!("O{nanos}.TEST");
+    let id: InstrumentId = unique_id("ITFB").parse().unwrap();
+    // El dataset no admite guiones: un número propio.
+    let n = unique_number();
+    let dataset = format!("T{n}.TEST");
+    let other_dataset = format!("O{n}.TEST");
     for (ds, symbol, start, contract, close) in [
         (
             dataset.as_str(),

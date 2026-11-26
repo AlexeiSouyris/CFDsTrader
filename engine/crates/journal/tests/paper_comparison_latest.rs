@@ -5,7 +5,6 @@
 use cfds_core::{AssetClass, Currency, Instrument};
 use cfds_journal::pg::PgJournal;
 use cfds_storage::PgStore;
-use chrono::Utc;
 use serde_json::{Value, json};
 
 fn doc(id: &str, instrument: &str, from: &str, to: &str, created: &str, diff: &str) -> Value {
@@ -33,8 +32,10 @@ async fn latest_per_instrument_is_the_most_recent_period() {
     let url = cfds_storage::test_db::test_database_url();
     let store = PgStore::connect(&url).await.unwrap();
     store.migrate().await.unwrap();
-    let n = Utc::now().timestamp_nanos_opt().unwrap();
-    let ids: Vec<String> = ["A", "B"].iter().map(|s| format!("PC{s}{n}")).collect();
+    let ids: Vec<String> = ["PCA", "PCB"]
+        .iter()
+        .map(|p| cfds_storage::test_db::unique_id(p))
+        .collect();
     for id in &ids {
         store
             .upsert_instrument(&Instrument {

@@ -35,10 +35,11 @@ async fn put(s: &PgStore, source: &str, feed: &str, id: &str, published: &str) {
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn news_pages_keep_ties_and_interpretations_appear_only_once_made() {
     let s = store().await;
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let source = format!("it{nanos}");
-    // Un feed propio por corrida: la base de pruebas puede tener noticias de otras corridas.
-    let feed = format!("f{nanos}");
+    // Fuente y feed propios de esta corrida (no admiten guiones: un número propio): la base de
+    // pruebas puede tener noticias de otras corridas.
+    let n = cfds_storage::test_db::unique_number();
+    let source = format!("it{n}");
+    let feed = format!("f{n}");
     put(&s, &source, &feed, "a", "2090-01-02T10:00:00Z").await;
     put(&s, &source, &feed, "b", "2090-01-02T10:00:00Z").await;
     put(&s, &source, &feed, "c", "2090-01-01T10:00:00Z").await;

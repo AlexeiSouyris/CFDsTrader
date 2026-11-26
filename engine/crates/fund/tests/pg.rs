@@ -39,13 +39,13 @@ fn movements(tag: &str, day: &str) -> Vec<Record> {
     s.records(at, &cfg)
 }
 
-/// Un día que no choca con corridas anteriores: según la hora actual, dentro de 3000 años.
+/// Un día que no choca con corridas anteriores ni con los otros tests: un número propio
+/// (`test_db::unique_number`) lo elige dentro de 3000 años.
 fn unique_day() -> (String, String) {
-    let n = Utc::now().timestamp_micros();
     let day = chrono::NaiveDate::from_ymd_opt(4000, 1, 1).unwrap()
-        + chrono::Days::new((n % 300_000) as u64);
+        + chrono::Days::new(cfds_storage::test_db::unique_number() % 300_000);
     (
-        format!("t{}", n % 1_000_000_000),
+        cfds_storage::test_db::unique_id("t"),
         day.format("%Y-%m-%d").to_string(),
     )
 }
