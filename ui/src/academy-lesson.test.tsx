@@ -1,6 +1,6 @@
 /**
- * La página de la lección (#770) y el examen de preguntas (#781): las respuestas van al motor y la
- * nota, el umbral y el aprobado vuelven de él. Las preguntas de acá son **de prueba** (el catálogo real todavía
+ * La página de la lección (#770), el examen de preguntas (#781) y el de replay (#826): las
+ * respuestas van al motor y la nota, el umbral y el aprobado vuelven de él. Las preguntas de acá son **de prueba** (el catálogo real todavía
  * no tiene contenido), con la forma de `academy_catalog.v1`.
  */
 import { fireEvent, render, screen, within } from '@testing-library/react'
@@ -10,7 +10,9 @@ import catalogFixture from '../e2e/fixtures/academy-catalog.json'
 import docFixture from '../e2e/fixtures/academy-lesson-doc.json'
 import progressFixture from '../e2e/fixtures/academy-progress.json'
 import { resetAcademy } from '@/lib/academy-api'
-import type { AcademyCatalog, AcademyProgress, QuizResult } from '@/lib/academy-contracts'
+import type { AcademyCatalog, AcademyProgress, Exam, QuizResult } from '@/lib/academy-contracts'
+import { fresh, keep, kept } from '@/lib/replay-api'
+import type { ReplaySession } from '@/lib/replay-contracts'
 import { AcademyView } from '@/views/academy'
 
 const PROGRESS = progressFixture as AcademyProgress
@@ -209,5 +211,111 @@ describe('examen de preguntas (#781)', () => {
     await vi.waitFor(() =>
       expect(fetch.mock.calls.filter(([u]) => u === '/api/v1/academy/catalog')).toHaveLength(2),
     )
+  })
+})
+
+describe('examen de replay de una lección (#826)', () => {
+  /** El catálogo real con la lección 1.2 como examen de replay de pivotes (de prueba). */
+  const withReplay = (replay_kind: Exam['replay_kind']): AcademyCatalog => ({
+    ...CATALOG,
+    levels: CATALOG.levels.map((lv) => ({
+      ...lv,
+      lessons: lv.lessons.map((l) =>
+        l.id === '1.2'
+          ? { ...l, exam: { kind: 'replay' as const, ready: true, questions: [], replay_kind } }
+          : l,
+      ),
+    })),
+  })
+  const SESSION: ReplaySession = {
+    session_id: 'rp-0123456789abcdef',
+    kind: 'pivots',
+    lesson_id: '1.2',
+    seed: '7',
+    instrument_id: 'US500',
+    timeframe: '15m',
+    source: 'futures',
+    warmup_bars: 1,
+    exam_bars: 1,
+    cursor: 0,
+    bars: [{ index: 0, day: 1, time: '00:00', open: '1', high: '2', low: '0.5', close: '1.5' }],
+    rules: {
+      trades_per_exam: 10,
+      level_tolerance_atr: '0.25',
+      stop_min_atr: '0.5',
+      stop_max_atr: '3',
+      max_risk_pct: '1',
+      provisional: true,
+    },
+  }
+  const catalogWith = (catalog: AcademyCatalog, post: (path: string, body: unknown) => Response) =>
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const path = new URL(String(input), 'http://ui.test').pathname
+        if (init?.method === 'POST') return post(path, JSON.parse(String(init.body)))
+        if (path === '/api/v1/academy/catalog') return Response.json(catalog)
+        if (path === '/api/v1/academy/progress') return Response.json(PROGRESS)
+        if (/\/doc$/.test(path)) return Response.json(docFixture)
+        return new Response('sin ruta', { status: 404 })
+      }),
+    )
+
+  afterEach(() => {
+    keep(null)
+    history.replaceState(null, '', '#')
+  })
+
+  it('empieza con el lesson_id y el tipo de la lección y sigue en el Replay', async () => {
+    const sent: unknown[] = []
+    catalogWith(withReplay('pivots'), (path, body) => {
+      sent.push([path, body])
+      return Response.json(SESSION)
+    })
+    render(<AcademyView />)
+    const page = await open(/Largo y corto/)
+    expect(page).toHaveTextContent(
+      'vas a marcar máximos y mínimos locales después de su confirmación',
+    )
+    fireEvent.click(within(page).getByRole('button', { name: 'Empezar el examen' }))
+    await vi.waitFor(() => expect(location.hash).toBe('#replay'))
+    expect(sent).toEqual([['/api/v1/academy/replay', { kind: 'pivots', lesson_id: '1.2' }]])
+    // la sesión queda abierta para la vista Replay, con lo que mandó el motor
+    expect(kept?.session.lesson_id).toBe('1.2')
+    expect(kept?.bars).toHaveLength(1)
+  })
+
+  it('con un examen abierto de la lección, ofrece seguirlo en vez de abrir otro', async () => {
+    const post = vi.fn(() => Response.json(SESSION))
+    catalogWith(withReplay('pivots'), post)
+    keep(fresh(SESSION))
+    render(<AcademyView />)
+    const page = await open(/Largo y corto/)
+    expect(within(page).getByRole('link', { name: 'Seguir el examen abierto' })).toHaveAttribute(
+      'href',
+      '#replay',
+    )
+    expect(within(page).queryByRole('button', { name: 'Empezar el examen' })).toBeNull()
+    expect(post).not.toHaveBeenCalled()
+  })
+
+  it('si el motor lo rechaza, lo dice y no se va de la lección', async () => {
+    catalogWith(withReplay('levels'), () => new Response('sin examen', { status: 400 }))
+    render(<AcademyView />)
+    const page = await open(/Largo y corto/)
+    fireEvent.click(within(page).getByRole('button', { name: 'Empezar el examen' }))
+    expect(await within(page).findByRole('alert')).toHaveTextContent(
+      'El motor dice que esta lección no tiene un examen de replay de ese tipo',
+    )
+    expect(location.hash).not.toBe('#replay')
+    expect(kept).toBeNull()
+  })
+
+  it('un catálogo sin replay_kind no deja empezar', async () => {
+    catalogWith(withReplay(null), () => Response.json(SESSION))
+    render(<AcademyView />)
+    const page = await open(/Largo y corto/)
+    expect(page).toHaveTextContent('el catálogo del motor no dice de qué tipo')
+    expect(within(page).queryByRole('button', { name: 'Empezar el examen' })).toBeNull()
   })
 })

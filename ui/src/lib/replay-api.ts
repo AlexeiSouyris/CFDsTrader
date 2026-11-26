@@ -50,6 +50,17 @@ export const keep = (l: Live | null) => {
 
 export const openReplay = (req: SessionRequest) => postJson<ReplaySession>(BASE, req)
 
+/** Una sesión recién abierta: el calentamiento que mandó el motor, sin marcas ni nota. */
+export const fresh = (s: ReplaySession): Live => ({
+  session: s,
+  bars: s.bars,
+  cursor: s.cursor,
+  done: false,
+  marks: [],
+  orders: [],
+  result: null,
+})
+
 export const stepReplay = (id: string, bars: number) =>
   postJson<ReplayStep>(`${session(id)}/step`, { bars })
 

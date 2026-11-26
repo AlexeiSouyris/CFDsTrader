@@ -142,15 +142,35 @@ function ibkrLive(query: URLSearchParams): unknown {
 const REPLAY_ID = replay.session.session_id
 let replayCursor = replay.session.warmup_bars - 1
 
-/** lo que se pidió en la sesión abierta: el tipo y las entradas (para el resultado, #790) */
-let replaySaved = { kind: 'practice', marks: 0, orders: [] as Record<string, unknown>[] }
+/**
+ * lo que se pidió en la sesión abierta: el tipo, la lección (#826) y las entradas (para el
+ * resultado, #790)
+ */
+let replaySaved = {
+  kind: 'practice',
+  lesson_id: null as string | null,
+  marks: 0,
+  orders: [] as Record<string, unknown>[],
+}
 
 function replaySession(_query: URLSearchParams, request?: unknown): unknown {
-  const req = (request ?? { kind: 'practice' }) as { kind: string; seed?: string }
+  const req = (request ?? { kind: 'practice' }) as {
+    kind: string
+    lesson_id?: string
+    seed?: string
+  }
+  const lesson_id = req.lesson_id ?? null
   replayCursor = replay.session.warmup_bars - 1
-  replaySaved = { kind: req.kind, marks: 0, orders: [] }
+  replaySaved = { kind: req.kind, lesson_id, marks: 0, orders: [] }
   const bars = replay.bars.slice(0, replayCursor + 1)
-  return { ...replay.session, kind: req.kind, seed: req.seed ?? '42', cursor: replayCursor, bars }
+  return {
+    ...replay.session,
+    kind: req.kind,
+    lesson_id,
+    seed: req.seed ?? '42',
+    cursor: replayCursor,
+    bars,
+  }
 }
 
 function replayStep(_query: URLSearchParams, request?: unknown): unknown {
@@ -240,7 +260,7 @@ function replayFinish(): unknown {
   return {
     session_id: REPLAY_ID,
     kind,
-    lesson_id: null,
+    lesson_id: replaySaved.lesson_id,
     catalog_version: academyCatalog.catalog_version,
     passed: kind === 'practice' ? null : ok && kind !== 'levels',
     rules: kind === 'trades' ? [rule('enough_trades', trades.length >= 10)] : [],
