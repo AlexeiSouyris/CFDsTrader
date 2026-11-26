@@ -35,6 +35,7 @@ Lista de todos los contratos, generada desde `contracts/*.schema.json` (`title` 
 | [`daily_vol_tercile.v1`](daily_vol_tercile.v1.schema.json) | Daily volatility tercile v1 | Tercio de la volatilidad realizada de una vela diaria cerrada frente a su propia historia (spec §13 y spec ML §3) |
 | [`economic_event.v1`](economic_event.v1.schema.json) | Economic event v1 | Un evento del calendario económico (#91) |
 | [`emotional_state.v1`](emotional_state.v1.schema.json) | Emotional state v1 | Estados emocionales de la spec §9.1 (#220) de un instrumento en un momento |
+| [`exam_result.v1`](exam_result.v1.schema.json) | Exam result v1 | La calificación del motor de una sesión de replay de la Academia (docs/design/2026-11-academia.md §5.4, #720) |
 | [`fomc_statement_novelty.v1`](fomc_statement_novelty.v1.schema.json) | FOMC statement novelty v1 | Cuánto cambió el texto de un comunicado del FOMC respecto del comunicado anterior (#668), con un método |
 | [`fund_movement.v1`](fund_movement.v1.schema.json) | Fund movement v1 | Un aporte o retiro del fondo del grupo ya liquidado (spec §14, #179) |
 | [`fund_summary.v1`](fund_summary.v1.schema.json) | Fund summary v1 | Resumen del fondo del grupo (spec §14, #312) |
@@ -78,6 +79,10 @@ Lista de todos los contratos, generada desde `contracts/*.schema.json` (`title` 
 | [`quiz_result.v1`](quiz_result.v1.schema.json) | Quiz result v1 | La corrección del motor de un examen de preguntas de la Academia (docs/design/2026-11-academia.md §5.5, #717) |
 | [`reference_rate.v1`](reference_rate.v1.schema.json) | Reference rate v1 | Un valor diario de un tipo de referencia de la financiación nocturna (#79), tal como lo publicó la fuente |
 | [`release_actual.v1`](release_actual.v1.schema.json) | Release actual v1 | El dato real de una serie oficial para un mes de referencia, tal como lo daba la fuente oficial al leerlo (ADR 0018 §2) |
+| [`replay_mark.v1`](replay_mark.v1.schema.json) | Replay mark v1 | Un nivel o un pivote que marca el estudiante en el replay de la Academia (#720), con el cursor del momento |
+| [`replay_order.v1`](replay_order.v1.schema.json) | Replay order v1 | Una entrada que marca el estudiante en el replay de la Academia (#720), con el cursor del momento |
+| [`replay_session.v1`](replay_session.v1.schema.json) | Replay session v1 | Una sesión de replay de la Academia (docs/design/2026-11-academia.md §5, #720) |
+| [`replay_step.v1`](replay_step.v1.schema.json) | Replay step v1 | Las velas nuevas de un paso del replay de la Academia (#720) |
 | [`sentiment.v1`](sentiment.v1.schema.json) | Sentiment index v1 | Índice de sentimiento v1 de un instrumento (spec §9.1, #213) |
 | [`sentiment_observation.v1`](sentiment_observation.v1.schema.json) | Sentiment observation v1 | Un dato crudo de una fuente de sentimiento (#25, #27), tal como lo publicó la fuente |
 | [`ticket_verdict.v1`](ticket_verdict.v1.schema.json) | Ticket verdict v1 | Lo que respondería el módulo de riesgo a una orden (order.v1) **sin enviarla** (fase 7, #278) |
@@ -482,3 +487,19 @@ Diseño en `docs/design/2026-11-academia.md` (§4 y §5.5). Todo lo calcula el m
 - **Solo agregar:** `academy_events` nunca se edita; cada intento queda guardado. El estado no se guarda aparte: se reconstruye.
 - **Desbloqueo a mano:** `unlock` abre la herramienta aunque no se haya aprobado su lección; `relock` quita ese desbloqueo (vuelve a lo que digan las lecciones: lo aprobado sigue abierto). El último evento que alcanza a una herramienta (el suyo o uno de `*`) decide. Desbloquear no cambia nada del motor, del riesgo ni del paper.
 - Una herramienta que no está en el catálogo no tiene candado. Los intentos guardados con otra `catalog_version` siguen contando para su lección.
+
+#### Replay de exámenes (#720)
+
+Una sesión de replay de la Academia (§5 del diseño): velas reales guardadas, instrumento, timeframe y fecha al azar con una semilla, **solo del período de investigación** (nunca los meses fuera de muestra de `config/data_split.toml`). La sesión vive en el motor (en memoria del gateway) y el resultado queda como evento de solo agregar.
+
+| Contrato | Dónde | Qué es |
+|---|---|---|
+| `replay_session.v1` | `POST /api/v1/academy/replay` (pedido: `$defs/request`) | La sesión: `session_id`, `kind` (`practice`, `levels`, `trades`), semilla (u64 como string: la misma semilla con los mismos datos da la misma sesión), instrumento, timeframe, fuente, calentamiento, velas del examen, cursor, las velas visibles y las reglas con las que se califica. **Sin la fecha real**: cada vela (`$defs/bar`) lleva su número, el día de la sesión (1, 2, ...) y la hora UTC. |
+| `replay_step.v1` | `POST /api/v1/academy/replay/{session_id}/step` (pedido: `$defs/request`, cuántas velas) | Solo las velas nuevas hasta el cursor nuevo. El motor nunca manda una vela posterior al cursor. |
+| `replay_mark.v1` | `POST /api/v1/academy/replay/{session_id}/marks` (pedido: `$defs/request`) | Un nivel (`level`, con precio) o un pivote (`pivot_high` / `pivot_low`, en una vela ya visible), con el cursor que pone el motor. |
+| `replay_order.v1` | `POST /api/v1/academy/replay/{session_id}/orders` (pedido: `$defs/request`) | Una entrada decidida al cierre de la vela del cursor `t` y ejecutada a mercado en la apertura de `t+1`: lado, stop (puede faltar: reprueba), objetivo, riesgo en % y el plan escrito antes. Es simulación de estudio, no una orden del broker. |
+| `exam_result.v1` | `POST /api/v1/academy/replay/{session_id}/finish` | La calificación: primero el **proceso** regla por regla (`stop_present`, `stop_side`, `stop_in_range`, `risk_within_limit`, `plan_written`, `one_position`, `enough_trades`, `level_precision`), después la precisión y cobertura de niveles contra los del motor (con tolerancia en ATR, calculados hasta el cursor) y al final el **resultado en R** (bruto, costos y neto), que se muestra y **no** aprueba ni reprueba. Recién acá se revela la fecha real (`revealed`). |
+
+- **Sin mirar el futuro:** la ruta de pasos nunca devuelve una vela después del cursor; marcas y órdenes llevan el cursor del momento, que pone el motor. Una operación se califica con lo que se sabía al decidir (ATR, posición abierta) y su resultado se calcula al terminar.
+- **Costos:** los del CFD del catálogo (`InstrumentCosts::from_spec`, mismas funciones que el backtest): medio spread y slippage en cada ejecución y financiación por noche. Con velas de futuros, la financiación neta es la del CFD menos lo que la base ya descontó (ADR 0015, #467).
+- Los umbrales (operaciones por examen, tolerancia de niveles, calentamiento) son educativos y **provisorios** (`rules.provisional`).
