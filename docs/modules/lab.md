@@ -24,3 +24,12 @@ Diseño: `docs/design/2026-11-laboratorio.md` (#710). Contratos: `strategy_catal
 - Secciones del informe (`sections`, #756): cada bloque del `lab_report.v1` armado con lo que ya existe (esperanza en R con IC normal y win rate con IC de Wilson, histograma de R, curva y caída, Sharpe y Sortino, cuantiles de MAE/MFE, cortes, PBO por CSCV desde 4 variantes, Monte Carlo por bloques, operaciones y rechazos, avisos fijos), con números como texto decimal y `null` cuando algo no está definido. Convenciones en `[report]` de `config/lab.toml` (nivel 0,95, tramos de 0,5 R, 1000 entradas al azar).
 - Informe completo (`lab_report`, `run_setup`, #761): el recorrido de la spec con el riesgo por operación de la spec (nunca más que el de config), los retornos por operación (`trade_return`) con los costos × multiplicador y × 1,5, los meses (`monthly_returns`), la curva con comprar y mantener, Sharpe, Sortino y Sharpe deflactado con N = N del proyecto + variantes de la familia (nunca menos que el del proyecto), mitades, walk-forward por ventana, test de suerte, MAE/MFE, borde bruto medido contra `k × C` y cortes; `report_id` = SHA-256 de spec, config, commit, última vela y semilla. Siempre "exploratorio, no vota".
 - Ensayos (`trial`, `planned_exit_for`, #764): `lab_trial.v1` de solo agregar en un archivo JSON Lines (hasta la tabla de L8) y el conteo de variantes distintas de la familia para el N del Sharpe deflactado del laboratorio (una spec repetida no suma de nuevo; nunca al N del proyecto); la salida planificada de la spec para cualquier decisión, para que las entradas al azar del test de suerte salgan igual que la estrategia.
+- Ejemplo `laboratorio` (#730), **primer valor sin UI**: valida una spec o varias variantes de una familia contra el catálogo (`--validar` solo valida), carga las velas de futuros solo hasta el inicio del fuera de muestra (como las rondas, en una sesión de solo lectura, nunca IG), corre cada variante, arma el test de suerte con la misma regla de salida, comprar y mantener y el `lab_report.v1`, escribe los informes en `--salida` y agrega los ensayos a `--ensayos`. Exploratorio: no vota.
+
+  ```text
+  DATABASE_URL=...?options=-c%20default_transaction_read_only%3Don \
+  cargo run --release -p cfds-backtest --example laboratorio -- \
+      spec.json [variante.json ...] --escenario-financiacion ESTR --ensayos ensayos.jsonl \
+      [--supuestos archivo.toml] [--capital 100000] [--desde 2011-01-01T00:00:00Z] \
+      [--salida carpeta] [--validar]
+  ```
