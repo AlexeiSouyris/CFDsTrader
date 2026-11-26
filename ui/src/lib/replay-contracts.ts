@@ -1,6 +1,6 @@
 /**
  * Tipos de los contratos del replay de la Academia (#720) para la UI: `replay_session.v1`,
- * `replay_step.v1` y `replay_mark.v1` de `contracts/`. Son la misma forma del contrato. Las velas no traen la fecha real (día de la sesión y hora UTC): se
+ * `replay_step.v1`, `replay_mark.v1` y `replay_order.v1` de `contracts/`. Son la misma forma del contrato. Las velas no traen la fecha real (día de la sesión y hora UTC): se
  * revela recién en `exam_result.v1`. Precios como texto decimal.
  */
 
@@ -64,5 +64,25 @@ export type ReplayMark = {
   kind: MarkKind
   price: Decimal
   bar_index: number | null
+  cursor: number
+}
+
+/** `replay_order.v1#/$defs/request` (`POST /replay/{id}/orders`): stop y objetivo pueden faltar. */
+export type OrderRequest = {
+  side: 'long' | 'short'
+  stop?: Decimal
+  target?: Decimal
+  risk_pct: Decimal
+  plan: string
+}
+
+/** `replay_order.v1`: decidida al cierre de la vela `cursor`, entra en la apertura siguiente. */
+export type ReplayOrder = {
+  order_id: number
+  side: 'long' | 'short'
+  stop: Decimal | null
+  target: Decimal | null
+  risk_pct: Decimal
+  plan: string
   cursor: number
 }

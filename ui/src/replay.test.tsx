@@ -117,11 +117,13 @@ describe('replay de práctica (#772)', () => {
   })
 })
 
-describe('marcas (#773)', () => {
+describe('marcas (#773) y ticket de estudio (#791)', () => {
   const reply = (path: string, body: unknown) => {
     const b = body as Record<string, unknown>
     if (path.endsWith('/marks'))
       return Response.json({ mark_id: 1, bar_index: null, cursor: 2, ...b })
+    if (path.endsWith('/orders'))
+      return Response.json({ order_id: 1, stop: null, target: null, cursor: 2, ...b })
     return Response.json(SESSION)
   }
 
@@ -145,6 +147,32 @@ describe('marcas (#773)', () => {
     expect(posts.at(-1)).toEqual([
       '/api/v1/academy/replay/rp-0123456789abcdef/marks',
       { kind: 'pivot_high', price: '101.5', bar_index: 0 },
+    ])
+  })
+
+  it('el ticket manda lo escrito; sin stop ni plan avisa que el proceso lo reprueba', async () => {
+    const posts = gateway(reply)
+    render(<ReplayView />)
+    fireEvent.click(screen.getByRole('button', { name: 'Empezar práctica' }))
+    const ticket = await screen.findByRole('form', { name: 'Ticket de estudio' })
+    expect(ticket).toHaveTextContent('Se decide al cierre de día 1 · 00:30 UTC')
+    expect(ticket).toHaveTextContent('Sin stop: el proceso lo reprueba.')
+    expect(ticket).toHaveTextContent('Sin plan escrito: el proceso lo reprueba.')
+    const send = within(ticket).getByRole('button', { name: 'Mandar al motor' })
+    expect(send).toBeDisabled()
+    fireEvent.click(within(ticket).getByRole('button', { name: 'Corto' }))
+    fireEvent.change(within(ticket).getByRole('textbox', { name: 'Objetivo' }), {
+      target: { value: '98,5' },
+    })
+    fireEvent.change(within(ticket).getByRole('textbox', { name: 'Riesgo %' }), {
+      target: { value: '0,5' },
+    })
+    fireEvent.click(send)
+    const log = await screen.findByRole('list', { name: 'Guardado por el motor' })
+    expect(log).toHaveTextContent('E1 · corto · stop — · obj. 98,5 · riesgo 0,5 %')
+    expect(posts.at(-1)).toEqual([
+      '/api/v1/academy/replay/rp-0123456789abcdef/orders',
+      { side: 'short', risk_pct: '0.5', plan: '', target: '98.5' },
     ])
   })
 })

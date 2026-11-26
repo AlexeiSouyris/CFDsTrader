@@ -140,12 +140,12 @@ function ibkrLive(query: URLSearchParams): unknown {
 const REPLAY_ID = replay.session.session_id
 let replayCursor = replay.session.warmup_bars - 1
 
-let replaySaved = { marks: 0 }
+let replaySaved = { marks: 0, orders: 0 }
 
 function replaySession(_query: URLSearchParams, request?: unknown): unknown {
   const req = (request ?? { kind: 'practice' }) as { kind: string; seed?: string }
   replayCursor = replay.session.warmup_bars - 1
-  replaySaved = { marks: 0 }
+  replaySaved = { marks: 0, orders: 0 }
   const bars = replay.bars.slice(0, replayCursor + 1)
   return { ...replay.session, kind: req.kind, seed: req.seed ?? '42', cursor: replayCursor, bars }
 }
@@ -163,7 +163,7 @@ function replayStep(_query: URLSearchParams, request?: unknown): unknown {
   }
 }
 
-/** `replay_mark.v1`: lo pedido, con su número y el cursor (#773). */
+/** `replay_mark.v1` y `replay_order.v1`: lo pedido, con su número y el cursor (#773, #791). */
 function replayMark(_query: URLSearchParams, request?: unknown): unknown {
   const req = (request ?? { kind: 'level', price: '19900' }) as Record<string, unknown>
   const mark_id = (replaySaved.marks += 1)
@@ -172,6 +172,21 @@ function replayMark(_query: URLSearchParams, request?: unknown): unknown {
     kind: req.kind,
     price: req.price,
     bar_index: req.bar_index ?? null,
+    cursor: replayCursor,
+  }
+}
+
+function replayOrder(_query: URLSearchParams, request?: unknown): unknown {
+  const req = (request ?? { side: 'long', risk_pct: '1', plan: '' }) as Record<string, unknown>
+  const order_id = (replaySaved.orders += 1)
+  const { side, risk_pct, plan } = req
+  return {
+    order_id,
+    side,
+    stop: req.stop ?? null,
+    target: req.target ?? null,
+    risk_pct,
+    plan,
     cursor: replayCursor,
   }
 }
@@ -308,6 +323,12 @@ export const ROUTES: MockRoute[] = [
     method: 'POST',
     schema: 'replay_mark.v1.schema.json',
     body: replayMark,
+  },
+  {
+    path: `/api/v1/academy/replay/${REPLAY_ID}/orders`,
+    method: 'POST',
+    schema: 'replay_order.v1.schema.json',
+    body: replayOrder,
   },
   {
     path: '/api/v1/academy/events',

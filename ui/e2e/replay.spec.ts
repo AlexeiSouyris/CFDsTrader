@@ -40,7 +40,9 @@ for (const mobile of [false, true]) {
   })
 }
 
-test('marcas: van al motor y se dibujan como vuelven (#773)', async ({ page }) => {
+test('marcas y ticket de estudio: van al motor y se dibujan como vuelven (#773, #791)', async ({
+  page,
+}) => {
   const { unmocked, errors } = await openView(page, 'replay')
   await page.getByRole('button', { name: 'Empezar práctica' }).click()
   const chart = page.getByRole('img', { name: /Velas del replay/ })
@@ -52,6 +54,12 @@ test('marcas: van al motor y se dibujan como vuelven (#773)', async ({ page }) =
   await marks.getByRole('button', { name: 'Marcar' }).click()
   const log = page.getByRole('list', { name: 'Guardado por el motor' })
   await expect(log).toContainText('M1 · Nivel')
+  const ticket = page.getByRole('form', { name: 'Ticket de estudio' })
+  await ticket.getByRole('textbox', { name: 'Stop' }).fill('19800')
+  await ticket.getByRole('textbox', { name: 'Riesgo %' }).fill('1')
+  await ticket.getByRole('textbox', { name: 'Plan escrito antes de entrar' }).fill('Plan de prueba')
+  await ticket.getByRole('button', { name: 'Mandar al motor' }).click()
+  await expect(log).toContainText('E1 · largo · stop 19.800,0')
   expect(unmocked).toEqual([])
   expect(errors).toEqual([])
   expect(await serious(page)).toEqual([])
