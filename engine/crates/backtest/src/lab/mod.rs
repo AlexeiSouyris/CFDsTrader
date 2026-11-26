@@ -17,6 +17,9 @@
 //!             (lab_report.v1, "exploratorio, no vota")
 //! ensayos:    cada corrida agrega un lab_trial.v1 (solo agregar); variantes distintas de la
 //!             familia → N del Sharpe deflactado del laboratorio                 → trial
+//! trabajos:   lab_job_request.v1 (variantes de una familia y un período) y lab_job_event.v1
+//!             (en cola, corriendo, listo, falló, cancelado); id = hash del pedido + intento
+//!             → job (lo guarda cfds_journal::lab, lo corre el lab_worker)
 //! hash:       SHA-256 de la spec canónica (claves ordenadas, decimales normalizados, sin
 //!             espacios); familia = mismo instrumento y mismos tipos de bloque (PENDIENTE §9.2)
 //! ```
@@ -24,6 +27,7 @@
 
 pub mod blocks;
 pub mod catalog;
+pub mod job;
 pub mod plans;
 pub mod report;
 pub mod sections;
@@ -34,6 +38,9 @@ pub mod validation;
 
 pub use blocks::{LabConfig, catalog};
 pub use catalog::StrategyCatalog;
+pub use job::{
+    JobStage, JobState, JobStep, LabJobEvent, LabJobRequest, check_variants, job_id, request_sha256,
+};
 pub use plans::{LabSeries, planned_exit_for, plans_from_spec};
 pub use report::{ReportInputs, lab_report, run_setup};
 pub use sections::ReportConfig;

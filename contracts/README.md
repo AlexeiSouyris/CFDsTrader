@@ -53,6 +53,8 @@ Lista de todos los contratos, generada desde `contracts/*.schema.json` (`title` 
 | [`ibkr_live_bar.v1`](ibkr_live_bar.v1.schema.json) | IBKR live bar v1 | Cada mensaje (campo data de un evento SSE) de GET /api/v1/ibkr/live?instrument=<id>&timeframe=<tf> del gateway (#558) |
 | [`imbalance.v1`](imbalance.v1.schema.json) | Imbalance v1 | Desequilibrio aproximado desde el precio al cierre de una vela (spec §5.4.1, #231) |
 | [`instrument.v1`](instrument.v1.schema.json) | Instrument v1 | Un instrumento operable o de contexto |
+| [`lab_job_event.v1`](lab_job_event.v1.schema.json) | Lab job event v1 | Un paso de un trabajo del laboratorio de estrategias (docs/design/2026-11-laboratorio.md §5, #710, #774) |
+| [`lab_job_request.v1`](lab_job_request.v1.schema.json) | Lab job request v1 | El pedido de una corrida del laboratorio de estrategias (docs/design/2026-11-laboratorio.md §5, #710, #774) |
 | [`lab_report.v1`](lab_report.v1.schema.json) | Lab report v1 | Informe de una corrida del laboratorio de estrategias (docs/design/2026-11-laboratorio.md §3, #710) |
 | [`lab_trial.v1`](lab_trial.v1.schema.json) | Lab trial v1 | Una variante probada en el laboratorio de estrategias (docs/design/2026-11-laboratorio.md §2.2, #710) |
 | [`learning_report.v1`](learning_report.v1.schema.json) | Learning report v1 | Informe de aprendizaje continuo (fase 8b, spec §15b, #327), armado solo con el diario (proposal.v1 + outcome.v1) de un período |
@@ -511,7 +513,7 @@ Una sesión de replay de la Academia (§5 del diseño): velas reales guardadas, 
 
 ### Laboratorio de estrategias (#710, #725)
 
-Diseño: `docs/design/2026-11-laboratorio.md`. Por ahora no viajan por Redis ni tienen tabla: el ejemplo `laboratorio` los lee y escribe como archivos JSON, y el gateway los servirá después (L9/L10).
+Diseño: `docs/design/2026-11-laboratorio.md`. El ejemplo `laboratorio` los lee y escribe como archivos JSON; los trabajos, sus eventos, los informes y las variantes probadas se guardan además en tablas de solo agregar (`lab_jobs`, `lab_job_events`, `lab_reports` y `lab_trials`, migración 0053, `cfds_journal::lab`, #774).
 
 | Contrato | Contenido |
 |---|---|
@@ -519,7 +521,9 @@ Diseño: `docs/design/2026-11-laboratorio.md`. Por ahora no viajan por Redis ni 
 | `strategy_spec.v1` | (UI o archivo → motor) La estrategia declarativa: `market`, `direction`, `entry` (condiciones unidas con "y"), `filters`, `stop`, `exit`, `risk_pct`, `cost_multiplier`, `period` y `mode`. Cada bloque es `{type, params}` con los nombres del catálogo. |
 | `spec_validation.v1` | (motor → UI) `valid`, la versión del catálogo, el hash de la spec y el de su familia (o `null`) y la lista completa de errores con `code`, `path` (JSON Pointer) y `message`. |
 | `lab_report.v1` | (motor → archivo, después UI) El informe de una corrida (§3 del diseño): operaciones y salidas, esperanza en R con IC, win rate con Wilson, profit factor, histograma de R, curva mensual con caída y comprar y mantener, Sharpe, Sortino y Sharpe deflactado con su N, PBO, Monte Carlo y riesgo de ruina, walk-forward, mitades, costos × 1,5, test de suerte, MAE/MFE, borde bruto contra costos, cortes y avisos. `votes` y `label` dicen si vota (en exploratorio, nunca). `report_id` = SHA-256 de lo que lo reproduce (spec, config, código, última vela, semilla). |
-| `lab_trial.v1` | (motor → archivo de solo agregar, después tabla) Una variante probada: hash de la spec y de la familia, instrumento, timeframe, modo, versión del catálogo, informe y hora. Las variantes distintas de una familia suman al N del Sharpe deflactado del laboratorio; una spec repetida no suma de nuevo. |
+| `lab_trial.v1` | (motor → archivo o tabla `lab_trials`, de solo agregar) Una variante probada: hash de la spec y de la familia, instrumento, timeframe, modo, versión del catálogo, informe y hora. Las variantes distintas de una familia suman al N del Sharpe deflactado del laboratorio; una spec repetida no suma de nuevo. |
+| `lab_job_request.v1` | (UI → motor) El pedido de una corrida: de 1 a `max_variants_per_run` specs de **una misma familia y un mismo período** (variantes para el PBO) y el capital hipotético inicial. El motor valida cada spec antes de encolar. Se guarda normalizado en `lab_jobs`. |
+| `lab_job_event.v1` | (motor → UI) Un paso del trabajo: `queued`, `running` (con `stage` y `percent`), `done` (con un `report_id` por spec, en el orden del pedido), `failed` (con `error`) o `cancelled`. Se guarda en `lab_job_events` (`seq` da el orden y es el id del evento SSE); un trabajo tiene un solo final. |
 
 - **El catálogo manda:** un bloque, un parámetro o un valor que el catálogo no tiene se rechaza (`spec_validation.v1`), aunque el schema de la spec lo acepte por su forma.
 - **Un parámetro opcional ausente queda apagado:** el motor nunca rellena con `default` (es solo lo que la UI propone), así la spec dice exactamente lo que se corre.
@@ -528,4 +532,6 @@ Diseño: `docs/design/2026-11-laboratorio.md`. Por ahora no viajan por Redis ni 
 - **Fuera de muestra:** un `period` que llega al fuera de muestra se rechaza (guardia `research_period`).
 - **Modo confirmatorio:** existe en el contrato para el flujo de pre-registro (L13); hasta entonces el catálogo no lo lista y el motor lo rechaza (`mode_unavailable`).
 - **Exploratorio, no vota:** en un `lab_report.v1` exploratorio `votes` es `false` y ninguna cifra cuenta para el N del proyecto (regla #660 §4.1; el punto 1 de §9 del diseño sigue PENDIENTE). Los números son texto decimal; `null` cuando no están definidos.
+- **Trabajos idempotentes:** el id del trabajo es el SHA-256 del pedido normalizado (hashes de las specs y capital) y su intento: el mismo pedido devuelve el mismo trabajo mientras no haya fallado ni se haya cancelado; después, el intento siguiente.
+- **Solo agregar:** `lab_jobs`, `lab_job_events`, `lab_reports` y `lab_trials` no se modifican ni se borran (trigger). El estado de un trabajo es su último evento. Los informes, las variantes y el `done` se guardan en una sola transacción: un trabajo cancelado antes no deja nada.
 - Las reglas de cuentas fondeadas (`prop_rules.v1`) y su simulación son de la Academia (`docs/design/2026-11-academia.md`), no del laboratorio.

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/lab_job_request.v1.schema.json",
+  "title": "Lab job request v1",
+  "description": "El pedido de una corrida del laboratorio de estrategias (docs/design/2026-11-laboratorio.md §5, #710, #774): de 1 a max_variants_per_run (strategy_catalog.v1) specs de una misma familia y un mismo período, que se corren juntas como variantes (para el PBO), y el capital hipotético inicial. Lo arma la UI y lo manda a POST /api/v1/lab/jobs; el motor valida cada spec contra su catálogo antes de encolar (spec_validation.v1) y el lab_worker lo corre. Mismo pedido = mismo trabajo mientras no haya fallado ni se haya cancelado (idempotente). Es simulación sobre velas guardadas: no manda órdenes ni usa dinero real.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["specs", "initial_equity"],
+  "properties": {
+    "specs": {
+      "description": "Las variantes (strategy_spec.v1). Todas de la misma familia y el mismo período; el tope sale de limits.max_variants_per_run del catálogo.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "strategy_spec.v1.schema.json" }
+    },
+    "initial_equity": {
+      "description": "Capital hipotético inicial de la cuenta simulada, en la moneda de la cuenta (EUR), como texto decimal. No es dinero real.",
+      "type": "string",
+      "pattern": "^[1-9]\\d*(\\.\\d+)?$"
+    }
+  }
+}

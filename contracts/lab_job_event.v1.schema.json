@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/lab_job_event.v1.schema.json",
+  "title": "Lab job event v1",
+  "description": "Un paso de un trabajo del laboratorio de estrategias (docs/design/2026-11-laboratorio.md §5, #710, #774): en cola, corriendo (etapa y %), listo (con los report_id de lab_report.v1, uno por spec y en el orden del pedido), falló (con el error) o cancelado. Se guarda de solo agregar en lab_job_events (PostgreSQL), donde seq da el orden; el lab_worker lo publica además en el Redis Stream lab_jobs.v1.<job_id> y el gateway lo retransmite por SSE (GET /api/v1/lab/jobs/{job_id}/events, con seq como id del evento para reconectar con Last-Event-ID). GET /api/v1/lab/jobs/{job_id} devuelve el último. Un trabajo tiene un solo evento final (done, failed o cancelled).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "job_id", "seq", "state", "stage", "percent", "variants_done", "variants_total",
+    "report_ids", "error", "recorded_at"
+  ],
+  "properties": {
+    "job_id": {
+      "description": "SHA-256 (hex) del pedido canónico (lab_job_request.v1) y su intento: el mismo pedido da el mismo trabajo mientras no haya fallado ni se haya cancelado.",
+      "$ref": "#/$defs/sha256"
+    },
+    "seq": {
+      "description": "Orden del evento (creciente dentro del trabajo; no necesariamente consecutivo).",
+      "type": "integer",
+      "minimum": 1
+    },
+    "state": { "enum": ["queued", "running", "done", "failed", "cancelled"] },
+    "stage": {
+      "description": "Etapa mientras corre (null en los demás estados): started (el worker lo tomó), loading_candles, running_variants, luck_test, building_reports, saving.",
+      "oneOf": [
+        { "enum": ["started", "loading_candles", "running_variants", "luck_test", "building_reports", "saving"] },
+        { "type": "null" }
+      ]
+    },
+    "percent": {
+      "description": "Avance aproximado, de 0 a 100 (100 en done). Es solo para mostrar.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "variants_done": { "type": "integer", "minimum": 0 },
+    "variants_total": { "type": "integer", "minimum": 1 },
+    "report_ids": {
+      "description": "Los informes (lab_report.v1), uno por spec y en el orden del pedido. Vacío salvo en done.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/sha256" }
+    },
+    "error": {
+      "description": "Por qué falló, en español (null salvo en failed).",
+      "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
+    },
+    "recorded_at": { "$ref": "#/$defs/utc" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "state": { "const": "running" } } },
+      "then": { "properties": { "stage": { "type": "string" } } },
+      "else": { "properties": { "stage": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "state": { "const": "done" } } },
+      "then": { "properties": { "report_ids": { "minItems": 1 }, "percent": { "const": 100 } } },
+      "else": { "properties": { "report_ids": { "maxItems": 0 } } }
+    },
+    {
+      "if": { "properties": { "state": { "const": "failed" } } },
+      "then": { "properties": { "error": { "type": "string" } } },
+      "else": { "properties": { "error": { "type": "null" } } }
+    }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" }
+  }
+}
