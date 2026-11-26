@@ -8,8 +8,11 @@
 //! - [`progress`]: eventos (`academy_event.v1`) → `academy_progress.v1`.
 //! - [`pg::PgAcademy`]: la tabla `academy_events` (migración 0052), de solo agregar.
 //! - [`replay`]: sesiones de replay de los exámenes (semilla, fecha oculta, cursor del motor).
+//! - [`grade::grade`]: la calificación de una sesión terminada (`exam_result.v1`), proceso
+//!   separado del R.
 
 pub mod catalog;
+pub mod grade;
 pub mod pg;
 pub mod progress;
 pub mod quiz;

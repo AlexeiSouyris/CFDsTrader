@@ -216,9 +216,13 @@ version = "0.1.0"
 dependencies = [
  "cfds-backtest",
  "cfds-core",
+ "cfds-indicators",
  "cfds-market-data",
+ "cfds-patterns",
  "cfds-storage",
+ "cfds-strategy",
  "chrono",
+ "chrono-tz",
  "jsonschema",
  "rust_decimal",
  "serde",

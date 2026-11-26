@@ -9,7 +9,11 @@ publish.workspace = true
 [dependencies]
 cfds-backtest = { version = "0.1.0", path = "../backtest" }
 cfds-core = { version = "0.1.0", path = "../core" }
+cfds-indicators = { version = "0.1.0", path = "../indicators" }
 cfds-market-data = { version = "0.1.0", path = "../market-data" }
+cfds-patterns = { version = "0.1.0", path = "../patterns" }
+cfds-strategy = { version = "0.1.0", path = "../strategy" }
+chrono-tz = "0.10.4"
 chrono = { version = "0.4.45", default-features = false, features = ["std", "serde"] }
 rust_decimal = "1.43.0"
 serde = { version = "1.0.229", features = ["derive"] }
