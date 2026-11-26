@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/spec_validation.v1.schema.json",
+  "title": "Spec validation v1",
+  "description": "Resultado de validar un strategy_spec.v1 contra el catálogo del motor (strategy_catalog.v1), config/risk.toml y la separación de datos (docs/design/2026-11-laboratorio.md §1.4, #710). Lo arma el motor (Rust); la UI muestra cada error junto al campo de la ruta, sin decidir nada. Si es válida trae el hash de la spec y el de su familia; si no, la lista completa de errores (no solo el primero) y los dos hashes en null.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["valid", "catalog_version", "spec_sha256", "family_sha256", "errors"],
+  "if": { "properties": { "valid": { "const": true } } },
+  "then": {
+    "properties": {
+      "errors": { "maxItems": 0 },
+      "spec_sha256": { "type": "string" },
+      "family_sha256": { "type": "string" }
+    }
+  },
+  "else": {
+    "properties": {
+      "errors": { "minItems": 1 },
+      "spec_sha256": { "type": "null" },
+      "family_sha256": { "type": "null" }
+    }
+  },
+  "properties": {
+    "valid": { "type": "boolean" },
+    "catalog_version": {
+      "description": "Versión del catálogo del motor contra la que se validó.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "spec_sha256": {
+      "description": "SHA-256 (hex) de la forma canónica de la spec: claves ordenadas, decimales normalizados como texto (\"2.0\" y \"2\" son lo mismo), sin espacios. null si no es válida.",
+      "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+    },
+    "family_sha256": {
+      "description": "SHA-256 (hex) de la familia: mismo instrumento y mismos tipos de bloque (condiciones de entrada y filtros sin orden, stop y salida); cambian solo los parámetros, la dirección, el timeframe, el riesgo, los costos y el período. Definición PENDIENTE del dueño (§9 punto 2 del diseño). null si no es válida.",
+      "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+    },
+    "errors": {
+      "description": "Vacío si y solo si valid es true.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "path", "message"],
+        "properties": {
+          "code": {
+            "description": "malformed: el JSON no tiene la forma de strategy_spec.v1 (campo desconocido o faltante, tipo equivocado). catalog_version: otra versión del catálogo. unknown_market / timeframe_unavailable: instrumento o timeframe que el catálogo no tiene. unknown_block: tipo de bloque desconocido. wrong_slot: el bloque existe pero va en otro lugar (por ejemplo un filtro como stop). block_timeframe: el bloque no se puede usar con ese timeframe. unknown_param / missing_param / param_type / param_out_of_range: un parámetro que el bloque no tiene, uno obligatorio que falta, de otro tipo o fuera de rango. invalid_combination: parámetros que no van juntos (por ejemplo media rápida ≥ lenta, o una salida sin tiempo). too_many_conditions / too_many_filters: más que los topes del catálogo. risk_out_of_range: riesgo ≤ 0 o mayor que el de config/risk.toml. cost_out_of_range: multiplicador menor que 1 (costos más bajos que los del catálogo) o mayor que el tope. period_invalid: from ≥ to. period_touches_holdout: el período llega al fuera de muestra. mode_unavailable: modo que este motor todavía no corre (confirmatorio, L13).",
+            "enum": [
+              "malformed", "catalog_version", "unknown_market", "timeframe_unavailable",
+              "unknown_block", "wrong_slot", "block_timeframe", "unknown_param", "missing_param",
+              "param_type", "param_out_of_range", "invalid_combination", "too_many_conditions",
+              "too_many_filters", "risk_out_of_range", "cost_out_of_range", "period_invalid",
+              "period_touches_holdout", "mode_unavailable"
+            ]
+          },
+          "path": {
+            "description": "JSON Pointer (RFC 6901) al campo de la spec, por ejemplo /entry/0/params/fast. Vacío = la spec entera.",
+            "type": "string",
+            "pattern": "^(/[A-Za-z0-9_]+)*$"
+          },
+          "message": { "description": "Texto para la persona, en español.", "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
