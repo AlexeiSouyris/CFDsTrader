@@ -5,10 +5,11 @@
 //! DATABASE_URL=... cargo run -p cfds-gateway
 //! ```
 //! Escucha en `[server] bind` de `config/gateway.toml` (por defecto solo 127.0.0.1). No corre
-//! migraciones. La sesión de PostgreSQL es de solo lectura; la única escritura es el registro del
-//! broker simulado, en una transacción que se declara de escritura (`insert_paper_order`). La
-//! escritura exige el token local de `[paper] token_env`; sin él queda apagada. La UI llega con el
-//! proxy de Vite (`/api` → este servidor).
+//! migraciones. La sesión de PostgreSQL es de solo lectura; las únicas escrituras son el registro
+//! del broker simulado y los eventos de la Academia (`academy_events`, #719), cada una en una
+//! transacción que se declara de escritura. La escritura exige el token local de
+//! `[paper] token_env`; sin él queda apagada. La UI llega con el proxy de Vite (`/api` → este
+//! servidor).
 //!
 //! Fase 9 (#297): logs en líneas JSON por la salida de errores (sin secretos: el token y la
 //! contraseña de la base se registran para taparlos), alertas de `config/alerts.toml` y parada
@@ -21,11 +22,14 @@ use std::convert::Infallible;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use cfds_academy::AcademyConfig;
+use cfds_academy::pg::PgAcademy;
 use cfds_backtest::BacktestConfig;
 use cfds_broker::BrokerConfig;
 use cfds_core::Instrument;
 use cfds_fund::FundConfig;
 use cfds_fund::pg::PgFund;
+use cfds_gateway::academy::{AcademyRoutes, is_academy_route, respond_academy};
 use cfds_gateway::context::{ContextConfig, is_context_route, respond_context};
 use cfds_gateway::emotions::{is_emotions_route, respond_emotions};
 use cfds_gateway::fund::{is_fund_route, respond_fund};
@@ -80,6 +84,7 @@ const ANALYSIS: &str = include_str!("../../../../config/analysis.toml");
 const PATTERNS: &str = include_str!("../../../../config/patterns.toml");
 const TERMINAL: &str = include_str!("../../../../config/terminal.toml");
 const IBKR: &str = include_str!("../../../../config/ibkr.toml");
+const ACADEMY: &str = include_str!("../../../../config/academy.toml");
 
 /// `config/` del repo (sesiones y feriados del calendario se leen de ahí).
 fn config_dir() -> PathBuf {
@@ -116,31 +121,65 @@ struct State {
     ibkr_cfg: IbkrViewConfig,
     /// Vela en formación de IBKR (#558), solo visual.
     live_hub: Arc<LiveHub>,
+    /// Academia (#719): catálogo validado al arrancar y sus eventos de solo agregar.
+    academy: PgAcademy,
+    academy_cfg: AcademyConfig,
+    academy_routes: AcademyRoutes,
 }
 
 fn header<'a>(req: &'a Request<Incoming>, name: &str) -> Option<&'a str> {
     req.headers().get(name).and_then(|v| v.to_str().ok())
 }
 
-async fn paper_reply(state: &State, req: Request<Incoming>) -> Reply {
+/// Método, ruta, token, tipo de contenido y body de un pedido de escritura. El body se lee con
+/// límite: uno más grande se corta sin leerlo entero (`Err` con la respuesta 413).
+async fn read_request(
+    req: Request<Incoming>,
+    max_body: usize,
+) -> Result<(String, String, Option<String>, Option<String>, Bytes), Reply> {
     let method = req.method().as_str().to_owned();
     let path = req.uri().path().to_owned();
     let token = header(&req, "x-cfds-token").map(str::to_owned);
     let content_type = header(&req, "content-type").map(str::to_owned);
-    // El body se lee con límite: uno más grande se corta sin leerlo entero.
-    let body = match Limited::new(req.into_body(), state.paper_cfg.max_body_bytes)
-        .collect()
-        .await
-    {
-        Ok(b) => b.to_bytes(),
-        Err(_) => {
-            return Reply {
-                status: 413,
-                content_type: "text/plain; charset=utf-8",
-                body: "body demasiado grande".into(),
-            };
-        }
+    match Limited::new(req.into_body(), max_body).collect().await {
+        Ok(b) => Ok((method, path, token, content_type, b.to_bytes())),
+        Err(_) => Err(Reply {
+            status: 413,
+            content_type: "text/plain; charset=utf-8",
+            body: "body demasiado grande".into(),
+        }),
+    }
+}
+
+async fn academy_reply(state: &State, req: Request<Incoming>) -> Reply {
+    let max = state.academy_routes.max_body_bytes;
+    let (method, path, token, content_type, body) = match read_request(req, max).await {
+        Ok(r) => r,
+        Err(reply) => return reply,
     };
+    respond_academy(
+        &state.academy,
+        &state.academy_cfg,
+        &state.academy_routes,
+        state.token.as_deref(),
+        HttpIn {
+            method: &method,
+            path: &path,
+            token: token.as_deref(),
+            content_type: content_type.as_deref(),
+            body: &body,
+        },
+        chrono::Utc::now(),
+    )
+    .await
+}
+
+async fn paper_reply(state: &State, req: Request<Incoming>) -> Reply {
+    let (method, path, token, content_type, body) =
+        match read_request(req, state.paper_cfg.max_body_bytes).await {
+            Ok(r) => r,
+            Err(reply) => return reply,
+        };
     respond_paper(
         state.paper.as_ref(),
         &state.paper_cfg,
@@ -201,6 +240,8 @@ async fn handle(state: Arc<State>, req: Request<Incoming>) -> Result<Response<Bo
     }
     let reply = if is_paper_route(req.uri().path()) {
         paper_reply(&state, req).await
+    } else if is_academy_route(req.uri().path()) {
+        academy_reply(&state, req).await
     } else if is_status_route(req.uri().path()) {
         let scrub = |t: &str| state.log.scrub(t);
         let deps = StatusDeps {
@@ -368,6 +409,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
     let risk = RiskConfig::from_toml(RISK)?;
+    let academy_cfg = AcademyConfig::from_toml(ACADEMY)?;
+    let academy_routes = AcademyRoutes::from_toml(GATEWAY)?;
     // Logs sin secretos: el token local y la base se registran antes del primer log. Las líneas
     // ya redactadas del broker y de las alertas quedan además en memoria para la UI (#314) y se
     // guardan en `ops_events` en segundo plano (#337): la cola existe desde ya y la tarea que la
@@ -570,6 +613,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         news_cfg: NewsConfig::from_toml(GATEWAY)?,
         ibkr_cfg,
         live_hub,
+        academy: PgAcademy::new(store.pool().clone()),
+        academy_cfg,
+        academy_routes,
         source: PgSource {
             store,
             config: cfg.clone(),

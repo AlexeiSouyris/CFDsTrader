@@ -206,6 +206,29 @@ fn same_token(a: &str, b: &str) -> bool {
             == 0
 }
 
+/// Los chequeos de toda ruta de escritura del gateway (paper, Academia): token anti-CSRF, tipo de
+/// contenido y tamaño, en ese orden. `None` si pasa; si no, la respuesta de rechazo.
+pub(crate) fn write_guard(token: Option<&str>, req: &HttpIn, max_body: usize) -> Option<Reply> {
+    let Some(expected) = token else {
+        return Some(text(
+            403,
+            "escritura apagada: falta el token local del gateway",
+        ));
+    };
+    if !req.token.is_some_and(|t| same_token(t, expected)) {
+        return Some(text(403, "falta la cabecera x-cfds-token o no coincide"));
+    }
+    let json = |c: &str| {
+        c.split(';')
+            .next()
+            .is_some_and(|m| m.trim() == "application/json")
+    };
+    if !req.content_type.is_some_and(json) {
+        return Some(text(415, "el body tiene que ser application/json"));
+    }
+    (req.body.len() > max_body).then(|| text(413, "body demasiado grande"))
+}
+
 /// Atiende las rutas del broker simulado. `paper` es `None` si el broker no arrancó; `token` es
 /// el token local esperado (`None`: escritura apagada).
 pub async fn respond_paper<P: PaperService>(
@@ -259,22 +282,8 @@ pub async fn respond_paper<P: PaperService>(
                 .map_or_else(internal, |r| json(&r)),
         };
     }
-    // Escritura: token anti-CSRF, tipo de contenido y tamaño, en ese orden.
-    let Some(expected) = token else {
-        return text(403, "escritura apagada: falta el token local del gateway");
-    };
-    if !req.token.is_some_and(|t| same_token(t, expected)) {
-        return text(403, "falta la cabecera x-cfds-token o no coincide");
-    }
-    if !req.content_type.is_some_and(|c| {
-        c.split(';')
-            .next()
-            .is_some_and(|m| m.trim() == "application/json")
-    }) {
-        return text(415, "el body tiene que ser application/json");
-    }
-    if req.body.len() > cfg.max_body_bytes {
-        return text(413, "body demasiado grande");
+    if let Some(refused) = write_guard(token, &req, cfg.max_body_bytes) {
+        return refused;
     }
     if req.path == "/api/v1/paper/orders" {
         match paper.gate() {
