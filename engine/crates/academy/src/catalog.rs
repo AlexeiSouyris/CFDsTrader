@@ -58,7 +58,7 @@ pub struct Exam {
     pub kind: ExamKind,
     pub ready: bool,
     pub questions: Vec<Question>,
-    /// El tipo de sesión de un examen de replay (`levels` o `trades`, #759); `None` en los demás.
+    /// El tipo de sesión de un examen de replay (`levels`, `pivots` o `trades`, #759, #800); `None` en los demás.
     #[serde(default)]
     pub replay_kind: Option<ReplayKind>,
 }
@@ -336,7 +336,7 @@ impl AcademyConfig {
             };
             ensure!(
                 replay_ok,
-                "lección {id}: un examen de replay lleva replay_kind levels o trades, y solo él"
+                "lección {id}: un examen de replay lleva replay_kind levels, pivots o trades, y solo él"
             );
             let mut questions = Vec::new();
             for q in l.questions {

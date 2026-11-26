@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/exam_result.v1.schema.json",
   "title": "Exam result v1",
-  "description": "La calificación del motor de una sesión de replay de la Academia (docs/design/2026-11-academia.md §5.4, #720): respuesta de POST /api/v1/academy/replay/{session_id}/finish. Primero el PROCESO (regla por regla: aprueba o reprueba), después la precisión en niveles y al final el RESULTADO en R, que se muestra y NO aprueba ni reprueba. Una operación ganadora sin stop reprueba; una perdedora bien hecha aprueba. Recién acá se revela la fecha real.",
+  "description": "La calificación del motor de una sesión de replay de la Academia (docs/design/2026-11-academia.md §5.4, #720): respuesta de POST /api/v1/academy/replay/{session_id}/finish. Primero el PROCESO (regla por regla: aprueba o reprueba), después la precisión en niveles y en pivotes (#800) y al final el RESULTADO en R, que se muestra y NO aprueba ni reprueba. Una operación ganadora sin stop reprueba; una perdedora bien hecha aprueba. Recién acá se revela la fecha real.",
   "type": "object",
   "additionalProperties": false,
   "required": ["session_id", "kind", "lesson_id", "catalog_version", "passed", "rules", "trades", "levels", "revealed", "graded_at"],
@@ -48,6 +48,55 @@
         { "type": "null" }
       ]
     },
+    "pivots": {
+      "description": "Pivotes marcados contra los pivotes CONFIRMADOS del motor (cfds_patterns::pivots, fuerza de config/patterns.toml) con las velas hasta el cursor del final (#800): acierta la marca en la misma vela y del mismo tipo, hecha con el cursor en la vela de confirmación (índice + fuerza) o después. Una marca hecha antes es «adelantada»: en ese momento era una suposición y no acierta. Un pivote que se confirmaría después del cursor final no existe todavía. Aprueba (en un examen de pivotes) con enough_pivots y pivot_precision; en otra sesión con marcas de pivotes se muestra y no decide. null si no hay marcas de pivotes y la sesión no es de pivotes. Opcional: los resultados de antes de #800 no lo traen.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["strength", "marked", "hits", "early", "engine", "covered", "precision_pct", "coverage_pct", "marks", "engine_pivots"],
+          "properties": {
+            "strength": { "description": "Velas de confirmación a cada lado (N).", "type": "integer", "minimum": 1 },
+            "marked": { "description": "Marcas de pivotes.", "type": "integer", "minimum": 0 },
+            "hits": { "description": "Marcas que aciertan (confirmado al marcar).", "type": "integer", "minimum": 0 },
+            "early": { "description": "Marcas adelantadas: la vela y el tipo de un pivote del motor, pero antes de su confirmación.", "type": "integer", "minimum": 0 },
+            "engine": { "description": "Pivotes del motor confirmados durante el examen (después del calentamiento).", "type": "integer", "minimum": 0 },
+            "covered": { "description": "De esos, los que tienen una marca que acierta.", "type": "integer", "minimum": 0 },
+            "precision_pct": { "description": "hits / marked; null sin marcas.", "oneOf": [{ "$ref": "academy_catalog.v1.schema.json#/$defs/decimal" }, { "type": "null" }] },
+            "coverage_pct": { "description": "covered / engine; null sin pivotes del motor.", "oneOf": [{ "$ref": "academy_catalog.v1.schema.json#/$defs/decimal" }, { "type": "null" }] },
+            "marks": {
+              "description": "Cada marca de pivote, en orden.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["mark_id", "status", "confirmed_at"],
+                "properties": {
+                  "mark_id": { "type": "integer", "minimum": 1 },
+                  "status": { "description": "hit: acierta; early: adelantada; miss: ningún pivote del motor confirmado ahí.", "enum": ["hit", "early", "miss"] },
+                  "confirmed_at": { "description": "La vela en que se confirma el pivote del motor; null en miss.", "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }] }
+                }
+              }
+            },
+            "engine_pivots": {
+              "description": "Los pivotes del motor confirmados durante el examen, para mostrarlos después.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["bar_index", "kind", "confirmed_at"],
+                "properties": {
+                  "bar_index": { "type": "integer", "minimum": 0 },
+                  "kind": { "enum": ["pivot_high", "pivot_low"] },
+                  "confirmed_at": { "type": "integer", "minimum": 0 }
+                }
+              }
+            }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
     "revealed": {
       "description": "La fecha real, recién al terminar.",
       "type": "object",
@@ -72,8 +121,8 @@
       "required": ["rule", "passed"],
       "properties": {
         "rule": {
-          "description": "stop_present: tiene stop; stop_side: del lado correcto; stop_in_range: entre stop_min_atr y stop_max_atr ATR (config/risk.toml); risk_within_limit: risk_pct <= max_risk_pct; plan_written: plan escrito antes; one_position: no había otra abierta al decidir; enough_trades: al menos trades_per_exam operaciones; level_precision: precisión de niveles >= el umbral de preguntas.",
-          "enum": ["stop_present", "stop_side", "stop_in_range", "risk_within_limit", "plan_written", "one_position", "enough_trades", "level_precision"]
+          "description": "stop_present: tiene stop; stop_side: del lado correcto; stop_in_range: entre stop_min_atr y stop_max_atr ATR (config/risk.toml); risk_within_limit: risk_pct <= max_risk_pct; plan_written: plan escrito antes; one_position: no había otra abierta al decidir; enough_trades: al menos trades_per_exam operaciones; level_precision: precisión de niveles >= el umbral de preguntas; enough_pivots: al menos pivots_per_exam pivotes marcados; pivot_precision: precisión de pivotes >= el umbral de preguntas (#800).",
+          "enum": ["stop_present", "stop_side", "stop_in_range", "risk_within_limit", "plan_written", "one_position", "enough_trades", "level_precision", "enough_pivots", "pivot_precision"]
         },
         "passed": { "type": "boolean" }
       }

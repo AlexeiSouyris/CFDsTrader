@@ -7,7 +7,7 @@
 type Decimal = string
 type Utc = string
 
-export type ReplayKind = 'practice' | 'levels' | 'trades'
+export type ReplayKind = 'practice' | 'levels' | 'trades' | 'pivots'
 
 /** Una vela cerrada sin su fecha real. */
 export type ReplayBar = {
@@ -24,6 +24,8 @@ export type ReplayBar = {
 
 export type ReplayRules = {
   trades_per_exam: number
+  /** pivotes marcados como mínimo en un examen de pivotes (#800); omitido en sesiones viejas */
+  pivots_per_exam?: number
   level_tolerance_atr: Decimal
   stop_min_atr: Decimal
   stop_max_atr: Decimal
@@ -99,7 +101,31 @@ export type ExamRule = {
     | 'one_position'
     | 'enough_trades'
     | 'level_precision'
+    | 'enough_pivots'
+    | 'pivot_precision'
   passed: boolean
+}
+
+/** Una marca de pivote calificada: acierta, adelantada (antes de la confirmación) o sin pivote. */
+export type PivotMarkGrade = {
+  mark_id: number
+  status: 'hit' | 'early' | 'miss'
+  /** la vela de confirmación del pivote del motor; null en `miss` */
+  confirmed_at: number | null
+}
+
+/** `exam_result.v1#/properties/pivots` (#800): las marcas contra los pivotes confirmados del motor. */
+export type PivotGrade = {
+  strength: number
+  marked: number
+  hits: number
+  early: number
+  engine: number
+  covered: number
+  precision_pct: Decimal | null
+  coverage_pct: Decimal | null
+  marks: PivotMarkGrade[]
+  engine_pivots: { bar_index: number; kind: 'pivot_high' | 'pivot_low'; confirmed_at: number }[]
 }
 
 /** Lo que pasó con una entrada; los R son null sin stop (sin stop no hay R). */
@@ -134,6 +160,8 @@ export type ExamResult = {
     tolerance: Decimal
     engine_levels: Decimal[]
   } | null
+  /** null u omitido si no hubo marcas de pivotes y la sesión no es de pivotes (#800) */
+  pivots?: PivotGrade | null
   revealed: {
     instrument_id: string
     timeframe: '15m' | '1h'
