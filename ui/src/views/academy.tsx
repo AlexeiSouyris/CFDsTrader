@@ -11,6 +11,7 @@
 import { Check, Circle, Lock, LockOpen } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 
+import { AcademyQuiz } from '@/components/ui/academy-quiz'
 import type {
   AcademyCatalog,
   AcademyProgress,
@@ -306,11 +307,14 @@ function LessonPage({
             Examen con velas del pasado (replay): lo califica el motor, primero el proceso.
           </p>
         ) : (
-          <p className="text-[12.5px]">
-            {exam.questions.length} preguntas; para aprobar,{' '}
-            {decimal(catalog.thresholds.quiz_pass_pct)} % de respuestas correctas
-            {catalog.thresholds.provisional && ' (umbral provisorio)'}. Corrige el motor.
-          </p>
+          <>
+            <p className="text-[12.5px]">
+              {exam.questions.length} preguntas; para aprobar,{' '}
+              {decimal(catalog.thresholds.quiz_pass_pct)} % de respuestas correctas
+              {catalog.thresholds.provisional && ' (umbral provisorio)'}. Corrige el motor.
+            </p>
+            <AcademyQuiz lesson={lesson} version={catalog.catalog_version} />
+          </>
         )}
       </Part>
 
