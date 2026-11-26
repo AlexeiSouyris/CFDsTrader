@@ -10,6 +10,7 @@
  * reescrito): una sola tabla densa, renglones separados por líneas de 1 px, cifras en mono
  * alineadas por columna y el elegido marcado con una barra ámbar a la izquierda. Sin tarjetas.
  */
+import { ToolLock } from '@/components/ui/tool-lock'
 import { dateTimeUtc, decimal, isNegative, signed } from '@/lib/format'
 import type { MarketSummary } from '@/lib/market-summary'
 import { cn } from '@/lib/utils'
@@ -56,19 +57,25 @@ const delayMin = (s: number) => Math.max(1, Math.round(s / 60))
  */
 const fixed = (text: string) => decimal(text, Math.max(2, text.split('.')[1]?.length ?? 0))
 
-export function Watchlist({
-  groups,
-  names,
-  selected,
-  onSelect,
-}: {
+type WatchlistProps = {
   groups: WatchGroup[]
   /** nombre de cada instrumento, del catálogo */
   names: Record<string, string>
   /** el renglón elegido: el id, o `ibkr:<id>` si es de IBKR */
   selected: string
   onSelect: (instrument: string, feed?: 'ibkr') => void
-}) {
+}
+
+/** La lista de mercados, con su candado de la Academia (#771): la abre la lección 0.1. */
+export function Watchlist(props: WatchlistProps) {
+  return (
+    <ToolLock tool="tool.watchlist">
+      <MarketList {...props} />
+    </ToolLock>
+  )
+}
+
+function MarketList({ groups, names, selected, onSelect }: WatchlistProps) {
   return (
     <section
       aria-label="Mercados"

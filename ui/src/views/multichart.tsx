@@ -32,6 +32,7 @@
  * paneles se separan con líneas de 1 px y no hay vidrio. La vista Gráficos es este mismo lienzo
  * con un solo gráfico (`single`). La paleta de comandos cambia el timeframe del gráfico activo.
  */
+import { ToolLock } from '@/components/ui/tool-lock'
 import { StaleNote } from '@/components/ui/data-honesty'
 import { Crosshair, LayoutGrid } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -422,7 +423,11 @@ export function MultichartView({ single = false }: { single?: boolean }) {
           ))}
         </div>
 
-        {!single && <SlotInfo index={active} slot={current} />}
+        {!single && (
+          <ToolLock tool="tool.instrument_panel">
+            <SlotInfo index={active} slot={current} />
+          </ToolLock>
+        )}
       </div>
       {single && (
         <p className="px-1 text-[11.5px] leading-snug text-muted-foreground">

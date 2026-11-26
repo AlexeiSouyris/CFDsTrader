@@ -4,6 +4,7 @@
  * gateway (#312) y, sin gateway, es el de ejemplo. Nada se calcula acá. Lo que es de ejemplo lleva
  * el sello "EJEMPLO" (#577).
  */
+import { ToolLock } from '@/components/ui/tool-lock'
 import { ScrollRegion } from '@/components/ui/scroll-region'
 import { Search } from 'lucide-react'
 import { useDeferredValue, useState, type ReactNode } from 'react'
@@ -316,7 +317,16 @@ const fold = (s: string) =>
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase()
 
+/** El glosario, con su candado de la Academia (#771). */
 export function GlossaryView() {
+  return (
+    <ToolLock tool="tool.glossary">
+      <Glossary />
+    </ToolLock>
+  )
+}
+
+function Glossary() {
   const [query, setQuery] = useState('')
   const q = fold(useDeferredValue(query).trim())
   const found = q ? GLOSSARY.filter((e) => fold(`${e.title} ${e.body}`).includes(q)) : GLOSSARY

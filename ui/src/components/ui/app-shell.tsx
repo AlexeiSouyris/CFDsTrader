@@ -33,6 +33,7 @@ import {
   type RefObject,
 } from 'react'
 
+import { AcademySettings } from '@/components/ui/academy-settings'
 import { CandlestickIcon } from '@/components/ui/animated-icons'
 import { StatusBar } from '@/components/ui/status-bar'
 import { TOOLS } from '@/lib/analysis-layers'
@@ -303,6 +304,12 @@ export function AppShell({
                   )}
                   {theme === 'dark' ? 'Pasar al tema claro' : 'Pasar al tema oscuro'}
                 </button>
+              </SettingsGroup>
+              <SettingsGroup
+                title="Academia"
+                hint="Las herramientas con candado se abren al aprobar su lección. Acá se abren o se vuelven a bloquear a mano: queda registrado en el motor y no cambia nada del riesgo ni de la simulación."
+              >
+                <AcademySettings />
               </SettingsGroup>
               {onReplayIntro && (
                 <SettingsGroup title="Intro" hint="La animación del comienzo, una vez más.">
