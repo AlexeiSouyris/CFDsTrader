@@ -10,6 +10,8 @@
  */
 import type { Page } from '@playwright/test'
 
+import labCatalog from '../src/mocks/lab-catalog.json' with { type: 'json' }
+import labReport from '../src/mocks/lab-report.json' with { type: 'json' }
 import liquidityUs100 from '../src/mocks/liquidity-us100-15m.json' with { type: 'json' }
 import analogs from './fixtures/analogs.json' with { type: 'json' }
 import backtestRuns from './fixtures/backtest-runs.json' with { type: 'json' }
@@ -219,6 +221,18 @@ export const ROUTES: MockRoute[] = [
   },
   { path: '/api/v1/news', schema: 'gateway_news.v1.schema.json', body: () => news },
   { path: '/api/v1/journal', schema: 'gateway_journal.v1.schema.json', body: () => journal },
+  // el laboratorio (#778): el catálogo que arma el motor con config/lab.toml y un informe real
+  // (US500, EMA 20/50 en 1 h, 2020–2022, exploratorio)
+  {
+    path: '/api/v1/lab/catalog',
+    schema: 'strategy_catalog.v1.schema.json',
+    body: () => labCatalog,
+  },
+  {
+    path: `/api/v1/lab/reports/${labReport.report_id}`,
+    schema: 'lab_report.v1.schema.json',
+    body: () => labReport,
+  },
 ]
 
 /**

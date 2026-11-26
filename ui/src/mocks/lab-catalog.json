@@ -1,0 +1,190 @@
+{
+  "catalog_version": 1,
+  "limits": {
+    "max_entry_conditions": 3,
+    "max_filters": 2,
+    "max_risk_pct": "1",
+    "min_cost_multiplier": "1",
+    "max_cost_multiplier": "5",
+    "max_variants_per_run": 20
+  },
+  "markets": [
+    {
+      "instrument_id": "DE40",
+      "source": "futures",
+      "timeframes": ["15m", "1h"]
+    },
+    {
+      "instrument_id": "US100",
+      "source": "futures",
+      "timeframes": ["15m", "1h"]
+    },
+    {
+      "instrument_id": "US2000",
+      "source": "futures",
+      "timeframes": ["15m", "1h"]
+    },
+    {
+      "instrument_id": "US30",
+      "source": "futures",
+      "timeframes": ["15m", "1h"]
+    },
+    {
+      "instrument_id": "US500",
+      "source": "futures",
+      "timeframes": ["15m", "1h"]
+    },
+    {
+      "instrument_id": "XAUUSD",
+      "source": "futures",
+      "timeframes": ["15m", "1h"]
+    }
+  ],
+  "modes": ["exploratory"],
+  "blocks": [
+    {
+      "slot": "entry",
+      "type": "ma_cross",
+      "label": "Cruce de dos medias",
+      "description": "Media rápida y lenta de los cierres (SMA o EMA) del timeframe de la señal. Largo al cierre de la vela en que la rápida queda arriba de la lenta y antes estaba abajo; corto en el espejo. Sin las dos medias (calentamiento) no hay señal.",
+      "timeframes": ["15m", "1h"],
+      "params": [
+        {
+          "name": "average",
+          "label": "Media",
+          "required": true,
+          "kind": "enum",
+          "options": ["sma", "ema"],
+          "default": "ema"
+        },
+        {
+          "name": "fast",
+          "label": "Media rápida (velas)",
+          "required": true,
+          "kind": "integer",
+          "min": 2,
+          "max": 200,
+          "default": 20
+        },
+        {
+          "name": "slow",
+          "label": "Media lenta (velas)",
+          "required": true,
+          "kind": "integer",
+          "min": 3,
+          "max": 400,
+          "default": 50
+        }
+      ]
+    },
+    {
+      "slot": "entry",
+      "type": "opening_range_breakout",
+      "label": "Ruptura del rango de apertura",
+      "description": "Rango = máximo y mínimo de las primeras velas de 15m de la sesión de contado; largo si una vela posterior cierra arriba del máximo, corto si cierra abajo del mínimo; una sola ruptura por día y solo hasta la hora local indicada (familia C de la ronda 1; Crabel, 1990).",
+      "timeframes": ["15m"],
+      "params": [
+        {
+          "name": "range_candles",
+          "label": "Velas del rango",
+          "required": true,
+          "kind": "integer",
+          "min": 1,
+          "max": 8,
+          "default": 2
+        },
+        {
+          "name": "last_breakout_close",
+          "label": "Último cierre de la ruptura (hora local)",
+          "required": true,
+          "kind": "time",
+          "default": "15:00"
+        }
+      ]
+    },
+    {
+      "slot": "filter",
+      "type": "entry_hours_utc",
+      "label": "Horas de entrada (UTC)",
+      "description": "Solo deja entrar si la decisión (cierre de la vela de la señal) cae en [desde, hasta) UTC. Si desde > hasta, el tramo cruza la medianoche.",
+      "timeframes": ["15m", "1h"],
+      "params": [
+        {
+          "name": "from",
+          "label": "Desde (UTC)",
+          "required": true,
+          "kind": "time",
+          "default": "13:30"
+        },
+        {
+          "name": "to",
+          "label": "Hasta (UTC)",
+          "required": true,
+          "kind": "time",
+          "default": "20:00"
+        }
+      ]
+    },
+    {
+      "slot": "stop",
+      "type": "atr",
+      "label": "Stop en ATR",
+      "description": "Stop a k × ATR de Wilder del timeframe de la señal desde el cierre de la vela de la señal. Ese mismo ATR es el que usa el módulo de riesgo.",
+      "timeframes": ["15m", "1h"],
+      "params": [
+        {
+          "name": "period",
+          "label": "Período del ATR (velas)",
+          "required": true,
+          "kind": "integer",
+          "min": 2,
+          "max": 100,
+          "default": 14
+        },
+        {
+          "name": "k",
+          "label": "Múltiplo del ATR",
+          "required": true,
+          "kind": "decimal",
+          "min": "0.5",
+          "max": "3",
+          "default": "1.5"
+        }
+      ]
+    },
+    {
+      "slot": "exit",
+      "type": "time_target",
+      "label": "Tiempo y objetivo",
+      "description": "Sale al cierre de la vela N del timeframe de la señal y/o al cierre de la sesión de contado (lo que llegue antes; hace falta al menos uno), con objetivo opcional en múltiplos de R. Los cierres forzados (fin de semana, vencimiento) siempre se aplican.",
+      "timeframes": ["15m", "1h"],
+      "params": [
+        {
+          "name": "max_candles",
+          "label": "Velas hasta la salida",
+          "required": false,
+          "kind": "integer",
+          "min": 1,
+          "max": 500,
+          "default": 8
+        },
+        {
+          "name": "session_close",
+          "label": "Salir al cierre de la sesión",
+          "required": false,
+          "kind": "boolean",
+          "default": true
+        },
+        {
+          "name": "target_r",
+          "label": "Objetivo (R)",
+          "required": false,
+          "kind": "decimal",
+          "min": "0.5",
+          "max": "10",
+          "default": "2"
+        }
+      ]
+    }
+  ]
+}

@@ -18,6 +18,7 @@ import { CURRENT_MEMBER, NOTICES } from '@/mocks'
 import { ChartsView, CompetitionView, JournalView, NewsView } from '@/views'
 import { introOnStart, introPreview, markIntroSeen } from '@/lib/intro-pref'
 import { useTabSwipe } from '@/lib/use-tab-swipe'
+import { LabView } from '@/views/lab'
 import { LiquidityView } from '@/views/liquidity'
 import { MultichartView } from '@/views/multichart'
 import { PanelView } from '@/views/panel'
@@ -211,6 +212,7 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
             <div key={view} data-dir={dir} className="view-enter">
               {view === 'performance' && <PerformanceView onOpen={select} />}
               {view === 'investigacion' && <ResearchView onOpen={select} />}
+              {view === 'laboratorio' && <LabView />}
               {view === 'inicio' && <HomeView onOpen={select} />}
               {view === 'panel' && <PanelView onOpen={select} />}
               {view === 'propuestas' && <ProposalsView member={CURRENT_MEMBER} />}
