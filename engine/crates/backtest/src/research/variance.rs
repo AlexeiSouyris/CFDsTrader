@@ -22,7 +22,7 @@
 )]
 
 use super::montecarlo::{
-    PathStats, Summary, block_bootstrap, grow, path_stats, quantile_sorted, summarize,
+    PathStats, Summary, bootstrap_n, grow, path_stats, quantile_sorted, summarize,
 };
 use super::program4::SplitMix64;
 
@@ -192,12 +192,7 @@ pub fn draw_r(rng: &mut SplitMix64, payoff: &Payoff, p: f64) -> f64 {
 
 /// `n` R remuestreados de `r` (no vacía) con bloques circulares, aunque `n` sea más que la lista.
 pub fn resample_r(rng: &mut SplitMix64, r: &[f64], block_len: usize, n: usize) -> Vec<f64> {
-    let mut out = Vec::with_capacity(n + r.len());
-    while out.len() < n {
-        out.extend(block_bootstrap(rng, r, block_len.max(1)));
-    }
-    out.truncate(n);
-    out
+    bootstrap_n(rng, r, block_len, n)
 }
 
 /// Índices (operaciones hechas) donde se miden las bandas: ~100 puntos, siempre 0 y la última.

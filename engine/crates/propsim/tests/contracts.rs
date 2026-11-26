@@ -47,7 +47,7 @@ fn a_trade_list_walks_the_rules_and_matches_the_contract() {
     assert_eq!(res["observed"]["phases"][0]["end_day"], "2026-03-04");
     assert_eq!(res["observed"]["phases"][0]["profit"], "10000");
     assert_eq!(res["upper_bound"], false);
-    assert_eq!(res["monte_carlo"], Value::Null);
+    assert!(res["monte_carlo"]["per_attempt"].is_object());
     let notes = res["notes"].to_string();
     assert!(notes.contains("consejo de inversión") && notes.contains("fuera de la app"));
 }

@@ -100,8 +100,9 @@ pub fn path_stats(returns: &[f64], fraction: f64, ruin_level: f64) -> PathStats 
     out
 }
 
-/// Un camino del bootstrap circular por bloques, del mismo largo que `xs` (no vacío).
-pub fn block_bootstrap(rng: &mut SplitMix64, xs: &[f64], block_len: usize) -> Vec<f64> {
+/// Un camino del bootstrap circular por bloques, del mismo largo que `xs` (no vacío). Genérico:
+/// el simulador de cuentas fondeadas remuestrea días enteros (sus índices).
+pub fn block_bootstrap<T: Copy>(rng: &mut SplitMix64, xs: &[T], block_len: usize) -> Vec<T> {
     let n = xs.len();
     let mut out = Vec::with_capacity(n);
     while out.len() < n {
@@ -110,6 +111,17 @@ pub fn block_bootstrap(rng: &mut SplitMix64, xs: &[f64], block_len: usize) -> Ve
             out.push(xs[(start + k) % n]);
         }
     }
+    out
+}
+
+/// `n` valores del bootstrap circular por bloques de `xs` (no vacía), aunque `n` sea más que la
+/// serie: se encadenan caminos de [`block_bootstrap`] y se corta en `n`.
+pub fn bootstrap_n<T: Copy>(rng: &mut SplitMix64, xs: &[T], block_len: usize, n: usize) -> Vec<T> {
+    let mut out = Vec::with_capacity(n + xs.len());
+    while out.len() < n {
+        out.extend(block_bootstrap(rng, xs, block_len.max(1)));
+    }
+    out.truncate(n);
     out
 }
 
