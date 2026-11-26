@@ -147,16 +147,18 @@ fn a_replay_exam_is_ready_and_says_its_session_kind() {
     for bad in [no_kind, stray] {
         assert!(!v.is_valid(&bad));
     }
-    // Un catálogo de antes de #759 (sin el campo) sigue valiendo.
+    // Un catálogo de antes de #759 (sin el campo y sin exámenes de replay, que llegaron con él)
+    // sigue valiendo. Las lecciones de replay de la config real (4.1, 4.2) pasan a sin examen.
     let mut old = AcademyConfig::from_toml(&with_questions())
         .map(|c| serde_json::to_value(&c.catalog).unwrap())
         .unwrap();
     for level in old["levels"].as_array_mut().unwrap() {
         for lesson in level["lessons"].as_array_mut().unwrap() {
-            lesson["exam"]
-                .as_object_mut()
-                .unwrap()
-                .remove("replay_kind");
+            let exam = lesson["exam"].as_object_mut().unwrap();
+            if exam["kind"] == "replay" {
+                exam.insert("kind".into(), "none".into());
+            }
+            exam.remove("replay_kind");
         }
     }
     assert!(v.is_valid(&old));
