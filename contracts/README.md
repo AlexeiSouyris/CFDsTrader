@@ -85,6 +85,9 @@ Lista de todos los contratos, generada desde `contracts/*.schema.json` (`title` 
 | [`replay_step.v1`](replay_step.v1.schema.json) | Replay step v1 | Las velas nuevas de un paso del replay de la Academia (#720) |
 | [`sentiment.v1`](sentiment.v1.schema.json) | Sentiment index v1 | Índice de sentimiento v1 de un instrumento (spec §9.1, #213) |
 | [`sentiment_observation.v1`](sentiment_observation.v1.schema.json) | Sentiment observation v1 | Un dato crudo de una fuente de sentimiento (#25, #27), tal como lo publicó la fuente |
+| [`spec_validation.v1`](spec_validation.v1.schema.json) | Spec validation v1 | Resultado de validar un strategy_spec.v1 contra el catálogo del motor (strategy_catalog.v1), config/risk.toml y la separación de datos (docs/design/2026-11-lab… |
+| [`strategy_catalog.v1`](strategy_catalog.v1.schema.json) | Strategy catalog v1 | Lo que el laboratorio de estrategias sabe correr (docs/design/2026-11-laboratorio.md §1.1, #710) |
+| [`strategy_spec.v1`](strategy_spec.v1.schema.json) | Strategy spec v1 | Una estrategia del laboratorio descrita con bloques (docs/design/2026-11-laboratorio.md §1.3, #710) |
 | [`ticket_verdict.v1`](ticket_verdict.v1.schema.json) | Ticket verdict v1 | Lo que respondería el módulo de riesgo a una orden (order.v1) **sin enviarla** (fase 7, #278) |
 | [`treasury_yield.v1`](treasury_yield.v1.schema.json) | Treasury yield v1 | Un rendimiento diario de la curva par del Tesoro de EE |
 | [`vix_daily.v1`](vix_daily.v1.schema.json) | VIX daily v1 | Un día del Cboe Volatility Index (VIX) |
@@ -503,3 +506,21 @@ Una sesión de replay de la Academia (§5 del diseño): velas reales guardadas, 
 - **Sin mirar el futuro:** la ruta de pasos nunca devuelve una vela después del cursor; marcas y órdenes llevan el cursor del momento, que pone el motor. Una operación se califica con lo que se sabía al decidir (ATR, posición abierta) y su resultado se calcula al terminar.
 - **Costos:** los del CFD del catálogo (`InstrumentCosts::from_spec`, mismas funciones que el backtest): medio spread y slippage en cada ejecución y financiación por noche. Con velas de futuros, la financiación neta es la del CFD menos lo que la base ya descontó (ADR 0015, #467).
 - Los umbrales (operaciones por examen, tolerancia de niveles, calentamiento) son educativos y **provisorios** (`rules.provisional`).
+
+### Laboratorio de estrategias (#710, #725)
+
+Diseño: `docs/design/2026-11-laboratorio.md`. Por ahora no viajan por Redis ni tienen tabla: el ejemplo `laboratorio` los lee y escribe como archivos JSON, y el gateway los servirá después (L9/L10).
+
+| Contrato | Contenido |
+|---|---|
+| `strategy_catalog.v1` | (motor → UI) Qué bloques existen (`slot`: `entry`, `filter`, `stop` o `exit`), sus parámetros (`kind`: `integer`, `decimal`, `time`, `enum` o `boolean`, con rango inclusivo, `required` y `default`), los mercados, los modos que el motor corre y los topes (`limits`). Lo arma el motor desde `config/lab.toml` y `config/risk.toml`; la UI dibuja el formulario desde acá. |
+| `strategy_spec.v1` | (UI o archivo → motor) La estrategia declarativa: `market`, `direction`, `entry` (condiciones unidas con "y"), `filters`, `stop`, `exit`, `risk_pct`, `cost_multiplier`, `period` y `mode`. Cada bloque es `{type, params}` con los nombres del catálogo. |
+| `spec_validation.v1` | (motor → UI) `valid`, la versión del catálogo, el hash de la spec y el de su familia (o `null`) y la lista completa de errores con `code`, `path` (JSON Pointer) y `message`. |
+
+- **El catálogo manda:** un bloque, un parámetro o un valor que el catálogo no tiene se rechaza (`spec_validation.v1`), aunque el schema de la spec lo acepte por su forma.
+- **Un parámetro opcional ausente queda apagado:** el motor nunca rellena con `default` (es solo lo que la UI propone), así la spec dice exactamente lo que se corre.
+- **Hash canónico:** SHA-256 de la spec con las claves ordenadas, los decimales normalizados como texto (`"2.0"` = `"2"`) y sin espacios. La **familia** (mismo instrumento y mismos tipos de bloque) agrupa las variantes para el N del Sharpe deflactado y el PBO; su definición es un punto PENDIENTE del dueño (§9 punto 2 del diseño).
+- **Costos y riesgo:** `cost_multiplier` nunca menos que 1 y `risk_pct` nunca más que el de `config/risk.toml`.
+- **Fuera de muestra:** un `period` que llega al fuera de muestra se rechaza (guardia `research_period`).
+- **Modo confirmatorio:** existe en el contrato para el flujo de pre-registro (L13); hasta entonces el catálogo no lo lista y el motor lo rechaza (`mode_unavailable`).
+- Las reglas de cuentas fondeadas (`prop_rules.v1`) y su simulación son de la Academia (`docs/design/2026-11-academia.md`), no del laboratorio.

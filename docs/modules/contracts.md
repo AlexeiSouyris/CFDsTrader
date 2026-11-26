@@ -35,3 +35,4 @@ resumen: Mensajes entre capas en JSON Schema (índice en `contracts/README.md`).
 - gateway_ibkr_bars.v1, gateway_ibkr_watchlist.v1 (#551)
 - ibkr_live_bar.v1 (#558)
 - fomc_statement_novelty.v1 (#668)
+- strategy_catalog.v1, strategy_spec.v1, spec_validation.v1 (laboratorio, #725)
