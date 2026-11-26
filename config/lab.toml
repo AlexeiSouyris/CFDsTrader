@@ -56,3 +56,12 @@ k = { default = "1.5" }
 max_candles = { min = "1", max = "500", default = "8" }
 session_close = { default = "true" }
 target_r = { min = "0.5", max = "10", default = "2" }
+
+[report]
+# Convenciones del informe (lab_report.v1), no parámetros de ninguna estrategia: nivel de los
+# intervalos (IC del R medio e IC de Wilson del win rate), ancho de los tramos del histograma de R
+# y cantidad de entradas al azar del test de suerte (research::luck; la semilla es la de
+# [montecarlo] de config/research.toml).
+confidence = "0.95"
+r_step = "0.5"
+luck_simulations = 1000

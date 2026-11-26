@@ -142,6 +142,7 @@ pub struct LabConfig {
     pub catalog_version: u32,
     pub limits: LabLimits,
     pub params: BTreeMap<String, BTreeMap<String, ParamRange>>,
+    pub report: super::sections::ReportConfig,
 }
 
 impl LabConfig {
