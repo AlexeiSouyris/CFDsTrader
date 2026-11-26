@@ -5,14 +5,20 @@
  * |---|---|
  * | `GET /api/v1/academy/catalog` | `academy_catalog.v1` (sin las claves) |
  * | `GET /api/v1/academy/progress` | `academy_progress.v1` (lo calcula el motor) |
+ * | `POST /api/v1/academy/events` | `academy_event.v1#/$defs/request` → `academy_event.v1` |
  *
  * Un solo estado compartido (catálogo y progreso) para la vista, los candados y Ajustes: se pide
  * una vez y se vuelve a pedir después de cada cambio (`reloadAcademy`). La UI no decide si algo se
- * aprobó ni qué herramienta está abierta.
+ * aprobó ni qué herramienta está abierta. Los `POST` llevan el token anti-CSRF que agrega el proxy.
  */
 import { useEffect, useSyncExternalStore } from 'react'
 
-import type { AcademyCatalog, AcademyProgress } from '@/lib/academy-contracts'
+import type {
+  AcademyCatalog,
+  AcademyEvent,
+  AcademyProgress,
+  EventRequest,
+} from '@/lib/academy-contracts'
 import { request } from '@/lib/paper-api'
 
 const BASE = '/api/v1/academy'
@@ -21,6 +27,14 @@ export const fetchCatalog = (signal?: AbortSignal) =>
   request<AcademyCatalog>(`${BASE}/catalog`, { signal })
 export const fetchProgress = (signal?: AbortSignal) =>
   request<AcademyProgress>(`${BASE}/progress`, { signal })
+
+/** Un `POST` con cuerpo JSON (el token lo pone el proxy, nunca el cliente). */
+export const postJson = <T>(url: string, body: unknown) =>
+  request<T>(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
 
 export type AcademyState =
   | { status: 'loading' }
@@ -78,4 +92,11 @@ export function resetAcademy() {
   state = { status: 'loading' }
   started = false
   pending = null
+}
+
+/** Completar una lección sin examen o desbloquear o rebloquear a mano; después, el progreso nuevo. */
+export async function postEvent(req: EventRequest): Promise<AcademyEvent> {
+  const event = await postJson<AcademyEvent>(`${BASE}/events`, req)
+  await reloadAcademy()
+  return event
 }

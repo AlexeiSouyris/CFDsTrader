@@ -1,6 +1,7 @@
 /**
- * El gateway simulado de las pruebas e2e (#661): cada `GET /api/v1/...` que pide la UI se contesta
- * desde `e2e/fixtures/` (o desde un ejemplo de `src/mocks/`), sin red y sin gateway real.
+ * El gateway simulado de las pruebas e2e (#661): cada `GET /api/v1/...` que pide la UI (y los `POST`
+ * de la Academia, #770) se contesta desde `e2e/fixtures/` (o desde un ejemplo de `src/mocks/`), sin
+ * red y sin gateway real.
  *
  * Cada ruta dice qué contrato de `contracts/` cumple su respuesta; `contracts.spec.ts` valida todas
  * las respuestas contra su esquema, así un fixture nunca inventa campos (CLAUDE.md §1).
@@ -40,12 +41,14 @@ export const NOW = '2026-11-25T16:00:00Z'
 export type MockRoute = {
   /** ruta sin query, por ejemplo `/api/v1/fund` */
   path: string
+  /** `GET` si no se dice */
+  method?: 'POST'
   /** archivo de `contracts/` que cumple la respuesta */
   schema: string
   /** `true` si la respuesta es una lista de mensajes de ese contrato */
   array?: boolean
-  /** la respuesta (puede depender de la query) */
-  body: (query: URLSearchParams) => unknown
+  /** la respuesta (puede depender de la query o, en un `POST`, del pedido; sin pedido, uno típico) */
+  body: (query: URLSearchParams, request?: unknown) => unknown
   /** `true` si es un flujo SSE: `body` es el único mensaje que se manda */
   sse?: boolean
 }
@@ -247,7 +250,30 @@ export const ROUTES: MockRoute[] = [
     schema: 'academy_progress.v1.schema.json',
     body: () => academyProgress,
   },
+  {
+    path: '/api/v1/academy/events',
+    method: 'POST',
+    schema: 'academy_event.v1.schema.json',
+    body: academyEvent,
+  },
 ]
+
+/** `academy_event.v1`: el evento como lo guardaría el motor (lección completada o desbloqueo a mano). */
+function academyEvent(_query: URLSearchParams, request?: unknown): unknown {
+  const req = (request ?? { kind: 'lesson_completed', lesson_id: '0.3' }) as Record<string, string>
+  const override = req.kind === 'tool_override'
+  return {
+    seq: 1,
+    member_id: academyProgress.member_id,
+    kind: req.kind,
+    lesson_id: override ? null : req.lesson_id,
+    tool_id: override ? req.tool_id : null,
+    action: override ? req.action : null,
+    quiz: null,
+    catalog_version: academyCatalog.catalog_version,
+    recorded_at: NOW,
+  }
+}
 
 /**
  * Intercepta todo `/api/**` de la página. Devuelve la lista de pedidos que no tienen respuesta
@@ -258,12 +284,17 @@ export async function mockGateway(page: Page): Promise<string[]> {
   await page.route('**/api/**', async (route) => {
     const req = route.request()
     const url = new URL(req.url())
-    const match = req.method() === 'GET' && ROUTES.find((r) => r.path === url.pathname)
+    const match = ROUTES.find(
+      (r) => r.path === url.pathname && (r.method ?? 'GET') === req.method(),
+    )
     if (!match) {
       unmocked.push(`${req.method()} ${url.pathname}${url.search}`)
       return route.fulfill({ status: 501, contentType: 'text/plain', body: 'sin fixture' })
     }
-    const body = match.body(url.searchParams)
+    const body = match.body(
+      url.searchParams,
+      req.method() === 'POST' ? (req.postDataJSON() as unknown) : undefined,
+    )
     if (match.sse) {
       // un mensaje y se corta; `retry` largo para que el navegador no vuelva a pedir en la prueba
       return route.fulfill({
