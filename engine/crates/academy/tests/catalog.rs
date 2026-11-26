@@ -3,6 +3,7 @@
 
 mod common;
 
+use cfds_academy::replay::ReplayKind;
 use cfds_academy::{AcademyConfig, Catalog, ExamKind};
 use common::{REAL, assert_valid, validator, with_questions, without_questions};
 
@@ -92,7 +93,10 @@ fn invalid_configs_are_rejected_at_startup() {
         ("lección de un nivel que no existe", base.replace("id = \"2.4\"", "id = \"3.1\"")),
         ("id de lección", base.replace("id = \"2.4\"", "id = \"2.04\"")),
         ("nivel repetido", base.replace("level = 2\n", "level = 1\n")),
-        ("examen de replay", base.replace("exam = \"none\"", "exam = \"replay\"")),
+        ("replay sin su tipo", base.replace("exam = \"none\"", "exam = \"replay\"")),
+        ("replay de práctica", base.replace("exam = \"none\"", "exam = \"replay\"\nreplay_kind = \"practice\"")),
+        ("tipo de replay sin replay", base.replace("exam = \"none\"", "exam = \"none\"\nreplay_kind = \"levels\"")),
+        ("tipo de replay que no existe", base.replace("exam = \"none\"", "exam = \"replay\"\nreplay_kind = \"exam\"")),
         ("preguntas sin examen", base.replace("exam = \"quiz\"\nunlocks = [\"tool.watchlist\"", "exam = \"none\"\nunlocks = [\"tool.watchlist\"")),
         ("clave fuera de las opciones", base.replace("answer = \"b\"", "answer = \"z\"")),
         ("una sola opción", base.replace("options = [{ id = \"a\", text = \"El último acuerdo\" }, { id = \"b\", text = \"Una promesa\" }]", "options = [{ id = \"a\", text = \"El último acuerdo\" }]")),
@@ -110,4 +114,48 @@ fn invalid_configs_are_rejected_at_startup() {
             "{what}: debería rechazarse"
         );
     }
+}
+
+#[test]
+fn a_replay_exam_is_ready_and_says_its_session_kind() {
+    let cfg = AcademyConfig::from_toml(&common::with_replay_exam()).unwrap();
+    let exam = &cfg.lesson("1.1").unwrap().exam;
+    assert_eq!(
+        (exam.kind, exam.ready, exam.replay_kind),
+        (ExamKind::Replay, true, Some(ReplayKind::Levels))
+    );
+    assert!(exam.questions.is_empty());
+    let json = serde_json::to_value(&cfg.catalog).unwrap();
+    let v = validator("academy_catalog.v1.schema.json");
+    assert!(v.is_valid(&json), "{json}");
+    assert_eq!(
+        json["levels"][1]["lessons"][0]["exam"]["replay_kind"],
+        "levels"
+    );
+    assert_eq!(
+        json["levels"][0]["lessons"][0]["exam"]["replay_kind"],
+        serde_json::Value::Null
+    );
+    // El contrato pide el tipo en un examen de replay, y solo en él.
+    let mut no_kind = json.clone();
+    no_kind["levels"][1]["lessons"][0]["exam"]["replay_kind"] = serde_json::Value::Null;
+    let mut stray = json.clone();
+    stray["levels"][0]["lessons"][0]["exam"]["replay_kind"] = "trades".into();
+    for bad in [no_kind, stray] {
+        assert!(!v.is_valid(&bad));
+    }
+    // Un catálogo de antes de #759 (sin el campo) sigue valiendo.
+    let mut old = AcademyConfig::from_toml(&with_questions())
+        .map(|c| serde_json::to_value(&c.catalog).unwrap())
+        .unwrap();
+    for level in old["levels"].as_array_mut().unwrap() {
+        for lesson in level["lessons"].as_array_mut().unwrap() {
+            lesson["exam"]
+                .as_object_mut()
+                .unwrap()
+                .remove("replay_kind");
+        }
+    }
+    assert!(v.is_valid(&old));
+    assert!(serde_json::from_value::<Catalog>(old).is_ok());
 }

@@ -8,6 +8,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 use crate::catalog::{ExamKind, dotted};
+use crate::grade::ExamResult;
 use crate::{AcademyConfig, QuizResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -28,6 +29,12 @@ pub enum EventBody {
     ExamAttempt {
         lesson_id: String,
         quiz: Box<QuizResult>,
+    },
+    /// Un intento de examen de replay de una lección (#759): `kind = exam_attempt` con la
+    /// calificación del motor en `replay` (`exam_result.v1`).
+    ReplayAttempt {
+        lesson_id: String,
+        replay: Box<ExamResult>,
     },
     /// `tool_id` es una herramienta o `*` (todas).
     ToolOverride {
@@ -69,6 +76,9 @@ struct RawEvent {
     action: Option<OverrideAction>,
     #[serde(deserialize_with = "Option::deserialize")]
     quiz: Option<QuizResult>,
+    /// Opcional en el contrato: los eventos de antes de #759 no lo traen.
+    #[serde(default)]
+    replay: Option<ExamResult>,
     catalog_version: String,
     recorded_at: DateTime<Utc>,
 }
@@ -93,13 +103,13 @@ impl TryFrom<RawEvent> for AcademyEvent {
 
     fn try_from(r: RawEvent) -> Result<Self, String> {
         let lesson_ok = |l: &str| dotted(l, 2).is_some();
-        let body = match (r.kind, r.lesson_id, r.tool_id, r.action, r.quiz) {
-            (EventKind::LessonCompleted, Some(lesson_id), None, None, None)
+        let body = match (r.kind, r.lesson_id, r.tool_id, r.action, r.quiz, r.replay) {
+            (EventKind::LessonCompleted, Some(lesson_id), None, None, None, None)
                 if lesson_ok(&lesson_id) =>
             {
                 EventBody::LessonCompleted { lesson_id }
             }
-            (EventKind::ExamAttempt, Some(lesson_id), None, None, Some(quiz))
+            (EventKind::ExamAttempt, Some(lesson_id), None, None, Some(quiz), None)
                 if lesson_ok(&lesson_id) =>
             {
                 EventBody::ExamAttempt {
@@ -107,7 +117,16 @@ impl TryFrom<RawEvent> for AcademyEvent {
                     quiz: Box::new(quiz),
                 }
             }
-            (EventKind::ToolOverride, None, Some(tool_id), Some(action), None)
+            // El intento de replay es de la misma lección que su sesión.
+            (EventKind::ExamAttempt, Some(lesson_id), None, None, None, Some(replay))
+                if lesson_ok(&lesson_id) && replay.lesson_id.as_ref() == Some(&lesson_id) =>
+            {
+                EventBody::ReplayAttempt {
+                    lesson_id,
+                    replay: Box::new(replay),
+                }
+            }
+            (EventKind::ToolOverride, None, Some(tool_id), Some(action), None, None)
                 if tool_or_all_ok(&tool_id) =>
             {
                 EventBody::ToolOverride { tool_id, action }
@@ -129,10 +148,11 @@ impl TryFrom<RawEvent> for AcademyEvent {
 
 impl From<AcademyEvent> for RawEvent {
     fn from(e: AcademyEvent) -> Self {
-        let (kind, lesson_id, tool_id, action, quiz) = match e.body {
+        let (kind, lesson_id, tool_id, action, quiz, replay) = match e.body {
             EventBody::LessonCompleted { lesson_id } => (
                 EventKind::LessonCompleted,
                 Some(lesson_id),
+                None,
                 None,
                 None,
                 None,
@@ -143,12 +163,22 @@ impl From<AcademyEvent> for RawEvent {
                 None,
                 None,
                 Some(*quiz),
+                None,
+            ),
+            EventBody::ReplayAttempt { lesson_id, replay } => (
+                EventKind::ExamAttempt,
+                Some(lesson_id),
+                None,
+                None,
+                None,
+                Some(*replay),
             ),
             EventBody::ToolOverride { tool_id, action } => (
                 EventKind::ToolOverride,
                 None,
                 Some(tool_id),
                 Some(action),
+                None,
                 None,
             ),
         };
@@ -160,6 +190,7 @@ impl From<AcademyEvent> for RawEvent {
             tool_id,
             action,
             quiz,
+            replay,
             catalog_version: e.catalog_version,
             recorded_at: e.recorded_at,
         }
@@ -208,8 +239,9 @@ pub struct Progress {
 }
 
 /// El estado de `member_id` a partir de sus eventos, en el orden de `seq` (los de otros miembros
-/// se ignoran). Una lección se aprueba con un intento aprobado, o, si no tiene examen, al
-/// completarla. Cada herramienta queda abierta si se aprobó su lección o si el último desbloqueo a
+/// se ignoran). Una lección se aprueba con un intento aprobado (de preguntas, o de replay con el
+/// proceso aprobado, #759), o, si no tiene examen, al completarla. Un intento de replay no tiene
+/// nota en %: cuenta como intento y no cambia `best_score_pct`. Cada herramienta queda abierta si se aprobó su lección o si el último desbloqueo a
 /// mano que la alcanza (el suyo o uno de `*`) es `unlock`.
 pub fn progress(
     cfg: &AcademyConfig,
@@ -250,6 +282,10 @@ pub fn progress(
                         p.attempts += 1;
                         p.best_score_pct = p.best_score_pct.max(Some(quiz.score_pct));
                         quiz.passed
+                    }
+                    EventBody::ReplayAttempt { lesson_id, replay } if *lesson_id == l.id => {
+                        p.attempts += 1;
+                        replay.passed == Some(true)
                     }
                     EventBody::LessonCompleted { lesson_id } => {
                         *lesson_id == l.id && l.exam.kind == ExamKind::None

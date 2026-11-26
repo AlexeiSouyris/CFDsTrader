@@ -5,6 +5,8 @@
  * cambia acá. Las notas, el aprobado y qué herramienta está abierta los decide el motor.
  */
 
+import type { ExamResult, ReplayKind } from '@/lib/replay-contracts'
+
 /** Texto decimal (sin float) e instante UTC con zona, como en el contrato. */
 type Decimal = string
 type Utc = string
@@ -22,9 +24,11 @@ export type Question =
 
 export type Exam = {
   kind: 'quiz' | 'replay' | 'none'
-  /** false: todavía sin preguntas; no se puede rendir */
+  /** false: todavía sin preguntas; no se puede rendir (un examen de replay siempre está listo) */
   ready: boolean
   questions: Question[]
+  /** el tipo de sesión de un examen de replay (#759); null u omitido en los demás */
+  replay_kind?: Extract<ReplayKind, 'levels' | 'trades'> | null
 }
 
 export type Lesson = {
@@ -107,6 +111,8 @@ export type AcademyEvent = {
   tool_id: ToolId | '*' | null
   action: 'unlock' | 'relock' | null
   quiz: QuizResult | null
+  /** la calificación de un intento de examen de replay (#759); null u omitido en los demás */
+  replay?: ExamResult | null
   catalog_version: string
   recorded_at: Utc
 }

@@ -211,6 +211,7 @@ async fn replay_reply(state: &State, req: Request<Incoming>) -> Reply {
     };
     respond_replay(
         &bars,
+        &state.academy,
         &state.replay_sessions,
         &state.replay_deps,
         &state.academy_cfg,

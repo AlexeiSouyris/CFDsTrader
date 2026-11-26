@@ -1,14 +1,17 @@
 //! Rutas del replay de la Academia (#723): contratos, cursor, anti-CSRF y códigos. Las velas son
-//! sintéticas (de lunes a viernes, 2011–2016); la config es la del repo.
+//! sintéticas (de lunes a viernes, 2011–2016); la config es la del repo. El intento de una lección
+//! (#759) va a una lista en memoria; la tabla se prueba en `cfds-academy` (`tests/pg.rs`).
 
 use std::path::PathBuf;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use cfds_academy::AcademyConfig;
 use cfds_academy::replay::{BarRange, BarStore};
+use cfds_academy::{AcademyConfig, AcademyEvent, EventBody};
 use cfds_backtest::BacktestConfig;
 use cfds_core::{Candle, InstrumentId, Timeframe};
 use cfds_gateway::Reply;
-use cfds_gateway::academy::AcademyRoutes;
+use cfds_gateway::academy::{AcademyRoutes, AcademyStore};
 use cfds_gateway::academy_replay::{ReplayDeps, ReplaySessions, respond_replay};
 use cfds_gateway::paper::HttpIn;
 use cfds_market_data::Catalog;
@@ -65,6 +68,65 @@ impl BarStore for Synthetic {
     }
 }
 
+/// Los eventos guardados, en memoria; `broken` simula la base caída.
+#[derive(Default)]
+struct MemStore {
+    events: Mutex<Vec<AcademyEvent>>,
+    broken: AtomicBool,
+}
+
+impl AcademyStore for MemStore {
+    async fn append(
+        &self,
+        member_id: &str,
+        body: EventBody,
+        catalog_version: &str,
+        at: DateTime<Utc>,
+    ) -> Result<AcademyEvent, String> {
+        if self.broken.load(Ordering::SeqCst) {
+            return Err("sin base".into());
+        }
+        let mut events = self.events.lock().unwrap();
+        let e = AcademyEvent {
+            seq: i64::try_from(events.len()).unwrap() + 1,
+            member_id: member_id.into(),
+            body,
+            catalog_version: catalog_version.into(),
+            recorded_at: at,
+        };
+        events.push(e.clone());
+        Ok(e)
+    }
+
+    async fn events(&self, _: &str) -> Result<Vec<AcademyEvent>, String> {
+        Ok(self.events.lock().unwrap().clone())
+    }
+}
+
+/// La config real sin preguntas, con la lección 1.1 como examen de replay de niveles (#759).
+fn with_replay_exam() -> AcademyConfig {
+    let mut text = String::new();
+    let mut skipping = false;
+    for line in ACADEMY.lines() {
+        if line == "[[lessons.questions]]" {
+            skipping = true;
+        } else if line.starts_with('[') {
+            skipping = false;
+        }
+        if !skipping {
+            text.push_str(line);
+            text.push('\n');
+        }
+    }
+    let from = "exam = \"quiz\"\nunlocks = [\"tool.source_selector\"]";
+    assert!(text.contains(from), "la config real cambió");
+    let text = text.replace(
+        from,
+        "exam = \"replay\"\nreplay_kind = \"levels\"\nunlocks = [\"tool.source_selector\"]",
+    );
+    AcademyConfig::from_toml(&text).unwrap()
+}
+
 fn deps(academy: &AcademyConfig) -> ReplayDeps {
     ReplayDeps::from_config(
         academy,
@@ -81,15 +143,20 @@ struct World {
     academy: AcademyConfig,
     deps: ReplayDeps,
     sessions: ReplaySessions,
+    store: MemStore,
 }
 
 impl World {
     fn new() -> Self {
-        let academy = AcademyConfig::from_toml(ACADEMY).unwrap();
+        Self::with(AcademyConfig::from_toml(ACADEMY).unwrap())
+    }
+
+    fn with(academy: AcademyConfig) -> Self {
         Self {
             deps: deps(&academy),
             academy,
             sessions: ReplaySessions::default(),
+            store: MemStore::default(),
         }
     }
 
@@ -113,6 +180,7 @@ impl World {
         let now = now.parse().unwrap();
         respond_replay(
             &Synthetic,
+            &self.store,
             &self.sessions,
             &self.deps,
             &self.academy,
@@ -244,9 +312,70 @@ async fn a_whole_session_follows_the_contracts_and_never_shows_the_future() {
             .unwrap()
             .starts_with("201")
     );
-    // Terminada, la sesión se cierra.
+    // Terminada, la sesión se cierra. Sin lección, no se guarda ningún intento.
     let (status, _) = w.post(&format!("{base}/step"), json!({"bars": 1})).await;
     assert_eq!(status, 404);
+    assert!(w.store.events.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn a_lesson_exam_is_saved_before_its_grade_and_only_with_its_kind() {
+    let w = World::with(with_replay_exam());
+    // Solo el tipo de sesión del examen de la lección.
+    let (status, _) = w
+        .post(
+            "/api/v1/academy/replay",
+            json!({"kind": "trades", "lesson_id": "1.1"}),
+        )
+        .await;
+    assert_eq!(status, 400);
+    let (status, s) = w
+        .post(
+            "/api/v1/academy/replay",
+            json!({"kind": "levels", "lesson_id": "1.1", "seed": "5"}),
+        )
+        .await;
+    assert_eq!(status, 200, "{s}");
+    assert_eq!(s["lesson_id"], json!("1.1"));
+    let base = format!(
+        "/api/v1/academy/replay/{}",
+        s["session_id"].as_str().unwrap()
+    );
+    w.post(
+        &format!("{base}/marks"),
+        json!({"kind": "level", "price": "4010"}),
+    )
+    .await;
+    // Sin base no hay nota, y la sesión sigue abierta (sin terminar) para volver a intentarlo.
+    w.store.broken.store(true, Ordering::SeqCst);
+    let r = w
+        .call(
+            "POST",
+            &format!("{base}/finish"),
+            Some(TOKEN),
+            json!({}),
+            "2026-11-26T23:00:00Z",
+        )
+        .await;
+    assert_eq!(r.status, 500);
+    assert!(!r.body.contains("passed") && !r.body.contains("revealed"));
+    let (status, _) = w.post(&format!("{base}/step"), json!({"bars": 1})).await;
+    assert_eq!(status, 200, "la sesión sigue abierta");
+    w.store.broken.store(false, Ordering::SeqCst);
+    let (status, result) = w.post(&format!("{base}/finish"), json!({})).await;
+    assert_eq!(status, 200, "{result}");
+    assert_valid("exam_result.v1.schema.json", &result);
+    let events = w.store.events.lock().unwrap().clone();
+    assert_eq!(events.len(), 1, "un solo intento guardado");
+    let saved = serde_json::to_value(&events[0]).unwrap();
+    assert_valid("academy_event.v1.schema.json", &saved);
+    assert_eq!(saved["kind"], json!("exam_attempt"));
+    assert_eq!(saved["lesson_id"], json!("1.1"));
+    assert_eq!(saved["replay"], result);
+    // Terminada y guardada, la sesión se cierra: no hay un segundo intento con la misma.
+    let (status, _) = w.post(&format!("{base}/finish"), json!({})).await;
+    assert_eq!(status, 404);
+    assert_eq!(w.store.events.lock().unwrap().len(), 1);
 }
 
 #[tokio::test]

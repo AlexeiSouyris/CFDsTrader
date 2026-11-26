@@ -7,7 +7,9 @@ use cfds_academy::{
     UnlockedBy, grade_quiz, progress,
 };
 use chrono::{DateTime, TimeDelta, Utc};
-use common::{assert_valid, def_validator, validator, with_questions};
+use common::{
+    assert_valid, def_validator, replay_result, validator, with_questions, with_replay_exam,
+};
 use serde_json::json;
 
 fn t(min: i64) -> DateTime<Utc> {
@@ -227,4 +229,82 @@ fn requests_are_checked_against_the_catalog() {
         let (s, b) = req(doc.clone());
         assert!(!s && b.is_err(), "{doc}");
     }
+}
+
+fn replay_attempt(cfg: &AcademyConfig, seq: i64, passed: bool) -> AcademyEvent {
+    let v = &cfg.catalog.catalog_version;
+    ev(
+        cfg,
+        seq,
+        EventBody::ReplayAttempt {
+            lesson_id: "1.1".into(),
+            replay: Box::new(replay_result(Some("1.1"), Some(passed), v)),
+        },
+    )
+}
+
+#[test]
+fn a_passed_replay_exam_passes_its_lesson_and_every_attempt_counts() {
+    let cfg = AcademyConfig::from_toml(&with_replay_exam()).unwrap();
+    let one = progress(&cfg, "owner", &[replay_attempt(&cfg, 1, false)], t(9));
+    let l = one.lessons.iter().find(|l| l.lesson_id == "1.1").unwrap();
+    assert_eq!((l.passed, l.attempts), (false, 1));
+    assert!(!tool(&one, "tool.source_selector").unlocked);
+    let events = [
+        replay_attempt(&cfg, 1, false),
+        replay_attempt(&cfg, 2, true),
+        replay_attempt(&cfg, 3, false),
+    ];
+    let p = progress(&cfg, "owner", &events, t(9));
+    let l = p.lessons.iter().find(|l| l.lesson_id == "1.1").unwrap();
+    // Aprobada desde el primer intento aprobado; un replay no tiene nota en %.
+    assert_eq!(
+        (l.passed, l.passed_at, l.attempts, l.best_score_pct),
+        (true, Some(t(2)), 3, None)
+    );
+    let s = tool(&p, "tool.source_selector");
+    assert_eq!((s.unlocked, s.by), (true, Some(UnlockedBy::Lesson)));
+    assert_valid(
+        "academy_progress.v1.schema.json",
+        &serde_json::to_value(&p).unwrap(),
+    );
+}
+
+#[test]
+fn replay_attempts_roundtrip_and_mixes_are_rejected_by_the_contract_and_rust() {
+    let cfg = AcademyConfig::from_toml(&with_replay_exam()).unwrap();
+    let e = replay_attempt(&cfg, 4, true);
+    let doc = serde_json::to_value(&e).unwrap();
+    assert_valid("academy_event.v1.schema.json", &doc);
+    assert_eq!(doc["kind"], "exam_attempt");
+    assert_eq!(doc["quiz"], serde_json::Value::Null);
+    assert_eq!(doc["replay"]["passed"], true);
+    assert_eq!(
+        serde_json::from_value::<AcademyEvent>(doc.clone()).unwrap(),
+        e
+    );
+    // Un evento guardado antes de #759, sin el campo replay, sigue valiendo para los dos.
+    let mut old = serde_json::to_value(attempt(&cfg, 1, "b")).unwrap();
+    old.as_object_mut().unwrap().remove("replay");
+    assert_valid("academy_event.v1.schema.json", &old);
+    assert!(serde_json::from_value::<AcademyEvent>(old).is_ok());
+    // Los dos a la vez, ninguno, o un replay en otro tipo de evento: inválidos para los dos.
+    let quiz = serde_json::to_value(attempt(&cfg, 1, "b")).unwrap()["quiz"].clone();
+    let mut both = doc.clone();
+    both["quiz"] = quiz;
+    let mut none = doc.clone();
+    none["replay"] = serde_json::Value::Null;
+    let mut on_override = serde_json::to_value(over(&cfg, 2, "*", OverrideAction::Unlock)).unwrap();
+    on_override["replay"] = doc["replay"].clone();
+    for bad in [both, none, on_override] {
+        assert!(
+            !validator("academy_event.v1.schema.json").is_valid(&bad),
+            "{bad}"
+        );
+        assert!(serde_json::from_value::<AcademyEvent>(bad).is_err());
+    }
+    // El intento es de la lección de su sesión (Rust lo revisa; el contrato no puede).
+    let mut other = doc;
+    other["lesson_id"] = "0.1".into();
+    assert!(serde_json::from_value::<AcademyEvent>(other).is_err());
 }
