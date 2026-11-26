@@ -23,6 +23,11 @@
 #   answer = "a"             # choice: id de la opción. number: string decimal
 #   # tolerance = "0.01"     # solo number: |respuesta − clave| <= tolerancia
 #   # unit = "pts"           # solo number, opcional
+#
+# Examen de replay (#759): `exam = "replay"` con `replay_kind = "levels"` (marcar niveles) o
+# `"trades"` (operar con proceso), sin preguntas. Lo califica el motor al terminar la sesión
+# (exam_result.v1) y el intento queda guardado como evento; la lección se aprueba con el proceso
+# aprobado. Ninguna lección de los niveles 0–2 lo usa todavía.
 
 [thresholds]
 # PROVISORIOS (propuesta del diseño, §10.3 y §10.5): son parámetros EDUCATIVOS, no de trading, y

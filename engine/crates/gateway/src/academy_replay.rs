@@ -12,7 +12,10 @@
 //!
 //! Todas son `POST` con los chequeos de escritura del gateway ([`crate::paper::write_guard`]):
 //! crean o cambian una sesión. Ninguna devuelve una vela posterior al cursor ni la fecha real
-//! antes de terminar. No escriben en la base.
+//! antes de terminar. La única que escribe en la base es `finish` de una sesión **de una lección**
+//! (#759): guarda el intento (`academy_event.v1` con `replay`) **antes** de responder; si no se
+//! puede guardar, no hay nota y la sesión sigue abierta para volver a terminarla. Una práctica no
+//! escribe nada.
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;
@@ -22,7 +25,7 @@ use cfds_academy::replay::{
     BarRange, BarStore, MarkRequest, OrderRequest, ProcessRules, ReplayError, ReplaySession,
     SessionRequest, StepRequest, open_session,
 };
-use cfds_academy::{AcademyConfig, ExamKind};
+use cfds_academy::{AcademyConfig, EventBody, ExamKind};
 use cfds_backtest::research::program4::SplitMix64;
 use cfds_backtest::{BacktestConfig, Commission, market_terms_from_catalog};
 use cfds_core::{Candle, InstrumentId, Timeframe};
@@ -34,7 +37,7 @@ use chrono::{DateTime, Utc};
 use serde::de::DeserializeOwned;
 
 use crate::Reply;
-use crate::academy::AcademyRoutes;
+use crate::academy::{AcademyRoutes, AcademyStore};
 use crate::paper::{HttpIn, write_guard};
 
 const PREFIX: &str = "/api/v1/academy/replay";
@@ -143,19 +146,22 @@ impl ReplaySessions {
         map.insert(s.id.clone(), (*counter, s));
     }
 
-    /// Corre `f` sobre la sesión `id`; `None` si no existe. `remove` la saca después.
-    fn with<T>(
-        &self,
-        id: &str,
-        remove: bool,
-        f: impl FnOnce(&mut ReplaySession) -> T,
-    ) -> Option<T> {
+    /// Corre `f` sobre la sesión `id`; `None` si no existe.
+    fn with<T>(&self, id: &str, f: impl FnOnce(&mut ReplaySession) -> T) -> Option<T> {
         let mut guard = self.0.lock().unwrap_or_else(|e| e.into_inner());
-        let out = guard.1.get_mut(id).map(|(_, s)| f(s));
-        if remove && out.is_some() {
-            guard.1.remove(id);
-        }
-        out
+        guard.1.get_mut(id).map(|(_, s)| f(s))
+    }
+
+    /// Saca la sesión `id` (con su número de creación): nadie más la puede terminar a la vez.
+    fn take(&self, id: &str) -> Option<(u64, ReplaySession)> {
+        let mut guard = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        guard.1.remove(id)
+    }
+
+    /// Devuelve una sesión que se sacó con [`Self::take`].
+    fn restore(&self, n: u64, s: ReplaySession) {
+        let mut guard = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        guard.1.insert(s.id.clone(), (n, s));
     }
 }
 
@@ -185,6 +191,11 @@ fn json<T: serde::Serialize>(v: &T) -> Reply {
     }
 }
 
+fn internal(e: String) -> Reply {
+    eprintln!("gateway: replay: {e}");
+    text(500, "error interno")
+}
+
 fn error(e: ReplayError) -> Reply {
     match e {
         ReplayError::Store(msg) => {
@@ -201,10 +212,11 @@ fn parse<T: DeserializeOwned>(body: &[u8], what: &str) -> Result<T, Reply> {
     serde_json::from_slice(body).map_err(|e| text(400, &format!("no es un {what} válido: {e}")))
 }
 
-/// Atiende las rutas del replay.
+/// Atiende las rutas del replay. `store` guarda el intento de una sesión de una lección.
 #[allow(clippy::too_many_arguments)]
-pub async fn respond_replay<B: BarStore>(
+pub async fn respond_replay<B: BarStore, S: AcademyStore>(
     bars: &B,
+    store: &S,
     sessions: &ReplaySessions,
     deps: &ReplayDeps,
     academy: &AcademyConfig,
@@ -230,36 +242,21 @@ pub async fn respond_replay<B: BarStore>(
     };
     let found = match action {
         "step" => match parse::<StepRequest>(req.body, "pedido de paso") {
-            Ok(r) => sessions.with(id, false, |s| {
-                s.step(r.bars, cfg.max_step_bars).map(|v| json(&v))
-            }),
+            Ok(r) => sessions.with(id, |s| s.step(r.bars, cfg.max_step_bars).map(|v| json(&v))),
             Err(reply) => return reply,
         },
         "marks" => match parse::<MarkRequest>(req.body, "replay_mark") {
-            Ok(r) => sessions.with(id, false, |s| s.mark(r).map(|v| json(&v))),
+            Ok(r) => sessions.with(id, |s| s.mark(r).map(|v| json(&v))),
             Err(reply) => return reply,
         },
         "orders" => match parse::<OrderRequest>(req.body, "replay_order") {
-            Ok(r) => sessions.with(id, false, |s| s.order(r).map(|v| json(&v))),
+            Ok(r) => sessions.with(id, |s| s.order(r).map(|v| json(&v))),
             Err(reply) => return reply,
         },
-        "finish" => sessions.with(id, true, |s| {
-            s.finish()?;
-            let costs = deps.costs.get(&s.draw.instrument_id).ok_or_else(|| {
-                ReplayError::Bad(format!(
-                    "{} sin costos en el catálogo",
-                    s.draw.instrument_id
-                ))
-            })?;
-            let g = GradeConfig {
-                replay: cfg,
-                rules: deps.rules,
-                patterns: &deps.patterns,
-                pass_pct: academy.catalog.thresholds.quiz_pass_pct,
-                catalog_version: &academy.catalog.catalog_version,
-            };
-            grade(s, g, costs, now).map(|r| json(&r))
-        }),
+        "finish" => {
+            let member = routes.member_id.as_str();
+            return finish(store, member, sessions, deps, academy, id, now).await;
+        }
         _ => return text(404, "ruta desconocida"),
     };
     match found {
@@ -267,6 +264,57 @@ pub async fn respond_replay<B: BarStore>(
         Some(Err(e)) => error(e),
         None => text(404, "no hay una sesión abierta con ese id"),
     }
+}
+
+/// Termina y califica la sesión `id`. Si es el examen de una lección, guarda el intento **antes**
+/// de responder (#759): si no se puede, no hay nota y la sesión vuelve tal como estaba (sin
+/// terminar), para pedir `finish` otra vez.
+async fn finish<S: AcademyStore>(
+    store: &S,
+    member: &str,
+    sessions: &ReplaySessions,
+    deps: &ReplayDeps,
+    academy: &AcademyConfig,
+    id: &str,
+    now: DateTime<Utc>,
+) -> Reply {
+    // Afuera del mapa mientras se termina: dos `finish` a la vez no guardan dos intentos.
+    let Some((n, open)) = sessions.take(id) else {
+        return text(404, "no hay una sesión abierta con ese id");
+    };
+    let mut done = open.clone();
+    let graded = done.finish().and_then(|()| {
+        let costs = deps.costs.get(&done.draw.instrument_id).ok_or_else(|| {
+            ReplayError::Bad(format!(
+                "{} sin costos en el catálogo",
+                done.draw.instrument_id
+            ))
+        })?;
+        let g = GradeConfig {
+            replay: &academy.replay,
+            rules: deps.rules,
+            patterns: &deps.patterns,
+            pass_pct: academy.catalog.thresholds.quiz_pass_pct,
+            catalog_version: &academy.catalog.catalog_version,
+        };
+        grade(&done, g, costs, now)
+    });
+    let result = match graded {
+        Ok(r) => r,
+        Err(e) => return error(e),
+    };
+    if let Some(lesson_id) = result.lesson_id.clone() {
+        let attempt = EventBody::ReplayAttempt {
+            lesson_id,
+            replay: Box::new(result.clone()),
+        };
+        let version = &academy.catalog.catalog_version;
+        if let Err(e) = store.append(member, attempt, version, now).await {
+            sessions.restore(n, open);
+            return internal(e);
+        }
+    }
+    json(&result)
 }
 
 async fn open<B: BarStore>(
@@ -281,14 +329,14 @@ async fn open<B: BarStore>(
         Ok(r) => r,
         Err(reply) => return reply,
     };
-    // Un examen de una lección solo si esa lección tiene examen de replay.
+    // Un examen de una lección solo si esa lección tiene examen de replay, y de su tipo (#759).
     let replay_exam = |l: &String| {
         academy
             .lesson(l)
-            .is_some_and(|l| l.exam.kind == ExamKind::Replay)
+            .is_some_and(|l| l.exam.kind == ExamKind::Replay && l.exam.replay_kind == Some(r.kind))
     };
     if r.lesson_id.as_ref().is_some_and(|l| !replay_exam(l)) {
-        return text(400, "esa lección no tiene examen de replay");
+        return text(400, "esa lección no tiene examen de replay de ese tipo");
     }
     let nanos = u64::try_from(now.timestamp_nanos_opt().unwrap_or_default()).unwrap_or_default();
     let seed = match r.seed() {

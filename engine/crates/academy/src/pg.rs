@@ -1,5 +1,6 @@
-//! `academy_events` en PostgreSQL (`infra/migrations/0052_academy_events.sql`, #718): solo
-//! agregar (un trigger impide modificar o borrar). El gateway abre la sesión en solo lectura;
+//! `academy_events` en PostgreSQL (`infra/migrations/0052_academy_events.sql`, #718; la columna
+//! `replay` de los intentos de replay, `0054_academy_replay_attempts.sql`, #759): solo agregar (un
+//! trigger impide modificar o borrar). El gateway abre la sesión en solo lectura;
 //! [`PgAcademy::append`] declara su propia transacción de escritura y toca solo esta tabla.
 
 use chrono::{DateTime, Utc};
@@ -7,6 +8,7 @@ use serde_json::Value;
 use sqlx::Row;
 use sqlx::postgres::{PgPool, PgRow};
 
+use crate::grade::ExamResult;
 use crate::progress::{EventKind, member_id_ok};
 use crate::{AcademyEvent, EventBody, OverrideAction, QuizResult};
 
@@ -19,6 +21,16 @@ pub enum AcademyStoreError {
     #[error("member_id inválido")]
     BadMember,
 }
+
+/// Las columnas de un evento: tipo, lección, herramienta, acción y la nota (`quiz` o `replay`).
+type Columns<'a> = (
+    EventKind,
+    Option<&'a str>,
+    Option<&'a str>,
+    Option<OverrideAction>,
+    Option<&'a QuizResult>,
+    Option<&'a ExamResult>,
+);
 
 #[derive(Debug, Clone)]
 pub struct PgAcademy {
@@ -41,6 +53,7 @@ fn row_to_event(r: &PgRow) -> Result<AcademyEvent, AcademyStoreError> {
         "tool_id": r.try_get::<Option<String>, _>("tool_id")?,
         "action": r.try_get::<Option<String>, _>("action")?,
         "quiz": r.try_get::<Option<Value>, _>("quiz")?,
+        "replay": r.try_get::<Option<Value>, _>("replay")?,
         "catalog_version": r.try_get::<String, _>("catalog_version")?,
         "recorded_at": r.try_get::<DateTime<Utc>, _>("recorded_at")?,
     });
@@ -63,16 +76,11 @@ impl PgAcademy {
         if !member_id_ok(member_id) {
             return Err(AcademyStoreError::BadMember);
         }
-        let (kind, lesson, tool, action, quiz): (
-            EventKind,
-            Option<&str>,
-            Option<&str>,
-            Option<OverrideAction>,
-            Option<&QuizResult>,
-        ) = match &body {
+        let (kind, lesson, tool, action, quiz, replay): Columns<'_> = match &body {
             EventBody::LessonCompleted { lesson_id } => (
                 EventKind::LessonCompleted,
                 Some(lesson_id),
+                None,
                 None,
                 None,
                 None,
@@ -83,6 +91,15 @@ impl PgAcademy {
                 None,
                 None,
                 Some(quiz),
+                None,
+            ),
+            EventBody::ReplayAttempt { lesson_id, replay } => (
+                EventKind::ExamAttempt,
+                Some(lesson_id),
+                None,
+                None,
+                None,
+                Some(replay),
             ),
             EventBody::ToolOverride { tool_id, action } => (
                 EventKind::ToolOverride,
@@ -90,22 +107,23 @@ impl PgAcademy {
                 Some(tool_id),
                 Some(*action),
                 None,
+                None,
             ),
         };
-        let quiz = quiz
-            .map(serde_json::to_value)
-            .transpose()
-            .map_err(|e| AcademyStoreError::CorruptRow(e.to_string()))?;
+        let json = |e: serde_json::Error| AcademyStoreError::CorruptRow(e.to_string());
+        let quiz = quiz.map(serde_json::to_value).transpose().map_err(json)?;
+        let replay = replay.map(serde_json::to_value).transpose().map_err(json)?;
         let mut tx = self.pool.begin().await?;
         sqlx::query("SET TRANSACTION READ WRITE")
             .execute(&mut *tx)
             .await?;
         let row = sqlx::query(
             "INSERT INTO academy_events
-               (member_id, kind, lesson_id, tool_id, action, quiz, catalog_version, recorded_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-             RETURNING seq, member_id, kind, lesson_id, tool_id, action, quiz, catalog_version,
-                       recorded_at",
+               (member_id, kind, lesson_id, tool_id, action, quiz, replay, catalog_version,
+                recorded_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             RETURNING seq, member_id, kind, lesson_id, tool_id, action, quiz, replay,
+                       catalog_version, recorded_at",
         )
         .bind(member_id)
         .bind(name(kind))
@@ -113,6 +131,7 @@ impl PgAcademy {
         .bind(tool)
         .bind(action.and_then(name))
         .bind(quiz)
+        .bind(replay)
         .bind(catalog_version)
         .bind(recorded_at)
         .fetch_one(&mut *tx)
@@ -124,8 +143,8 @@ impl PgAcademy {
     /// Los eventos de `member_id`, en orden de llegada.
     pub async fn events(&self, member_id: &str) -> Result<Vec<AcademyEvent>, AcademyStoreError> {
         let rows = sqlx::query(
-            "SELECT seq, member_id, kind, lesson_id, tool_id, action, quiz, catalog_version,
-                    recorded_at
+            "SELECT seq, member_id, kind, lesson_id, tool_id, action, quiz, replay,
+                    catalog_version, recorded_at
              FROM academy_events WHERE member_id = $1 ORDER BY seq",
         )
         .bind(member_id)

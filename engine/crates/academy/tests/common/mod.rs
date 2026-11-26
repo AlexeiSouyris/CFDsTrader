@@ -69,6 +69,45 @@ unit = "R"
     text
 }
 
+/// `with_questions()` con la lección 1.1 (abre `tool.source_selector`) como examen de replay de
+/// niveles (#759).
+pub fn with_replay_exam() -> String {
+    let from = "exam = \"quiz\"\nunlocks = [\"tool.source_selector\"]";
+    let text = with_questions();
+    assert!(text.contains(from), "la config real cambió");
+    text.replace(
+        from,
+        "exam = \"replay\"\nreplay_kind = \"levels\"\nunlocks = [\"tool.source_selector\"]",
+    )
+}
+
+/// Un `exam_result.v1` de una sesión de niveles de `lesson` (o una práctica sin lección).
+pub fn replay_result(
+    lesson: Option<&str>,
+    passed: Option<bool>,
+    version: &str,
+) -> cfds_academy::grade::ExamResult {
+    serde_json::from_value(serde_json::json!({
+        "session_id": "rp-00000000000000aa",
+        "kind": if passed.is_some() { "levels" } else { "practice" },
+        "lesson_id": lesson,
+        "catalog_version": version,
+        "passed": passed,
+        "rules": [{"rule": "level_precision", "passed": passed == Some(true)}],
+        "trades": [],
+        "levels": null,
+        "revealed": {
+            "instrument_id": "US500",
+            "timeframe": "1h",
+            "source": "futures",
+            "first_bar_at": "2019-03-12T13:00:00Z",
+            "last_bar_at": "2019-04-30T19:00:00Z"
+        },
+        "graded_at": "2026-11-26T21:00:00Z"
+    }))
+    .unwrap()
+}
+
 fn contracts() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../contracts")
 }

@@ -488,10 +488,10 @@ Diseño en `docs/design/2026-11-academia.md` (§4 y §5.5). Todo lo calcula el m
 
 | Contrato | Dónde | Qué es |
 |---|---|---|
-| `academy_catalog.v1` | `GET /api/v1/academy/catalog` | Niveles, lecciones, exámenes (preguntas con sus opciones, **sin** la respuesta correcta) y la herramienta que desbloquea cada lección (id estable `tool.<nombre>`), armado desde `config/academy.toml`. `catalog_version` es el SHA-256 del texto de esa config. Los umbrales (`quiz_pass_pct`, `locked_tools_visible`) son educativos, no de trading, y van con `provisional = true` hasta que el dueño los apruebe. Un examen sin preguntas todavía sale `ready = false` y no se puede rendir. |
+| `academy_catalog.v1` | `GET /api/v1/academy/catalog` | Niveles, lecciones, exámenes (preguntas con sus opciones, **sin** la respuesta correcta) y la herramienta que desbloquea cada lección (id estable `tool.<nombre>`), armado desde `config/academy.toml`. `catalog_version` es el SHA-256 del texto de esa config. Los umbrales (`quiz_pass_pct`, `locked_tools_visible`) son educativos, no de trading, y van con `provisional = true` hasta que el dueño los apruebe. Un examen sin preguntas todavía sale `ready = false` y no se puede rendir. Un examen de replay (#759) no tiene preguntas, sale listo y dice su tipo de sesión en `exam.replay_kind` (`levels` o `trades`). |
 | `quiz_answer.v1` | body de `POST /api/v1/academy/quiz/{lesson_id}` | Las respuestas: una opción (`choice`) o un número como string decimal (`value`) por pregunta, con la `catalog_version` que se mostró (si ya no es la actual, el motor no corrige). |
 | `quiz_result.v1` | respuesta de esa ruta, y detalle del intento guardado | Qué pregunta estuvo bien o mal (nunca la respuesta correcta), `score_pct` = correctas / total × 100 redondeado hacia abajo a 2 decimales, `pass_pct` vigente y `passed`. Una pregunta sin responder cuenta como incorrecta. |
-| `academy_event.v1` | tabla `academy_events` (#718); el pedido de `POST /api/v1/academy/events` es `$defs/request` | Un evento de progreso: `exam_attempt` (con su `quiz_result.v1`), `lesson_completed` (solo lecciones sin examen) o `tool_override` (`unlock` / `relock` de una herramienta o de todas con `*`), con quién (`member_id`) y cuándo. |
+| `academy_event.v1` | tabla `academy_events` (#718); el pedido de `POST /api/v1/academy/events` es `$defs/request` | Un evento de progreso: `exam_attempt` (con su `quiz_result.v1` en `quiz`, o su `exam_result.v1` en `replay` si es un examen de replay, #759; nunca los dos), `lesson_completed` (solo lecciones sin examen) o `tool_override` (`unlock` / `relock` de una herramienta o de todas con `*`), con quién (`member_id`) y cuándo. |
 | `academy_progress.v1` | `GET /api/v1/academy/progress` | Estado calculado por el motor leyendo los eventos en orden: por lección, si se aprobó (y cuándo, la primera vez), intentos y mejor nota; por herramienta, si está abierta y si es por su lección o solo a mano. |
 | `academy_lesson_doc.v1` | `GET /api/v1/academy/lessons/{lesson_id}/doc` (#798) | El texto de la lección en Markdown, tal como está en el repo (`docs/academia/`, el `doc` del catálogo). El motor lo lee al arrancar **solo dentro de esa carpeta** (la ruta sale del catálogo, nunca del pedido; un enlace simbólico que sale de la carpeta se rechaza) y lo valida con el formato de las lecciones. La UI lo muestra sin inyectar HTML. |
 
@@ -501,7 +501,7 @@ Diseño en `docs/design/2026-11-academia.md` (§4 y §5.5). Todo lo calcula el m
 
 #### Replay de exámenes (#720)
 
-Una sesión de replay de la Academia (§5 del diseño): velas reales guardadas, instrumento, timeframe y fecha al azar con una semilla, **solo del período de investigación** (nunca los meses fuera de muestra de `config/data_split.toml`). La sesión vive en el motor (en memoria del gateway) y el resultado queda como evento de solo agregar.
+Una sesión de replay de la Academia (§5 del diseño): velas reales guardadas, instrumento, timeframe y fecha al azar con una semilla, **solo del período de investigación** (nunca los meses fuera de muestra de `config/data_split.toml`). La sesión vive en el motor (en memoria del gateway). El resultado de una sesión **de una lección** queda como evento de solo agregar (`academy_event.v1` con `replay`, #759), guardado antes de responder; una práctica no se guarda.
 
 | Contrato | Dónde | Qué es |
 |---|---|---|

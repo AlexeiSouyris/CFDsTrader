@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::AcademyError;
+use crate::replay::ReplayKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -57,6 +58,9 @@ pub struct Exam {
     pub kind: ExamKind,
     pub ready: bool,
     pub questions: Vec<Question>,
+    /// El tipo de sesión de un examen de replay (`levels` o `trades`, #759); `None` en los demás.
+    #[serde(default)]
+    pub replay_kind: Option<ReplayKind>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -147,6 +151,8 @@ struct RawLesson {
     objective: String,
     doc: Option<String>,
     exam: ExamKind,
+    /// Solo con `exam = "replay"`: el tipo de sesión del examen (#759).
+    replay_kind: Option<ReplayKind>,
     unlocks: Vec<String>,
     #[serde(default)]
     questions: Vec<RawQuestion>,
@@ -323,9 +329,14 @@ impl AcademyConfig {
                 l.exam == ExamKind::Quiz || l.questions.is_empty(),
                 "lección {id}: solo un examen quiz lleva preguntas"
             );
+            let replay_ok = match (l.exam, l.replay_kind) {
+                (ExamKind::Replay, Some(k)) => k != ReplayKind::Practice,
+                (ExamKind::Replay, None) => false,
+                (_, kind) => kind.is_none(),
+            };
             ensure!(
-                l.exam != ExamKind::Replay,
-                "lección {id}: el examen de replay todavía no existe (#720)"
+                replay_ok,
+                "lección {id}: un examen de replay lleva replay_kind levels o trades, y solo él"
             );
             let mut questions = Vec::new();
             for q in l.questions {
@@ -345,11 +356,13 @@ impl AcademyConfig {
                 );
                 unlocked_by.push((t.clone(), id.clone()));
             }
-            let ready = l.exam == ExamKind::None || !questions.is_empty();
+            // Un examen de replay no tiene preguntas: lo califica el motor con la sesión (#759).
+            let ready = l.exam != ExamKind::Quiz || !questions.is_empty();
             let exam = Exam {
                 kind: l.exam,
                 ready,
                 questions,
+                replay_kind: l.replay_kind,
             };
             let lesson = Lesson {
                 id,
