@@ -10,7 +10,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 
 import { LoadingScreen } from '@/components/ui/dot-loader'
-import { DEFAULT_GLASS } from '@/components/ui/glass-settings'
 import { GlassShell } from '@/components/ui/glass-shell'
 import { NotFound } from '@/components/ui/not-found'
 import { PortalTransition } from '@/components/ui/portal-transition'
@@ -28,6 +27,7 @@ import { TerminalView } from '@/views/terminal'
 import { HomeView } from '@/views/home'
 import {
   BAR_VIEWS,
+  FKEYS,
   HOME_VIEW,
   MAIN_TABS,
   MENU_GROUPS,
@@ -125,7 +125,6 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
     mq.addEventListener?.('change', onChange)
     return () => mq.removeEventListener?.('change', onChange)
   }, [])
-  const [glass, setGlass] = useState(DEFAULT_GLASS)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -205,8 +204,7 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
             onReplayIntro={() => setIntro(true)}
             theme={theme}
             onThemeChange={setTheme}
-            glass={glass}
-            onGlassChange={setGlass}
+            fkeys={FKEYS}
             notices={NOTICES}
             user={CURRENT_MEMBER}
           >
