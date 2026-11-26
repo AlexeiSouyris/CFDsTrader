@@ -250,3 +250,80 @@ fn a_validation_is_either_valid_with_hashes_or_invalid_with_errors() {
     assert_invalid(VALIDATION, &with(&bad, "/errors/0/code", json!("oops")));
     assert_invalid(VALIDATION, &with(&bad, "/errors/0/path", json!("entry/0")));
 }
+
+// ── Tipos de Rust (#745): lo que Rust lee y escribe dice lo mismo que los schemas ──────────
+
+mod rust_types {
+    use super::*;
+    use cfds_backtest::lab::{ErrorCode, SpecError, SpecValidation, StrategyCatalog, StrategySpec};
+    use serde::Serialize;
+    use serde::de::DeserializeOwned;
+
+    fn roundtrip<T>(schema: &str, value: &T)
+    where
+        T: Serialize + DeserializeOwned + PartialEq + std::fmt::Debug,
+    {
+        let json = serde_json::to_value(value).unwrap();
+        assert_valid(schema, &json);
+        assert_eq!(&serde_json::from_value::<T>(json).unwrap(), value);
+    }
+
+    #[test]
+    fn a_catalog_roundtrips_with_every_param_kind() {
+        let c: StrategyCatalog = serde_json::from_value(catalog()).unwrap();
+        roundtrip(CATALOG, &c);
+        assert_eq!(serde_json::to_value(&c).unwrap(), catalog());
+        assert!(c.block("ma_cross").is_some() && c.block("rsi").is_none());
+    }
+
+    #[test]
+    fn a_spec_roundtrips_and_rust_rejects_what_the_schema_rejects() {
+        let s: StrategySpec = serde_json::from_value(spec()).unwrap();
+        roundtrip(SPEC, &s);
+        for bad in [
+            with(&spec(), "/risk_pct", json!(0.5)),
+            with(&spec(), "/risk_pct", json!("-1")),
+            with(&spec(), "/extra", json!(1)),
+            with(&spec(), "/market/source", json!("ig")),
+            with(&spec(), "/market/timeframe", json!("1d")),
+            with(&spec(), "/period/from", json!("2015-01-01T00:00:00+01:00")),
+            with(&spec(), "/stop/params/k", json!(1.5)),
+            with(&spec(), "/stop/extra", json!(1)),
+            without(&spec(), "/stop"),
+        ] {
+            assert_invalid(SPEC, &bad);
+            assert!(
+                serde_json::from_value::<StrategySpec>(bad.clone()).is_err(),
+                "{bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn both_validation_shapes_roundtrip() {
+        let hash = "0123456789abcdef".repeat(4);
+        roundtrip(
+            VALIDATION,
+            &SpecValidation {
+                valid: true,
+                catalog_version: 1,
+                spec_sha256: Some(hash.clone()),
+                family_sha256: Some(hash),
+                errors: Vec::new(),
+            },
+        );
+        roundtrip(
+            VALIDATION,
+            &SpecValidation {
+                valid: false,
+                catalog_version: 1,
+                spec_sha256: None,
+                family_sha256: None,
+                errors: vec![
+                    SpecError::new(ErrorCode::ParamOutOfRange, "/entry/0/params/fast", "fuera"),
+                    SpecError::new(ErrorCode::Malformed, "", "falta stop"),
+                ],
+            },
+        );
+    }
+}
