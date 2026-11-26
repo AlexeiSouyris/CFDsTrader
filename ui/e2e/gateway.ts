@@ -32,6 +32,7 @@ import news from './fixtures/news.json' with { type: 'json' }
 import opsEvents from './fixtures/ops-events.json' with { type: 'json' }
 import opsStatus from './fixtures/ops-status.json' with { type: 'json' }
 import paperAccount from './fixtures/paper-account.json' with { type: 'json' }
+import replay from './fixtures/replay.json' with { type: 'json' }
 import sentiment from './fixtures/sentiment.json' with { type: 'json' }
 
 /** La hora congelada de las pruebas: los fixtures están armados para este momento (UTC). */
@@ -132,6 +133,30 @@ function ibkrLive(query: URLSearchParams): unknown {
         }
       : null,
     generated_at: NOW,
+  }
+}
+
+/** El replay (#772): `fixtures/replay.json`; cada paso avanza un cursor que vuelve al abrir otra. */
+const REPLAY_ID = replay.session.session_id
+let replayCursor = replay.session.warmup_bars - 1
+
+function replaySession(_query: URLSearchParams, request?: unknown): unknown {
+  const req = (request ?? { kind: 'practice' }) as { kind: string; seed?: string }
+  replayCursor = replay.session.warmup_bars - 1
+  const bars = replay.bars.slice(0, replayCursor + 1)
+  return { ...replay.session, kind: req.kind, seed: req.seed ?? '42', cursor: replayCursor, bars }
+}
+
+function replayStep(_query: URLSearchParams, request?: unknown): unknown {
+  const from = replayCursor + 1
+  const n = Math.min((request as { bars?: number } | undefined)?.bars ?? 1, 100)
+  replayCursor = Math.min(replayCursor + n, replay.bars.length - 1)
+  const done = replayCursor === replay.bars.length - 1
+  return {
+    session_id: REPLAY_ID,
+    cursor: replayCursor,
+    bars: replay.bars.slice(from, replayCursor + 1),
+    done,
   }
 }
 
@@ -249,6 +274,18 @@ export const ROUTES: MockRoute[] = [
     path: '/api/v1/academy/progress',
     schema: 'academy_progress.v1.schema.json',
     body: () => academyProgress,
+  },
+  {
+    path: '/api/v1/academy/replay',
+    method: 'POST',
+    schema: 'replay_session.v1.schema.json',
+    body: replaySession,
+  },
+  {
+    path: `/api/v1/academy/replay/${REPLAY_ID}/step`,
+    method: 'POST',
+    schema: 'replay_step.v1.schema.json',
+    body: replayStep,
   },
   {
     path: '/api/v1/academy/events',

@@ -10,6 +10,7 @@ import {
   FolderOpen,
   Gauge,
   GraduationCap,
+  History,
   House,
   LayoutDashboard,
   LayoutGrid,
@@ -139,6 +140,14 @@ export const VIEWS: ShellView[] = [
       'El curso por niveles, sus exámenes y qué herramienta abre cada lección. Lo califica el motor; todo en simulación.',
   },
   {
+    id: 'replay',
+    label: 'Replay',
+    short: 'Replay',
+    icon: History,
+    description:
+      'Práctica vela a vela con velas del pasado y la fecha oculta. El cursor vive en el motor: nunca se ve una vela futura.',
+  },
+  {
     id: 'panel',
     label: 'Panel',
     short: 'Panel',
@@ -175,6 +184,7 @@ const PARENT: Record<string, string> = {
   propuestas: 'investigacion',
   liquidez: 'investigacion',
   glosario: 'investigacion',
+  replay: 'academia',
 }
 export const sectionOf = (id: string) => PARENT[id] ?? id
 
