@@ -20,6 +20,8 @@
 //! trabajos:   lab_job_request.v1 (variantes de una familia y un período) y lab_job_event.v1
 //!             (en cola, corriendo, listo, falló, cancelado); id = hash del pedido + intento
 //!             → job (lo guarda cfds_journal::lab, lo corre el lab_worker)
+//! worker:     [worker] de config/lab.toml y el avance de cada etapa → worker (lo usa el
+//!             lab_worker, un proceso aparte que corre la cola)
 //! hash:       SHA-256 de la spec canónica (claves ordenadas, decimales normalizados, sin
 //!             espacios); familia = mismo instrumento y mismos tipos de bloque (PENDIENTE §9.2)
 //! ```
@@ -35,6 +37,7 @@ pub mod spec;
 pub mod trial;
 pub mod validate;
 pub mod validation;
+pub mod worker;
 
 pub use blocks::{LabConfig, catalog};
 pub use catalog::StrategyCatalog;
@@ -51,3 +54,4 @@ pub use validation::{
     Average, EntryCondition, EntryFilter, ErrorCode, ExitRule, SpecError, SpecValidation, StopRule,
     ValidSpec,
 };
+pub use worker::{WorkerConfig, progress};

@@ -19,6 +19,8 @@
 //!   distintas de la familia suman al N del Sharpe deflactado del laboratorio, nunca al N del
 //!   proyecto (§9 punto 1 del diseño, PENDIENTE).
 //! - Con `--salida`, cada informe va a `<carpeta>/<report_id>.json`.
+#[path = "common/lab_run.rs"]
+mod lab_run;
 #[path = "common/news_filter.rs"]
 mod news_filter;
 #[path = "common/prepare.rs"]
@@ -31,82 +33,21 @@ mod study;
 use std::io::Write as _;
 
 use cfds_backtest::lab::{
-    LabConfig, LabSeries, LabTrial, ReportInputs, StrategySpec, ValidSpec, catalog,
-    family_variants, lab_report, planned_exit_for, plans_from_spec, read_trials, run_setup,
+    LabTrial, StrategySpec, ValidSpec, check_variants, family_variants, read_trials,
     validate_spec_json,
 };
-use cfds_backtest::research::luck::{LuckConfig, LuckSeries, luck_test};
-use cfds_backtest::research::{
-    ResearchConfig, buy_and_hold_returns, monthly_returns, run_plans, trade_return,
-};
-use cfds_core::Timeframe;
-use cfds_market_data::{CandleSources, Period, SplitConfig, plan};
-use cfds_risk::RiskConfig;
-use cfds_storage::{CandleFeed, PgStore};
-use chrono::{DateTime, Datelike, Months, NaiveDate, Utc};
+use cfds_storage::PgStore;
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde_json::Value;
 
-macro_rules! cfg {
-    ($f:literal) => {
-        include_str!(concat!("../../../../config/", $f))
-    };
-}
-
-/// Lo que lee el laboratorio, para el hash de la config del informe.
-const CONFIG_FILES: [(&str, &str); 7] = [
-    ("backtest.toml", cfg!("backtest.toml")),
-    ("candle_sources.toml", cfg!("candle_sources.toml")),
-    ("data_split.toml", cfg!("data_split.toml")),
-    ("instruments.toml", cfg!("instruments.toml")),
-    ("lab.toml", cfg!("lab.toml")),
-    ("research.toml", cfg!("research.toml")),
-    ("risk.toml", cfg!("risk.toml")),
-];
+use lab_run::LabEnv;
 
 fn take(args: &mut Vec<String>, name: &str) -> Option<String> {
     let i = args.iter().position(|a| a == name)?;
     let v = args.get(i + 1).cloned();
     args.drain(i..(i + 2).min(args.len()));
     v
-}
-
-/// Meses UTC que empiezan en `[from, to)`.
-fn months(from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<(i32, u32)> {
-    let mut out = Vec::new();
-    let mut d = NaiveDate::from_ymd_opt(from.year(), from.month(), 1);
-    while let Some(m) = d.filter(|m| m.and_hms_opt(0, 0, 0).is_some_and(|t| t.and_utc() < to)) {
-        out.push((m.year(), m.month()));
-        d = m.checked_add_months(Months::new(1));
-    }
-    out
-}
-
-/// N del proyecto: el último `dsr_trials` de `config/research.toml` (nunca baja, así que es el
-/// máximo; lo verifica `tools/research/check_dsr_trials.py`).
-fn project_trials(r: &ResearchConfig) -> u32 {
-    [
-        &r.rule,
-        &r.rule_round2,
-        &r.rule_round3,
-        &r.rule_nasdaq,
-        &r.rule_program4,
-        &r.rule_program5,
-    ]
-    .iter()
-    .map(|x| x.dsr_trials)
-    .max()
-    .unwrap_or(0)
-}
-
-fn code_version() -> Option<String> {
-    let out = std::process::Command::new("git")
-        .args(["rev-parse", "--short=12", "HEAD"])
-        .current_dir(env!("CARGO_MANIFEST_DIR"))
-        .output()
-        .ok()?;
-    let v = String::from_utf8(out.stdout).ok()?.trim().to_owned();
-    (out.status.success() && v.len() >= 7).then_some(v)
 }
 
 fn summary(r: &Value) {
@@ -176,12 +117,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = take(&mut args, "--salida");
     let (spec_files, args): (Vec<String>, Vec<String>) =
         args.into_iter().partition(|a| a.ends_with(".json"));
-    let lab = LabConfig::from_toml(cfg!("lab.toml"))?;
-    let risk = RiskConfig::from_toml(cfg!("risk.toml"))?;
-    let research = ResearchConfig::from_toml(cfg!("research.toml"))?;
-    let split_cfg = SplitConfig::from_toml(cfg!("data_split.toml"))?;
-    let sources = CandleSources::from_toml(cfg!("candle_sources.toml"))?;
-    let cat = catalog(&lab, &risk, sources.roll.keys().cloned())?;
+    let env = LabEnv::load()?;
+    let cat = &env.catalog;
     if spec_files.is_empty() || spec_files.len() > cat.limits.max_variants_per_run {
         return Err(format!(
             "uso: de 1 a {} archivos de spec (.json)",
@@ -194,89 +131,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(std::fs::read_to_string)
         .collect::<Result<_, _>>()?;
     let first: StrategySpec = serde_json::from_str(&texts[0])?;
-    let id = first.market.instrument_id.clone();
     let store = PgStore::connect(&std::env::var("DATABASE_URL")?).await?;
-    let feed = CandleFeed::Futures(&sources.futures_source);
-    let last = store
-        .last_candle_start_from(feed, &id, Timeframe::M15, Utc::now())
-        .await?
-        .ok_or("sin velas de futuros")?;
-    let split = plan(desde, last, &split_cfg)?;
+    let split = env
+        .split_for(&store, &first.market.instrument_id, desde)
+        .await?;
     let mut specs: Vec<ValidSpec> = Vec::new();
     for (file, text) in spec_files.iter().zip(&texts) {
-        let (validation, valid) = validate_spec_json(text, &cat, &split);
+        let (validation, valid) = validate_spec_json(text, cat, &split);
         println!("{file}: {}", serde_json::to_string(&validation)?);
         specs.extend(valid);
     }
     if specs.len() != texts.len() {
         return Err("hay specs inválidas (ver spec_validation.v1 arriba)".into());
     }
-    let same = |v: &ValidSpec| {
-        v.family_sha256 == specs[0].family_sha256 && v.spec.period == specs[0].spec.period
-    };
-    if !specs.iter().all(same) {
-        return Err(
-            "las variantes de una corrida tienen que ser de la misma familia y período".into(),
-        );
-    }
+    check_variants(&specs, cat)?;
     if only_validate {
         return Ok(());
     }
 
-    let l = research_round::load(&id, &args, desde, equity, &sources, &store, &split_cfg).await?;
-    let p = &l.p;
-    let session = p.calendar.session_for(&id).ok_or("instrumento sin bolsa")?;
-    let rolls = p
-        .setup
-        .futures_basis
-        .as_ref()
-        .map(|b| b.rolls.clone())
-        .unwrap_or_default();
-    let series = LabSeries {
-        m15: &p.m15,
-        h1: &p.h1,
-        session,
-        entries: &p.entries,
-    };
-    let period = specs[0].spec.period;
-    let month_list = months(period.from, period.to);
-    let windows: Vec<Period> = split
-        .windows
-        .iter()
-        .map(|w| Period {
-            start: w.validation.start.max(period.from),
-            end: w.validation.end.min(period.to),
-        })
-        .filter(|w| w.start < w.end)
-        .collect();
+    let data = lab_run::load(&env, &specs, &args, desde, equity, split, &store).await?;
     // Corre cada variante: recorrido, retornos mensuales (para el PBO) y comprar y mantener.
-    let mut runs = Vec::new();
-    for v in &specs {
-        let setup = run_setup(&p.setup, v);
-        let plans = plans_from_spec(v, &series);
-        let run = run_plans(
-            &plans,
-            &p.m15,
-            &p.force_close,
-            &setup,
-            period.from,
-            period.to,
-        )
-        .map_err(|e| format!("{e:?}"))?;
-        let m = v.spec.cost_multiplier;
-        let closed = run
-            .trades
-            .iter()
-            .map(|t| Ok((t.exit_time, trade_return(t, m, &setup)?)))
-            .collect::<Result<Vec<_>, cfds_backtest::RunError>>()
-            .map_err(|e| format!("{e:?}"))?;
-        let monthly: Vec<f64> = monthly_returns(&closed, &month_list)
-            .iter()
-            .map(|d| research_round::f(*d))
-            .collect();
-        runs.push((setup, run, monthly));
-    }
-    let variants: Vec<Vec<f64>> = runs.iter().map(|r| r.2.clone()).collect();
+    let runs = specs
+        .iter()
+        .map(|v| lab_run::run_variant(&data, v))
+        .collect::<Result<Vec<_>, String>>()?;
+    let variants: Vec<Vec<f64>> = runs.iter().map(|r| r.monthly.clone()).collect();
     let past = match std::fs::read_to_string(&ledger) {
         Ok(text) => read_trials(&text)?,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Vec::new(),
@@ -284,61 +163,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let current: Vec<&str> = specs.iter().map(|v| v.spec_sha256.as_str()).collect();
     let family = family_variants(&past, &specs[0].family_sha256, &current);
-    let config_sha = cfds_journal::config_sha256(&CONFIG_FILES);
-    let code = code_version();
     let now = Utc::now();
     let mut file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(&ledger)?;
-    for (v, (setup, run, _)) in specs.iter().zip(&runs) {
-        let hold = buy_and_hold_returns(&p.m15, session, &rolls, setup, period.from, period.to)
-            .map_err(|e| println!("⚠️  comprar y mantener: {e:?}"))
-            .ok();
-        let luck = luck_test(
-            &LuckSeries {
-                m15: &p.m15,
-                session,
-                entries: &p.entries,
-                force_close: &p.force_close,
-            },
-            |j| {
-                j.checked_sub(1)
-                    .and_then(|d| planned_exit_for(v, &series, d))
-            },
-            &LuckConfig {
-                simulations: lab.report.luck_simulations,
-                seed: research.montecarlo.seed,
-                target_r: v.exit.target_r,
-            },
-            &run.trades,
-            setup,
-            v.spec.risk_pct / Decimal::ONE_HUNDRED,
-        );
-        let report = lab_report(&ReportInputs {
-            spec: v,
-            run,
-            setup,
-            instrument_id: p.out.as_str(),
-            months: &month_list,
-            windows: &windows,
-            buy_and_hold: hold.as_deref(),
-            luck: Some(&luck),
-            variants: &variants,
-            project_trials: project_trials(&research),
-            family_variants: family,
-            montecarlo: &research.montecarlo,
-            pbo_partitions: research.pbo_partitions,
-            cost_stress: research.rule.cost_stress,
-            edge_cost_factor: research.alpha_budget.edge_cost_factor,
-            cfg: &lab.report,
-            holdout_start: split.out_of_sample.start,
-            config_sha256: &config_sha,
-            code_version: code.as_deref(),
-            last_candle: p.m15.last().ok_or("sin velas")?.start,
-            computed_at: now,
-        })
-        .map_err(|e| format!("{e:?}"))?;
+    for (v, vr) in specs.iter().zip(&runs) {
+        let report = lab_run::report(&env, &data, v, vr, &variants, family, now)?;
         summary(&report);
         let report_id = report["report_id"].as_str().unwrap_or_default().to_owned();
         if let Some(dir) = &out_dir {

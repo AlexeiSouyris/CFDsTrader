@@ -143,11 +143,14 @@ pub struct LabConfig {
     pub limits: LabLimits,
     pub params: BTreeMap<String, BTreeMap<String, ParamRange>>,
     pub report: super::sections::ReportConfig,
+    pub worker: super::worker::WorkerConfig,
 }
 
 impl LabConfig {
     pub fn from_toml(text: &str) -> Result<Self, String> {
-        toml::from_str(text).map_err(|e| format!("lab.toml: {e}"))
+        let cfg: Self = toml::from_str(text).map_err(|e| format!("lab.toml: {e}"))?;
+        cfg.worker.validate()?;
+        Ok(cfg)
     }
 }
 

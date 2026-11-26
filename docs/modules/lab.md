@@ -34,3 +34,10 @@ Diseño: `docs/design/2026-11-laboratorio.md` (#710). Contratos: `strategy_catal
       [--salida carpeta] [--validar]
   ```
 - Trabajos (`job`, #774): `lab_job_request.v1` (de 1 a `max_variants_per_run` specs de una familia y un período, más el capital hipotético) y `lab_job_event.v1` (en cola, corriendo con etapa y %, listo con los `report_id`, falló, cancelado); `check_variants` (misma familia y período, tope) y el id del trabajo = SHA-256 del pedido normalizado y su intento. Se guardan en PostgreSQL con `cfds_journal::lab` (tablas de solo agregar `lab_jobs`, `lab_job_events`, `lab_reports` y `lab_trials`, migración 0053).
+- Corredor de trabajos (`lab_worker`, #775): ejemplo de `cfds-backtest` que corre como **proceso aparte** (§9 punto 6, recomendado): toma de a un trabajo de `lab_jobs` (el más viejo), vuelve a validar cada spec contra el catálogo y la separación de datos vigente, carga las velas de futuros **solo hasta el inicio del fuera de muestra** (nunca IG), corre cada variante, arma los informes (test de suerte, comprar y mantener, N del Sharpe deflactado = N del proyecto + variantes distintas de la familia leídas de `lab_trials`) y guarda informes + variantes + `done` en una transacción. Cada paso va a `lab_job_events` y al Redis Stream `lab_jobs.v1.<job_id>` (sin Redis sigue: el gateway lee de PostgreSQL). Revisa la cancelación y la duración máxima entre etapas; al arrancar marca como fallado lo que quedó a medias. Config en `[worker]` de `config/lab.toml` (espera de la cola, duración máxima, desde cuándo se cargan las velas, escenario de financiación de estudio `ESTR` PENDIENTE, vencimiento de los streams). La corrida es la misma del ejemplo `laboratorio` (`examples/common/lab_run.rs`): un solo lugar.
+
+  ```text
+  DATABASE_URL=...?options=-c%20default_transaction_read_only%3Don REDIS_URL=redis://... \
+  cargo run --release -p cfds-backtest --example lab_worker -- [--once]
+  ```
+  Con `--once` corre lo que haya en la cola y termina (para cron con `lockf -t 0`); sin él queda mirando la cola. La sesión puede ser de solo lectura: cada escritura en las tablas del laboratorio declara su transacción de escritura.
