@@ -28,6 +28,37 @@ quiz_pass_pct = "80"
 locked_tools_visible = true
 provisional = true
 
+[replay]
+# Exámenes con replay (§5 del diseño, #721): velas reales guardadas, instrumento, timeframe y fecha
+# al azar con una semilla, SOLO dentro del período de investigación (nunca los meses fuera de
+# muestra de config/data_split.toml). La fecha real no viaja hasta el final.
+# PROVISORIOS (propuesta del diseño, §10.3 y §10.4): parámetros EDUCATIVOS, no de trading; el dueño
+# los puede cambiar cuando quiera.
+# Instrumentos del catálogo con velas de futuros guardadas (ES, NQ, YM, FDAX, desde 2011). Los
+# costos son los del CFD de config/instruments.toml.
+instruments = ["US500", "US100", "US30", "DE40"]
+timeframes = ["15m", "1h"]
+# Velas: hoy solo las de los futuros (futures_candles de `futures_source`); las del CFD de IG casi
+# no tienen historia antes del fuera de muestra.
+source = "futures"
+futures_source = "databento"
+# Velas de calentamiento que se ven antes de empezar.
+warmup_bars = 300
+# Velas del examen después del calentamiento (niveles y operaciones), y de una práctica libre.
+exam_bars = 400
+practice_bars = 200
+# Operaciones mínimas de un examen de operaciones, para que una sola no decida.
+trades_per_exam = 10
+# Tolerancia de los niveles marcados contra los del motor, en múltiplos del ATR al cursor.
+level_tolerance_atr = "0.25"
+# Mover el precio para que no se reconozca el año: no (cambia los números redondos). Solo false.
+shift_prices = false
+# Velas por paso como máximo, sesiones abiertas a la vez en memoria del gateway (la más vieja se
+# cierra) y sorteos de fecha antes de rendirse (días sin velas, feriados).
+max_step_bars = 100
+max_sessions = 8
+max_draws = 20
+
 # Herramientas con candado (id estable que usa la UI). La lección que la abre es la que la lista
 # en `unlocks`; cada herramienta la abre exactamente una lección.
 [[tools]]
