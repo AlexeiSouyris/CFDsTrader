@@ -1,6 +1,7 @@
 /**
  * Replay de la Academia (#772, diseño §5): práctica vela a vela con velas del pasado, con marcas
- * de niveles y pivotes (#773) y un ticket de estudio (#791). El motor
+ * de niveles y pivotes (#773), un ticket de estudio (#791) y el resultado del motor al terminar
+ * (#790): primero el proceso, al final el R y recién ahí la fecha real. El motor
  * elige instrumento, timeframe y fecha (solo del período de investigación) y guarda el cursor: la
  * UI pide «avanzar N» y dibuja solo las velas que vuelven, nunca una posterior. La fecha real no
  * viaja hasta el final. La UI no calcula nada de trading.
@@ -9,9 +10,14 @@ import { useState, type KeyboardEvent } from 'react'
 
 import { ReplayChart } from '@/components/ui/replay-chart'
 import { MarkForm, SessionLog, StudyTicket, type Picked } from '@/components/ui/replay-tools'
+import { ReplayResult } from '@/components/ui/replay-result'
+import { Segmented } from '@/components/ui/segmented'
 import { decimal, priceDigits } from '@/lib/format'
 import { GatewayError } from '@/lib/paper-api'
+import { cn } from '@/lib/utils'
 import {
+  barLabel,
+  finishReplay,
   kept,
   keep,
   markReplay,
@@ -21,7 +27,7 @@ import {
   withStep,
   type Live,
 } from '@/lib/replay-api'
-import type { MarkRequest, OrderRequest } from '@/lib/replay-contracts'
+import type { MarkRequest, OrderRequest, ReplayKind } from '@/lib/replay-contracts'
 
 const STEPS = [1, 5, 20, 100] as const
 
@@ -34,6 +40,12 @@ const errorText = (e: unknown) =>
   (e instanceof GatewayError && ERRORS[e.status]) ||
   `No se pudo hablar con el motor (${e instanceof Error ? e.message : String(e)}).`
 
+const KINDS: [ReplayKind, string][] = [
+  ['practice', 'Práctica'],
+  ['levels', 'Examen de niveles'],
+  ['trades', 'Examen de operaciones'],
+]
+
 const button =
   'min-h-9 rounded-sm border border-border px-3 text-[12.5px] font-semibold hover:border-rule hover:bg-surface disabled:opacity-60'
 
@@ -42,6 +54,7 @@ export function ReplayView() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [seed, setSeed] = useState('')
+  const [kind, setKind] = useState<ReplayKind>('practice')
   const [picked, setPicked] = useState<Picked>(null)
   const setLive = (l: Live | null) => {
     keep(l)
@@ -60,8 +73,9 @@ export function ReplayView() {
   }
   const start = () =>
     run(async () => {
-      const s = await openReplay({ kind: 'practice', ...(seed.trim() && { seed: seed.trim() }) })
-      setLive({ session: s, bars: s.bars, cursor: s.cursor, done: false, marks: [], orders: [] })
+      const s = await openReplay({ kind, ...(seed.trim() && { seed: seed.trim() }) })
+      const fresh = { done: false, marks: [], orders: [], result: null }
+      setLive({ session: s, bars: s.bars, cursor: s.cursor, ...fresh })
     })
   const step = (n: number) =>
     live &&
@@ -82,6 +96,13 @@ export function ReplayView() {
       setLive({ ...live, orders: [...live.orders, o] })
     })
 
+  const finish = () =>
+    live &&
+    run(async () => {
+      const result = await finishReplay(live.session.session_id)
+      setLive({ ...live, result })
+    })
+
   const alert = error && (
     <p role="alert" className="text-[12.5px] text-down">
       {error}
@@ -91,13 +112,24 @@ export function ReplayView() {
     return (
       <section aria-labelledby="replay-empezar" className="panel grid max-w-[72ch] gap-3 p-3">
         <h2 id="replay-empezar" className="text-[15px] font-bold">
-          Práctica vela a vela
+          Vela a vela, con velas del pasado
         </h2>
         <p className="text-[13px] leading-relaxed text-muted-foreground">
           El motor elige al azar el instrumento, el timeframe y la fecha, solo del período de
           investigación (nunca de los meses fuera de muestra). La fecha queda oculta hasta el final:
           el eje dice día y hora UTC. El cursor vive en el motor, así que nunca se ve una vela
-          futura. Práctica sin nota; todo en simulación.
+          futura. Todo en simulación.
+        </p>
+        <Segmented
+          label="Qué hacer"
+          options={KINDS.map(([, l]) => l)}
+          value={KINDS.find(([k]) => k === kind)![1]}
+          onChange={(l) => setKind(KINDS.find(([, x]) => x === l)![0])}
+        />
+        <p className="text-[12px] text-muted-foreground">
+          {kind === 'practice'
+            ? 'Práctica: sin nota.'
+            : 'Examen libre (sin lección): el motor lo califica, primero el proceso; la nota todavía no se guarda en el progreso.'}
         </p>
         <label className="grid max-w-72 gap-1 text-[12px]">
           <span className="font-semibold">Semilla (opcional, para repetir una sesión)</span>
@@ -115,19 +147,21 @@ export function ReplayView() {
           onClick={start}
           className="min-h-9 justify-self-start rounded-sm bg-primary px-3 text-[12.5px] font-bold text-primary-foreground disabled:opacity-60"
         >
-          {busy ? 'Pidiendo la sesión…' : 'Empezar práctica'}
+          {busy ? 'Pidiendo la sesión…' : 'Empezar'}
         </button>
         {alert}
       </section>
     )
   }
 
-  const { session: s, bars, cursor, done, marks, orders } = live
+  const { session: s, bars, cursor, done, marks, orders, result } = live
+  const closed = result !== null
   const total = s.warmup_bars + s.exam_bars
   const digits = priceDigits(bars.slice(0, 50).flatMap((b) => [b.open, b.high, b.low, b.close]))
   const r = s.rules
   const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'ArrowRight' && !busy && !done && !(e.target instanceof HTMLInputElement)) {
+    const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement
+    if (e.key === 'ArrowRight' && !busy && !done && !closed && !typing) {
       e.preventDefault()
       void step(1)
     }
@@ -147,13 +181,24 @@ export function ReplayView() {
           </div>
         ))}
       </dl>
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <div
+        className={cn(
+          'grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3',
+          !closed && 'xl:grid-cols-[minmax(0,1fr)_20rem]',
+        )}
+      >
         <div className="grid min-w-0 content-start gap-3">
           <ReplayChart
             bars={bars}
             digits={digits}
-            onPick={setPicked}
+            onPick={closed ? undefined : setPicked}
             lines={[
+              // al terminar, los niveles del motor (calculados hasta el cursor del final)
+              ...(result?.levels?.engine_levels ?? []).map((price) => ({
+                price,
+                label: 'motor',
+                tone: 'order' as const,
+              })),
               ...marks
                 .filter((m) => m.kind === 'level')
                 .map((m) => ({ price: m.price, label: `M${m.mark_id}`, tone: 'mark' as const })),
@@ -184,30 +229,52 @@ export function ReplayView() {
               <button
                 key={n}
                 type="button"
-                disabled={busy || done}
+                disabled={busy || done || closed}
                 onClick={() => void step(n)}
                 className={button}
               >
                 Avanzar {n}
               </button>
             ))}
+            {!closed && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void finish()}
+                className="min-h-9 rounded-sm bg-primary px-3 text-[12.5px] font-bold text-primary-foreground disabled:opacity-60"
+              >
+                Terminar y calificar
+              </button>
+            )}
             <button type="button" disabled={busy} onClick={() => setLive(null)} className={button}>
-              Nueva práctica
+              Nueva sesión
             </button>
             <span className="text-[11.5px] text-muted-foreground">
-              → avanza una vela. Las velas las manda el motor hasta el cursor.
+              → avanza una vela. Al terminar no se suman marcas ni entradas.
             </span>
           </div>
         </div>
-        <div className="panel grid content-start gap-4 p-3">
-          <MarkForm picked={picked} busy={busy} onMark={(r) => void mark(r)} />
-          <StudyTicket at={bars.at(-1)} busy={busy || done} onOrder={(r) => void order(r)} />
-        </div>
+        {!closed && (
+          <div className="panel grid content-start gap-4 p-3">
+            <MarkForm picked={picked} busy={busy} onMark={(r) => void mark(r)} />
+            <StudyTicket at={bars.at(-1)} busy={busy || done} onOrder={(r) => void order(r)} />
+          </div>
+        )}
       </div>
+      {closed && (
+        <ReplayResult
+          result={result}
+          digits={digits}
+          barAt={(i) => {
+            const b = bars.find((x) => x.index === i)
+            return b ? barLabel(b) : `la vela ${i}`
+          }}
+        />
+      )}
       {alert}
-      {done && (
+      {done && !closed && (
         <p role="status" className="text-[13px] font-semibold">
-          Llegaste a la última vela de la práctica.
+          Llegaste a la última vela. Terminá para ver el resultado.
         </p>
       )}
       <SessionLog marks={marks} orders={orders} bars={bars} digits={digits} />
@@ -216,7 +283,8 @@ export function ReplayView() {
         {r.provisional ? ' (provisorias, del dueño)' : ''}: al menos {r.trades_per_exam}{' '}
         operaciones; stop entre {decimal(r.stop_min_atr)} y {decimal(r.stop_max_atr)} ATR; riesgo de
         hasta {decimal(r.max_risk_pct)} % por operación; niveles con tolerancia de{' '}
-        {decimal(r.level_tolerance_atr)} ATR. En la práctica no hay nota.
+        {decimal(r.level_tolerance_atr)} ATR.{' '}
+        {s.kind === 'practice' && 'En la práctica no hay nota.'}
       </p>
     </section>
   )
