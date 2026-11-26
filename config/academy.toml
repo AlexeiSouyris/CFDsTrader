@@ -3,7 +3,7 @@
 # academy_catalog.v1 (GET /api/v1/academy/catalog). Nada de esto toca el motor de trading, el
 # riesgo ni el paper: solo qué se enseña, cómo se corrige y qué se ve en la UI.
 #
-# Por ahora, niveles 0 a 4, con su contenido (#760 y #819, §8 PR 6 y 11): el texto de cada lección
+# Por ahora, niveles 0 a 5, con su contenido (#760 y #819, §8 PR 6 y 11): el texto de cada lección
 # está en `doc` (docs/academia/*.md, formato que valida cfds_academy::lesson_doc: secciones fijas, aviso,
 # sin promesas y una tabla de cifras que el motor compara con su fuente del repo). Mientras una
 # lección con examen no tenga preguntas, su examen sale `ready = false` y no se puede rendir (sus
@@ -142,6 +142,23 @@ name = "Capa de soportes y resistencias"
 id = "tool.chart_patterns"
 name = "Patrones chartistas"
 
+# Nivel 5 (#819).
+[[tools]]
+id = "tool.liquidity_map"
+name = "Mapa de liquidez"
+
+[[tools]]
+id = "tool.sweep_structure"
+name = "Capas de sweep y estructura (BOS y CHoCH)"
+
+[[tools]]
+id = "tool.fvg_order_blocks"
+name = "Capas de FVG y order blocks"
+
+[[tools]]
+id = "tool.fvg_stats"
+name = "Estadísticas de FVG"
+
 [[levels]]
 level = 0
 title = "Orientación: qué es esto y por qué la mayoría pierde"
@@ -161,6 +178,10 @@ title = "Velas, timeframes y el primer replay"
 [[levels]]
 level = 4
 title = "Estructura: pivotes, soportes, resistencias y tendencia"
+
+[[levels]]
+level = 5
+title = "Liquidez: niveles, barridas, FVG y order blocks (con advertencias)"
 
 # exam: quiz (preguntas que corrige el motor) | none (se completa sin nota).
 # Las fuentes de cada número están en la tabla «Cifras y fuentes» del `doc` de la lección.
@@ -1025,3 +1046,291 @@ objective = "Saber qué dicen los estudios sobre soportes y números redondos, y
 doc = "docs/academia/nivel-04-4-evidencia-soportes-y-redondos.md"
 exam = "none"
 unlocks = []
+
+# --- Nivel 5: liquidez (#819). Mapa de liquidez, sweep, BOS/CHoCH, FVG y order blocks con las
+# definiciones del motor (spec §5.4 y §5.4.1, config/liquidity.toml) y el caso real del FVG frente
+# al placebo (R034–R038). Sobre ICT/SMC no hay estudios revisados: se enseña como definición. ---
+
+[[lessons]]
+id = "5.1"
+title = "Mapa de liquidez"
+objective = "Conocer los niveles del mapa de liquidez del motor y su estado: intacto, barrido o roto."
+doc = "docs/academia/nivel-05-1-mapa-de-liquidez.md"
+exam = "quiz"
+unlocks = ["tool.liquidity_map"]
+
+[[lessons.questions]]
+id = "5.1.1"
+kind = "choice"
+prompt = "Dos pivotes altos de 15 m en 6.050,0 y 6.051,5, dentro de las últimas 200 velas, con un ATR de 20 puntos (tolerancia 0,10 ATR). ¿Qué marca el mapa?"
+options = [
+  { id = "a", text = "Un EQH en 6.051,5, el más alto de los dos." },
+  { id = "b", text = "Un EQH en 6.050,75, el promedio." },
+  { id = "c", text = "Nada: la diferencia pasa la tolerancia." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "5.1.2"
+kind = "choice"
+prompt = "Nivel alto intacto en 6.100. La primera vela que lo pasa tiene máximo 6.104 y cierra en 6.096. ¿Cómo queda el nivel?"
+options = [
+  { id = "a", text = "Intacto." },
+  { id = "b", text = "Barrido: pasó el nivel y cerró en el nivel o abajo." },
+  { id = "c", text = "Roto." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "5.1.3"
+kind = "choice"
+prompt = "El mismo nivel en 6.100, pero la primera vela que lo pasa tiene máximo 6.106 y cierra en 6.103. ¿Cómo queda?"
+options = [
+  { id = "a", text = "Barrido." },
+  { id = "b", text = "Roto: pasó el nivel y cerró arriba." },
+  { id = "c", text = "Sigue intacto hasta que cierre otra vela arriba." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "5.1.4"
+kind = "number"
+prompt = "El US500 cierra en 6.020 y el paso de los números redondos es 50. ¿Cuál es el número redondo más cercano por encima del cierre?"
+answer = "6050"
+tolerance = "0"
+unit = "pts"
+
+[[lessons.questions]]
+id = "5.1.5"
+kind = "choice"
+prompt = "¿Desde cuándo existe el máximo del día anterior (PDH) en el mapa?"
+options = [
+  { id = "a", text = "Desde el cierre de esa sesión." },
+  { id = "b", text = "Desde la apertura de esa sesión." },
+  { id = "c", text = "Desde que el precio lo toca hoy." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "5.1.6"
+kind = "choice"
+prompt = "¿Qué papel tiene hoy el mapa de liquidez en el puntaje de la estrategia en uso?"
+options = [
+  { id = "a", text = "Ninguno: es informativo y no suma al puntaje hasta validarse con su propio criterio." },
+  { id = "b", text = "Cada nivel barrido suma 3 puntos." },
+  { id = "c", text = "Reemplaza a la tendencia de 1 h." },
+]
+answer = "a"
+
+[[lessons]]
+id = "5.2"
+title = "Sweep, BOS y CHoCH"
+objective = "Reconocer con la definición medible del motor una barrida, una ruptura de estructura y un cambio de carácter."
+doc = "docs/academia/nivel-05-2-sweep-bos-y-choch.md"
+exam = "quiz"
+unlocks = ["tool.sweep_structure"]
+
+[[lessons.questions]]
+id = "5.2.1"
+kind = "choice"
+prompt = "El último pivote bajo de 1 h confirmado está en 5.980. Una vela de 15 m tiene mínimo 5.975 y cierra en 5.986. ¿Qué es?"
+options = [
+  { id = "a", text = "Un sweep: pinchó por debajo y volvió a cerrar adentro." },
+  { id = "b", text = "Una ruptura bajista." },
+  { id = "c", text = "Nada, porque no cerró en el pivote." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "5.2.2"
+kind = "choice"
+prompt = "El mismo pivote en 5.980. Otra vela tiene mínimo 5.976 y cierra en 5.978. ¿Es un sweep?"
+options = [
+  { id = "a", text = "Sí, porque pinchó por debajo." },
+  { id = "b", text = "No: cerró por debajo del pivote; para el mapa, ese mínimo quedó roto." },
+  { id = "c", text = "Depende del volumen." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "5.2.3"
+kind = "choice"
+prompt = "¿Qué pivote mira el sweep del motor?"
+options = [
+  { id = "a", text = "El último pivote bajo de 15 m, aunque no esté confirmado." },
+  { id = "b", text = "El último pivote bajo de 1 h confirmado al cierre de la vela de 15 m." },
+  { id = "c", text = "El mínimo del día anterior." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "5.2.4"
+kind = "choice"
+prompt = "Una vela de 15 m cierra arriba del último pivote alto de 15 m confirmado (la anterior había cerrado debajo) y la tendencia de 1 h es BAJISTA. ¿Qué es?"
+options = [
+  { id = "a", text = "Un BOS." },
+  { id = "b", text = "Un CHoCH: ruptura alcista con tendencia de 1 h bajista, posible giro." },
+  { id = "c", text = "Un sweep." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "5.2.5"
+kind = "choice"
+prompt = "La misma ruptura, pero con la tendencia de 1 h NEUTRAL. ¿Qué marca el motor?"
+options = [
+  { id = "a", text = "Un BOS." },
+  { id = "b", text = "Un CHoCH." },
+  { id = "c", text = "Ninguna de las dos." },
+]
+answer = "c"
+
+[[lessons.questions]]
+id = "5.2.6"
+kind = "number"
+prompt = "Hay un CHoCH en la vela 100. Cuenta como reciente durante 12 velas, la suya incluida. ¿Cuál es la última vela en la que todavía cuenta?"
+answer = "111"
+tolerance = "0"
+unit = "vela"
+
+[[lessons]]
+id = "5.3"
+title = "FVG y order blocks"
+objective = "Saber qué son un FVG y un order block con la regla del motor y leer sus estadísticas de toque, mitad y llenado."
+doc = "docs/academia/nivel-05-3-fvg-y-order-blocks.md"
+exam = "quiz"
+unlocks = ["tool.fvg_order_blocks", "tool.fvg_stats"]
+
+[[lessons.questions]]
+id = "5.3.1"
+kind = "choice"
+prompt = "Vela i−2 con máximo 6.010 y vela i con mínimo 6.018. ¿Qué hay?"
+options = [
+  { id = "a", text = "Un FVG alcista con zona [6.010, 6.018]." },
+  { id = "b", text = "Un FVG bajista." },
+  { id = "c", text = "Nada: hace falta que la vela i−1 sea bajista." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "5.3.2"
+kind = "number"
+prompt = "¿Cuál es la mitad de la zona [6.010, 6.018]?"
+answer = "6014"
+tolerance = "0"
+unit = "pts"
+
+[[lessons.questions]]
+id = "5.3.3"
+kind = "choice"
+prompt = "¿Cuándo se llena (y deja de valer) un FVG alcista para el motor?"
+options = [
+  { id = "a", text = "Cuando una vela toca su piso." },
+  { id = "b", text = "Cuando una vela posterior cierra por debajo del piso de la zona." },
+  { id = "c", text = "Cuando pasan 50 velas." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "5.3.4"
+kind = "choice"
+prompt = "Un order block alcista del motor es..."
+options = [
+  { id = "a", text = "La última vela bajista antes del impulso alcista (cuerpo ≥ 1,5 ATR) que terminó en una ruptura de estructura." },
+  { id = "b", text = "La vela de impulso misma." },
+  { id = "c", text = "Cualquier vela grande del día." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "5.3.5"
+kind = "number"
+prompt = "Con un ATR de 20 puntos, ¿qué cuerpo mínimo necesita la vela de impulso de un order block, en puntos?"
+answer = "30"
+tolerance = "0"
+unit = "pts"
+
+[[lessons.questions]]
+id = "5.3.6"
+kind = "choice"
+prompt = "La tabla de estadísticas muestra «datos insuficientes» en una fila con 12 casos. ¿Por qué?"
+options = [
+  { id = "a", text = "Porque con menos de 30 casos la tasa no dice casi nada y el motor no la muestra." },
+  { id = "b", text = "Porque falló la conexión." },
+  { id = "c", text = "Porque ese FVG ya se llenó." },
+]
+answer = "a"
+
+[[lessons]]
+id = "5.4"
+title = "Caso real: el FVG frente al placebo"
+objective = "Leer una prueba propia completa sobre el FVG y entender qué es un placebo y por qué hace falta."
+doc = "docs/academia/nivel-05-4-caso-real-fvg-placebo.md"
+exam = "quiz"
+unlocks = []
+
+[[lessons.questions]]
+id = "5.4.1"
+kind = "choice"
+prompt = "En H5.1, ¿qué es el placebo de un toque de FVG?"
+options = [
+  { id = "a", text = "Un precio cualquiera tocado en las mismas condiciones (mes, horario, distancia, tamaño y espera), pero que no es un FVG." },
+  { id = "b", text = "Un FVG de otro instrumento." },
+  { id = "c", text = "Un FVG de 1 h." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "5.4.2"
+kind = "choice"
+prompt = "R035: real − placebo dio −0,0233 ATR por mes. ¿Qué quiere decir?"
+options = [
+  { id = "a", text = "Que el FVG rebotó un poco menos que el placebo." },
+  { id = "b", text = "Que el FVG rebotó mucho más que el placebo." },
+  { id = "c", text = "Que el FVG perdió 0,0233 € por operación." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "5.4.3"
+kind = "choice"
+prompt = "El nivel pre-registrado era p < 0,025 y H5.1 dio p = 0,963. ¿Cuál es el veredicto?"
+options = [
+  { id = "a", text = "Pasa, porque 0,963 es casi 1." },
+  { id = "b", text = "No pasa." },
+  { id = "c", text = "Hay que probar otros parámetros hasta que pase." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "5.4.4"
+kind = "choice"
+prompt = "R037: las operaciones de la estrategia en uso que coinciden con el primer toque de un FVG a favor dieron −0,018 R frente al resto (p 0,663). ¿Qué se concluye?"
+options = [
+  { id = "a", text = "Que filtrar por FVG no mejora la estrategia." },
+  { id = "b", text = "Que filtrar por FVG la vuelve ganadora." },
+  { id = "c", text = "Que hay que operar solo en US100." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "5.4.5"
+kind = "choice"
+prompt = "La primera corrida de H5.1 (R034) tenía un error de código. ¿Qué se hizo?"
+options = [
+  { id = "a", text = "Se borró y no se informó." },
+  { id = "b", text = "Se corrigió, se volvió a correr y se informaron las dos corridas." },
+  { id = "c", text = "Se eligió la corrida con mejor resultado." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "5.4.6"
+kind = "choice"
+prompt = "¿Cuál conclusión es correcta?"
+options = [
+  { id = "a", text = "El FVG nunca sirve en ningún mercado." },
+  { id = "b", text = "Con estas reglas, en US100 y US500 de 2013 a 2025, el primer toque de un FVG de 15 m no rebotó más que un placebo." },
+  { id = "c", text = "El FVG funciona, pero solo en velas de 1 h." },
+]
+answer = "b"
