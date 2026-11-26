@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/prop_sim_request.v1.schema.json",
+  "title": "Prop firm simulation request v1",
+  "description": "Pedido del simulador de cuentas fondeadas (docs/design/2026-11-academia.md §6.2, #802 y #803): las reglas (prop_rules.v1, con los obligatorios completos), el riesgo por operación (% fijo del tamaño de la cuenta: cada R vale lo mismo en dinero) y de dónde salen las operaciones: una lista (hora de cierre UTC y R), los R netos de un informe guardado del laboratorio (lab_report.v1, trade_list) o el modelo del simulador de varianza con operaciones por día. Lo opcional de `monte_carlo` toma `[monte_carlo]` de config/propsim.toml. POST /api/v1/lab/propsim → prop_sim_result.v1. Educativo, sin efectos.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["rules", "risk_per_trade_pct", "source"],
+  "properties": {
+    "rules": { "$ref": "prop_rules.v1.schema.json" },
+    "risk_per_trade_pct": { "description": "Riesgo por operación, en % del tamaño de la cuenta (> 0). P/L de una operación = R × este riesgo en dinero.", "$ref": "#/$defs/decimal" },
+    "source": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "trades"],
+          "properties": {
+            "kind": { "const": "trades" },
+            "trades": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["closed_at", "r"],
+                "properties": {
+                  "closed_at": { "$ref": "#/$defs/utc" },
+                  "r": { "description": "R neto de la operación (costos incluidos).", "$ref": "#/$defs/signed" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "report_id"],
+          "properties": {
+            "kind": { "const": "report" },
+            "report_id": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        {
+          "description": "Operaciones sorteadas con el modelo del simulador de varianza (research::variance): sin lista real, solo Monte Carlo.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "win_rate", "avg_win_r", "avg_loss_r", "trades_per_day"],
+          "properties": {
+            "kind": { "const": "model" },
+            "win_rate": { "$ref": "#/$defs/decimal" },
+            "avg_win_r": { "$ref": "#/$defs/decimal" },
+            "avg_loss_r": { "$ref": "#/$defs/decimal" },
+            "observed_trades": { "oneOf": [{ "type": "integer", "minimum": 1, "maximum": 1000000 }, { "type": "null" }] },
+            "trades_per_day": { "type": "integer", "minimum": 1 }
+          }
+        }
+      ]
+    },
+    "monte_carlo": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "paths": { "type": "integer", "minimum": 1 },
+        "seed": { "type": "integer", "minimum": 0 },
+        "block_len_days": { "description": "Días seguidos por bloque al remuestrear días reales.", "type": "integer", "minimum": 1 },
+        "horizon_days": { "description": "Días operados como mucho por intento (todas las etapas); al llegar sin terminar, el camino queda sin terminar.", "type": "integer", "minimum": 1 },
+        "max_attempts": { "description": "Intentos (cuotas) como mucho para el valor esperado.", "type": "integer", "minimum": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "decimal": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "signed": { "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" }
+  }
+}

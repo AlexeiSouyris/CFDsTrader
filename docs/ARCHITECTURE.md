@@ -64,6 +64,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | [notifier](modules/notifier.md) | `engine/crates/notifier` | Rust | Notificaciones push al celular (propuestas, alertas, votaciones). | planeado |
 | [obs](modules/obs.md) | `engine/crates/obs` (crate `cfds-obs`) | Rust | Observabilidad: logs estructurados en JSON sin secretos y alertas (fase 9). | hecho |
 | [patterns](modules/patterns.md) | `engine/crates/patterns` | Rust | Patrones de velas y chartistas, y herramientas de análisis que no entran al puntaje (Fibonacci y otras). | hecho |
+| [propsim](modules/propsim.md) | `engine/crates/propsim` (crate `cfds-propsim`) | Rust | Simulador de cuentas fondeadas de la Academia: reglas de prop firms configurables, recorrido determinista de una lista de operaciones y Monte Carlo. | en curso (#802) |
 | [regime](modules/regime.md) | `engine/crates/regime` (crate `cfds-regime`) | Rust | Régimen de mercado por instrumento y estados emocionales que salen del precio (spec §9.1). | en curso |
 | [risk](modules/risk.md) | `engine/crates/risk` (crate `cfds-risk`) | Rust | Apalancamiento por instrumento, tamaño de posición, margen, stop-loss y pérdida máxima. | hecho |
 | [runner](modules/runner.md) | `engine/crates/runner` (crate `cfds-runner`) | Rust | Runner de paper trading en tiempo real sobre velas cerradas ya guardadas (fase 8). | hecho |

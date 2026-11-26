@@ -494,6 +494,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "cfds-propsim"
+version = "0.1.0"
+dependencies = [
+ "cfds-backtest",
+ "cfds-core",
+ "cfds-indicators",
+ "chrono",
+ "chrono-tz",
+ "jsonschema",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "toml",
+]
+
+[[package]]
 name = "cfds-regime"
 version = "0.1.0"
 dependencies = [

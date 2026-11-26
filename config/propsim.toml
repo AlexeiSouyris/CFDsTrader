@@ -1,0 +1,31 @@
+# Simulador de cuentas fondeadas (Academia, #802; docs/design/2026-11-academia.md §6). Lo lee el
+# motor (cfds-propsim) y lo sirve el gateway. Ni el runner, ni el paper, ni la estrategia en uso
+# lo leen: es EDUCATIVO y no decide ninguna operación.
+#
+# PENDIENTE del dueño: los topes de [limits] son valores propuestos para poder construir el
+# simulador, no parámetros de trading.
+
+[limits]
+# Operaciones de una lista (las de un informe del laboratorio incluidas).
+max_trades = 20000
+# Riesgo por operación máximo que se puede simular, en % del tamaño de la cuenta. Más alto que
+# config/risk.toml a propósito: para VER qué pasa con riesgos altos en una evaluación.
+max_risk_pct = "10"
+
+# ── Plantillas ─────────────────────────────────────────────────────────────────────────────
+# Cada plantilla es un prop_rules.v1. NO se inventan reglas de firmas reales (CLAUDE.md §5b):
+# - La genérica trae la forma de las reglas con todos los valores EN BLANCO: el usuario los
+#   completa en la pantalla del simulador.
+# - Una plantilla con algún valor es de una firma real y necesita `source` = { firm, url
+#   (https, su reglamento publicado), read_at (fecha de lectura) }. El motor no arranca si falta.
+#   Las firmas cambian sus reglas: al cargar una, se vuelve a leer su reglamento y se cambia la
+#   fecha.
+
+[[templates]]
+id = "generica"
+name = "Plantilla genérica (completá los valores)"
+phases = [{ name = "Evaluación" }]
+daily_loss = { base = "day_start" }
+max_drawdown = { mode = "static", lock_at_initial = false }
+funded = {}
+fees = { refund_with_first_payout = false }

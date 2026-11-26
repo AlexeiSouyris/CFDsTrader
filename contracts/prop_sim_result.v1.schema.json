@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/prop_sim_result.v1.schema.json",
+  "title": "Prop firm simulation result v1",
+  "description": "Resultado del simulador de cuentas fondeadas (docs/design/2026-11-academia.md §6.2, #802 y #803). `observed`: el recorrido determinista de la lista real de operaciones por las reglas (pasó, falló con qué regla y qué día, se acabó el tiempo o sin terminar), null con la fuente `model`. `monte_carlo`: los días remuestreados en bloques (research::montecarlo) o sorteados con el modelo (research::variance), cada camino por las mismas reglas: probabilidad de pasar cada fase, de llegar al primer cobro, de quemar la cuenta o de quedarse sin tiempo, con intervalos de Wilson; cuotas y valor esperado del programa en dinero; y la comparación con operaciones al azar de esperanza 0 después de costos. Si una regla no se puede simular (`unsimulable`), se deja afuera y las probabilidades de pasar son un tope superior (`upper_bound`). Las reglas se evalúan con el saldo al cierre de cada operación. Lo calcula el motor (cfds-propsim); la UI solo lo muestra. Educativo: resultados simulados con datos pasados, no promesas.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["rules", "risk_per_trade_pct", "risk_per_trade_amount", "source", "unsimulable", "upper_bound", "observed", "monte_carlo", "notes"],
+  "properties": {
+    "rules": { "$ref": "prop_rules.v1.schema.json" },
+    "risk_per_trade_pct": { "$ref": "#/$defs/decimal" },
+    "risk_per_trade_amount": { "description": "Riesgo por operación en dinero (1 R), en la moneda de las reglas.", "$ref": "#/$defs/decimal" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "trades", "days", "report_id", "trades_per_day"],
+      "properties": {
+        "kind": { "enum": ["trades", "report", "model"] },
+        "trades": { "description": "Operaciones de la lista real, o null con el modelo.", "$ref": "#/$defs/count_or_null" },
+        "days": { "description": "Días de la firma con al menos una operación (lista real), o null con el modelo.", "$ref": "#/$defs/count_or_null" },
+        "report_id": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "trades_per_day": { "description": "Con el modelo; null con una lista real.", "$ref": "#/$defs/count_or_null" }
+      }
+    },
+    "unsimulable": {
+      "description": "Reglas que no se simularon (por ejemplo max_drawdown.trailing_intraday).",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "upper_bound": { "description": "true si alguna regla quedó afuera: pasar es como mucho lo que se muestra.", "type": "boolean" },
+    "observed": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "phases", "funded"],
+          "properties": {
+            "status": { "description": "Cómo terminó la lista: payout (cobró), passed (pasó la evaluación, sin etapa fondeada), failed, timeout o unfinished (se acabaron las operaciones).", "enum": ["payout", "passed", "failed", "timeout", "unfinished"] },
+            "phases": { "type": "array", "items": { "$ref": "#/$defs/stage" } },
+            "funded": { "oneOf": [{ "$ref": "#/$defs/stage" }, { "type": "null" }] }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "monte_carlo": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["paths", "seed", "block_len_days", "horizon_days", "confidence", "per_attempt", "phases", "economics", "zero_edge", "beats_zero_edge"],
+          "properties": {
+            "paths": { "type": "integer", "minimum": 1 },
+            "seed": { "type": "integer", "minimum": 0 },
+            "block_len_days": { "description": "null con el modelo (no hay días reales que remuestrear).", "$ref": "#/$defs/count_or_null" },
+            "horizon_days": { "type": "integer", "minimum": 1 },
+            "confidence": { "$ref": "#/$defs/decimal" },
+            "per_attempt": {
+              "description": "Un intento (una cuota): cómo termina cada camino.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["pass_evaluation", "payout", "failed", "timeout", "unfinished"],
+              "properties": {
+                "pass_evaluation": { "$ref": "#/$defs/probability" },
+                "payout": { "description": "Llegar al primer cobro; null sin etapa fondeada.", "oneOf": [{ "$ref": "#/$defs/probability" }, { "type": "null" }] },
+                "failed": { "description": "Quemar la cuenta (cualquier etapa).", "$ref": "#/$defs/probability" },
+                "timeout": { "description": "Se acabó el tiempo de una fase (días máximos de la firma).", "$ref": "#/$defs/probability" },
+                "unfinished": { "description": "Llegó al horizonte de la simulación sin terminar.", "$ref": "#/$defs/probability" }
+              }
+            },
+            "phases": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "reached", "passed", "failed_daily_loss", "failed_max_drawdown", "timeout", "days_to_pass", "days_to_fail"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "reached": { "description": "Fracción de caminos que llegaron a esta etapa.", "$ref": "#/$defs/decimal" },
+                  "passed": { "description": "Fracción de todos los caminos que la pasaron (o cobraron, en la fondeada).", "$ref": "#/$defs/probability" },
+                  "failed_daily_loss": { "$ref": "#/$defs/decimal" },
+                  "failed_max_drawdown": { "$ref": "#/$defs/decimal" },
+                  "timeout": { "$ref": "#/$defs/decimal" },
+                  "days_to_pass": { "description": "Días operados en la etapa hasta pasarla.", "oneOf": [{ "$ref": "#/$defs/summary" }, { "type": "null" }] },
+                  "days_to_fail": { "oneOf": [{ "$ref": "#/$defs/summary" }, { "type": "null" }] }
+                }
+              }
+            },
+            "economics": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["max_attempts", "success_within_attempts", "expected_attempts", "expected_fees", "expected_payout", "expected_refund", "expected_value"],
+              "properties": {
+                "max_attempts": { "type": "integer", "minimum": 1 },
+                "success_within_attempts": { "description": "P(cobrar —o pasar, sin etapa fondeada— en hasta max_attempts intentos independientes).", "$ref": "#/$defs/decimal" },
+                "expected_attempts": { "$ref": "#/$defs/decimal" },
+                "expected_fees": { "description": "Cuotas esperadas (evaluación + activación), en dinero.", "$ref": "#/$defs/decimal" },
+                "expected_payout": { "description": "Cobro medio de los caminos que cobraron (ganancia × reparto), o null.", "$ref": "#/$defs/decimal_or_null" },
+                "expected_refund": { "description": "Devolución esperada de la cuota con el primer cobro.", "$ref": "#/$defs/decimal" },
+                "expected_value": { "description": "P(cobrar) × (cobro medio + devolución) − cuotas esperadas, en dinero; null sin etapa fondeada.", "$ref": "#/$defs/signed_or_null" }
+              }
+            },
+            "zero_edge": {
+              "description": "Las mismas reglas y la misma semilla con operaciones de esperanza 0 después de costos (la lista real centrada en 0, o el modelo con win rate L / (W + L)).",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["pass_evaluation", "payout", "expected_value"],
+              "properties": {
+                "pass_evaluation": { "$ref": "#/$defs/probability" },
+                "payout": { "oneOf": [{ "$ref": "#/$defs/probability" }, { "type": "null" }] },
+                "expected_value": { "$ref": "#/$defs/signed_or_null" }
+              }
+            },
+            "beats_zero_edge": { "description": "true solo si el intervalo de cobrar (o de pasar, sin etapa fondeada) queda entero por encima del de operar al azar.", "type": "boolean" }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "notes": { "description": "Avisos en español (simulación con datos pasados, reglas que cambian, saldo al cierre de cada operación, reglas no simulables, no es consejo de inversión).", "type": "array", "items": { "type": "string", "minLength": 1 } }
+  },
+  "$defs": {
+    "decimal": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "decimal_or_null": { "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+    "signed": { "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" },
+    "signed_or_null": { "oneOf": [{ "$ref": "#/$defs/signed" }, { "type": "null" }] },
+    "count_or_null": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }] },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mean", "p5", "p50", "p95"],
+      "properties": {
+        "mean": { "$ref": "#/$defs/decimal" },
+        "p5": { "$ref": "#/$defs/decimal" },
+        "p50": { "$ref": "#/$defs/decimal" },
+        "p95": { "$ref": "#/$defs/decimal" }
+      }
+    },
+    "probability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["probability", "low", "high"],
+      "properties": {
+        "probability": { "$ref": "#/$defs/decimal" },
+        "low": { "$ref": "#/$defs/decimal" },
+        "high": { "$ref": "#/$defs/decimal" }
+      }
+    },
+    "stage": {
+      "description": "Cómo terminó una etapa en el recorrido de la lista real.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "rule", "trading_days", "end_day", "profit", "best_day", "min_balance", "payout"],
+      "properties": {
+        "name": { "type": "string" },
+        "status": { "enum": ["passed", "payout", "failed", "timeout", "unfinished", "not_reached"] },
+        "rule": { "description": "La regla que la hizo fallar, o null.", "oneOf": [{ "enum": ["daily_loss", "max_drawdown"] }, { "type": "null" }] },
+        "trading_days": { "type": "integer", "minimum": 0 },
+        "end_day": { "description": "Día de la firma (fecha local del corte) en que terminó, o null.", "oneOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }] },
+        "profit": { "description": "Saldo − tamaño de la cuenta al terminar, en dinero.", "$ref": "#/$defs/signed" },
+        "best_day": { "description": "El mejor día (P/L), o null sin días.", "$ref": "#/$defs/signed_or_null" },
+        "min_balance": { "description": "El saldo más bajo después de una operación.", "$ref": "#/$defs/signed" },
+        "payout": { "description": "Cobro (ganancia × reparto) en la fondeada, o null.", "$ref": "#/$defs/decimal_or_null" }
+      }
+    }
+  }
+}
