@@ -26,6 +26,7 @@
 //!
 //! No calcula nada nuevo, no envía órdenes ni escribe en la base.
 
+pub mod academy;
 pub mod context;
 pub mod emotions;
 pub mod fund;
@@ -183,6 +184,9 @@ struct RawConfig {
     news: toml::Table,
     #[allow(dead_code)]
     calendar: toml::Table,
+    /// `[academy]`: lo lee [`academy::AcademyRoutes`] (#719).
+    #[allow(dead_code)]
+    academy: toml::Table,
 }
 
 #[derive(Deserialize)]
