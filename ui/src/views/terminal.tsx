@@ -813,7 +813,11 @@ export function TerminalView({ member }: { member: Member }) {
           {tab === 'Órdenes' && <SessionOrders orders={sent} />}
           {tab === 'Historial' && <History account={account} live={live} />}
           {tab === 'Actividad' && <Activity />}
-          {tab === 'Noticias' && <TerminalNews />}
+          {tab === 'Noticias' && (
+            <ToolLock tool="tool.terminal_news">
+              <TerminalNews />
+            </ToolLock>
+          )}
           {tab === 'Propuestas' && (
             <section aria-label="Propuestas" className="grid gap-3 xl:grid-cols-2">
               {PROPOSALS.map((p) => (

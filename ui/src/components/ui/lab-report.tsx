@@ -10,6 +10,7 @@ import { type ReactNode, useState } from 'react'
 
 import { ScrollRegion } from '@/components/ui/scroll-region'
 import { Segmented } from '@/components/ui/segmented'
+import { ToolLock } from '@/components/ui/tool-lock'
 import { decimal, percent } from '@/lib/format'
 import type { LabReport, Quantiles, Slice, Summary } from '@/lib/lab-contracts'
 import { useLabReports } from '@/lib/lab-api'
@@ -289,20 +290,27 @@ export function LabReportView({ report: x }: { report: LabReport }) {
             items={[
               ['Sharpe mensual', numOrDash(x.sharpe.sharpe)],
               ['Sortino mensual', numOrDash(x.sharpe.sortino)],
-              ['Sharpe deflactado', numOrDash(x.sharpe.deflated, 3)],
-              [
-                'N de pruebas',
-                `${x.sharpe.trials} (proyecto ${x.sharpe.project_trials} + familia ${x.sharpe.family_variants})`,
-              ],
-              ['PBO', x.pbo ? pctOrDash(x.pbo.pbo) : '—'],
-              ['Variantes de la familia', `probaste ${x.sharpe.family_variants}`],
             ]}
           />
-          {!x.pbo && (
-            <p className="text-[11.5px] text-muted-foreground">
-              El PBO aparece desde 4 variantes de la familia corridas juntas.
-            </p>
-          )}
+          {/* candado del sobreajuste (#846, lección 9.3): el Sharpe deflactado, su N y el PBO */}
+          <ToolLock tool="tool.pbo" compact>
+            <Stats
+              items={[
+                ['Sharpe deflactado', numOrDash(x.sharpe.deflated, 3)],
+                [
+                  'N de pruebas',
+                  `${x.sharpe.trials} (proyecto ${x.sharpe.project_trials} + familia ${x.sharpe.family_variants})`,
+                ],
+                ['PBO', x.pbo ? pctOrDash(x.pbo.pbo) : '—'],
+                ['Variantes de la familia', `probaste ${x.sharpe.family_variants}`],
+              ]}
+            />
+            {!x.pbo && (
+              <p className="text-[11.5px] text-muted-foreground">
+                El PBO aparece desde 4 variantes de la familia corridas juntas.
+              </p>
+            )}
+          </ToolLock>
         </Block>
 
         <Block kicker="Monte Carlo" title={mc ? `Bandas de ${mc.paths} caminos` : 'Bandas'}>
@@ -448,33 +456,35 @@ export function LabReportView({ report: x }: { report: LabReport }) {
       </div>
 
       <Block kicker="Walk-forward" title="Por ventana de validación">
-        <ScrollRegion label="Ventanas walk-forward">
-          <table
-            aria-label="Ventanas walk-forward del informe"
-            className="w-full min-w-[360px] text-[12px]"
-          >
-            <thead className="text-[10.5px] text-muted-foreground">
-              <tr>
-                <th className="text-left">Ventana</th>
-                <th className="text-right">Op.</th>
-                <th className="text-right">Retorno</th>
-              </tr>
-            </thead>
-            <tbody>
-              {x.walk_forward.map((w) => (
-                <tr key={w.from} className="border-t border-border/60">
-                  <th scope="row" className="py-1 text-left font-normal">
-                    {dayYear(w.from)} – {dayYear(w.to)}
-                  </th>
-                  <td className="py-1 text-right tabular-nums">{w.trades}</td>
-                  <td className={cn('py-1 text-right tabular-nums', tone(w.return))}>
-                    {signedPct(w.return)}
-                  </td>
+        <ToolLock tool="tool.walk_forward">
+          <ScrollRegion label="Ventanas walk-forward">
+            <table
+              aria-label="Ventanas walk-forward del informe"
+              className="w-full min-w-[360px] text-[12px]"
+            >
+              <thead className="text-[10.5px] text-muted-foreground">
+                <tr>
+                  <th className="text-left">Ventana</th>
+                  <th className="text-right">Op.</th>
+                  <th className="text-right">Retorno</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </ScrollRegion>
+              </thead>
+              <tbody>
+                {x.walk_forward.map((w) => (
+                  <tr key={w.from} className="border-t border-border/60">
+                    <th scope="row" className="py-1 text-left font-normal">
+                      {dayYear(w.from)} – {dayYear(w.to)}
+                    </th>
+                    <td className="py-1 text-right tabular-nums">{w.trades}</td>
+                    <td className={cn('py-1 text-right tabular-nums', tone(w.return))}>
+                      {signedPct(w.return)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ScrollRegion>
+        </ToolLock>
       </Block>
 
       <details className="rounded-sm border border-border bg-card p-3">
