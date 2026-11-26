@@ -19,7 +19,7 @@ for (const mobile of [false, true]) {
   test(`práctica: empezar y avanzar${mobile ? ' (375 px)' : ''}`, async ({ page }) => {
     if (mobile) await page.setViewportSize(MOBILE)
     const { unmocked, errors } = await openView(page, 'replay')
-    await page.getByRole('button', { name: 'Empezar práctica' }).click()
+    await page.getByRole('button', { name: 'Empezar' }).click()
     const session = page.getByRole('region', { name: 'Sesión de replay' })
     await expect(session).toContainText('Vela200 de 288')
     await expect(page.getByRole('img', { name: /200 recibidas del motor/ })).toBeVisible()
@@ -44,7 +44,7 @@ test('marcas y ticket de estudio: van al motor y se dibujan como vuelven (#773, 
   page,
 }) => {
   const { unmocked, errors } = await openView(page, 'replay')
-  await page.getByRole('button', { name: 'Empezar práctica' }).click()
+  await page.getByRole('button', { name: 'Empezar' }).click()
   const chart = page.getByRole('img', { name: /Velas del replay/ })
   const box = (await chart.boundingBox())!
   // tocar el gráfico propone el precio del nivel
@@ -60,6 +60,39 @@ test('marcas y ticket de estudio: van al motor y se dibujan como vuelven (#773, 
   await ticket.getByRole('textbox', { name: 'Plan escrito antes de entrar' }).fill('Plan de prueba')
   await ticket.getByRole('button', { name: 'Mandar al motor' }).click()
   await expect(log).toContainText('E1 · largo · stop 19.800,0')
+  expect(unmocked).toEqual([])
+  expect(errors).toEqual([])
+  expect(await serious(page)).toEqual([])
+})
+
+test('examen: al terminar, proceso → niveles → R → fecha real, y la fecha solo al final (#790)', async ({
+  page,
+}) => {
+  const { unmocked, errors } = await openView(page, 'replay')
+  await page.getByRole('button', { name: 'Examen de niveles' }).click()
+  await page.getByRole('button', { name: 'Empezar' }).click()
+  const marks = page.getByRole('form', { name: 'Marcar en el gráfico' })
+  await marks.getByRole('textbox', { name: 'Precio' }).fill('19880')
+  await marks.getByRole('button', { name: 'Marcar' }).click()
+  const ticket = page.getByRole('form', { name: 'Ticket de estudio' })
+  await ticket.getByRole('textbox', { name: 'Riesgo %' }).fill('1')
+  await ticket.getByRole('button', { name: 'Mandar al motor' }).click()
+  await expect(page.getByRole('list', { name: 'Guardado por el motor' })).toContainText('E1')
+  // antes de terminar no hay ninguna fecha real en la página
+  await expect(page.locator('main')).not.toContainText('2026')
+  await page.getByRole('button', { name: 'Terminar y calificar' }).click()
+  const result = page.getByRole('article', { name: 'Proceso no aprobado' })
+  const titles = await result.getByRole('heading', { level: 3 }).allTextContents()
+  expect(titles).toEqual([
+    '1. Proceso',
+    '2. Niveles',
+    '3. Resultado en R (no aprueba ni reprueba)',
+    '4. La fecha real',
+  ])
+  await expect(result).toContainText('Tiene stopno cumplida')
+  await expect(result).toContainText('neto — (sin stop no hay R)')
+  await expect(result).toContainText('del 18 nov 2026, 00:00 UTC')
+  await expect(page.getByRole('form', { name: 'Ticket de estudio' })).toHaveCount(0)
   expect(unmocked).toEqual([])
   expect(errors).toEqual([])
   expect(await serious(page)).toEqual([])

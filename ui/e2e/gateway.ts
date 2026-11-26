@@ -140,12 +140,13 @@ function ibkrLive(query: URLSearchParams): unknown {
 const REPLAY_ID = replay.session.session_id
 let replayCursor = replay.session.warmup_bars - 1
 
-let replaySaved = { marks: 0, orders: 0 }
+/** lo que se pidió en la sesión abierta: el tipo y las entradas (para el resultado, #790) */
+let replaySaved = { kind: 'practice', marks: 0, orders: [] as Record<string, unknown>[] }
 
 function replaySession(_query: URLSearchParams, request?: unknown): unknown {
   const req = (request ?? { kind: 'practice' }) as { kind: string; seed?: string }
   replayCursor = replay.session.warmup_bars - 1
-  replaySaved = { marks: 0, orders: 0 }
+  replaySaved = { kind: req.kind, marks: 0, orders: [] }
   const bars = replay.bars.slice(0, replayCursor + 1)
   return { ...replay.session, kind: req.kind, seed: req.seed ?? '42', cursor: replayCursor, bars }
 }
@@ -178,16 +179,79 @@ function replayMark(_query: URLSearchParams, request?: unknown): unknown {
 
 function replayOrder(_query: URLSearchParams, request?: unknown): unknown {
   const req = (request ?? { side: 'long', risk_pct: '1', plan: '' }) as Record<string, unknown>
-  const order_id = (replaySaved.orders += 1)
+  const order_id = replaySaved.orders.length + 1
   const { side, risk_pct, plan } = req
-  return {
+  const order = {
     order_id,
     side,
     stop: req.stop ?? null,
     target: req.target ?? null,
     risk_pct,
     plan,
-    cursor: replayCursor,
+  }
+  replaySaved.orders.push({ ...order, cursor: replayCursor })
+  return { ...order, cursor: replayCursor }
+}
+
+/**
+ * `exam_result.v1` de prueba (#790): las reglas salen de lo pedido (stop y plan) y el R es un
+ * número fijo de prueba, no un cálculo. La fecha real: la del ejemplo de US100.
+ */
+function replayFinish(): unknown {
+  const kind = replaySaved.kind
+  const last = replay.bars.length - 1
+  const rule = (rule: string, passed: boolean) => ({ rule, passed })
+  const trades = replaySaved.orders.map((o) => {
+    const stop = o.stop !== null
+    const entry = Math.min(Number(o.cursor) + 1, last)
+    const r = (v: string) => (stop ? v : null)
+    return {
+      order_id: o.order_id,
+      rules: [rule('stop_present', stop), rule('plan_written', o.plan !== '')],
+      outcome: {
+        entry_index: entry,
+        entry_price: replay.bars[entry].open,
+        exit_index: last,
+        exit_price: replay.bars[last].close,
+        exit: 'end',
+        r_gross: r('0.50'),
+        costs_r: r('0.10'),
+        r_net: r('0.40'),
+      },
+    }
+  })
+  const ok = trades.every((t) => t.rules.every((x) => x.passed))
+  const levels =
+    kind === 'levels'
+      ? {
+          marked: replaySaved.marks,
+          engine: 2,
+          matched_marks: 0,
+          covered_levels: 0,
+          precision_pct: replaySaved.marks ? '0' : null,
+          coverage_pct: '0',
+          tolerance: '2.5',
+          engine_levels: ['19900.0', '19850.0'],
+        }
+      : null
+  const candles = liquidityUs100.candles
+  return {
+    session_id: REPLAY_ID,
+    kind,
+    lesson_id: null,
+    catalog_version: academyCatalog.catalog_version,
+    passed: kind === 'practice' ? null : ok && kind !== 'levels',
+    rules: kind === 'trades' ? [rule('enough_trades', trades.length >= 10)] : [],
+    trades,
+    levels,
+    revealed: {
+      instrument_id: 'US100',
+      timeframe: '15m',
+      source: 'futures',
+      first_bar_at: candles[0].start,
+      last_bar_at: candles[last].start,
+    },
+    graded_at: NOW,
   }
 }
 
@@ -323,6 +387,12 @@ export const ROUTES: MockRoute[] = [
     method: 'POST',
     schema: 'replay_mark.v1.schema.json',
     body: replayMark,
+  },
+  {
+    path: `/api/v1/academy/replay/${REPLAY_ID}/finish`,
+    method: 'POST',
+    schema: 'exam_result.v1.schema.json',
+    body: replayFinish,
   },
   {
     path: `/api/v1/academy/replay/${REPLAY_ID}/orders`,
