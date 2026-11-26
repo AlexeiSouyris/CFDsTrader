@@ -17,6 +17,7 @@ import { SignIn } from '@/components/ui/sign-in'
 import { CURRENT_MEMBER, NOTICES } from '@/mocks'
 import { ChartsView, CompetitionView, JournalView, NewsView } from '@/views'
 import { AcademyView } from '@/views/academy'
+import { ReplayView } from '@/views/replay'
 import { introOnStart, introPreview, markIntroSeen } from '@/lib/intro-pref'
 import { useTabSwipe } from '@/lib/use-tab-swipe'
 import { LabView } from '@/views/lab'
@@ -226,6 +227,7 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
               {view === 'fondo' && <FundView />}
               {view === 'competencia' && <CompetitionView />}
               {view === 'academia' && <AcademyView />}
+              {view === 'replay' && <ReplayView />}
               {view === 'glosario' && <GlossaryView />}
               {view === NOT_FOUND && <NotFound onHome={() => select(HOME_VIEW)} />}
             </div>

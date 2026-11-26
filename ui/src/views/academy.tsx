@@ -8,7 +8,7 @@
  * Sin contenido todavía (#760): lo que no tiene texto ni preguntas lo dice («Contenido en
  * preparación»), sin inventar nada.
  */
-import { Check, Circle, Lock, LockOpen } from 'lucide-react'
+import { ArrowUpRight, Check, Circle, Lock, LockOpen } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 
 import { AcademyQuiz } from '@/components/ui/academy-quiz'
@@ -75,6 +75,16 @@ function Academy({ catalog, progress }: { catalog: AcademyCatalog; progress: Aca
   return (
     <div data-section="hub" className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <ProgressStrip catalog={catalog} progress={progress} />
+      <a
+        href="#replay"
+        className="panel flex min-h-9 items-center justify-between gap-2 rounded-section px-2.5 text-[12.5px] font-semibold hover:bg-surface"
+      >
+        <span>
+          Replay: práctica vela a vela con velas del pasado{' '}
+          <span className="font-normal text-muted-foreground">· sin nota, se usa ya</span>
+        </span>
+        <ArrowUpRight aria-hidden="true" className="size-4 shrink-0" />
+      </a>
       {lessons.length > 0 && lessons.every(empty) && (
         <Preparing>
           Las lecciones todavía no tienen texto ni preguntas: el temario y lo que abre cada una ya
