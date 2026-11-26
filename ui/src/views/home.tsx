@@ -156,7 +156,7 @@ export function HomeView({ onOpen }: { onOpen: (view: string) => void }) {
             ))}
           </nav>
           <p className="mt-1 px-1 text-[11px] text-muted-foreground">
-            <kbd>1</kbd>–<kbd>7</kbd> desde el Inicio · <kbd>F1</kbd>–<kbd>F9</kbd> desde cualquier
+            <kbd>1</kbd>–<kbd>8</kbd> desde el Inicio · <kbd>F1</kbd>–<kbd>F10</kbd> desde cualquier
             vista
           </p>
         </WorkspacePanel>
