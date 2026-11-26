@@ -1,5 +1,6 @@
 /**
- * La página de la lección (#770). Las preguntas de acá son **de prueba** (el catálogo real todavía
+ * La página de la lección (#770) y el examen de preguntas (#781): las respuestas van al motor y la
+ * nota, el umbral y el aprobado vuelven de él. Las preguntas de acá son **de prueba** (el catálogo real todavía
  * no tiene contenido), con la forma de `academy_catalog.v1`.
  */
 import { fireEvent, render, screen, within } from '@testing-library/react'
@@ -8,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import catalogFixture from '../e2e/fixtures/academy-catalog.json'
 import progressFixture from '../e2e/fixtures/academy-progress.json'
 import { resetAcademy } from '@/lib/academy-api'
-import type { AcademyCatalog, AcademyProgress } from '@/lib/academy-contracts'
+import type { AcademyCatalog, AcademyProgress, QuizResult } from '@/lib/academy-contracts'
 import { AcademyView } from '@/views/academy'
 
 const PROGRESS = progressFixture as AcademyProgress
@@ -48,6 +49,21 @@ const CATALOG: AcademyCatalog = {
         : l,
     ),
   })),
+}
+
+const RESULT: QuizResult = {
+  lesson_id: '2.2',
+  catalog_version: CATALOG.catalog_version,
+  score_pct: '50',
+  pass_pct: '80',
+  passed: false,
+  correct: 1,
+  total: 2,
+  questions: [
+    { question_id: '2.2.1', correct: true },
+    { question_id: '2.2.2', correct: false },
+  ],
+  graded_at: '2026-11-26T05:00:00Z',
 }
 
 /** Gateway falso de prueba: catálogo, progreso y los POST de la Academia. */
@@ -126,5 +142,69 @@ describe('lección completada (#770)', () => {
       'No se pudo guardar en el motor (el gateway respondió 403: sin token)',
     )
     expect(within(page).getByRole('button', { name: 'Marcar como completada' })).toBeEnabled()
+  })
+})
+
+describe('examen de preguntas (#781)', () => {
+  it('manda las respuestas al motor y muestra su corrección, sin decir la clave', async () => {
+    let sent: unknown = null
+    gateway((path, body) => {
+      sent = [path, body]
+      return Response.json(RESULT)
+    })
+    render(<AcademyView />)
+    const page = await open(/Financiación nocturna/)
+    expect(page).toHaveTextContent('2 preguntas; para aprobar, 80 % de respuestas correctas')
+    const form = within(page).getByRole('form', { name: 'Examen de la lección 2.2' })
+    fireEvent.click(within(form).getByRole('radio', { name: 'Opción B' }))
+    fireEvent.change(within(form).getByRole('textbox', { name: /Respuesta/ }), {
+      target: { value: '1,17' },
+    })
+    fireEvent.click(within(form).getByRole('button', { name: 'Enviar al motor' }))
+    expect(await within(form).findByText('Todavía no')).toBeInTheDocument()
+    expect(sent).toEqual([
+      '/api/v1/academy/quiz/2.2',
+      {
+        lesson_id: '2.2',
+        catalog_version: CATALOG.catalog_version,
+        answers: [
+          { question_id: '2.2.1', choice: 'b' },
+          { question_id: '2.2.2', value: '1.17' },
+        ],
+      },
+    ])
+    expect(form).toHaveTextContent('1 de 2 bien · 50 % (para aprobar, 80 %)')
+    expect(form).toHaveTextContent('El intento quedó guardado.')
+    expect(within(form).getByText('Bien, según el motor')).toBeInTheDocument()
+    expect(within(form).getByText('Mal, según el motor')).toBeInTheDocument()
+    expect(within(form).getByRole('button', { name: 'Enviar otro intento' })).toBeEnabled()
+  })
+
+  it('un número mal escrito no se manda; las vacías avisan que cuentan como incorrectas', async () => {
+    const post = vi.fn(() => Response.json(RESULT))
+    gateway(post)
+    render(<AcademyView />)
+    const form = within(await open(/Financiación nocturna/)).getByRole('form')
+    expect(form).toHaveTextContent('2 sin responder: cuentan como incorrectas.')
+    const field = within(form).getByRole('textbox', { name: /Respuesta/ })
+    fireEvent.change(field, { target: { value: 'uno' } })
+    expect(field).toHaveAttribute('aria-invalid', 'true')
+    expect(within(form).getByRole('alert')).toHaveTextContent('Escribí un número')
+    fireEvent.submit(form)
+    expect(post).not.toHaveBeenCalled()
+  })
+
+  it('catálogo viejo (409): lo dice y recarga', async () => {
+    const fetch = gateway(() => new Response('catálogo viejo', { status: 409 }))
+    render(<AcademyView />)
+    const form = within(await open(/Financiación nocturna/)).getByRole('form')
+    fireEvent.click(within(form).getByRole('radio', { name: 'Opción A' }))
+    fireEvent.click(within(form).getByRole('button', { name: 'Enviar al motor' }))
+    expect(await within(form).findByRole('alert')).toHaveTextContent(
+      'El examen cambió en el motor mientras respondías',
+    )
+    await vi.waitFor(() =>
+      expect(fetch.mock.calls.filter(([u]) => u === '/api/v1/academy/catalog')).toHaveLength(2),
+    )
   })
 })

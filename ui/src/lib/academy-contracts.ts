@@ -1,6 +1,6 @@
 /**
  * Tipos de los contratos de la Academia (#709, #717) para la UI: `academy_catalog.v1`,
- * `academy_progress.v1`, `academy_event.v1` y `quiz_result.v1` de `contracts/`. Son la misma forma del contrato: si cambia el contrato, se
+ * `academy_progress.v1`, `academy_event.v1`, `quiz_answer.v1` y `quiz_result.v1` de `contracts/`. Son la misma forma del contrato: si cambia el contrato, se
  * cambia acá. Las notas, el aprobado y qué herramienta está abierta los decide el motor.
  */
 
@@ -97,4 +97,11 @@ export type AcademyEvent = {
   quiz: QuizResult | null
   catalog_version: string
   recorded_at: Utc
+}
+
+/** `quiz_answer.v1` (`POST /api/v1/academy/quiz/{lesson_id}`). */
+export type QuizAnswer = {
+  lesson_id: LessonId
+  catalog_version: string
+  answers: ({ question_id: string; choice: string } | { question_id: string; value: string })[]
 }
