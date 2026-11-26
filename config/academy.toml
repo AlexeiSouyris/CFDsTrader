@@ -1788,8 +1788,8 @@ unit = "€/pt"
 [[lessons.questions]]
 id = "7.3.4"
 kind = "number"
-prompt = "Capital 10.000 €, US100 en 25.000, ATR 20 y stop a 10 puntos (15 con el colchón). Por riesgo daría 6,67 € por punto. Con el tope de apalancamiento de 10:1, ¿qué tamaño da el motor, en € por punto?"
-answer = "4"
+prompt = "Capital 10.000 €, US100 en 20.000, ATR 16 y stop a 8 puntos (12 con el colchón). Por riesgo daría 8,33 € por punto. Con el tope de apalancamiento de 10:1, ¿qué tamaño da el motor, en € por punto?"
+answer = "5"
 tolerance = "0"
 unit = "€/pt"
 
