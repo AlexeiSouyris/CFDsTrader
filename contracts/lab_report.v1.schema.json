@@ -1,0 +1,382 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/lab_report.v1.schema.json",
+  "title": "Lab report v1",
+  "description": "Informe de una corrida del laboratorio de estrategias (docs/design/2026-11-laboratorio.md §3, #710): una spec (strategy_spec.v1) corrida con el arnés de investigación sobre velas guardadas, solo antes del fuera de muestra. Lo calcula todo el motor (Rust); la UI lo muestra sin calcular nada. Trae lo que la curva esconde: cuántas variantes se probaron (Sharpe deflactado con N y PBO), la mala suerte posible (Monte Carlo y riesgo de ruina), si le gana a entrar al azar (test de suerte), costos × 1,5, mitades, walk-forward, comprar y mantener, MAE/MFE y cortes. En modo exploratorio NADA vota: votes es false y label dice \"exploratorio, no vota\". Números como texto decimal (estadísticos redondeados a 6 decimales; montos en la moneda de la cuenta); null cuando algo no está definido (nunca se inventa un número). Con la misma spec, los mismos datos, la misma config, el mismo código y la misma semilla, el informe es el mismo (report_id).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_id", "spec_sha256", "family_sha256", "spec", "mode", "votes", "label",
+    "instrument_id", "candle_source", "period", "holdout_start", "reproducibility",
+    "computed_at", "initial_equity", "cost_multiplier", "trades", "expectancy",
+    "r_distribution", "months", "sharpe", "pbo", "monte_carlo", "walk_forward", "halves",
+    "cost_stress", "luck", "buy_and_hold", "excursions", "edge", "slices", "notes"
+  ],
+  "properties": {
+    "report_id": {
+      "description": "SHA-256 (hex) de la spec, la config, la versión del código, la última vela usada y la semilla: lo que hace falta para reproducir el informe exacto.",
+      "$ref": "#/$defs/sha256"
+    },
+    "spec_sha256": { "$ref": "#/$defs/sha256" },
+    "family_sha256": { "$ref": "#/$defs/sha256" },
+    "spec": {
+      "description": "La spec normalizada que se corrió (strategy_spec.v1).",
+      "type": "object"
+    },
+    "mode": { "enum": ["exploratory", "confirmatory"] },
+    "votes": {
+      "description": "false en una exploratoria: ninguna cifra vota ni suma al N del proyecto.",
+      "type": "boolean"
+    },
+    "label": { "description": "\"exploratorio, no vota\" en una exploratoria.", "type": "string", "minLength": 1 },
+    "instrument_id": {
+      "description": "Con velas de futuros, el instrumento derivado (por ejemplo US500.FUT).",
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$"
+    },
+    "candle_source": { "enum": ["futures"] },
+    "period": { "description": "Período corrido [from, to): el de la spec.", "$ref": "#/$defs/period" },
+    "holdout_start": {
+      "description": "Inicio del fuera de muestra (config/data_split.toml): nada de ahí en adelante se cargó.",
+      "$ref": "#/$defs/utc"
+    },
+    "reproducibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["config_sha256", "code_version", "last_candle", "seed"],
+      "properties": {
+        "config_sha256": {
+          "description": "SHA-256 de los archivos de config/ usados, como backtest_run.v1.",
+          "$ref": "#/$defs/sha256"
+        },
+        "code_version": {
+          "description": "Commit del código, o null si no se sabe.",
+          "oneOf": [{ "type": "string", "pattern": "^[0-9a-f]{7,40}$" }, { "type": "null" }]
+        },
+        "last_candle": { "description": "Inicio de la última vela de 15m usada.", "$ref": "#/$defs/utc" },
+        "seed": { "description": "Semilla de Monte Carlo y del test de suerte.", "type": "integer", "minimum": 0 }
+      }
+    },
+    "computed_at": { "$ref": "#/$defs/utc" },
+    "initial_equity": { "$ref": "#/$defs/decimal" },
+    "cost_multiplier": { "$ref": "#/$defs/decimal" },
+    "trades": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "long", "short", "exits", "rejected", "through_stop"],
+      "properties": {
+        "count": { "$ref": "#/$defs/count" }, "long": { "$ref": "#/$defs/count" },
+        "short": { "$ref": "#/$defs/count" },
+        "exits": {
+          "type": "object", "additionalProperties": false,
+          "required": ["stop", "stop_gap", "target", "planned", "force_close"],
+          "properties": {
+            "stop": { "$ref": "#/$defs/count" }, "stop_gap": { "$ref": "#/$defs/count" },
+            "target": { "$ref": "#/$defs/count" }, "planned": { "$ref": "#/$defs/count" },
+            "force_close": { "$ref": "#/$defs/count" }
+          }
+        },
+        "rejected": {
+          "description": "Señales que el módulo de riesgo rechazó, por motivo.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["reason", "count"],
+            "properties": {
+              "reason": { "type": "string", "minLength": 1 },
+              "count": { "$ref": "#/$defs/count" }
+            }
+          }
+        },
+        "through_stop": {
+          "description": "Planes con objetivo no operados porque la apertura de la entrada ya estaba del lado del stop.",
+          "$ref": "#/$defs/count"
+        }
+      }
+    },
+    "expectancy": {
+      "description": "R = P/L / riesgo de la operación (el del módulo de riesgo). null sin operaciones.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mean_r_net", "mean_r_net_ci", "mean_r_gross", "win_rate", "win_rate_ci",
+            "profit_factor", "confidence"
+          ],
+          "properties": {
+            "mean_r_net": { "$ref": "#/$defs/signed" },
+            "mean_r_net_ci": { "description": "IC normal del R neto medio (null con menos de 2 operaciones).", "$ref": "#/$defs/interval_or_null" },
+            "mean_r_gross": { "description": "R medio a precio medio, antes de todos los costos.", "$ref": "#/$defs/signed" },
+            "win_rate": { "$ref": "#/$defs/decimal" },
+            "win_rate_ci": { "description": "IC de Wilson.", "$ref": "#/$defs/interval" },
+            "profit_factor": { "description": "null sin pérdidas.", "$ref": "#/$defs/decimal_or_null" },
+            "confidence": { "description": "Nivel de los intervalos (config/lab.toml).", "$ref": "#/$defs/decimal" }
+          }
+        }
+      ]
+    },
+    "r_distribution": {
+      "description": "Histograma del R neto y del R bruto (a precio medio) por operación.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["step", "bins"],
+      "properties": {
+        "step": { "$ref": "#/$defs/decimal" },
+        "bins": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["from", "to", "net", "gross"],
+            "properties": {
+              "from": { "description": "Inclusive.", "$ref": "#/$defs/signed" },
+              "to": { "description": "Exclusive.", "$ref": "#/$defs/signed" },
+              "net": { "$ref": "#/$defs/count" },
+              "gross": { "$ref": "#/$defs/count" }
+            }
+          }
+        }
+      }
+    },
+    "months": {
+      "description": "Curva mensual (UTC): retorno de las operaciones cerradas en el mes sobre el capital, con los costos de la spec y con costos × 1,5; capital compuesto desde 1 y caída desde el máximo; comprar y mantener del mismo mes (null si no hay valor).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["month", "trades", "return", "return_stressed", "equity", "drawdown", "buy_and_hold"],
+        "properties": {
+          "month": { "type": "string", "pattern": "^\\d{4}-(0[1-9]|1[0-2])$" },
+          "trades": { "$ref": "#/$defs/count" },
+          "return": { "$ref": "#/$defs/signed" },
+          "return_stressed": { "$ref": "#/$defs/signed" },
+          "equity": { "$ref": "#/$defs/decimal" },
+          "drawdown": { "$ref": "#/$defs/decimal" },
+          "buy_and_hold": { "$ref": "#/$defs/signed_or_null" }
+        }
+      }
+    },
+    "sharpe": {
+      "description": "Sobre los retornos mensuales. Sharpe deflactado (Bailey y López de Prado, 2014) con N = N del proyecto (dsr_trials vigente) + variantes distintas de la familia (lab_trial.v1); nunca menos que el N del proyecto.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["monthly_mean", "sharpe", "sortino", "deflated", "project_trials", "family_variants", "trials"],
+      "properties": {
+        "monthly_mean": { "$ref": "#/$defs/signed_or_null" },
+        "sharpe": { "description": "Mensual.", "$ref": "#/$defs/signed_or_null" },
+        "sortino": { "description": "Mensual.", "$ref": "#/$defs/signed_or_null" },
+        "deflated": { "description": "Probabilidad de que el Sharpe verdadero supere al esperado con N pruebas.", "$ref": "#/$defs/decimal_or_null" },
+        "project_trials": { "$ref": "#/$defs/count" },
+        "family_variants": { "$ref": "#/$defs/count" },
+        "trials": { "$ref": "#/$defs/count" }
+      }
+    },
+    "pbo": {
+      "description": "Probabilidad de sobreajuste por CSCV (Bailey, Borwein, López de Prado y Zhu) sobre las variantes de la familia corridas juntas (desde 4). null con menos variantes (lo dice notes).",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["variants", "partitions", "pbo", "combinations", "logits", "oos_loss"],
+          "properties": {
+            "variants": { "$ref": "#/$defs/count" },
+            "partitions": { "$ref": "#/$defs/count" },
+            "pbo": { "$ref": "#/$defs/decimal" },
+            "combinations": { "$ref": "#/$defs/count" },
+            "logits": { "$ref": "#/$defs/summary" },
+            "oos_loss": { "$ref": "#/$defs/decimal" }
+          }
+        }
+      ]
+    },
+    "monte_carlo": {
+      "description": "Bootstrap circular por bloques de los retornos por operación (research::montecarlo, config/research.toml [montecarlo]). null sin operaciones.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "paths", "block_len", "ruin_threshold", "max_drawdown", "longest_losing_streak",
+            "longest_under_water", "final_return", "risk_of_ruin", "observed_max_drawdown"
+          ],
+          "properties": {
+            "paths": { "$ref": "#/$defs/count" },
+            "block_len": { "$ref": "#/$defs/count" },
+            "ruin_threshold": { "$ref": "#/$defs/decimal" },
+            "max_drawdown": { "$ref": "#/$defs/summary" },
+            "longest_losing_streak": { "$ref": "#/$defs/summary" },
+            "longest_under_water": { "$ref": "#/$defs/summary" },
+            "final_return": { "$ref": "#/$defs/summary" },
+            "risk_of_ruin": { "$ref": "#/$defs/decimal" },
+            "observed_max_drawdown": { "$ref": "#/$defs/decimal" }
+          }
+        }
+      ]
+    },
+    "walk_forward": {
+      "description": "Ventanas de validación de config/data_split.toml dentro del período: operaciones cerradas en cada una y su retorno compuesto. Los parámetros no se ajustan por ventana (la spec es fija).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to", "trades", "return"],
+        "properties": {
+          "from": { "$ref": "#/$defs/utc" }, "to": { "$ref": "#/$defs/utc" },
+          "trades": { "$ref": "#/$defs/count" }, "return": { "$ref": "#/$defs/signed" }
+        }
+      }
+    },
+    "halves": {
+      "description": "Retorno mensual medio de la primera y la segunda mitad de los meses. null con menos de 2 meses.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["split_month", "first", "second"],
+          "properties": {
+            "split_month": { "description": "Primer mes de la segunda mitad.", "type": "string", "pattern": "^\\d{4}-(0[1-9]|1[0-2])$" },
+            "first": { "$ref": "#/$defs/signed" },
+            "second": { "$ref": "#/$defs/signed" }
+          }
+        }
+      ]
+    },
+    "cost_stress": {
+      "description": "Las mismas operaciones con todos los costos multiplicados por stress (cost_multiplier × 1,5, config/research.toml).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stress", "mean_r_net", "monthly_mean", "sharpe"],
+      "properties": {
+        "stress": { "$ref": "#/$defs/decimal" },
+        "mean_r_net": { "$ref": "#/$defs/signed_or_null" },
+        "monthly_mean": { "$ref": "#/$defs/signed_or_null" },
+        "sharpe": { "$ref": "#/$defs/signed_or_null" }
+      }
+    },
+    "luck": {
+      "description": "Test de suerte (research::luck): percentil de la estrategia entre entradas al azar con las mismas salidas y el mismo tamaño. null sin operaciones.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["simulations", "strategy_mean_r", "percentile_mean_r", "percentile_total"],
+          "properties": {
+            "simulations": { "$ref": "#/$defs/count" },
+            "strategy_mean_r": { "$ref": "#/$defs/signed" },
+            "percentile_mean_r": { "description": "% de simulaciones con R medio menor.", "$ref": "#/$defs/decimal" },
+            "percentile_total": { "description": "% de simulaciones con retorno total menor.", "$ref": "#/$defs/decimal" }
+          }
+        }
+      ]
+    },
+    "buy_and_hold": {
+      "description": "Comprar y mantener el CFD en el mismo período, con costos y financiación (research::buy_and_hold_returns). null si no se pudo calcular.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["monthly_mean", "sharpe", "max_drawdown", "total_return"],
+          "properties": {
+            "monthly_mean": { "$ref": "#/$defs/signed_or_null" },
+            "sharpe": { "$ref": "#/$defs/signed_or_null" },
+            "max_drawdown": { "$ref": "#/$defs/decimal" },
+            "total_return": { "$ref": "#/$defs/signed" }
+          }
+        }
+      ]
+    },
+    "excursions": {
+      "description": "MAE y MFE en R por operación (research::StudyTrade), cuantiles 25/50/75/90. null sin operaciones.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mae_r", "mfe_r", "mfe_r_losers"],
+      "properties": {
+        "mae_r": { "$ref": "#/$defs/quantiles_or_null" },
+        "mfe_r": { "$ref": "#/$defs/quantiles_or_null" },
+        "mfe_r_losers": { "description": "MFE de las perdedoras: cuánto llegaron a ganar antes de perder.", "$ref": "#/$defs/quantiles_or_null" }
+      }
+    },
+    "edge": {
+      "description": "Filtro de borde bruto a la vista (regla del presupuesto §3.2): costo medio medido por operación C en R, la barra k × C y el borde bruto medido. En una exploratoria el bruto medido es un resultado, no una estimación previa.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cost_per_trade_r", "edge_cost_factor", "required_gross_r", "measured_gross_r"],
+      "properties": {
+        "cost_per_trade_r": { "$ref": "#/$defs/decimal_or_null" },
+        "edge_cost_factor": { "$ref": "#/$defs/decimal" },
+        "required_gross_r": { "$ref": "#/$defs/decimal_or_null" },
+        "measured_gross_r": { "$ref": "#/$defs/signed_or_null" }
+      }
+    },
+    "slices": {
+      "description": "Cortes descriptivos por año de salida, hora UTC de entrada y dirección. Mirar cortes es probar más: no son resultados para elegir.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by_year", "by_hour_utc", "by_side"],
+      "properties": {
+        "by_year": { "type": "array", "items": { "$ref": "#/$defs/slice" } },
+        "by_hour_utc": { "type": "array", "items": { "$ref": "#/$defs/slice" } },
+        "by_side": { "type": "array", "items": { "$ref": "#/$defs/slice" } }
+      }
+    },
+    "notes": {
+      "description": "Avisos para la persona, en español (por ejemplo: exploratorio, no vota; pocas operaciones; spread fijo histórico; por qué falta el PBO).",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" },
+    "count": { "type": "integer", "minimum": 0 },
+    "decimal": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "signed": { "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" },
+    "decimal_or_null": { "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+    "signed_or_null": { "oneOf": [{ "$ref": "#/$defs/signed" }, { "type": "null" }] },
+    "interval": {
+      "type": "object", "additionalProperties": false, "required": ["low", "high"],
+      "properties": { "low": { "$ref": "#/$defs/signed" }, "high": { "$ref": "#/$defs/signed" } }
+    },
+    "period": {
+      "type": "object", "additionalProperties": false, "required": ["from", "to"],
+      "properties": { "from": { "$ref": "#/$defs/utc" }, "to": { "$ref": "#/$defs/utc" } }
+    },
+    "interval_or_null": { "oneOf": [{ "$ref": "#/$defs/interval" }, { "type": "null" }] },
+    "summary": {
+      "description": "Media y cuantiles 5, 50 y 95 % sobre los caminos o combinaciones.",
+      "type": "object", "additionalProperties": false, "required": ["mean", "p5", "p50", "p95"],
+      "properties": {
+        "mean": { "$ref": "#/$defs/signed" }, "p5": { "$ref": "#/$defs/signed" },
+        "p50": { "$ref": "#/$defs/signed" }, "p95": { "$ref": "#/$defs/signed" }
+      }
+    },
+    "quantiles_or_null": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object", "additionalProperties": false, "required": ["p25", "p50", "p75", "p90"],
+          "properties": {
+            "p25": { "$ref": "#/$defs/decimal" }, "p50": { "$ref": "#/$defs/decimal" },
+            "p75": { "$ref": "#/$defs/decimal" }, "p90": { "$ref": "#/$defs/decimal" }
+          }
+        }
+      ]
+    },
+    "slice": {
+      "type": "object", "additionalProperties": false,
+      "required": ["key", "trades", "mean_r_net", "win_rate"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 }, "trades": { "$ref": "#/$defs/count" },
+        "mean_r_net": { "$ref": "#/$defs/signed" }, "win_rate": { "$ref": "#/$defs/decimal" }
+      }
+    }
+  }
+}
