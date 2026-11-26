@@ -142,7 +142,7 @@ export function MultichartView({ single = false }: { single?: boolean }) {
   const [tools, setTools] = useState<ChartTools[]>(() =>
     Array.from({ length: MAX }, () => NO_TOOLS),
   )
-  const [chartTools, toggleChartTool] = useChartTools()
+  const [chartTools, toggleChartTool, chartToolLocks] = useChartTools()
   const { instruments, timeframes } = useChartCatalog()
   const ibkrInstruments = useIbkrInstruments()
   const [cursorHub] = useState(() => new CursorSync())
@@ -268,6 +268,7 @@ export function MultichartView({ single = false }: { single?: boolean }) {
             tools={chartTools}
             onToggle={toggleChartTool}
             available={current.view?.analysis != null}
+            locks={chartToolLocks}
           />
         )}
         <span className="ml-auto" />

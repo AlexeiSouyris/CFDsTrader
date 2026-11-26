@@ -4,7 +4,7 @@
  * motor (cargando o sin gateway) nada se bloquea: el candado es una ayuda para aprender, no un
  * control de seguridad, y abrir una herramienta no cambia nada del motor, del riesgo ni del paper.
  */
-import { useAcademy } from '@/lib/academy-api'
+import { useAcademy, type AcademyState } from '@/lib/academy-api'
 
 export type ToolLockState =
   | { locked: false }
@@ -32,7 +32,19 @@ export function takeFocusedLesson(): string | null {
 }
 
 export function useToolLock(tool: string): ToolLockState {
+  return lockOf(useAcademy(), tool)
+}
+
+/**
+ * El candado de varias herramientas a la vez (las capas del menú Herramientas, #836), con una sola
+ * lectura de la Academia.
+ */
+export function useToolLocks<T extends string>(tools: readonly T[]): Record<T, ToolLockState> {
   const academy = useAcademy()
+  return Object.fromEntries(tools.map((t) => [t, lockOf(academy, t)])) as Record<T, ToolLockState>
+}
+
+function lockOf(academy: AcademyState, tool: string): ToolLockState {
   if (academy.status !== 'ok') return { locked: false }
   const { catalog, progress } = academy
   const def = catalog.tools.find((t) => t.id === tool)
