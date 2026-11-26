@@ -232,3 +232,4 @@ Todas se leyeron o transcribieron entre el 24 y el 25-11-2026. Las transcripcion
 - **Su canal, sobre desafíos de prop firms** (d144Xr6Y6v0). Pide revisar antes de comprar un desafío la racha perdedora normal: con 40 % de aciertos son unas 9 pérdidas seguidas, y nunca debería pasar de la mitad del drawdown permitido. Ofrece una calculadora en su Telegram.
 
 **Qué cambia para el proyecto:** nada en la pre-registración congelada. Se propone sumar los "cinco ataques" como **reporte informativo** de cada prueba futura. No cuentan como criterio de aprobación ni gastan margen de error.
+- Estudio de los gráficos del video en vivo contra Imre Gams (estrategia A, lo que se ve en pantalla): `docs/research/2026-11-bruni-video-imre-gams-graficos.md` (#853).
