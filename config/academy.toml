@@ -1699,32 +1699,32 @@ unlocks = []
 [[lessons.questions]]
 id = "7.1.1"
 kind = "number"
-prompt = "Tamaño 2 € por punto y stop a 25 puntos. ¿Cuánto es 1 R, en €?"
-answer = "50"
+prompt = "Tamaño 4 € por punto y stop a 15 puntos. ¿Cuánto es 1 R, en €?"
+answer = "60"
 tolerance = "0"
 unit = "€"
 
 [[lessons.questions]]
 id = "7.1.2"
 kind = "number"
-prompt = "Con esa misma operación (1 R = 50 €), cerrás con +60 puntos. ¿Cuántos R ganaste?"
-answer = "2.4"
+prompt = "Con esa misma operación (1 R = 60 €), cerrás con +45 puntos. ¿Cuántos R ganaste?"
+answer = "3"
 tolerance = "0"
 unit = "R"
 
 [[lessons.questions]]
 id = "7.1.3"
 kind = "number"
-prompt = "Perdiste 30 € en una operación con 1 R = 50 €. ¿Cuánto es en R (negativo si perdés)?"
-answer = "-0.6"
+prompt = "Perdiste 24 € en una operación con 1 R = 60 €. ¿Cuánto es en R (negativo si perdés)?"
+answer = "-0.4"
 tolerance = "0"
 unit = "R"
 
 [[lessons.questions]]
 id = "7.1.4"
 kind = "number"
-prompt = "Capital 10.000 € y riesgo por operación del 1 % (1 R = 100 €). La operación gana 250 €. ¿Cuántos R?"
-answer = "2.5"
+prompt = "Capital 10.000 € y riesgo por operación del 1 % (1 R = 100 €). La operación gana 175 €. ¿Cuántos R?"
+answer = "1.75"
 tolerance = "0"
 unit = "R"
 
@@ -1739,8 +1739,8 @@ unit = "pts"
 [[lessons.questions]]
 id = "7.1.6"
 kind = "number"
-prompt = "Spread del US500 de 0,9 puntos y stop a 30 puntos. ¿Cuántos R cuesta el spread de la operación?"
-answer = "0.03"
+prompt = "Spread del US100 de 1,6 puntos y stop a 32 puntos. ¿Cuántos R cuesta el spread de la operación?"
+answer = "0.05"
 tolerance = "0"
 unit = "R"
 
@@ -1764,24 +1764,24 @@ unlocks = ["tool.paper_ticket"]
 [[lessons.questions]]
 id = "7.3.1"
 kind = "number"
-prompt = "Capital 10.000 €, riesgo 1 %, US500 en 6.000, ATR 20 y stop a 30 puntos, con el colchón por gaps de 0,25 ATR. ¿Qué tamaño da el motor, en € por punto?"
-answer = "2.86"
+prompt = "Capital 10.000 €, riesgo 1 %, US500 en 6.000, ATR 24 y stop a 36 puntos, con el colchón por gaps de 0,25 ATR. ¿Qué tamaño da el motor, en € por punto?"
+answer = "2.38"
 tolerance = "0.01"
 unit = "€/pt"
 
 [[lessons.questions]]
 id = "7.3.2"
 kind = "number"
-prompt = "Con ese tamaño (100 ÷ 35 € por punto), si el precio toca el stop justo a 30 puntos, ¿cuánto perdés, en €?"
-answer = "85.71"
+prompt = "Con ese tamaño (100 ÷ 42 € por punto), si un gap salta el stop y la salida queda 6 puntos más allá (42 puntos de la entrada), ¿cuánto perdés antes de costos, en €?"
+answer = "100"
 tolerance = "0.01"
 unit = "€"
 
 [[lessons.questions]]
 id = "7.3.3"
 kind = "number"
-prompt = "Capital 10.000 €. Hay un largo abierto en US100 que arriesga 100 €. Llega una señal en US500 con stop a 30 puntos y ATR 20 (35 puntos con el colchón). Con el tope del grupo de EE. UU. del 1,5 %, ¿qué tamaño da el motor, en € por punto?"
-answer = "1.43"
+prompt = "Capital 10.000 €. Hay un largo abierto en US30 que arriesga 80 €. Llega una señal en US500 con stop a 36 puntos y ATR 24 (42 puntos con el colchón). Con el tope del grupo de EE. UU. del 1,5 %, ¿qué tamaño da el motor, en € por punto?"
+answer = "1.67"
 tolerance = "0.01"
 unit = "€/pt"
 
@@ -1808,7 +1808,7 @@ answer = "b"
 [[lessons.questions]]
 id = "7.3.6"
 kind = "choice"
-prompt = "Al US500 le queda lugar para arriesgar 20 € en el grupo y la distancia con el colchón es de 35 puntos: el tamaño daría 0,57 € por punto, y el mínimo de IG en US500 es 1. ¿Qué hace el motor?"
+prompt = "Al US500 le queda lugar para arriesgar 30 € en el grupo y la distancia con el colchón es de 42 puntos: el tamaño daría 0,71 € por punto, y el mínimo de IG en US500 es 1. ¿Qué hace el motor?"
 options = [
   { id = "a", text = "Lo sube a 1, el mínimo." },
   { id = "b", text = "La rechaza: queda por debajo del mínimo del broker." },
@@ -1828,24 +1828,24 @@ unlocks = ["tool.trading_status_bar"]
 [[lessons.questions]]
 id = "7.4.1"
 kind = "number"
-prompt = "El día empezó con 10.000 € de capital. Con la pérdida diaria máxima del 3 %, ¿con qué capital se cortan las entradas nuevas, en €?"
-answer = "9700"
+prompt = "El día empezó con 12.000 € de capital. Con la pérdida diaria máxima del 3 %, ¿con qué capital se cortan las entradas nuevas, en €?"
+answer = "11640"
 tolerance = "0"
 unit = "€"
 
 [[lessons.questions]]
 id = "7.4.2"
 kind = "number"
-prompt = "La caída desde el máximo es del 7,5 %. Con la reducción gradual lineal (5 %, 1) y (10 %, 0,5), ¿cuál es el riesgo por operación, en %?"
-answer = "0.75"
+prompt = "La caída desde el máximo es del 8 %. Con la reducción gradual lineal (5 %, 1) y (10 %, 0,5), ¿cuál es el riesgo por operación, en %?"
+answer = "0.7"
 tolerance = "0"
 unit = "%"
 
 [[lessons.questions]]
 id = "7.4.3"
 kind = "number"
-prompt = "La caída desde el máximo es del 11,25 %. Con los puntos (10 %, 0,5) y (12,5 %, 0,25), ¿cuál es el riesgo por operación, en %?"
-answer = "0.375"
+prompt = "La caída desde el máximo es del 11 %. Con los puntos (10 %, 0,5) y (12,5 %, 0,25), ¿cuál es el riesgo por operación, en %?"
+answer = "0.4"
 tolerance = "0"
 unit = "%"
 
@@ -1860,8 +1860,8 @@ unit = "%"
 [[lessons.questions]]
 id = "7.4.5"
 kind = "number"
-prompt = "El máximo del capital fue 12.000 €. Con el kill switch al 15 % de caída, ¿con qué capital salta, en €?"
-answer = "10200"
+prompt = "El máximo del capital fue 11.000 €. Con el kill switch al 15 % de caída, ¿con qué capital salta, en €?"
+answer = "9350"
 tolerance = "0"
 unit = "€"
 
