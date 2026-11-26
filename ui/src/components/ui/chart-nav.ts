@@ -311,6 +311,11 @@ export function useChartNav(
     measure: Measure
     /** botón de regla: el arrastre mide en vez de desplazar */
     ruler: boolean
+    /**
+     * false: medir arrastrando está bloqueado (candado de la regla en la Academia, #827); ni
+     * Shift + arrastrar ni el toque largo empiezan a medir. Por defecto, true.
+     */
+    canMeasure?: boolean
   },
 ) {
   const { vp, measure } = opts
@@ -414,7 +419,7 @@ export function useChartNav(
   }
 
   const onPointerDown = (e: PointerEvent<SVGSVGElement>) => {
-    const { plotW, height, top, bottom, ruler } = o.current
+    const { plotW, height, top, bottom, ruler, canMeasure = true } = o.current
     engaged.current = true
     if (wheelHint) setWheelHint(false)
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
@@ -443,7 +448,7 @@ export function useChartNav(
       moved: false,
       samples: [],
     }
-    if (e.shiftKey || ruler) {
+    if (canMeasure && (e.shiftKey || ruler)) {
       drag.current = { ...base, mode: 'measure' }
       return measure.handlers.onPointerDown(e)
     }
@@ -453,7 +458,7 @@ export function useChartNav(
     } else if (p.x >= 0 && p.x <= plotW && p.y >= 0 && p.y <= height) {
       drag.current = { ...base, mode: 'pan' }
       measure.clear()
-      if (e.pointerType === 'touch') startPress(e)
+      if (e.pointerType === 'touch' && canMeasure) startPress(e)
     } else return
     capture(e)
   }
