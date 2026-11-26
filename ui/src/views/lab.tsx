@@ -10,6 +10,7 @@
 import { FlaskConical, Play, Plus, ShieldCheck, Trash2, X } from 'lucide-react'
 import { useId, useState, type ComponentProps, type ReactNode } from 'react'
 
+import { LiveTrials, LuckBar } from '@/components/ui/lab-live'
 import { LabReports } from '@/components/ui/lab-report'
 import { PropSimulator } from '@/components/ui/lab-propsim'
 import { RiskCalculator } from '@/components/ui/lab-risk'
@@ -340,7 +341,7 @@ function Builder({ cat }: { cat: StrategyCatalog }) {
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [first, setFirst] = useState<LabJobEvent | null>(null)
-  const { event, error: jobError } = useLabJob(first?.job_id ?? null, first)
+  const { event, error: jobError, curves } = useLabJob(first?.job_id ?? null, first)
   const ids = useId()
   const limits = cat.limits
   const market = cat.markets.find((m) => m.instrument_id === draft.instrument_id)
@@ -719,8 +720,14 @@ function Builder({ cat }: { cat: StrategyCatalog }) {
             curva esconde.
           </p>
         )}
+        {/* en vivo (#854): desde que corren las variantes, y queda al terminar */}
+        {event && (curves.length > 0 || event.stage === 'running_variants') && (
+          <LiveTrials event={event} curves={curves} />
+        )}
         {jobError && <p className="text-[12.5px] text-down">{jobError}</p>}
-        {event?.state === 'done' && <LabReports ids={event.report_ids} />}
+        {event?.state === 'done' && (
+          <LabReports ids={event.report_ids} header={(list) => <LuckBar reports={list} />} />
+        )}
         <RiskCalculator cat={cat} />
         <ToolLock tool="tool.variance_simulator">
           <VarianceSimulator reports={event?.state === 'done' ? event.report_ids : []} />

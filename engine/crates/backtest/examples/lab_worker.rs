@@ -14,6 +14,8 @@
 //!   declara su propia transacción de escritura (`cfds_journal::lab`).
 //! - Velas de futuros **solo hasta el inicio del fuera de muestra** (como las rondas), nunca IG.
 //!   Cada spec se vuelve a validar al tomarla (la separación de datos pudo moverse).
+//! - Cada variante terminada manda su curva de capital reducida (`curve`, #854) en el paso de
+//!   "corriendo variantes", para la vista en vivo de la UI.
 //! - Cada paso (`lab_job_event.v1`) se guarda en `lab_job_events` y se publica en el Redis Stream
 //!   `lab_jobs.v1.<job_id>`, que el gateway pasa a SSE. Sin Redis, sigue: el gateway lee de
 //!   PostgreSQL.
@@ -34,7 +36,7 @@ mod study;
 use std::time::Instant;
 
 use cfds_backtest::lab::{
-    JobStage, JobStep, LabJobEvent, LabTrial, ValidSpec, WorkerConfig, check_variants,
+    JobStage, JobStep, LabJobEvent, LabTrial, TrialCurve, ValidSpec, WorkerConfig, check_variants,
     family_variants, progress, validate_spec,
 };
 use cfds_journal::lab::{Appended, Claimed, PgLab, StoredReport};
@@ -96,6 +98,20 @@ impl Worker {
         total: u32,
         started: Instant,
     ) -> Result<(), Stop> {
+        self.step_with(job_id, stage, done, total, started, None)
+            .await
+    }
+
+    /// Como `step`, con la curva de la variante que acaba de terminar (#854).
+    async fn step_with(
+        &mut self,
+        job_id: &str,
+        stage: JobStage,
+        done: u32,
+        total: u32,
+        started: Instant,
+        curve: Option<TrialCurve>,
+    ) -> Result<(), Stop> {
         if started.elapsed() > self.cfg.max_duration() {
             return Err(Stop::Failed(format!(
                 "superó la duración máxima de {} minutos ([worker] max_minutes)",
@@ -106,6 +122,7 @@ impl Worker {
             stage,
             percent: progress(stage, done, total),
             variants_done: done,
+            curve,
         };
         match self.lab.append(job_id, &step, Utc::now()).await? {
             Appended::Added(e) => {
@@ -145,11 +162,23 @@ impl Worker {
         let data =
             lab_run::load(&self.env, &specs, &args, from, equity, split, &self.store).await?;
         let mut runs = Vec::new();
+        self.step(&job, JobStage::RunningVariants, 0, total, started)
+            .await?;
         for (k, v) in specs.iter().enumerate() {
-            let done = u32::try_from(k).unwrap_or(u32::MAX);
-            self.step(&job, JobStage::RunningVariants, done, total, started)
-                .await?;
-            runs.push(lab_run::run_variant(&data, v)?);
+            let run = lab_run::run_variant(&data, v)?;
+            // la curva de la variante apenas termina, para verla en vivo (#854)
+            let curve = TrialCurve::from_monthly(k, &run.monthly, self.cfg.curve_max_points);
+            let done = u32::try_from(k + 1).unwrap_or(u32::MAX);
+            self.step_with(
+                &job,
+                JobStage::RunningVariants,
+                done,
+                total,
+                started,
+                Some(curve),
+            )
+            .await?;
+            runs.push(run);
         }
         let variants: Vec<Vec<f64>> = runs.iter().map(|r| r.monthly.clone()).collect();
         let family = &specs[0].family_sha256;

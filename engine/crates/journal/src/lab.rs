@@ -1,5 +1,5 @@
-//! Laboratorio de estrategias en PostgreSQL (`infra/migrations/0053_lab.sql`, #774): la cola de
-//! trabajos (`lab_jobs`), sus eventos (`lab_job_events`), los informes (`lab_reports`) y las
+//! Laboratorio de estrategias en PostgreSQL (`infra/migrations/0053_lab.sql`, #774; la curva en
+//! vivo de cada variante, `0055_lab_event_curve.sql`, #854): la cola de trabajos (`lab_jobs`), sus eventos (`lab_job_events`), los informes (`lab_reports`) y las
 //! variantes probadas (`lab_trials`). Todo de solo agregar: el estado de un trabajo es su último
 //! evento y un trabajo tiene un solo final (`done`, `failed` o `cancelled`).
 //!
@@ -71,7 +71,7 @@ pub struct PgLab {
 macro_rules! event_columns {
     () => {
         "e.seq, e.job_id, e.state, e.stage, e.percent, e.variants_done, j.variants_total, \
-         e.report_ids, e.error, e.recorded_at"
+         e.report_ids, e.error, e.curve::text AS curve, e.recorded_at"
     };
 }
 
@@ -90,6 +90,7 @@ fn corrupt(what: impl std::fmt::Display) -> LabStoreError {
 fn row_to_event(r: &PgRow) -> Result<LabJobEvent, LabStoreError> {
     let state: String = r.try_get("state")?;
     let stage: Option<String> = r.try_get("stage")?;
+    let curve: Option<String> = r.try_get("curve")?;
     let count = |name: &str| -> Result<u32, LabStoreError> {
         u32::try_from(r.try_get::<i32, _>(name)?).map_err(|_| corrupt(name))
     };
@@ -105,6 +106,7 @@ fn row_to_event(r: &PgRow) -> Result<LabJobEvent, LabStoreError> {
         variants_total: count("variants_total")?,
         report_ids: r.try_get("report_ids")?,
         error: r.try_get("error")?,
+        curve: curve.as_deref().map(serde_json::from_str).transpose()?,
         recorded_at: r.try_get("recorded_at")?,
     })
 }
@@ -147,6 +149,7 @@ async fn insert_step(
             stage,
             percent,
             variants_done,
+            ..
         } => (
             Some(stage.as_str()),
             i16::from((*percent).min(100)),
@@ -156,17 +159,21 @@ async fn insert_step(
         ),
         JobStep::Done { report_ids } => (None, 100, 0, report_ids.as_slice(), None),
     };
+    let curve = match step {
+        JobStep::Running { curve: Some(c), .. } => Some(serde_json::to_string(c)?),
+        _ => None,
+    };
     // En `done` las variantes hechas son todas; en los demás finales, las del último paso.
     let sql = concat!(
         "WITH ins AS (
            INSERT INTO lab_job_events
-             (job_id, state, stage, percent, variants_done, report_ids, error, recorded_at)
+             (job_id, state, stage, percent, variants_done, report_ids, error, curve, recorded_at)
            SELECT $1, $2, $3, $4,
                   CASE WHEN $2 = 'done' THEN j.variants_total
                        WHEN $2 = 'running' THEN $5
                        ELSE COALESCE((SELECT variants_done FROM lab_job_events
                                       WHERE job_id = $1 ORDER BY seq DESC LIMIT 1), 0) END,
-                  $6, $7, $8
+                  $6, $7, $9::jsonb, $8
            FROM lab_jobs j WHERE j.job_id = $1
            RETURNING *)
          SELECT ",
@@ -182,6 +189,7 @@ async fn insert_step(
         .bind(report_ids)
         .bind(error)
         .bind(at)
+        .bind(curve)
         .fetch_one(&mut **tx)
         .await?;
     row_to_event(&row)
@@ -284,6 +292,7 @@ impl PgLab {
             stage: JobStage::Started,
             percent: 0,
             variants_done: 0,
+            curve: None,
         };
         let event = insert_step(&mut tx, &id, &step, now).await?;
         tx.commit().await?;

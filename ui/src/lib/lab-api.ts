@@ -16,7 +16,7 @@
  * Las escrituras llevan la cabecera anti-CSRF `x-cfds-token`, que **no pone el navegador**: la
  * agrega el proxy de desarrollo de Vite (`gateway-token.ts`). El token nunca está en el cliente.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import type {
   LabJobEvent,
@@ -27,6 +27,7 @@ import type {
   SpecValidation,
   StrategyCatalog,
   StrategySpec,
+  TrialCurve,
 } from '@/lib/lab-contracts'
 import { useRemote } from '@/lib/liquidity-api'
 import { GatewayError } from '@/lib/paper-api'
@@ -92,6 +93,20 @@ export const useLabReports = (ids: string[] | null) =>
 const ENDED: LabJobEvent['state'][] = ['done', 'failed', 'cancelled']
 export const isEnded = (e: LabJobEvent | null) => e !== null && ENDED.includes(e.state)
 
+/** Curvas en vivo que se guardan como mucho (las últimas); más no se ve y solo cuesta (#854). */
+export const MAX_LIVE_CURVES = 300
+
+/** Agrega `news` a `curves` sin repetir variante (un reenvío del SSE la reemplaza) y con el tope. */
+export function mergeCurves(curves: TrialCurve[], news: TrialCurve[]): TrialCurve[] {
+  const seen = new Set(news.map((c) => c.variant))
+  return [...curves.filter((c) => !seen.has(c.variant)), ...news].slice(-MAX_LIVE_CURVES)
+}
+
+const frame = (f: () => void) =>
+  typeof requestAnimationFrame === 'function'
+    ? requestAnimationFrame(f)
+    : (setTimeout(f, 16) as unknown as number)
+
 /** Sin `EventSource`, cada cuánto se pide el estado del trabajo. */
 export const JOB_POLL_MS = 2_000
 
@@ -99,18 +114,43 @@ export const JOB_POLL_MS = 2_000
  * El último evento del trabajo `id` (empieza en `first`): por SSE mientras corre (el gateway
  * reconecta con `Last-Event-ID`) y se cierra al llegar el final. Sin `EventSource`, pide el
  * estado cada `JOB_POLL_MS`. Nunca vuelve atrás: un evento con `seq` menor se ignora.
+ *
+ * `curves` junta la curva de cada variante terminada (#854) para la vista en vivo. Se agrupan y se
+ * entregan de a un cuadro (`requestAnimationFrame`): si llegan varias juntas, se dibuja una vez.
+ * Sin `EventSource` solo se ven las que traiga el último estado.
  */
 export function useLabJob(id: string | null, first: LabJobEvent | null) {
   const [event, setEvent] = useState<LabJobEvent | null>(first)
   const [error, setError] = useState<string | null>(null)
+  const [curves, setCurves] = useState<{ job: string | null; list: TrialCurve[] }>({
+    job: id,
+    list: [],
+  })
+  const pending = useRef<{ job: string; list: TrialCurve[] } | null>(null)
+  const flush = () => {
+    const p = pending.current
+    pending.current = null
+    if (p)
+      setCurves((c) => ({ job: p.job, list: mergeCurves(c.job === p.job ? c.list : [], p.list) }))
+  }
   /** Se queda con el más nuevo del mismo trabajo; otro trabajo reemplaza. */
-  const take = (e: LabJobEvent | null) =>
+  const takeEvent = (e: LabJobEvent | null) =>
     setEvent((prev) => (prev && e && prev.job_id === e.job_id && prev.seq >= e.seq ? prev : e))
+  /** Lo mismo, y su curva (si trae) espera al próximo cuadro. Solo fuera del render. */
+  const take = (e: LabJobEvent | null) => {
+    takeEvent(e)
+    if (!e?.curve) return
+    if (pending.current?.job !== e.job_id) {
+      if (pending.current === null) frame(flush)
+      pending.current = { job: e.job_id, list: [] }
+    }
+    pending.current.list.push(e.curve)
+  }
   // Lo que devuelve el gateway al encolar o cancelar también cuenta.
   const [seen, setSeen] = useState(first)
   if (seen !== first) {
     setSeen(first)
-    take(first)
+    takeEvent(first)
   }
   const [seenId, setSeenId] = useState(id)
   if (seenId !== id) {
@@ -157,5 +197,5 @@ export function useLabJob(id: string | null, first: LabJobEvent | null) {
     // Solo al cambiar de trabajo: lo demás llega por el SSE.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
-  return { event, error }
+  return { event, error, curves: curves.job === id ? curves.list : [] }
 }

@@ -39,6 +39,8 @@ fn a_bad_worker_section_fails_at_startup() {
             "load_from = \"ayer\"",
         ),
         ("funding_scenario = \"ESTR\"", "funding_scenario = \" \""),
+        ("curve_max_points = 200", "curve_max_points = 1"),
+        ("curve_max_points = 200", "curve_max_points = 201"),
         ("stream_maxlen = 1000", "stream_maxlen = 1000\nthreads = 4"),
     ] {
         assert!(LAB.contains(from), "la config real cambió: {from}");
@@ -57,7 +59,8 @@ fn progress_only_goes_up_and_never_says_done() {
         progress(Started, 0, total),
         progress(LoadingCandles, 0, total),
     ];
-    seen.extend((0..total).map(|k| progress(RunningVariants, k, total)));
+    // un paso antes de la primera variante y uno después de cada una (con su curva, #854)
+    seen.extend((0..=total).map(|k| progress(RunningVariants, k, total)));
     seen.extend((0..total).map(|k| progress(BuildingReports, k, total)));
     seen.push(progress(Saving, total, total));
     assert!(seen.windows(2).all(|w| w[0] <= w[1]), "{seen:?}");

@@ -24,7 +24,13 @@ pub struct WorkerConfig {
     pub stream_ttl_hours: u64,
     /// Entradas que guarda como mucho cada stream.
     pub stream_maxlen: usize,
+    /// Puntos que lleva como mucho la curva en vivo de cada variante (#854; 2 a 200, el tope del
+    /// contrato).
+    pub curve_max_points: usize,
 }
+
+/// El tope de puntos de `curve` en `lab_job_event.v1`.
+pub const CURVE_MAX_POINTS_LIMIT: usize = 200;
 
 impl WorkerConfig {
     /// Revisa los valores (se llama al leer `config/lab.toml`).
@@ -39,6 +45,11 @@ impl WorkerConfig {
                  tienen que ser > 0"
                     .into(),
             );
+        }
+        if !(2..=CURVE_MAX_POINTS_LIMIT).contains(&self.curve_max_points) {
+            return Err(format!(
+                "lab.toml: [worker] curve_max_points tiene que ir de 2 a {CURVE_MAX_POINTS_LIMIT}"
+            ));
         }
         self.load_from()?;
         if self.funding_scenario.trim().is_empty() {

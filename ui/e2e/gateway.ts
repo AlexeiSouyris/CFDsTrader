@@ -380,6 +380,25 @@ export const ROUTES: MockRoute[] = [
     schema: 'lab_report.v1.schema.json',
     body: () => labReport,
   },
+  // el último paso de un trabajo mientras corre (#854): la curva de la variante que acaba de
+  // terminar, la que dibuja la vista en vivo (capital compuesto desde 1, reducido)
+  {
+    path: `/api/v1/lab/jobs/${'e'.repeat(64)}`,
+    schema: 'lab_job_event.v1.schema.json',
+    body: () => ({
+      job_id: 'e'.repeat(64),
+      seq: 12,
+      state: 'running',
+      stage: 'running_variants',
+      percent: 35,
+      variants_done: 3,
+      variants_total: 6,
+      report_ids: [],
+      error: null,
+      curve: { variant: 2, months: 4, equity: ['1', '1.012', '0.998', '1.021', '1.034'] },
+      recorded_at: '2026-11-26T18:00:00Z',
+    }),
+  },
   // el simulador de cuenta fondeada (#807): las plantillas de config/propsim.toml (solo la genérica
   // en blanco)
   {

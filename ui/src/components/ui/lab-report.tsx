@@ -534,8 +534,14 @@ export function LabReportView({ report: x }: { report: LabReport }) {
   )
 }
 
-/** Los informes de una corrida terminada, uno por variante. */
-export function LabReports({ ids }: { ids: string[] }) {
+/** Los informes de una corrida terminada, uno por variante; `header` va arriba (con los mismos). */
+export function LabReports({
+  ids,
+  header,
+}: {
+  ids: string[]
+  header?: (reports: LabReport[]) => ReactNode
+}) {
   const reports = useLabReports(ids)
   const [pick, setPick] = useState(0)
   if (reports.status === 'loading')
@@ -550,6 +556,7 @@ export function LabReports({ ids }: { ids: string[] }) {
   const at = Math.min(pick, list.length - 1)
   return (
     <div className="grid min-w-0 gap-3">
+      {header?.(list)}
       {list.length > 1 && (
         <div className="overflow-x-auto">
           <Segmented

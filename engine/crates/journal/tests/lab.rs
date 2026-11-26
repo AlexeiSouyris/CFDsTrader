@@ -3,7 +3,9 @@
 //! el CI los corre con `-- --ignored` (job de integración). Las tablas son de solo agregar: cada
 //! test usa hashes propios de su corrida.
 
-use cfds_backtest::lab::{JobStage, JobState, JobStep, LabJobRequest, LabTrial, sha256_hex};
+use cfds_backtest::lab::{
+    JobStage, JobState, JobStep, LabJobRequest, LabTrial, TrialCurve, sha256_hex,
+};
 use cfds_journal::lab::{Appended, Enqueued, PgLab, StoredReport};
 use cfds_storage::PgStore;
 use cfds_storage::test_db::{test_database_url, unique_id};
@@ -106,15 +108,21 @@ async fn a_job_goes_from_queued_to_done_with_its_reports_and_trials() {
     let next = lab.claim_next(t0).await.unwrap();
     assert!(next.is_none_or(|c| c.event.job_id != queued.job_id));
 
+    // la curva de la variante que terminó (#854) se guarda y vuelve igual
+    let curve = TrialCurve::from_monthly(0, &[0.01, -0.02, 0.03], 200);
     let step = JobStep::Running {
         stage: JobStage::RunningVariants,
         percent: 55,
         variants_done: 1,
+        curve: Some(curve.clone()),
     };
     let Appended::Added(progress) = lab.append(&queued.job_id, &step, t0).await.unwrap() else {
         panic!("corriendo");
     };
     assert_eq!((progress.percent, progress.variants_done), (55, 1));
+    assert_eq!(progress.curve, Some(curve));
+    let replay = lab.events_after(&queued.job_id, 0).await.unwrap();
+    assert_eq!(replay.last(), Some(&progress));
 
     let (s1, s2) = (fresh("LJS1"), fresh("LJS2"));
     let (r1, r2) = (fresh("LJR1"), fresh("LJR2"));

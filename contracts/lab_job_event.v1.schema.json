@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/lab_job_event.v1.schema.json",
   "title": "Lab job event v1",
-  "description": "Un paso de un trabajo del laboratorio de estrategias (docs/design/2026-11-laboratorio.md §5, #710, #774): en cola, corriendo (etapa y %), listo (con los report_id de lab_report.v1, uno por spec y en el orden del pedido), falló (con el error) o cancelado. Se guarda de solo agregar en lab_job_events (PostgreSQL), donde seq da el orden; el lab_worker lo publica además en el Redis Stream lab_jobs.v1.<job_id> y el gateway lo retransmite por SSE (GET /api/v1/lab/jobs/{job_id}/events, con seq como id del evento para reconectar con Last-Event-ID). GET /api/v1/lab/jobs/{job_id} devuelve el último. Un trabajo tiene un solo evento final (done, failed o cancelled).",
+  "description": "Un paso de un trabajo del laboratorio de estrategias (docs/design/2026-11-laboratorio.md §5, #710, #774): en cola, corriendo (etapa y %), listo (con los report_id de lab_report.v1, uno por spec y en el orden del pedido), falló (con el error) o cancelado. Opcional (#854): en el paso \"corriendo variantes\" que sigue a cada variante terminada, curve trae su curva de capital para dibujarla en vivo. Se guarda de solo agregar en lab_job_events (PostgreSQL), donde seq da el orden; el lab_worker lo publica además en el Redis Stream lab_jobs.v1.<job_id> y el gateway lo retransmite por SSE (GET /api/v1/lab/jobs/{job_id}/events, con seq como id del evento para reconectar con Last-Event-ID). GET /api/v1/lab/jobs/{job_id} devuelve el último. Un trabajo tiene un solo evento final (done, failed o cancelled).",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -44,6 +44,23 @@
       "description": "Por qué falló, en español (null salvo en failed).",
       "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
     },
+    "curve": {
+      "description": "Opcional (#854): la curva de capital de la variante que acaba de terminar, para la vista en vivo. Es la misma curva del informe (lab_report.v1 months[].equity: capital compuesto desde 1, mes a mes), empezando en 1 antes del primer mes y reducida a como mucho [worker] curve_max_points puntos parejos (siempre con el primero y el último). Solo para mostrar: exploratorio, no vota. Solo en running con stage running_variants; los eventos guardados antes no la tienen.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["variant", "months", "equity"],
+      "properties": {
+        "variant": { "description": "Índice de la variante en el pedido (desde 0).", "type": "integer", "minimum": 0 },
+        "months": { "description": "Meses de la curva completa, antes de reducirla.", "type": "integer", "minimum": 0 },
+        "equity": {
+          "description": "Capital compuesto desde 1 (texto decimal, como mucho 6 decimales), en orden.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": { "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" }
+        }
+      }
+    },
     "recorded_at": { "$ref": "#/$defs/utc" }
   },
   "allOf": [
@@ -61,6 +78,10 @@
       "if": { "properties": { "state": { "const": "failed" } } },
       "then": { "properties": { "error": { "type": "string" } } },
       "else": { "properties": { "error": { "type": "null" } } }
+    },
+    {
+      "if": { "required": ["curve"] },
+      "then": { "properties": { "state": { "const": "running" }, "stage": { "const": "running_variants" } } }
     }
   ],
   "$defs": {

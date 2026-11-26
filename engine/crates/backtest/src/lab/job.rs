@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use super::catalog::StrategyCatalog;
+use super::curve::TrialCurve;
 use super::spec::{StrategySpec, canonical_json, sha256_hex};
 use super::validation::ValidSpec;
 
@@ -155,6 +156,8 @@ pub enum JobStep {
         stage: JobStage,
         percent: u8,
         variants_done: u32,
+        /// La curva de la variante que acaba de terminar (#854), solo en `RunningVariants`.
+        curve: Option<TrialCurve>,
     },
     Done {
         report_ids: Vec<String>,
@@ -190,6 +193,9 @@ pub struct LabJobEvent {
     pub variants_total: u32,
     pub report_ids: Vec<String>,
     pub error: Option<String>,
+    /// Opcional (#854): la curva de la variante que acaba de terminar, para la vista en vivo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub curve: Option<TrialCurve>,
     #[serde(with = "cfds_core::candle::utc_z")]
     pub recorded_at: DateTime<Utc>,
 }

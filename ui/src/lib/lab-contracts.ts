@@ -97,8 +97,13 @@ export type LabJobEvent = {
   variants_total: number
   report_ids: string[]
   error: string | null
+  /** Opcional (#854): la curva de la variante que acaba de terminar (solo en running_variants). */
+  curve?: TrialCurve
   recorded_at: Utc
 }
+
+/** `curve` de `lab_job_event.v1`: capital compuesto desde 1, reducido a ≤ 200 puntos. */
+export type TrialCurve = { variant: number; months: number; equity: Decimal[] }
 
 type Interval = { low: Decimal; high: Decimal }
 /** Media y cuantiles 5, 50 y 95 % sobre los caminos o combinaciones. */

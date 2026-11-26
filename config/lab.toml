@@ -85,6 +85,9 @@ funding_scenario = "ESTR"
 # PostgreSQL los guarda siempre.
 stream_ttl_hours = 24
 stream_maxlen = 1000
+# La curva de capital de cada variante que se manda en vivo apenas termina (#854): como mucho estos
+# puntos (2 a 200), así el progreso sigue liviano. Es solo para mostrar.
+curve_max_points = 200
 
 [variance]
 # Simulador de varianza (§4.2 del diseño, #801; research::variance). PENDIENTE del dueño (§9
