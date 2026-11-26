@@ -54,16 +54,16 @@ describe('Academia (#769)', () => {
     const map = await screen.findByRole('navigation', { name: 'Mapa de niveles' })
     expect(fetch).toHaveBeenCalledWith('/api/v1/academy/catalog', expect.anything())
     expect(fetch).toHaveBeenCalledWith('/api/v1/academy/progress', expect.anything())
-    // once niveles (0 a 10) y sus 49 lecciones, en el orden del catálogo
-    expect(within(map).getAllByRole('heading', { level: 2 })).toHaveLength(11)
+    // trece niveles (0 a 12) y sus 56 lecciones, en el orden del catálogo
+    expect(within(map).getAllByRole('heading', { level: 2 })).toHaveLength(13)
     expect(within(map).getByRole('heading', { name: /N0.*Orientación.*0\/3/ })).toBeVisible()
     const rows = within(map).getAllByRole('button')
-    expect(rows).toHaveLength(49)
+    expect(rows).toHaveLength(56)
     expect(rows[0]).toHaveTextContent('0.1Qué es un mercadoPendiente')
     expect(rows[2]).toHaveTextContent('0.3Cómo se usa la AcademiaSin examen')
     const strip = screen.getByRole('region', { name: 'Progreso' })
-    expect(strip).toHaveTextContent('Lecciones aprobadas0 / 49')
-    expect(strip).toHaveTextContent('Herramientas abiertas0 / 36')
+    expect(strip).toHaveTextContent('Lecciones aprobadas0 / 56')
+    expect(strip).toHaveTextContent('Herramientas abiertas0 / 38')
     expect(strip).toHaveTextContent('80 % de respuestasprovisorio')
   })
 
@@ -104,8 +104,8 @@ describe('Academia (#769)', () => {
     expect(map).toHaveTextContent('0.2Cuántos pierden1 intento · mejor 60 %')
     expect(within(map).getByRole('heading', { name: /N0.*1\/3/ })).toBeVisible()
     const strip = screen.getByRole('region', { name: 'Progreso' })
-    expect(strip).toHaveTextContent('Lecciones aprobadas1 / 49')
-    expect(strip).toHaveTextContent('Herramientas abiertas1 / 36(todas a mano)')
+    expect(strip).toHaveTextContent('Lecciones aprobadas1 / 56')
+    expect(strip).toHaveTextContent('Herramientas abiertas1 / 38(todas a mano)')
   })
 
   it('sin gateway lo dice, sin lecciones inventadas', async () => {

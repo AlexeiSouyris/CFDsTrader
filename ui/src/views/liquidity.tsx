@@ -278,11 +278,13 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
           />
         </figure>
         <Card n="01" title="Índice de desequilibrio">
-          {current ? (
-            <ImbalanceGauge imbalance={current} />
-          ) : (
-            <p className="text-[12.5px]">Todavía no hay valor (calentamiento).</p>
-          )}
+          <ToolLock tool="tool.imbalance">
+            {current ? (
+              <ImbalanceGauge imbalance={current} />
+            ) : (
+              <p className="text-[12.5px]">Todavía no hay valor (calentamiento).</p>
+            )}
+          </ToolLock>
         </Card>
       </div>
 

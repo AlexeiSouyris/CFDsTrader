@@ -1,5 +1,5 @@
 {
-  "catalog_version": "29a9120c810af23be1c559fcf6bc32857d25193295a1fb96a28dcac81b985e5c",
+  "catalog_version": "981eb4238fa8cd8761e6c98c01b8171af349587fc98f296a33803de1f09b6ba0",
   "levels": [
     {
       "level": 0,
@@ -4589,6 +4589,852 @@
           "unlocks": []
         }
       ]
+    },
+    {
+      "level": 11,
+      "title": "Avanzado, con advertencias: flujo de órdenes, perfil de volumen y GEX",
+      "lessons": [
+        {
+          "id": "11.1",
+          "title": "Flujo de órdenes y desequilibrio aproximado",
+          "objective": "Saber qué es el libro de órdenes y el delta, qué datos hacen falta para medirlos, y por qué nuestro índice de desequilibrio es una aproximación desde el precio, no flujo de órdenes.",
+          "doc": "docs/academia/nivel-11-1-flujo-de-ordenes.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "11.1.1",
+                "kind": "choice",
+                "prompt": "¿Qué hace falta para calcular el delta de una vela?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Solo la apertura, el máximo, el mínimo y el cierre."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Cada operación con su lado: si la mandó un comprador agresor o un vendedor agresor."
+                  },
+                  {
+                    "id": "c",
+                    "text": "El ATR de 14 velas."
+                  },
+                  {
+                    "id": "d",
+                    "text": "El volumen total de la vela."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "11.1.2",
+                "kind": "choice",
+                "prompt": "¿Qué datos de flujo de órdenes tiene hoy la app?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "El libro de órdenes del CME en tiempo real."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Cada operación de los futuros con su lado."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Ninguno: el CFD de IG no trae volumen ni libro, y de los futuros solo hay velas de 1 minuto con su volumen, sin el lado de cada operación."
+                  },
+                  {
+                    "id": "d",
+                    "text": "El delta de cada vela del CFD."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "11.1.3",
+                "kind": "choice",
+                "prompt": "¿Cuándo es «de desplazamiento» una vela para el índice del motor?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Cuando su cuerpo es al menos 1,5 veces el ATR(14) y al menos el 70 % de su rango."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Cuando tiene más volumen que la media."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Cuando cierra en su máximo."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Cuando rompe un nivel de liquidez."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "11.1.4",
+                "kind": "number",
+                "prompt": "En una ventana de 20 velas el rango sumado (H − L) es 250 puntos. Hubo dos velas de desplazamiento alcistas con cuerpos de 30 y 20, y una bajista de 25. ¿Cuánto vale el índice? (dos decimales)",
+                "options": null,
+                "unit": null
+              },
+              {
+                "id": "11.1.5",
+                "kind": "choice",
+                "prompt": "El índice de desequilibrio marca +0,6. ¿Qué se puede decir?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Que entraron compradores institucionales."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Que el precio va a seguir subiendo."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Que en las últimas 20 velas los cuerpos de desplazamiento alcistas fueron grandes frente al rango; no dice quién compró ni con qué órdenes."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Que el delta de la sesión es positivo."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": [
+            "tool.imbalance"
+          ]
+        },
+        {
+          "id": "11.2",
+          "title": "Perfil de volumen",
+          "objective": "Leer un perfil de volumen (POC y área de valor), saber cómo lo arma el motor desde barras de 1 minuto y qué tiene de aproximado, y qué dio la única regla con perfil que probamos (H4.3).",
+          "doc": "docs/academia/nivel-11-2-perfil-de-volumen.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "11.2.1",
+                "kind": "choice",
+                "prompt": "¿Qué es el POC de un perfil de volumen?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "El precio de cierre de la sesión."
+                  },
+                  {
+                    "id": "b",
+                    "text": "El precio con más volumen operado en la sesión."
+                  },
+                  {
+                    "id": "c",
+                    "text": "El punto medio entre el máximo y el mínimo."
+                  },
+                  {
+                    "id": "d",
+                    "text": "El precio donde el delta fue más alto."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "11.2.2",
+                "kind": "number",
+                "prompt": "Con la regla del motor (casillero = tick × máx(1, redondeo(0,0002 × apertura ÷ tick)), tick 0,25), ¿de cuántos puntos es el casillero de una sesión que abre en 25.000?",
+                "options": null,
+                "unit": "pts"
+              },
+              {
+                "id": "11.2.3",
+                "kind": "choice",
+                "prompt": "¿Por qué el perfil que arma el motor es una aproximación?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Porque usa velas de 15 minutos."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Porque de cada barra de 1 minuto se sabe el volumen total pero no a qué precio se operó cada contrato: el motor lo reparte en partes iguales a lo largo del rango."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Porque mezcla el CFD de IG con el futuro."
+                  },
+                  {
+                    "id": "d",
+                    "text": "No es una aproximación: es el perfil exacto."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "11.2.4",
+                "kind": "number",
+                "prompt": "Un perfil de 1.000 contratos tiene, de abajo hacia arriba, casilleros con 100, 150, 400 (POC), 200, 100 y 50. Con la regla del motor (desde el POC se suma el vecino con más volumen hasta llegar al 70 %), ¿qué % del volumen queda dentro del área de valor?",
+                "options": null,
+                "unit": "%"
+              },
+              {
+                "id": "11.2.5",
+                "kind": "choice",
+                "prompt": "¿Qué dio H4.3, la regla de Bruni con perfil de volumen, probada con reglas congeladas en US100?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Pasó todos los criterios."
+                  },
+                  {
+                    "id": "b",
+                    "text": "No pasó: 85 operaciones (menos de las 100 mínimas), pierde antes y después de costos, y queda peor que la mayoría de las entradas al azar."
+                  },
+                  {
+                    "id": "c",
+                    "text": "No se pudo probar por falta de datos."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Ganó antes de costos y perdió solo por el spread."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": []
+        },
+        {
+          "id": "11.3",
+          "title": "GEX (exposición gamma): qué es y por qué no la medimos",
+          "objective": "Entender qué intenta medir la exposición gamma, por qué cualquier número de GEX es una estimación con supuestos, qué dice la evidencia y por qué hoy no la podemos medir.",
+          "doc": "docs/academia/nivel-11-3-gex.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "11.3.1",
+                "kind": "choice",
+                "prompt": "Un dealer está corto en gamma (vendió opciones) y se cubre en delta. El precio sube. ¿Qué hace?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Compra el activo, y eso puede empujar la suba."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Vende el activo, y eso frena la suba."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Nada: la cobertura no cambia con el precio."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Cierra todas sus opciones."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "11.3.2",
+                "kind": "choice",
+                "prompt": "¿Por qué todo número de GEX es una estimación?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Porque la gamma no se puede calcular."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Porque el interés abierto no dice quién tiene cada opción: se suponen los lados (por ejemplo, que los dealers compran las calls y venden las puts), y si el supuesto falla puede cambiar hasta el signo."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Porque las opciones vencen."
+                  },
+                  {
+                    "id": "d",
+                    "text": "No es una estimación: es un dato oficial de la bolsa."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "11.3.3",
+                "kind": "choice",
+                "prompt": "¿Qué tiene evidencia en artículos revisados?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Que el strike con más gamma frena el precio como un soporte, cualquier día."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Que la GEX dice hacia dónde va a ir el precio."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Que la cobertura de los creadores de mercado afecta la volatilidad y el impulso intradía (Ni, Pearson, Poteshman y White, 2021; Baltussen, Da, Lammers y Martens, 2021)."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Nada de esto tiene evidencia."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "11.3.4",
+                "kind": "choice",
+                "prompt": "Probamos la hipótesis de Baltussen (la última media hora sigue al resto del día) en US500, US100 y US30. ¿Qué dio?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Ganó mucho con costos."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Antes de costos quedó en cero o negativa, y con los costos del CFD perdió alrededor de 2 % por mes: no pasó."
+                  },
+                  {
+                    "id": "c",
+                    "text": "No se pudo probar."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Pasó en US100 y en US500."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "11.3.5",
+                "kind": "choice",
+                "prompt": "¿Por qué hoy no hay GEX en la app?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Porque la GEX no sirve para nada."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Porque no tenemos datos de opciones: el dato por tipo de participante de Cboe es pago y de uso interno, sus términos no permiten guardar datos sin permiso escrito, y un proveedor nuevo va con su ADR."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Porque la calcula la UI."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Porque IG no la publica, pero la vamos a estimar con las velas."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": []
+        }
+      ]
+    },
+    {
+      "level": 12,
+      "title": "Cuentas fondeadas (prop firms)",
+      "lessons": [
+        {
+          "id": "12.1",
+          "title": "Cómo funcionan las cuentas fondeadas",
+          "objective": "Conocer las reglas de una evaluación (fases, objetivo, pérdida diaria, caída máxima fija o que sigue al máximo, días, consistencia, cobro, reparto y cuotas) con la plantilla genérica del simulador, y entender por qué la caída que sigue al máximo es la más traicionera.",
+          "doc": "docs/academia/nivel-12-1-como-funcionan.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "12.1.1",
+                "kind": "choice",
+                "prompt": "¿Cuándo se paga la cuota de una evaluación?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Solo si pasás."
+                  },
+                  {
+                    "id": "b",
+                    "text": "En cada intento, pases o no."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Solo con el primer cobro."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Nunca: la paga la firma."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "12.1.2",
+                "kind": "number",
+                "prompt": "Cuenta de 50.000 con caída máxima de 2.000 que sigue al máximo intradía, sin traba. Llegás a estar +1.500 sin realizar y cerrás en 50.000. ¿Cuánto margen te queda antes de fallar?",
+                "options": null,
+                "unit": null
+              },
+              {
+                "id": "12.1.3",
+                "kind": "number",
+                "prompt": "Cuenta de 100.000 con caída máxima de 5.000 que sigue al máximo al cierre del día, sin traba. Cerrás el día 1 en 103.000 y el día 2 en 104.000. ¿Dónde queda el piso?",
+                "options": null,
+                "unit": null
+              },
+              {
+                "id": "12.1.4",
+                "kind": "choice",
+                "prompt": "Regla de consistencia: el mejor día no puede pasar del 40 % de la ganancia total. Ganaste 3.000 en total y tu mejor día fue de 1.500. ¿Cumplís?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Sí: ganaste más de lo que pide."
+                  },
+                  {
+                    "id": "b",
+                    "text": "No: el mejor día es el 50 % de la ganancia total, más que el 40 %."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Sí: la regla solo mira la pérdida."
+                  },
+                  {
+                    "id": "d",
+                    "text": "No se puede saber sin el saldo inicial."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "12.1.5",
+                "kind": "choice",
+                "prompt": "¿Qué hace el simulador con la caída que sigue al máximo intradía?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "La aproxima con el cierre de cada operación."
+                  },
+                  {
+                    "id": "b",
+                    "text": "No la simula (hace falta el capital vela por vela): la deja afuera y avisa que la probabilidad de pasar es un tope superior."
+                  },
+                  {
+                    "id": "c",
+                    "text": "La trata como una caída fija."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Rechaza el pedido."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "12.1.6",
+                "kind": "choice",
+                "prompt": "¿Por qué el simulador trae solo una plantilla genérica en blanco?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Porque las firmas no tienen reglas."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Porque no se inventan reglas de firmas reales: cargar una necesita su reglamento publicado, con el enlace y la fecha de lectura."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Porque todas las firmas tienen las mismas reglas."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Porque la UI calcula las reglas."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": []
+        },
+        {
+          "id": "12.2",
+          "title": "Quién gana con el negocio",
+          "objective": "Calcular el valor esperado de un programa de fondeo con las fórmulas del motor: cuánto se paga en cuotas hasta cobrar, cuánto se cobra y qué cobro medio hace falta para no perder.",
+          "doc": "docs/academia/nivel-12-2-quien-gana.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "12.2.1",
+                "kind": "number",
+                "prompt": "La probabilidad de cobrar en un intento es q = 10 %. ¿Qué probabilidad hay de cobrar en 5 intentos o menos, en %? (un decimal)",
+                "options": null,
+                "unit": "%"
+              },
+              {
+                "id": "12.2.2",
+                "kind": "number",
+                "prompt": "Con q = 10 % y como mucho 5 intentos, ¿cuántos intentos esperados se pagan? (dos decimales)",
+                "options": null,
+                "unit": null
+              },
+              {
+                "id": "12.2.3",
+                "kind": "number",
+                "prompt": "q = 10 %, 5 intentos como mucho, cuota 100, sin activación ni devolución, cobro medio 800. ¿Cuál es el valor esperado del programa? (dos decimales)",
+                "options": null,
+                "unit": null
+              },
+              {
+                "id": "12.2.4",
+                "kind": "number",
+                "prompt": "Sin activación ni devolución, cuota 200 y q = 8 %. ¿Qué cobro medio hace falta, como mínimo, para que el valor esperado no sea negativo?",
+                "options": null,
+                "unit": null
+              },
+              {
+                "id": "12.2.5",
+                "kind": "number",
+                "prompt": "Evaluación 100, activación 150 (se paga al pasar) y P(pasar la evaluación) = 20 %. ¿Cuánto cuesta, en promedio, cada intento?",
+                "options": null,
+                "unit": null
+              },
+              {
+                "id": "12.2.6",
+                "kind": "number",
+                "prompt": "Topstep publicó que en 2025 se aprobó el 16,8 % de sus evaluaciones. ¿Qué % de las cuotas de evaluación fue de intentos que no pasaron? (un decimal)",
+                "options": null,
+                "unit": "%"
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": []
+        },
+        {
+          "id": "12.3",
+          "title": "La evidencia honesta y los conflictos de interés",
+          "objective": "Separar lo auditado de lo autodeclarado, conocer los pocos números públicos sobre cuentas fondeadas y la evidencia académica sobre traders intradía, y reconocer un conflicto de interés.",
+          "doc": "docs/academia/nivel-12-3-evidencia-honesta.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "12.3.1",
+                "kind": "choice",
+                "prompt": "¿Qué nivel de prueba tienen las tasas de aprobación que publica una firma de fondeo?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "A: son datos oficiales auditados."
+                  },
+                  {
+                    "id": "b",
+                    "text": "C: son autodeclaradas, sin auditoría, y la firma gana con las cuotas."
+                  },
+                  {
+                    "id": "c",
+                    "text": "B: son un libro con método."
+                  },
+                  {
+                    "id": "d",
+                    "text": "No tienen ningún valor."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "12.3.2",
+                "kind": "choice",
+                "prompt": "Topstep publicó para 2025 que se aprobó el 16,8 % de las evaluaciones y que el 51,8 % de las personas aprobó al menos una. ¿Por qué son tan distintos?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Porque uno es de 2024 y el otro de 2025."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Porque uno cuenta intentos y el otro personas: muchas personas compran varios intentos."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Porque uno es con dinero real y el otro no."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Es un error de la firma."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "12.3.3",
+                "kind": "choice",
+                "prompt": "Topstep publicó que el 0,71 % de las personas con cuenta Express Funded fue llamada a una cuenta real en 2025. ¿Qué te dice?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Que casi todos los que pasan operan con dinero real."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Que la cuenta Express Funded (donde se opera en mercados simulados) casi nunca llega a una cuenta real: menos de 1 de cada 100."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Que el 99 % cobró."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Que la firma pierde dinero."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "12.3.4",
+                "kind": "choice",
+                "prompt": "¿Qué encontraron Barber, Lee, Liu y Odean (2014) con los day traders de Taiwán (1992–2006)?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Que la mayoría gana después de comisiones."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Que menos del 1 % logra retornos anormales positivos de forma predecible y confiable después de comisiones."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Que con práctica todos mejoran."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Que las comisiones no importan."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "12.3.5",
+                "kind": "choice",
+                "prompt": "En Brasil (Chague, De-Losso y Giovannetti), de quienes hicieron day trading en minicontratos del índice más de 300 días, ¿qué pasó?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "El 97 % perdió dinero y no encontraron evidencia de que aprendieran con el tiempo."
+                  },
+                  {
+                    "id": "b",
+                    "text": "La mitad vivió del trading."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Los que más operaron mejoraron mucho."
+                  },
+                  {
+                    "id": "d",
+                    "text": "No hay datos."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "12.3.6",
+                "kind": "choice",
+                "prompt": "Un trader conocido recomienda una firma y da un código de descuento («Use code 'GB'»). ¿Qué conclusión es correcta?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Si da un descuento, la firma es buena."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Es un conflicto de interés probable: gana más si más gente compra desafíos. No prueba que mienta, pero obliga a pedir evidencia verificable, con los fracasos incluidos."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Está mintiendo."
+                  },
+                  {
+                    "id": "d",
+                    "text": "No importa quién lo dice."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": []
+        },
+        {
+          "id": "12.4",
+          "title": "Pasar por suerte: el simulador",
+          "objective": "Usar el simulador para ver con qué probabilidad unas operaciones cobran, queman la cuenta o se quedan sin tiempo, cuánto valen después de las cuotas y si le ganan a operar al azar, y llegar a la conclusión honesta.",
+          "doc": "docs/academia/nivel-12-4-pasar-por-suerte.md",
+          "exam": {
+            "kind": "quiz",
+            "ready": true,
+            "questions": [
+              {
+                "id": "12.4.1",
+                "kind": "number",
+                "prompt": "Operaciones con esperanza 0 y ganancias y pérdidas del mismo tamaño, sin costos, sin pérdida diaria ni límite de días. Objetivo 6 % y caída máxima fija 9 %. ¿Probabilidad aproximada de pasar, en %?",
+                "options": null,
+                "unit": "%"
+              },
+              {
+                "id": "12.4.2",
+                "kind": "choice",
+                "prompt": "Pasaste una evaluación con 12 operaciones. ¿Qué prueba eso sobre tu método?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Que tenés ventaja."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Casi nada: con esperanza 0 también se pasa seguido; juzgar el método por ese resultado es resulting."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Que vas a cobrar."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Que la firma es fácil."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "12.4.3",
+                "kind": "choice",
+                "prompt": "El simulador dice: tus operaciones cobran en el 18 % de los intentos (14–22 %); operando al azar, en el 15 % (12–19 %). ¿Qué concluís?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Le ganás al azar por 3 puntos."
+                  },
+                  {
+                    "id": "b",
+                    "text": "No se distingue del azar: los intervalos se tocan y la diferencia puede ser suerte."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Perdés contra el azar."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Que el simulador está mal."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "12.4.4",
+                "kind": "choice",
+                "prompt": "¿Por qué unas operaciones sin ventaja verificada no tienen esperanza 0 sino negativa?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Porque los costos (spread, comisión, slippage, financiación) se pagan siempre: sin ventaja bruta, lo neto queda abajo de cero."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Porque el mercado está en contra del trader."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Sí tienen esperanza 0."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Porque las firmas cobran comisión por operación."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "12.4.5",
+                "kind": "choice",
+                "prompt": "Con unas reglas, el simulador da valor esperado positivo operando al azar (esperanza 0). ¿Qué hacés primero?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Comprar muchos desafíos."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Atacar los supuestos: el cobro medio, la regla intradía que no se simula, que la firma pague y no cambie sus reglas, que la cuenta sea simulada, y que tus operaciones reales pagan costos."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Nada: el simulador no se equivoca."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Subir el riesgo por operación."
+                  }
+                ],
+                "unit": null
+              },
+              {
+                "id": "12.4.6",
+                "kind": "choice",
+                "prompt": "¿Cuál es la conclusión honesta del nivel 12?",
+                "options": [
+                  {
+                    "id": "a",
+                    "text": "Las cuentas fondeadas son una manera segura de ganar."
+                  },
+                  {
+                    "id": "b",
+                    "text": "Sin una ventaja verificada después de costos, lo esperable es un valor esperado negativo: se pagan cuotas en cada intento y se pasa menos que con esperanza 0."
+                  },
+                  {
+                    "id": "c",
+                    "text": "Con suficientes intentos siempre se cobra más de lo que se paga."
+                  },
+                  {
+                    "id": "d",
+                    "text": "Conviene la firma con la cuota más barata."
+                  }
+                ],
+                "unit": null
+              }
+            ],
+            "replay_kind": null
+          },
+          "unlocks": [
+            "tool.propsim"
+          ]
+        }
+      ]
     }
   ],
   "tools": [
@@ -4771,6 +5617,16 @@
       "id": "tool.terminal_news",
       "name": "Noticias y calendario de la Terminal",
       "lesson_id": "10.6"
+    },
+    {
+      "id": "tool.imbalance",
+      "name": "Índice de desequilibrio aproximado (Liquidez)",
+      "lesson_id": "11.1"
+    },
+    {
+      "id": "tool.propsim",
+      "name": "Simulador de cuentas fondeadas (Laboratorio)",
+      "lesson_id": "12.4"
     }
   ],
   "thresholds": {

@@ -1,6 +1,6 @@
 {
   "member_id": "owner",
-  "catalog_version": "29a9120c810af23be1c559fcf6bc32857d25193295a1fb96a28dcac81b985e5c",
+  "catalog_version": "981eb4238fa8cd8761e6c98c01b8171af349587fc98f296a33803de1f09b6ba0",
   "as_of": "2026-11-25T16:00:00Z",
   "lessons": [
     {
@@ -345,6 +345,55 @@
       "passed_at": null,
       "attempts": 0,
       "best_score_pct": null
+    },
+    {
+      "lesson_id": "11.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "11.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "11.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "12.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "12.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "12.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "12.4",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
     }
   ],
   "tools": [
@@ -563,6 +612,18 @@
       "unlocked": false,
       "by": null,
       "lesson_id": "10.6"
+    },
+    {
+      "tool_id": "tool.imbalance",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "11.1"
+    },
+    {
+      "tool_id": "tool.propsim",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "12.4"
     }
   ],
   "unlock_all": false

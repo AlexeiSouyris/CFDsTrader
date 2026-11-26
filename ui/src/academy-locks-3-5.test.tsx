@@ -178,8 +178,11 @@ describe('liquidez (#827)', () => {
   it('abiertas, las tablas y las capas como siempre', async () => {
     gateway(progress(true))
     render(<LiquidityContent data={DATA} />)
-    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
-    expect(screen.queryByRole('group', { name: /bloqueada$/ })).toBeNull()
+    // llegó el progreso: el único candado es el del desequilibrio (nivel 11, #851), no los de 3–5
+    expect(
+      await screen.findByRole('group', { name: /^Índice de desequilibrio.*, bloqueada$/ }),
+    ).toBeVisible()
+    expect(screen.getAllByRole('group', { name: /bloqueada$/ })).toHaveLength(1)
     expect(screen.getByRole('img', { name: /con [1-9]\d* niveles de liquidez/ })).toBeVisible()
     expect(screen.getByRole('group', { name: 'Niveles' })).toBeInTheDocument()
   })

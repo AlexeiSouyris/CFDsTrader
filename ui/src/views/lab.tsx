@@ -725,8 +725,10 @@ function Builder({ cat }: { cat: StrategyCatalog }) {
         <ToolLock tool="tool.variance_simulator">
           <VarianceSimulator reports={event?.state === 'done' ? event.report_ids : []} />
         </ToolLock>
-        {/* sin candado todavía: su id (`tool.propsim`) no está en el catálogo de la Academia */}
-        <PropSimulator reports={event?.state === 'done' ? event.report_ids : []} />
+        {/* bloqueado, recortado como el constructor: entero es un formulario gris muy largo (#851) */}
+        <ToolLock tool="tool.propsim" className="max-h-96 overflow-hidden">
+          <PropSimulator reports={event?.state === 'done' ? event.report_ids : []} />
+        </ToolLock>
       </div>
     </div>
   )
