@@ -3,6 +3,7 @@ import {
   BarChart3,
   CandlestickChart,
   FlaskConical,
+  GraduationCap,
   Newspaper,
   NotebookPen,
   Trophy,
@@ -67,5 +68,13 @@ export const DOORS: Door[] = [
     description: 'Trofeos de proceso: disciplina, respetar el stop, completar el diario.',
     icon: Trophy,
     shortcut: '7',
+  },
+  {
+    view: 'academia',
+    section: 'hub',
+    title: 'Academia',
+    description: 'El curso por niveles, sus exámenes y las herramientas que abre cada lección.',
+    icon: GraduationCap,
+    shortcut: '8',
   },
 ]

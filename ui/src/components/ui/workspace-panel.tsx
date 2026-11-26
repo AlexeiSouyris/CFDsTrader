@@ -18,7 +18,7 @@ export function WorkspacePanel({
   /** id del título: la paleta salta ahí (`Inicio: …`) */
   id: string
   title: string
-  /** la vista completa: nombre, hash, tecla (F1–F9) y qué hacer al elegirla */
+  /** la vista completa: nombre, hash, tecla (F1–F10) y qué hacer al elegirla */
   open?: { label: string; view: string; hotkey?: string; onOpen: (view: string) => void }
   className?: string
   children: ReactNode

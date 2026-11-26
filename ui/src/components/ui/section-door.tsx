@@ -9,7 +9,8 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 /** Las secciones de `index.css` (`data-section`): cada puerta toma el acento de la suya. */
-export type Section = 'terminal' | 'charts' | 'research' | 'news' | 'fund' | 'journal' | 'trophies'
+export type Section =
+  'hub' | 'terminal' | 'charts' | 'research' | 'news' | 'fund' | 'journal' | 'trophies'
 
 export type Door = {
   /** la vista a la que lleva (su hash) */

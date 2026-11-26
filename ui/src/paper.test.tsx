@@ -288,6 +288,10 @@ describe('token del proxy de Vite (#292)', () => {
     const post = { ...ui, method: 'POST', url: '/api/v1/paper/orders' }
     expect(gatewayTokenFor(post, 'secreto-de-prueba')).toBe('secreto-de-prueba')
     expect(gatewayTokenFor({ ...post, url: '/api/v1/paper/preview' }, 'x')).toBe('x')
+    // y los de la Academia (#769): eventos, exámenes y replay
+    expect(gatewayTokenFor({ ...post, url: '/api/v1/academy/events' }, 'x')).toBe('x')
+    expect(gatewayTokenFor({ ...post, url: '/api/v1/academy/replay/rp-1/step' }, 'x')).toBe('x')
+    expect(gatewayTokenFor({ ...post, url: '/api/v1/academyx' }, 'x')).toBeNull()
     // sin token configurado, nada
     expect(gatewayTokenFor(post, undefined)).toBeNull()
     // lecturas y otras rutas, sin token

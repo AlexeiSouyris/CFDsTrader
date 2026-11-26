@@ -16,6 +16,7 @@ import { PortalTransition } from '@/components/ui/portal-transition'
 import { SignIn } from '@/components/ui/sign-in'
 import { CURRENT_MEMBER, NOTICES } from '@/mocks'
 import { ChartsView, CompetitionView, JournalView, NewsView } from '@/views'
+import { AcademyView } from '@/views/academy'
 import { introOnStart, introPreview, markIntroSeen } from '@/lib/intro-pref'
 import { useTabSwipe } from '@/lib/use-tab-swipe'
 import { LabView } from '@/views/lab'
@@ -224,6 +225,7 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
               {view === 'operaciones' && <JournalView />}
               {view === 'fondo' && <FundView />}
               {view === 'competencia' && <CompetitionView />}
+              {view === 'academia' && <AcademyView />}
               {view === 'glosario' && <GlossaryView />}
               {view === NOT_FOUND && <NotFound onHome={() => select(HOME_VIEW)} />}
             </div>

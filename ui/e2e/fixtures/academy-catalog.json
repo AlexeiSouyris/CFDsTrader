@@ -1,0 +1,191 @@
+{
+  "catalog_version": "e1820742fdc5ff963b7abdae5d8f8da067dabefaa03efd8ef9323a1335121936",
+  "levels": [
+    {
+      "level": 0,
+      "title": "Orientación: qué es esto y por qué la mayoría pierde",
+      "lessons": [
+        {
+          "id": "0.1",
+          "title": "Qué es un mercado",
+          "objective": "Entender que del otro lado hay alguien, y que el precio es el último acuerdo.",
+          "doc": null,
+          "exam": {
+            "kind": "quiz",
+            "ready": false,
+            "questions": []
+          },
+          "unlocks": [
+            "tool.watchlist",
+            "tool.instrument_panel"
+          ]
+        },
+        {
+          "id": "0.2",
+          "title": "Cuántos pierden",
+          "objective": "Saber el dato duro antes de empezar: cuántas cuentas minoristas de CFD pierden dinero, con su fuente.",
+          "doc": null,
+          "exam": {
+            "kind": "quiz",
+            "ready": false,
+            "questions": []
+          },
+          "unlocks": [
+            "tool.glossary"
+          ]
+        },
+        {
+          "id": "0.3",
+          "title": "Cómo se usa la Academia",
+          "objective": "Simulación siempre, proceso antes que resultado, nada de promesas.",
+          "doc": null,
+          "exam": {
+            "kind": "none",
+            "ready": true,
+            "questions": []
+          },
+          "unlocks": []
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "title": "Instrumentos: contado, futuros y CFD; apalancamiento y margen",
+      "lessons": [
+        {
+          "id": "1.1",
+          "title": "Contado, futuros y CFD",
+          "objective": "Saber qué se compra en cada uno: el activo, un contrato con vencimiento o una diferencia de precio con un broker.",
+          "doc": null,
+          "exam": {
+            "kind": "quiz",
+            "ready": false,
+            "questions": []
+          },
+          "unlocks": [
+            "tool.source_selector"
+          ]
+        },
+        {
+          "id": "1.2",
+          "title": "Largo y corto",
+          "objective": "Ganar si sube o si baja, y qué se pierde en cada caso.",
+          "doc": null,
+          "exam": {
+            "kind": "quiz",
+            "ready": false,
+            "questions": []
+          },
+          "unlocks": []
+        },
+        {
+          "id": "1.3",
+          "title": "Apalancamiento y margen",
+          "objective": "Entender el margen minorista, nuestro tope propio de apalancamiento y el cierre por margen.",
+          "doc": null,
+          "exam": {
+            "kind": "quiz",
+            "ready": false,
+            "questions": []
+          },
+          "unlocks": []
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "title": "Costos reales: lo que se come la ventaja",
+      "lessons": [
+        {
+          "id": "2.1",
+          "title": "Spread",
+          "objective": "Saber que se entra pagando, y cuánto es nuestro spread típico en cada instrumento.",
+          "doc": null,
+          "exam": {
+            "kind": "quiz",
+            "ready": false,
+            "questions": []
+          },
+          "unlocks": [
+            "tool.ticket_costs"
+          ]
+        },
+        {
+          "id": "2.2",
+          "title": "Financiación nocturna (swap)",
+          "objective": "Calcular el costo de dormir con una posición abierta.",
+          "doc": null,
+          "exam": {
+            "kind": "quiz",
+            "ready": false,
+            "questions": []
+          },
+          "unlocks": []
+        },
+        {
+          "id": "2.3",
+          "title": "Slippage y comisión",
+          "objective": "Saber que el precio de la orden no es el precio que te dan.",
+          "doc": null,
+          "exam": {
+            "kind": "quiz",
+            "ready": false,
+            "questions": []
+          },
+          "unlocks": []
+        },
+        {
+          "id": "2.4",
+          "title": "Caso real: los costos mataron la estrategia",
+          "objective": "Leer un resultado propio antes de costos, con costos y neto.",
+          "doc": null,
+          "exam": {
+            "kind": "quiz",
+            "ready": false,
+            "questions": []
+          },
+          "unlocks": [
+            "tool.cost_calculator"
+          ]
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "id": "tool.watchlist",
+      "name": "Watchlist",
+      "lesson_id": "0.1"
+    },
+    {
+      "id": "tool.instrument_panel",
+      "name": "Panel del instrumento",
+      "lesson_id": "0.1"
+    },
+    {
+      "id": "tool.glossary",
+      "name": "Glosario interactivo",
+      "lesson_id": "0.2"
+    },
+    {
+      "id": "tool.source_selector",
+      "name": "Selector de fuente (CFD / futuros)",
+      "lesson_id": "1.1"
+    },
+    {
+      "id": "tool.ticket_costs",
+      "name": "Columna de costos del ticket",
+      "lesson_id": "2.1"
+    },
+    {
+      "id": "tool.cost_calculator",
+      "name": "Calculadora de costos",
+      "lesson_id": "2.4"
+    }
+  ],
+  "thresholds": {
+    "quiz_pass_pct": "80",
+    "locked_tools_visible": true,
+    "provisional": true
+  }
+}

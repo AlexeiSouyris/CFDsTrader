@@ -9,6 +9,7 @@ import {
   Droplets,
   FolderOpen,
   Gauge,
+  GraduationCap,
   House,
   LayoutDashboard,
   LayoutGrid,
@@ -122,6 +123,14 @@ export const VIEWS: ShellView[] = [
       'El diario de las operaciones en simulación: cada una con su motivo, el resultado del motor y la nota.',
   },
   {
+    id: 'academia',
+    label: 'Academia',
+    short: 'Academia',
+    icon: GraduationCap,
+    description:
+      'El curso por niveles, sus exámenes y qué herramienta abre cada lección. Lo califica el motor; todo en simulación.',
+  },
+  {
     id: 'competencia',
     label: 'Trofeos',
     short: 'Trofeos',
@@ -154,6 +163,7 @@ export const NAV_SECTIONS = [
   'noticias',
   'fondo',
   'operaciones',
+  'academia',
   'competencia',
 ] as const
 
@@ -192,8 +202,9 @@ export const MAIN_TABS = ['inicio', 'terminal', 'graficos', 'investigacion'] as 
 export const BAR_VIEWS = MAIN_TABS
 
 /**
- * Atajos de función (#708), como en una terminal: F1 a F4 las pestañas principales y F6 a F9 las
- * demás secciones. F5 queda libre (recarga la página en el navegador).
+ * Atajos de función (#708), como en una terminal: F1 a F4 las pestañas principales y F6 a F10 las
+ * demás secciones (F10, la Academia, #769). F5 queda libre (recarga la página en el navegador); F11
+ * y F12 son del navegador (pantalla completa y herramientas).
  */
 export const FKEYS: Readonly<Record<string, string>> = {
   inicio: 'F1',
@@ -204,4 +215,5 @@ export const FKEYS: Readonly<Record<string, string>> = {
   fondo: 'F7',
   operaciones: 'F8',
   competencia: 'F9',
+  academia: 'F10',
 }
