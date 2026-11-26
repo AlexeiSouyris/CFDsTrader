@@ -1391,16 +1391,16 @@ unit = "pts"
 [[lessons.questions]]
 id = "6.1.2"
 kind = "number"
-prompt = "El cierre anterior fue 6.000. La vela siguiente abre con un gap y hace máximo 6.035 y mínimo 6.020. ¿Cuál es su True Range, en puntos?"
-answer = "35"
+prompt = "El cierre anterior fue 6.000. La vela siguiente abre con un gap y hace máximo 6.042 y mínimo 6.025. ¿Cuál es su True Range, en puntos?"
+answer = "42"
 tolerance = "0"
 unit = "pts"
 
 [[lessons.questions]]
 id = "6.1.3"
 kind = "number"
-prompt = "El ATR(14) anterior es 20 y la vela nueva tiene un True Range de 34. ¿Cuánto vale el ATR nuevo (suavizado de Wilder), en puntos?"
-answer = "21"
+prompt = "El ATR(14) anterior es 30 y la vela nueva tiene un True Range de 44. ¿Cuánto vale el ATR nuevo (suavizado de Wilder), en puntos?"
+answer = "31"
 tolerance = "0"
 unit = "pts"
 
@@ -1615,15 +1615,15 @@ tolerance = "0.01"
 [[lessons.questions]]
 id = "6.4.3"
 kind = "number"
-prompt = "Ayer: máximo 6.120, mínimo 6.000 y cierre 6.090. ¿Cuánto vale el punto pivote diario P = (H + L + C) ÷ 3?"
-answer = "6070"
+prompt = "Ayer: máximo 6.150, mínimo 6.030 y cierre 6.120. ¿Cuánto vale el punto pivote diario P = (H + L + C) ÷ 3?"
+answer = "6100"
 tolerance = "0"
 
 [[lessons.questions]]
 id = "6.4.4"
 kind = "number"
-prompt = "Con ese mismo día (P = 6.070, L = 6.000), ¿cuánto vale R1 = 2P − L?"
-answer = "6140"
+prompt = "Con ese mismo día (P = 6.100, L = 6.030), ¿cuánto vale R1 = 2P − L?"
+answer = "6170"
 tolerance = "0"
 
 [[lessons.questions]]
@@ -1653,11 +1653,11 @@ answer = "c"
 [[lessons.questions]]
 id = "6.4.7"
 kind = "choice"
-prompt = "Soporte de un rango en 6.000. El mínimo de una vela llega a 5.960 y dos velas después el precio cierra en 6.002. ¿Es un spring para el motor?"
+prompt = "Soporte de un rango en 6.000. El mínimo de una vela llega a 5.955 y la vela siguiente cierra en 6.003. ¿Es un spring para el motor?"
 options = [
   { id = "a", text = "Sí, porque volvió a cerrar adentro." },
   { id = "b", text = "No: pasó el soporte más de 0,5 %, así que es una ruptura de verdad." },
-  { id = "c", text = "No, porque tardó dos velas." },
+  { id = "c", text = "No, porque tardó una vela en volver." },
   { id = "d", text = "Sí, si el VIX está en calma." },
 ]
 answer = "b"
