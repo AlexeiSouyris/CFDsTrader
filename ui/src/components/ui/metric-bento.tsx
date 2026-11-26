@@ -1,7 +1,7 @@
 /**
- * Bento de métricas (#581): una grilla de cifras de tamaños distintos, cada una con su etiqueta y
- * su detalle. Idea tomada de los "stats bento" de la propuesta (docs/design/2026-11-rediseno-ui.md
- * §3); el código es propio. Muestra el texto que le pasan, tal como llega: no calcula nada.
+ * Bento de métricas (#581; celdas lisas separadas por reglas de 1 px desde #708): una grilla de
+ * cifras de tamaños distintos, cada una con su etiqueta y su detalle. Idea tomada de los "stats
+ * bento" de la propuesta (docs/design/2026-11-rediseno-ui.md §3); el código es propio. Muestra el texto que le pasan, tal como llega: no calcula nada.
  */
 import type { ReactNode } from 'react'
 
@@ -21,13 +21,16 @@ export type Metric = {
 
 export function MetricBento({ label, metrics }: { label: string; metrics: Metric[] }) {
   return (
-    <dl aria-label={label} className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <dl
+      aria-label={label}
+      className="grid grid-cols-2 gap-px overflow-hidden rounded-section border border-border bg-border lg:grid-cols-4"
+    >
       {metrics.map((m) => (
         <div
           key={m.id}
           data-metric={m.id}
           className={cn(
-            'glass flex min-w-0 flex-col justify-between gap-2 rounded-[20px] p-4',
+            'flex min-w-0 flex-col justify-between gap-1 bg-card px-2.5 py-2',
             m.wide && 'col-span-2',
           )}
         >
@@ -35,7 +38,7 @@ export function MetricBento({ label, metrics }: { label: string; metrics: Metric
             {m.label}
             {m.example && <ExampleBadge />}
           </dt>
-          <dd className="min-w-0 font-mono text-[clamp(17px,1.8vw,22px)] leading-tight font-semibold tracking-[-0.02em] break-words tabular-nums">
+          <dd className="min-w-0 font-mono text-[clamp(14px,1.2vw,16px)] leading-tight font-semibold break-words tabular-nums">
             {m.value}
           </dd>
           {m.detail && (

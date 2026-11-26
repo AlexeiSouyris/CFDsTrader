@@ -28,9 +28,9 @@ describe('capa de popovers (#570)', () => {
       render(<MultichartView />)
       await exampleChart()
       const menu = openTools()
-      // en un portal a body: ninguna tarjeta `.glass` (con su contexto de apilamiento) lo contiene
+      // en un portal a body: ninguna tarjeta `.panel` (con su contexto de apilamiento) lo contiene
       expect(menu.parentElement).toBe(document.body)
-      expect(menu.closest('.glass')).toBeNull()
+      expect(menu.closest('.panel')).toBeNull()
       expect(menu.style.position).toBe('fixed')
       expect(Number(menu.style.zIndex)).toBe(FLOATING_Z)
       for (const s of slots()) expect(s.contains(menu)).toBe(false)

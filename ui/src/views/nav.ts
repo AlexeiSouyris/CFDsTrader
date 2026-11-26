@@ -16,7 +16,7 @@ import {
   Wallet,
 } from 'lucide-react'
 
-import type { ShellView } from '@/components/ui/glass-shell'
+import type { ShellView } from '@/components/ui/app-shell'
 
 export const VIEWS: ShellView[] = [
   {
@@ -133,12 +133,6 @@ export const VIEWS: ShellView[] = [
 export const HOME_VIEW = 'inicio'
 
 /**
- * Dónde hay vidrio y fondo animado (#581): solo en el Inicio (y en el ingreso, que no es una vista).
- * Las demás secciones tienen superficie lisa.
- */
-export const GLASS_VIEWS: readonly string[] = [HOME_VIEW]
-
-/**
  * Las secciones del mapa (#581): las que van en la barra lateral y en la del celular. Las demás
  * vistas siguen abriéndose con su hash y desde la paleta, y marcan la sección a la que pertenecen.
  */
@@ -186,3 +180,18 @@ export const MAIN_TABS = ['inicio', 'terminal', 'graficos', 'investigacion'] as 
  * desplazarse en 320 px; el resto de las secciones y las vistas de adentro están en "Más".
  */
 export const BAR_VIEWS = MAIN_TABS
+
+/**
+ * Atajos de función (#708), como en una terminal: F1 a F4 las pestañas principales y F6 a F9 las
+ * demás secciones. F5 queda libre (recarga la página en el navegador).
+ */
+export const FKEYS: Readonly<Record<string, string>> = {
+  inicio: 'F1',
+  terminal: 'F2',
+  graficos: 'F3',
+  investigacion: 'F4',
+  noticias: 'F6',
+  fondo: 'F7',
+  operaciones: 'F8',
+  competencia: 'F9',
+}

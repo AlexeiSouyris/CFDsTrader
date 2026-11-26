@@ -8,6 +8,7 @@ pub mod costs;
 pub mod evaluation;
 pub mod exits;
 pub mod export;
+pub mod lab;
 pub mod metrics;
 pub mod portfolio;
 pub mod proposals;

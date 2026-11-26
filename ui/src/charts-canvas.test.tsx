@@ -31,7 +31,6 @@ describe('lienzo de gráficos (#581, etapa 5)', () => {
       const { container, unmount } = render(<View />)
       const section = container.querySelector('[data-section="charts"]')
       expect(section).not.toBeNull()
-      expect(section!.querySelector('.glass, .glass-strong')).toBeNull()
       unmount()
     }
   })

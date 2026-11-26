@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/strategy_catalog.v1.schema.json",
+  "title": "Strategy catalog v1",
+  "description": "Lo que el laboratorio de estrategias sabe correr (docs/design/2026-11-laboratorio.md §1.1, #710): los bloques (entrada, filtro, stop, salida) con sus parámetros, tipos, rangos y valores por defecto, los mercados, los modos disponibles y los topes de una spec. Lo arma el motor (Rust) desde config/lab.toml y config/risk.toml; la UI dibuja el formulario del constructor desde acá, sin nada escrito a mano, y arma un strategy_spec.v1. Un bloque o parámetro que no está acá, el motor lo rechaza (spec_validation.v1). Rangos inclusivos; decimales como texto.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["catalog_version", "limits", "markets", "modes", "blocks"],
+  "properties": {
+    "catalog_version": {
+      "description": "Sube cuando cambia un bloque o un parámetro de forma incompatible (una spec con otra versión no se corre).",
+      "type": "integer",
+      "minimum": 1
+    },
+    "limits": {
+      "description": "Topes de una spec (contra el sobreajuste y para que el riesgo nunca supere el de config).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_entry_conditions", "max_filters", "max_risk_pct", "min_cost_multiplier",
+        "max_cost_multiplier", "max_variants_per_run"
+      ],
+      "properties": {
+        "max_entry_conditions": { "type": "integer", "minimum": 1 },
+        "max_filters": { "type": "integer", "minimum": 0 },
+        "max_risk_pct": {
+          "description": "Riesgo máximo por operación, en %: el de config/risk.toml (limits.risk_per_trade_pct).",
+          "$ref": "#/$defs/decimal"
+        },
+        "min_cost_multiplier": {
+          "description": "Los costos solo se pueden subir: 1 = los del catálogo de instrumentos.",
+          "$ref": "#/$defs/decimal"
+        },
+        "max_cost_multiplier": { "$ref": "#/$defs/decimal" },
+        "max_variants_per_run": {
+          "description": "Variantes de una misma familia que se pueden correr juntas (cada una cuenta para el N y el PBO).",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "markets": {
+      "description": "Instrumentos y timeframes que se pueden pedir. Que estén acá no garantiza datos guardados para cualquier período: eso lo dice la corrida.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["instrument_id", "source", "timeframes"],
+        "properties": {
+          "instrument_id": { "$ref": "#/$defs/instrument_id" },
+          "source": { "enum": ["futures"] },
+          "timeframes": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "$ref": "#/$defs/timeframe" }
+          }
+        }
+      }
+    },
+    "modes": {
+      "description": "Modos que este motor corre hoy. El confirmatorio llega con el flujo de pre-registro (L13).",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "enum": ["exploratory", "confirmatory"] }
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["slot", "type", "label", "description", "timeframes", "params"],
+        "properties": {
+          "slot": {
+            "description": "Dónde va el bloque en la spec: entry (una condición de entrada), filter, stop o exit.",
+            "enum": ["entry", "filter", "stop", "exit"]
+          },
+          "type": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$" },
+          "label": { "type": "string", "minLength": 1 },
+          "description": {
+            "description": "Definición objetiva del bloque (CLAUDE.md §5b), con la fuente si la hay.",
+            "type": "string",
+            "minLength": 1
+          },
+          "timeframes": {
+            "description": "Timeframes de la señal con los que se puede usar.",
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "$ref": "#/$defs/timeframe" }
+          },
+          "params": { "type": "array", "items": { "$ref": "#/$defs/param" } }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "param": {
+      "description": "Un parámetro de un bloque. required = false: si falta en la spec, queda apagado (nunca se rellena con el valor por defecto: default es solo lo que la UI propone).",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "label", "kind", "required", "min", "max", "default"],
+          "properties": {
+            "name": { "$ref": "#/$defs/name" },
+            "label": { "type": "string", "minLength": 1 },
+            "kind": { "const": "integer" },
+            "required": { "type": "boolean" },
+            "min": { "type": "integer" },
+            "max": { "type": "integer" },
+            "default": { "oneOf": [{ "type": "integer" }, { "type": "null" }] }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "label", "kind", "required", "min", "max", "default"],
+          "properties": {
+            "name": { "$ref": "#/$defs/name" },
+            "label": { "type": "string", "minLength": 1 },
+            "kind": { "const": "decimal" },
+            "required": { "type": "boolean" },
+            "min": { "$ref": "#/$defs/decimal" },
+            "max": { "$ref": "#/$defs/decimal" },
+            "default": { "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "label", "kind", "required", "default"],
+          "properties": {
+            "name": { "$ref": "#/$defs/name" },
+            "label": { "type": "string", "minLength": 1 },
+            "kind": { "const": "time", "description": "Hora \"HH:MM\" (UTC salvo que el bloque diga otra cosa)." },
+            "required": { "type": "boolean" },
+            "default": { "oneOf": [{ "$ref": "#/$defs/time" }, { "type": "null" }] }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "label", "kind", "required", "options", "default"],
+          "properties": {
+            "name": { "$ref": "#/$defs/name" },
+            "label": { "type": "string", "minLength": 1 },
+            "kind": { "const": "enum" },
+            "required": { "type": "boolean" },
+            "options": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/name" }
+            },
+            "default": { "oneOf": [{ "$ref": "#/$defs/name" }, { "type": "null" }] }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "label", "kind", "required", "default"],
+          "properties": {
+            "name": { "$ref": "#/$defs/name" },
+            "label": { "type": "string", "minLength": 1 },
+            "kind": { "const": "boolean" },
+            "required": { "type": "boolean" },
+            "default": { "oneOf": [{ "type": "boolean" }, { "type": "null" }] }
+          }
+        }
+      ]
+    },
+    "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$" },
+    "timeframe": { "enum": ["15m", "1h"] },
+    "time": { "type": "string", "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$" },
+    "instrument_id": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" },
+    "decimal": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" }
+  }
+}

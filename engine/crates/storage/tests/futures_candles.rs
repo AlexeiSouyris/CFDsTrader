@@ -86,6 +86,19 @@ async fn futures_candles_are_idempotent_separate_from_ig_and_refuse_to_repaint()
         .await
         .unwrap();
     assert_eq!(h1, vec![batch[2].candle.clone()]);
+    // El tramo guardado de cada timeframe (replay de la Academia, #723).
+    assert_eq!(
+        s.futures_candle_range("databento", &id, Timeframe::M15)
+            .await
+            .unwrap(),
+        Some((at("2026-11-18T09:00:00Z"), at("2026-11-18T09:15:00Z")))
+    );
+    assert_eq!(
+        s.futures_candle_range("otra", &id, Timeframe::H1)
+            .await
+            .unwrap(),
+        None
+    );
     // No están en `candles`: las velas de IG no se tocan.
     assert!(
         s.candles(&id, Timeframe::M15, from, to)

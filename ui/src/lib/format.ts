@@ -57,6 +57,22 @@ export function staleDays(iso: string | null | undefined, now = Date.now()): num
 }
 
 /**
+ * Cuánto pasó desde `iso`, corto, para la barra de estado (#708): "hace 40 s", "hace 12 min",
+ * "hace 3 h", "hace 2 d". Solo presenta una diferencia de horas: no decide si un dato sirve.
+ * Una fecha que no se entiende da `null`; una del futuro (relojes corridos), "ahora".
+ */
+export function ageText(iso: string | null | undefined, now = Date.now()): string | null {
+  const t = iso ? Date.parse(iso) : NaN
+  if (Number.isNaN(t)) return null
+  const s = Math.floor((now - t) / 1000)
+  if (s < 5) return 'ahora'
+  if (s < 60) return `hace ${s} s`
+  if (s < 3600) return `hace ${Math.floor(s / 60)} min`
+  if (s < 48 * 3600) return `hace ${Math.floor(s / 3600)} h`
+  return `hace ${Math.floor(s / 86400)} d`
+}
+
+/**
  * La hora de una vela cerrada, siempre la de su **cierre** (`end`) y dicha así: el gráfico y el
  * panel mostraban una el inicio y otro el cierre (#580). "cerró el 25 nov, 04:00 UTC" (con el año si no es el de hoy, #577).
  */

@@ -211,6 +211,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "cfds-academy"
+version = "0.1.0"
+dependencies = [
+ "cfds-backtest",
+ "cfds-core",
+ "cfds-indicators",
+ "cfds-market-data",
+ "cfds-patterns",
+ "cfds-storage",
+ "cfds-strategy",
+ "chrono",
+ "chrono-tz",
+ "jsonschema",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "thiserror 2.0.21",
+ "tokio",
+ "toml",
+]
+
+[[package]]
 name = "cfds-backtest"
 version = "0.1.0"
 dependencies = [
@@ -231,6 +255,7 @@ dependencies = [
  "rust_decimal",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
  "toml",
 ]
@@ -291,6 +316,7 @@ dependencies = [
 name = "cfds-gateway"
 version = "0.1.0"
 dependencies = [
+ "cfds-academy",
  "cfds-backtest",
  "cfds-broker",
  "cfds-core",

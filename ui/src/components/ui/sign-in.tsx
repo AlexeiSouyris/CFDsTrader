@@ -40,7 +40,7 @@ export function SignIn({ onSignIn }: { onSignIn: () => void }) {
         onSubmit={submit}
         noValidate
         aria-describedby={error ? errorId : undefined}
-        className="glass w-full max-w-sm rounded-3xl p-8"
+        className="panel w-full max-w-sm rounded-sm p-8"
       >
         <span className="mx-auto mb-5 grid size-12 place-items-center rounded-full bg-primary text-primary-foreground">
           <CandlestickIcon size={24} playOnMount duration={1.6} />

@@ -6,6 +6,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+cfds-academy = { version = "0.1.0", path = "../academy" }
 cfds-backtest = { version = "0.1.0", path = "../backtest" }
 cfds-broker = { version = "0.1.0", path = "../broker" }
 cfds-core = { version = "0.1.0", path = "../core" }

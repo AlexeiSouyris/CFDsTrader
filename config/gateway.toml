@@ -119,6 +119,15 @@ future_days = 14
 # El rango from..to más largo que se acepta, en días (1..=3660).
 max_days = 400
 
+# Academia (#719, docs/design/2026-11-academia.md): /api/v1/academy/*. El catálogo sale de
+# config/academy.toml. Las rutas POST (desbloqueo a mano, lección completada, examen) usan el mismo
+# token local que [paper] y escriben solo en academy_events (solo agregar).
+[academy]
+# La persona de la Academia (spec §1.2); hoy solo el dueño.
+member_id = "owner"
+# Tamaño máximo del body de un POST (un quiz_answer.v1 de 20 preguntas ocupa ~1,5 KB).
+max_body_bytes = 16384
+
 # Contexto de mercado del Panel (#294): /api/v1/sentiment y /api/v1/analogs, solo lectura.
 [context]
 # Valores del índice de sentimiento que devuelve la historia de un instrumento (los últimos).

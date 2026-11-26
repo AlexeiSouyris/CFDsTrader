@@ -8,7 +8,7 @@
 import { Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
-import type { ShellView } from '@/components/ui/glass-shell'
+import type { ShellView } from '@/components/ui/app-shell'
 import { cn } from '@/lib/utils'
 
 export type MenuGroup = { view: ShellView; children: ShellView[] }
@@ -83,7 +83,7 @@ export function ViewsMenu({
         if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)
           onClose()
       }}
-      className="glass-strong mx-auto mt-auto mb-[max(0.75rem,env(safe-area-inset-bottom))] max-h-[min(85svh,640px)] w-[min(420px,calc(100%-24px))] overflow-y-auto rounded-3xl p-4 text-foreground backdrop:bg-black/40 backdrop:backdrop-blur-sm md:my-auto"
+      className="panel-raised mx-auto mt-auto mb-[max(0.75rem,env(safe-area-inset-bottom))] max-h-[min(85svh,640px)] w-[min(420px,calc(100%-24px))] overflow-y-auto rounded-sm p-3 text-foreground backdrop:bg-black/60 md:my-auto"
     >
       <header className="mb-3 flex items-center justify-between gap-2">
         <h2 id="views-menu-title" className="text-[16px] font-bold">
@@ -93,7 +93,7 @@ export function ViewsMenu({
           type="button"
           aria-label="Cerrar"
           onClick={onClose}
-          className="grid size-11 place-items-center rounded-full border border-border hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
+          className="grid size-11 place-items-center rounded-sm border border-border hover:bg-surface"
         >
           <X className="size-4" aria-hidden="true" />
         </button>

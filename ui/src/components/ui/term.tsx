@@ -51,7 +51,7 @@ export function Term({
           id={popId}
           role="dialog"
           aria-label={entry.title}
-          className="block w-72 border border-[var(--glass-rim)] bg-[var(--card)] shadow-[0_18px_40px_-12px_rgba(0,0,0,0.6)] max-w-[80vw] rounded-2xl p-3.5 text-left text-[12px] leading-relaxed font-normal tracking-normal normal-case"
+          className="block w-72 panel-raised max-w-[80vw] rounded-2xl p-3.5 text-left text-[12px] leading-relaxed font-normal tracking-normal normal-case"
         >
           <strong className="block text-[13px] font-bold">{entry.title}</strong>
           <span className="mt-1 block whitespace-pre-line text-foreground/90">{entry.body}</span>

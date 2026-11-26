@@ -7,12 +7,11 @@ describe('Ajustes como formulario por grupos (#647)', () => {
   it('cada grupo tiene título y para qué sirve, y los controles quedan dentro de su grupo', () => {
     render(<App initialStage="app" />)
     fireEvent.click(screen.getByRole('button', { name: 'Ajustes' }))
-    const glass = screen
-      .getByRole('heading', { name: 'Vidrio del Inicio y del Fondo' })
-      .closest('section')!
-    expect(glass).toHaveTextContent(/Solo se ve en el Inicio, el ingreso y el Fondo/)
-    expect(within(glass).getByRole('group', { name: 'Vidrio predefinido' })).toBeInTheDocument()
-    expect(within(glass).getByRole('slider', { name: 'Desenfoque' })).toBeInTheDocument()
+    // sin vidrio desde #708: el grupo del vidrio ya no está, el del tema sí
+    expect(screen.queryByRole('heading', { name: /Vidrio/ })).toBeNull()
+    const theme = screen.getByRole('heading', { name: 'Tema' }).closest('section')!
+    expect(theme).toHaveTextContent(/La Terminal es siempre oscura/)
+    expect(within(theme).getByRole('button', { name: /Pasar al tema/ })).toBeInTheDocument()
     const intro = screen.getByRole('heading', { name: 'Intro' }).closest('section')!
     expect(within(intro).getByRole('button', { name: 'Ver la intro otra vez' })).toBeInTheDocument()
   })
