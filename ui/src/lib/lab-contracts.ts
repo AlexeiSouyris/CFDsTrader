@@ -5,6 +5,8 @@
  * se cambia acá. Números como texto decimal (sin float); `null` cuando el motor no lo define.
  */
 
+import type { Rejection } from '@/lib/paper-contracts'
+
 /** Texto decimal (sin float), como en el contrato. */
 export type Decimal = string
 /** Instante UTC con zona, como "2026-11-20T21:00:00Z". */
@@ -212,5 +214,55 @@ export type LabReport = {
     measured_gross_r: Decimal | null
   }
   slices: { by_year: Slice[]; by_hour_utc: Slice[]; by_side: Slice[] }
+  notes: string[]
+}
+
+/** `risk_preview.v1#/$defs/request` (#777). */
+export type RiskPreviewRequest = {
+  instrument_id: string
+  timeframe: LabTimeframe
+  direction: 'long' | 'short'
+  equity: Decimal
+  risk_pct: Decimal
+  atr_period: number
+  stop: { kind: 'atr'; k: Decimal } | { kind: 'price'; price: Decimal }
+}
+
+/** `risk_preview.v1` (#777): lo que respondería el módulo de riesgo con un capital hipotético. */
+export type RiskPreview = {
+  instrument_id: string
+  timeframe: LabTimeframe
+  direction: 'long' | 'short'
+  as_of: Utc | null
+  reference: Decimal | null
+  atr: Decimal | null
+  atr_period: number
+  stop: Decimal | null
+  stop_atr: Decimal | null
+  equity: Decimal
+  risk_pct_requested: Decimal
+  risk_pct_applied: Decimal
+  accepted: boolean
+  rejection: Rejection | null
+  size: Decimal | null
+  notional: Decimal | null
+  leverage: Decimal | null
+  margin: Decimal | null
+  risk: Decimal | null
+  risk_pct: Decimal | null
+  leverage_capped: boolean
+  group_capped: boolean
+  round_trip_cost: Decimal | null
+  account_currency: string
+  instrument_currency: string
+  fx_rate: Decimal | null
+  limits: {
+    max_risk_pct: Decimal
+    min_stop_atr: Decimal
+    max_stop_atr: Decimal
+    gap_atr: Decimal
+    max_leverage: Decimal
+    margin_pct: Decimal | null
+  }
   notes: string[]
 }

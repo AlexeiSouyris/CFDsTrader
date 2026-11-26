@@ -11,6 +11,7 @@
  * | `GET` / `DELETE /api/v1/lab/jobs/{job_id}` | `lab_job_event.v1` (el último; cancelar) |
  * | `GET /api/v1/lab/jobs/{job_id}/events` | SSE de `lab_job_event.v1` |
  * | `GET /api/v1/lab/reports/{report_id}` | `lab_report.v1` |
+ * | `POST /api/v1/lab/risk_preview` | `risk_preview.v1` (sin efectos) |
  *
  * Las escrituras llevan la cabecera anti-CSRF `x-cfds-token`, que **no pone el navegador**: la
  * agrega el proxy de desarrollo de Vite (`gateway-token.ts`). El token nunca está en el cliente.
@@ -21,6 +22,8 @@ import type {
   LabJobEvent,
   LabJobRequest,
   LabReport,
+  RiskPreview,
+  RiskPreviewRequest,
   SpecValidation,
   StrategyCatalog,
   StrategySpec,
@@ -67,6 +70,15 @@ export const fetchJob = (id: string, signal?: AbortSignal) =>
 
 /** Cancela el trabajo. Si ya terminó, devuelve su final. */
 export const cancelJob = (id: string) => request<LabJobEvent>(job(id), { method: 'DELETE' })
+
+/** Lo que respondería el módulo de riesgo con un capital hipotético (sin efectos). */
+export const previewRisk = (req: RiskPreviewRequest, signal?: AbortSignal) =>
+  request<RiskPreview>('/api/v1/lab/risk_preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+    signal,
+  })
 
 export const fetchReport = (id: string, signal?: AbortSignal) =>
   request<LabReport>(`/api/v1/lab/reports/${encodeURIComponent(id)}`, { signal })
