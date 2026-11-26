@@ -15,6 +15,9 @@ Lista de todos los contratos, generada desde `contracts/*.schema.json` (`title` 
 <!-- indice-de-contratos:inicio (generado por `python3 tools/docs_index.py`; no editar a mano) -->
 | Contrato | Título | Qué es (primera oración de `description`) |
 |---|---|---|
+| [`academy_catalog.v1`](academy_catalog.v1.schema.json) | Academy catalog v1 | El catálogo de la Academia (docs/design/2026-11-academia.md §4 y §5.5, #717) |
+| [`academy_event.v1`](academy_event.v1.schema.json) | Academy event v1 | Un evento de progreso de la Academia (docs/design/2026-11-academia.md §4.2, #717), tal como se guarda en academy_events (solo agregar |
+| [`academy_progress.v1`](academy_progress.v1.schema.json) | Academy progress v1 | El estado de la Academia de una persona, calculado por el motor leyendo sus eventos (academy_event.v1) contra el catálogo vigente (docs/design/2026-11-academia… |
 | [`analog_report.v1`](analog_report.v1.schema.json) | Analog report v1 | Análogos históricos de la última ventana de un índice (spec §13, #148, #294) |
 | [`backtest_run.v1`](backtest_run.v1.schema.json) | Backtest run v1 | Una corrida de backtest del diario (spec §15b, #200) |
 | [`backtest_run_curve.v1`](backtest_run_curve.v1.schema.json) | Backtest run curve v1 | La curva de una corrida de backtest (#299) |
@@ -71,6 +74,8 @@ Lista de todos los contratos, generada desde `contracts/*.schema.json` (`title` 
 | [`paper_comparison.v1`](paper_comparison.v1.schema.json) | Paper comparison v1 | Comparación de paper trading (registro del broker simulado) contra el backtest del mismo período, sobre las mismas velas cerradas y la misma config (fase 8, #3… |
 | [`position.v1`](position.v1.schema.json) | Position v1 | Una posición abierta del broker simulado (fase 7, #278), valuada al cierre de la última vela (as_of) |
 | [`proposal.v1`](proposal.v1.schema.json) | Proposal v1 | Una propuesta de operación del diario (spec §15b) |
+| [`quiz_answer.v1`](quiz_answer.v1.schema.json) | Quiz answer v1 | Las respuestas de un examen de preguntas de la Academia (docs/design/2026-11-academia.md §5.5, #717) |
+| [`quiz_result.v1`](quiz_result.v1.schema.json) | Quiz result v1 | La corrección del motor de un examen de preguntas de la Academia (docs/design/2026-11-academia.md §5.5, #717) |
 | [`reference_rate.v1`](reference_rate.v1.schema.json) | Reference rate v1 | Un valor diario de un tipo de referencia de la financiación nocturna (#79), tal como lo publicó la fuente |
 | [`release_actual.v1`](release_actual.v1.schema.json) | Release actual v1 | El dato real de una serie oficial para un mes de referencia, tal como lo daba la fuente oficial al leerlo (ADR 0018 §2) |
 | [`sentiment.v1`](sentiment.v1.schema.json) | Sentiment index v1 | Índice de sentimiento v1 de un instrumento (spec §9.1, #213) |
@@ -461,3 +466,19 @@ Los escribe el motor (`cfds-journal`, tablas `proposals` y `outcomes` de `infra/
 - Tabla de **solo agregar**: un trigger impide `UPDATE` y `DELETE`. Guardar el mismo movimiento otra vez no duplica nada, y otro contenido con el mismo id es un error.
 - El estado de cada miembro (unidades, aportes y retiros) **no se guarda aparte**: se reconstruye sumando el historial (`cfds_fund::Fund::replay`).
 - Lo escribe el motor (`cfds-fund`, `PgFund`). Lo leen la UI (vista Fondo) y el aprendizaje.
+
+### Academia (#709, #717)
+
+Diseño en `docs/design/2026-11-academia.md` (§4 y §5.5). Todo lo calcula el motor (crate `cfds-academy`, que llega con #718); la UI solo muestra. Las claves de las respuestas **no** viajan a la UI.
+
+| Contrato | Dónde | Qué es |
+|---|---|---|
+| `academy_catalog.v1` | `GET /api/v1/academy/catalog` | Niveles, lecciones, exámenes (preguntas con sus opciones, **sin** la respuesta correcta) y la herramienta que desbloquea cada lección (id estable `tool.<nombre>`), armado desde `config/academy.toml`. `catalog_version` es el SHA-256 del texto de esa config. Los umbrales (`quiz_pass_pct`, `locked_tools_visible`) son educativos, no de trading, y van con `provisional = true` hasta que el dueño los apruebe. Un examen sin preguntas todavía sale `ready = false` y no se puede rendir. |
+| `quiz_answer.v1` | body de `POST /api/v1/academy/quiz/{lesson_id}` | Las respuestas: una opción (`choice`) o un número como string decimal (`value`) por pregunta, con la `catalog_version` que se mostró (si ya no es la actual, el motor no corrige). |
+| `quiz_result.v1` | respuesta de esa ruta, y detalle del intento guardado | Qué pregunta estuvo bien o mal (nunca la respuesta correcta), `score_pct` = correctas / total × 100 redondeado hacia abajo a 2 decimales, `pass_pct` vigente y `passed`. Una pregunta sin responder cuenta como incorrecta. |
+| `academy_event.v1` | tabla `academy_events` (#718); el pedido de `POST /api/v1/academy/events` es `$defs/request` | Un evento de progreso: `exam_attempt` (con su `quiz_result.v1`), `lesson_completed` (solo lecciones sin examen) o `tool_override` (`unlock` / `relock` de una herramienta o de todas con `*`), con quién (`member_id`) y cuándo. |
+| `academy_progress.v1` | `GET /api/v1/academy/progress` | Estado calculado por el motor leyendo los eventos en orden: por lección, si se aprobó (y cuándo, la primera vez), intentos y mejor nota; por herramienta, si está abierta y si es por su lección o solo a mano. |
+
+- **Solo agregar:** `academy_events` nunca se edita; cada intento queda guardado. El estado no se guarda aparte: se reconstruye.
+- **Desbloqueo a mano:** `unlock` abre la herramienta aunque no se haya aprobado su lección; `relock` quita ese desbloqueo (vuelve a lo que digan las lecciones: lo aprobado sigue abierto). El último evento que alcanza a una herramienta (el suyo o uno de `*`) decide. Desbloquear no cambia nada del motor, del riesgo ni del paper.
+- Una herramienta que no está en el catálogo no tiene candado. Los intentos guardados con otra `catalog_version` siguen contando para su lección.

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/quiz_answer.v1.schema.json",
+  "title": "Quiz answer v1",
+  "description": "Las respuestas de un examen de preguntas de la Academia (docs/design/2026-11-academia.md §5.5, #717): body de POST /api/v1/academy/quiz/{lesson_id}. La UI no corrige nada: el motor responde con quiz_result.v1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["lesson_id", "catalog_version", "answers"],
+  "properties": {
+    "lesson_id": { "$ref": "academy_catalog.v1.schema.json#/$defs/lesson_id" },
+    "catalog_version": { "description": "La versión del catálogo con la que la UI mostró las preguntas; si no es la actual, el motor no corrige (409).", "$ref": "academy_catalog.v1.schema.json#/$defs/version" },
+    "answers": {
+      "description": "Una respuesta por pregunta, sin repetir. Una pregunta sin respuesta cuenta como incorrecta.",
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["question_id"],
+        "properties": {
+          "question_id": { "$ref": "academy_catalog.v1.schema.json#/$defs/question_id" },
+          "choice": { "description": "Id de la opción elegida (pregunta choice).", "type": "string", "pattern": "^[a-z]$" },
+          "value": { "description": "Número respondido (pregunta number), como string decimal con signo opcional.", "type": "string", "pattern": "^-?\\d{1,12}(\\.\\d{1,8})?$" }
+        },
+        "oneOf": [{ "required": ["choice"] }, { "required": ["value"] }]
+      }
+    }
+  }
+}
