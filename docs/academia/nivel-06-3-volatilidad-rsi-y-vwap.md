@@ -45,8 +45,8 @@ a bajar.
 operó a ese precio. Necesita el volumen de cada vela.
 
 **Lo que el motor no tiene.** El motor **no calcula hoy ni el RSI ni el VWAP**: no hay código para
-ellos en el módulo de indicadores, y la guía de las pruebas contra TradingView lo dice ("no existe
-en el motor"). La UI tampoco los calcula: nunca calcula lógica de trading (CLAUDE.md §1). Por eso
+ellos en el módulo de indicadores (la guía de las pruebas contra TradingView lo dice del RSI: "no
+existe en el motor"). La UI tampoco los calcula: nunca calcula lógica de trading (CLAUDE.md §1). Por eso
 esta lección **no abre ninguna capa** de RSI ni de VWAP. Cuando el motor los agregue, con su prueba
 contra la fórmula publicada, esta lección abrirá su capa.
 
