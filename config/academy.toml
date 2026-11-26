@@ -3545,7 +3545,7 @@ kind = "choice"
 prompt = "¿Cuál es la conclusión honesta del nivel 12?"
 options = [
   { id = "a", text = "Las cuentas fondeadas son una manera segura de ganar." },
-  { id = "b", text = "Sin una ventaja verificada después de costos, lo esperable es un valor esperado negativo: se pagan cuotas en cada intento y se pasa menos que al azar." },
+  { id = "b", text = "Sin una ventaja verificada después de costos, lo esperable es un valor esperado negativo: se pagan cuotas en cada intento y se pasa menos que con esperanza 0." },
   { id = "c", text = "Con suficientes intentos siempre se cobra más de lo que se paga." },
   { id = "d", text = "Conviene la firma con la cuota más barata." },
 ]

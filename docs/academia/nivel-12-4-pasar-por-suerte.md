@@ -29,8 +29,8 @@ es el *resulting* de la lección 8.4. Es la misma idea de la Academia y de la pr
   ganador y perdedor, como el simulador de varianza).
 - **Cada camino es un intento** (una cuota). Con una lista o un informe, los días reales se
   remuestrean en bloques de **5** días operados (con el modelo, se sortean), hasta **250** días por
-  intento; por defecto **5.000** caminos (el error de una
-  probabilidad queda en 0,7 % o menos) y semilla fija: el mismo pedido da el mismo resultado.
+  intento; por defecto **5.000** caminos (el error de una probabilidad queda en 0,7 % o menos) y
+  semilla fija: el mismo pedido da el mismo resultado.
 - **Resultado por intento:** pasar la evaluación, cobrar, quemar la cuenta, quedarse sin tiempo o
   sin terminar, cada uno con su intervalo de Wilson del 95 %; y la economía de la lección 12.2 con
   hasta **5** intentos.
@@ -52,15 +52,15 @@ es el *resulting* de la lección 8.4. Es la misma idea de la Academia y de la pr
 
 - Sin una ventaja **verificada** (una regla pre-registrada que pasó fuera de muestra, nivel 10), tus
   operaciones reales no tienen esperanza 0: tienen esperanza **negativa**, porque los costos se pagan
-  siempre. Ejemplo nuestro: la última media hora dio cero **antes** de costos (R026) y −2,0 % por mes
-  **con** los costos del CFD (R017).
-- Con esperanza negativa, cada intento pasa **menos** que el azar y las cuotas se suman en cada
-  intento: lo esperable es un **valor esperado negativo**.
+  siempre. Ejemplo nuestro: la última media hora dio cero o algo negativo **antes** de costos (R026)
+  y −2,0 % por mes **con** los costos del CFD (R017).
+- Con esperanza negativa, cada intento pasa **menos** que con esperanza 0 y las cuotas se suman en
+  cada intento: lo esperable es un **valor esperado negativo**.
 - Si el simulador te da positivo con esperanza 0, atacá primero los supuestos: el cobro medio, la
   regla intradía que no simulamos, que la firma pague y no cambie sus reglas, y que la cuenta
   «fondeada» puede ser simulada (en Topstep, el 0,71 % de las personas con *Express Funded* fue
-  llamada a una cuenta real en 2025). La firma pone sus reglas para que, en conjunto, las cuotas paguen los cobros
-  (inferencia).
+  llamada a una cuenta real en 2025). La firma pone sus reglas para que, en conjunto, las cuotas
+  paguen los cobros (inferencia).
 - «Con muchos desafíos se gana sin ventaja» (12.3) no está verificado: el simulador es la manera de
   ponerlo a prueba con reglas reales, **y con los costos**.
 
