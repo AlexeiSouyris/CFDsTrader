@@ -3,7 +3,7 @@
 # academy_catalog.v1 (GET /api/v1/academy/catalog). Nada de esto toca el motor de trading, el
 # riesgo ni el paper: solo qué se enseña, cómo se corrige y qué se ve en la UI.
 #
-# Por ahora, niveles 0 a 11, con su contenido (#760, #819, #828, #838 y #847; §8 PR 6, 11 y 15): el texto de
+# Niveles 0 a 12, con su contenido (#760, #819, #828, #838 y #847; §8 PR 6, 11 y 15): el texto de
 # cada lección está en `doc` (docs/academia/*.md, formato que valida cfds_academy::lesson_doc: secciones fijas, aviso,
 # sin promesas y una tabla de cifras que el motor compara con su fuente del repo). Mientras una
 # lección con examen no tenga preguntas, su examen sale `ready = false` y no se puede rendir (sus
@@ -241,6 +241,14 @@ name = "Noticias y calendario de la Terminal"
 id = "tool.imbalance"
 name = "Índice de desequilibrio aproximado (Liquidez)"
 
+# Nivel 12 (#847). El simulador de cuentas fondeadas del Laboratorio (cfds-propsim, #802, #803,
+# #807): reglas de una evaluación, probabilidad de cobrar o fallar, valor esperado después de
+# cuotas y comparación con operar al azar. Vive en la misma vista que el constructor
+# (tool.lab_builder) y el simulador de varianza: su candado envuelve solo este simulador.
+[[tools]]
+id = "tool.propsim"
+name = "Simulador de cuentas fondeadas (Laboratorio)"
+
 [[levels]]
 level = 0
 title = "Orientación: qué es esto y por qué la mayoría pierde"
@@ -288,6 +296,10 @@ title = "Tu propia estrategia: hipótesis, pre-registro, regímenes y noticias"
 [[levels]]
 level = 11
 title = "Avanzado, con advertencias: flujo de órdenes, perfil de volumen y GEX"
+
+[[levels]]
+level = 12
+title = "Cuentas fondeadas (prop firms)"
 
 # exam: quiz (preguntas que corrige el motor) | none (se completa sin nota).
 # Las fuentes de cada número están en la tabla «Cifras y fuentes» del `doc` de la lección.
@@ -3258,5 +3270,283 @@ options = [
   { id = "b", text = "Porque no tenemos datos de opciones: el dato por tipo de participante de Cboe es pago y de uso interno, sus términos no permiten guardar datos sin permiso escrito, y un proveedor nuevo va con su ADR." },
   { id = "c", text = "Porque la calcula la UI." },
   { id = "d", text = "Porque IG no la publica, pero la vamos a estimar con las velas." },
+]
+answer = "b"
+
+[[lessons]]
+id = "12.1"
+title = "Cómo funcionan las cuentas fondeadas"
+objective = "Conocer las reglas de una evaluación (fases, objetivo, pérdida diaria, caída máxima fija o que sigue al máximo, días, consistencia, cobro, reparto y cuotas) con la plantilla genérica del simulador, y entender por qué la caída que sigue al máximo es la más traicionera."
+doc = "docs/academia/nivel-12-1-como-funcionan.md"
+exam = "quiz"
+unlocks = []
+
+[[lessons.questions]]
+id = "12.1.1"
+kind = "choice"
+prompt = "¿Cuándo se paga la cuota de una evaluación?"
+options = [
+  { id = "a", text = "Solo si pasás." },
+  { id = "b", text = "En cada intento, pases o no." },
+  { id = "c", text = "Solo con el primer cobro." },
+  { id = "d", text = "Nunca: la paga la firma." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "12.1.2"
+kind = "number"
+prompt = "Cuenta de 50.000 con caída máxima de 2.000 que sigue al máximo intradía, sin traba. Llegás a estar +1.500 sin realizar y cerrás en 50.000. ¿Cuánto margen te queda antes de fallar?"
+answer = "1500"
+tolerance = "0"
+
+[[lessons.questions]]
+id = "12.1.3"
+kind = "number"
+prompt = "Cuenta de 100.000 con caída máxima de 5.000 que sigue al máximo al cierre del día, sin traba. Cerrás el día 1 en 103.000 y el día 2 en 104.000. ¿Dónde queda el piso?"
+answer = "99000"
+tolerance = "0"
+
+[[lessons.questions]]
+id = "12.1.4"
+kind = "choice"
+prompt = "Regla de consistencia: el mejor día no puede pasar del 40 % de la ganancia total. Ganaste 3.000 en total y tu mejor día fue de 1.500. ¿Cumplís?"
+options = [
+  { id = "a", text = "Sí: ganaste más de lo que pide." },
+  { id = "b", text = "No: el mejor día es el 50 % de la ganancia total, más que el 40 %." },
+  { id = "c", text = "Sí: la regla solo mira la pérdida." },
+  { id = "d", text = "No se puede saber sin el saldo inicial." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "12.1.5"
+kind = "choice"
+prompt = "¿Qué hace el simulador con la caída que sigue al máximo intradía?"
+options = [
+  { id = "a", text = "La aproxima con el cierre de cada operación." },
+  { id = "b", text = "No la simula (hace falta el capital vela por vela): la deja afuera y avisa que la probabilidad de pasar es un tope superior." },
+  { id = "c", text = "La trata como una caída fija." },
+  { id = "d", text = "Rechaza el pedido." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "12.1.6"
+kind = "choice"
+prompt = "¿Por qué el simulador trae solo una plantilla genérica en blanco?"
+options = [
+  { id = "a", text = "Porque las firmas no tienen reglas." },
+  { id = "b", text = "Porque no se inventan reglas de firmas reales: cargar una necesita su reglamento publicado, con el enlace y la fecha de lectura." },
+  { id = "c", text = "Porque todas las firmas tienen las mismas reglas." },
+  { id = "d", text = "Porque la UI calcula las reglas." },
+]
+answer = "b"
+
+[[lessons]]
+id = "12.2"
+title = "Quién gana con el negocio"
+objective = "Calcular el valor esperado de un programa de fondeo con las fórmulas del motor: cuánto se paga en cuotas hasta cobrar, cuánto se cobra y qué cobro medio hace falta para no perder."
+doc = "docs/academia/nivel-12-2-quien-gana.md"
+exam = "quiz"
+unlocks = []
+
+[[lessons.questions]]
+id = "12.2.1"
+kind = "number"
+prompt = "La probabilidad de cobrar en un intento es q = 10 %. ¿Qué probabilidad hay de cobrar en 5 intentos o menos, en %? (un decimal)"
+answer = "41.0"
+tolerance = "0.1"
+unit = "%"
+
+[[lessons.questions]]
+id = "12.2.2"
+kind = "number"
+prompt = "Con q = 10 % y como mucho 5 intentos, ¿cuántos intentos esperados se pagan? (dos decimales)"
+answer = "4.10"
+tolerance = "0.01"
+
+[[lessons.questions]]
+id = "12.2.3"
+kind = "number"
+prompt = "q = 10 %, 5 intentos como mucho, cuota 100, sin activación ni devolución, cobro medio 800. ¿Cuál es el valor esperado del programa? (dos decimales)"
+answer = "-81.90"
+tolerance = "0.1"
+
+[[lessons.questions]]
+id = "12.2.4"
+kind = "number"
+prompt = "Sin activación ni devolución, cuota 200 y q = 8 %. ¿Qué cobro medio hace falta, como mínimo, para que el valor esperado no sea negativo?"
+answer = "2500"
+tolerance = "1"
+
+[[lessons.questions]]
+id = "12.2.5"
+kind = "number"
+prompt = "Evaluación 100, activación 150 (se paga al pasar) y P(pasar la evaluación) = 20 %. ¿Cuánto cuesta, en promedio, cada intento?"
+answer = "130"
+tolerance = "0"
+
+[[lessons.questions]]
+id = "12.2.6"
+kind = "number"
+prompt = "Topstep publicó que en 2025 se aprobó el 16,8 % de sus evaluaciones. ¿Qué % de las cuotas de evaluación fue de intentos que no pasaron? (un decimal)"
+answer = "83.2"
+tolerance = "0.1"
+unit = "%"
+
+[[lessons]]
+id = "12.3"
+title = "La evidencia honesta y los conflictos de interés"
+objective = "Separar lo auditado de lo autodeclarado, conocer los pocos números públicos sobre cuentas fondeadas y la evidencia académica sobre traders intradía, y reconocer un conflicto de interés."
+doc = "docs/academia/nivel-12-3-evidencia-honesta.md"
+exam = "quiz"
+unlocks = []
+
+[[lessons.questions]]
+id = "12.3.1"
+kind = "choice"
+prompt = "¿Qué nivel de prueba tienen las tasas de aprobación que publica una firma de fondeo?"
+options = [
+  { id = "a", text = "A: son datos oficiales auditados." },
+  { id = "b", text = "C: son autodeclaradas, sin auditoría, y la firma gana con las cuotas." },
+  { id = "c", text = "B: son un libro con método." },
+  { id = "d", text = "No tienen ningún valor." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "12.3.2"
+kind = "choice"
+prompt = "Topstep publicó para 2025 que se aprobó el 16,8 % de las evaluaciones y que el 51,8 % de las personas aprobó al menos una. ¿Por qué son tan distintos?"
+options = [
+  { id = "a", text = "Porque uno es de 2024 y el otro de 2025." },
+  { id = "b", text = "Porque uno cuenta intentos y el otro personas: muchas personas compran varios intentos." },
+  { id = "c", text = "Porque uno es con dinero real y el otro no." },
+  { id = "d", text = "Es un error de la firma." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "12.3.3"
+kind = "choice"
+prompt = "Topstep publicó que el 0,71 % de las personas con cuenta Express Funded fue llamada a una cuenta real en 2025. ¿Qué te dice?"
+options = [
+  { id = "a", text = "Que casi todos los que pasan operan con dinero real." },
+  { id = "b", text = "Que la cuenta Express Funded (donde se opera en mercados simulados) casi nunca llega a una cuenta real: menos de 1 de cada 100." },
+  { id = "c", text = "Que el 99 % cobró." },
+  { id = "d", text = "Que la firma pierde dinero." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "12.3.4"
+kind = "choice"
+prompt = "¿Qué encontraron Barber, Lee, Liu y Odean (2014) con los day traders de Taiwán (1992–2006)?"
+options = [
+  { id = "a", text = "Que la mayoría gana después de comisiones." },
+  { id = "b", text = "Que menos del 1 % logra retornos anormales positivos de forma predecible y confiable después de comisiones." },
+  { id = "c", text = "Que con práctica todos mejoran." },
+  { id = "d", text = "Que las comisiones no importan." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "12.3.5"
+kind = "choice"
+prompt = "En Brasil (Chague, De-Losso y Giovannetti), de quienes hicieron day trading en minicontratos del índice más de 300 días, ¿qué pasó?"
+options = [
+  { id = "a", text = "El 97 % perdió dinero y no encontraron evidencia de que aprendieran con el tiempo." },
+  { id = "b", text = "La mitad vivió del trading." },
+  { id = "c", text = "Los que más operaron mejoraron mucho." },
+  { id = "d", text = "No hay datos." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "12.3.6"
+kind = "choice"
+prompt = "Un trader conocido recomienda una firma y da un código de descuento («Use code 'GB'»). ¿Qué conclusión es correcta?"
+options = [
+  { id = "a", text = "Si da un descuento, la firma es buena." },
+  { id = "b", text = "Es un conflicto de interés probable: gana más si más gente compra desafíos. No prueba que mienta, pero obliga a pedir evidencia verificable, con los fracasos incluidos." },
+  { id = "c", text = "Está mintiendo." },
+  { id = "d", text = "No importa quién lo dice." },
+]
+answer = "b"
+
+[[lessons]]
+id = "12.4"
+title = "Pasar por suerte: el simulador"
+objective = "Usar el simulador para ver con qué probabilidad unas operaciones cobran, queman la cuenta o se quedan sin tiempo, cuánto valen después de las cuotas y si le ganan a operar al azar, y llegar a la conclusión honesta."
+doc = "docs/academia/nivel-12-4-pasar-por-suerte.md"
+exam = "quiz"
+unlocks = ["tool.propsim"]
+
+[[lessons.questions]]
+id = "12.4.1"
+kind = "number"
+prompt = "Operaciones con esperanza 0 y ganancias y pérdidas del mismo tamaño, sin costos, sin pérdida diaria ni límite de días. Objetivo 6 % y caída máxima fija 9 %. ¿Probabilidad aproximada de pasar, en %?"
+answer = "60"
+tolerance = "1"
+unit = "%"
+
+[[lessons.questions]]
+id = "12.4.2"
+kind = "choice"
+prompt = "Pasaste una evaluación con 12 operaciones. ¿Qué prueba eso sobre tu método?"
+options = [
+  { id = "a", text = "Que tenés ventaja." },
+  { id = "b", text = "Casi nada: con esperanza 0 también se pasa seguido; juzgar el método por ese resultado es resulting." },
+  { id = "c", text = "Que vas a cobrar." },
+  { id = "d", text = "Que la firma es fácil." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "12.4.3"
+kind = "choice"
+prompt = "El simulador dice: tus operaciones cobran en el 18 % de los intentos (14–22 %); operando al azar, en el 15 % (12–19 %). ¿Qué concluís?"
+options = [
+  { id = "a", text = "Le ganás al azar por 3 puntos." },
+  { id = "b", text = "No se distingue del azar: los intervalos se tocan y la diferencia puede ser suerte." },
+  { id = "c", text = "Perdés contra el azar." },
+  { id = "d", text = "Que el simulador está mal." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "12.4.4"
+kind = "choice"
+prompt = "¿Por qué unas operaciones sin ventaja verificada no tienen esperanza 0 sino negativa?"
+options = [
+  { id = "a", text = "Porque los costos (spread, comisión, slippage, financiación) se pagan siempre: sin ventaja bruta, lo neto queda abajo de cero." },
+  { id = "b", text = "Porque el mercado está en contra del trader." },
+  { id = "c", text = "Sí tienen esperanza 0." },
+  { id = "d", text = "Porque las firmas cobran comisión por operación." },
+]
+answer = "a"
+
+[[lessons.questions]]
+id = "12.4.5"
+kind = "choice"
+prompt = "Con unas reglas, el simulador da valor esperado positivo operando al azar (esperanza 0). ¿Qué hacés primero?"
+options = [
+  { id = "a", text = "Comprar muchos desafíos." },
+  { id = "b", text = "Atacar los supuestos: el cobro medio, la regla intradía que no se simula, que la firma pague y no cambie sus reglas, que la cuenta sea simulada, y que tus operaciones reales pagan costos." },
+  { id = "c", text = "Nada: el simulador no se equivoca." },
+  { id = "d", text = "Subir el riesgo por operación." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "12.4.6"
+kind = "choice"
+prompt = "¿Cuál es la conclusión honesta del nivel 12?"
+options = [
+  { id = "a", text = "Las cuentas fondeadas son una manera segura de ganar." },
+  { id = "b", text = "Sin una ventaja verificada después de costos, lo esperable es un valor esperado negativo: se pagan cuotas en cada intento y se pasa menos que con esperanza 0." },
+  { id = "c", text = "Con suficientes intentos siempre se cobra más de lo que se paga." },
+  { id = "d", text = "Conviene la firma con la cuota más barata." },
 ]
 answer = "b"
