@@ -1,6 +1,6 @@
 /**
- * Tipos de los contratos del replay de la Academia (#720) para la UI: `replay_session.v1` y
- * `replay_step.v1` de `contracts/`. Son la misma forma del contrato. Las velas no traen la fecha real (día de la sesión y hora UTC): se
+ * Tipos de los contratos del replay de la Academia (#720) para la UI: `replay_session.v1`,
+ * `replay_step.v1` y `replay_mark.v1` de `contracts/`. Son la misma forma del contrato. Las velas no traen la fecha real (día de la sesión y hora UTC): se
  * revela recién en `exam_result.v1`. Precios como texto decimal.
  */
 
@@ -51,3 +51,18 @@ export type SessionRequest = { kind: ReplayKind; lesson_id?: string; seed?: stri
 
 /** `replay_step.v1` (`POST /api/v1/academy/replay/{id}/step`): solo las velas nuevas. */
 export type ReplayStep = { session_id: string; cursor: number; bars: ReplayBar[]; done: boolean }
+
+/** level: soporte o resistencia; pivot_high / pivot_low: máximo o mínimo local en una vela. */
+export type MarkKind = 'level' | 'pivot_high' | 'pivot_low'
+
+/** `replay_mark.v1#/$defs/request` (`POST /replay/{id}/marks`); el cursor lo pone el motor. */
+export type MarkRequest = { kind: MarkKind; price: Decimal; bar_index?: number }
+
+/** `replay_mark.v1`: la marca como la guardó el motor. */
+export type ReplayMark = {
+  mark_id: number
+  kind: MarkKind
+  price: Decimal
+  bar_index: number | null
+  cursor: number
+}

@@ -5,19 +5,34 @@
  * |---|---|
  * | `POST /api/v1/academy/replay` | `replay_session.v1#/$defs/request` → `replay_session.v1` |
  * | `POST /api/v1/academy/replay/{id}/step` | `replay_step.v1#/$defs/request` → `replay_step.v1` |
+ * | `POST /api/v1/academy/replay/{id}/marks` | `replay_mark.v1#/$defs/request` → `replay_mark.v1` (#773) |
  *
  * El cursor vive en el motor: la UI pide «avanzar N» y dibuja solo las velas que vuelven. No hay
  * forma de pedir una vela posterior al cursor ni la fecha real antes de terminar. Las sesiones
  * viven en la memoria del gateway (la más vieja se cierra al llenarse).
  */
 import { postJson } from '@/lib/academy-api'
-import type { ReplayBar, ReplaySession, ReplayStep, SessionRequest } from '@/lib/replay-contracts'
+import type {
+  MarkRequest,
+  ReplayBar,
+  ReplayMark,
+  ReplaySession,
+  ReplayStep,
+  SessionRequest,
+} from '@/lib/replay-contracts'
 
 const BASE = '/api/v1/academy/replay'
 const session = (id: string) => `${BASE}/${encodeURIComponent(id)}`
 
 /** La sesión que se está viendo: las velas recibidas, el cursor y si llegó al final. */
-export type Live = { session: ReplaySession; bars: ReplayBar[]; cursor: number; done: boolean }
+export type Live = {
+  session: ReplaySession
+  bars: ReplayBar[]
+  cursor: number
+  done: boolean
+  /** las marcas tal como las devolvió el motor */
+  marks: ReplayMark[]
+}
 
 /** La sesión abierta sigue al volver a la vista (vive en el gateway hasta que se cierre). */
 export let kept: Live | null = null
@@ -29,6 +44,9 @@ export const openReplay = (req: SessionRequest) => postJson<ReplaySession>(BASE,
 
 export const stepReplay = (id: string, bars: number) =>
   postJson<ReplayStep>(`${session(id)}/step`, { bars })
+
+export const markReplay = (id: string, req: MarkRequest) =>
+  postJson<ReplayMark>(`${session(id)}/marks`, req)
 
 /**
  * Suma las velas nuevas de un paso a las que ya se ven, por su número: una vela repetida no se

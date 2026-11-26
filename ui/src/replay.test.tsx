@@ -116,3 +116,35 @@ describe('replay de práctica (#772)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('La sesión ya no está en el gateway')
   })
 })
+
+describe('marcas (#773)', () => {
+  const reply = (path: string, body: unknown) => {
+    const b = body as Record<string, unknown>
+    if (path.endsWith('/marks'))
+      return Response.json({ mark_id: 1, bar_index: null, cursor: 2, ...b })
+    return Response.json(SESSION)
+  }
+
+  it('un pivote va con la vela tocada y su máximo; el motor pone el cursor', async () => {
+    const posts = gateway(reply)
+    render(<ReplayView />)
+    fireEvent.click(screen.getByRole('button', { name: 'Empezar práctica' }))
+    const form = await screen.findByRole('form', { name: 'Marcar en el gráfico' })
+    fireEvent.click(within(form).getByRole('button', { name: 'Pivote alto' }))
+    expect(form).toHaveTextContent('Tocá la vela del pivote en el gráfico.')
+    expect(within(form).getByRole('button', { name: 'Marcar' })).toBeDisabled()
+    // jsdom no mide: la vela tocada es la primera columna
+    fireEvent.click(screen.getByRole('img'), { clientX: 1, clientY: 1 })
+    expect(form).toHaveTextContent('Vela: día 1 · 00:00 UTC')
+    expect(within(form).getByRole('textbox', { name: 'Precio' })).toHaveValue('101.5')
+    fireEvent.click(within(form).getByRole('button', { name: 'Marcar' }))
+    const log = await screen.findByRole('list', { name: 'Guardado por el motor' })
+    expect(log).toHaveTextContent(
+      'M1 · Pivote alto 101,5 en día 1 · 00:00 · marcado en día 1 · 00:30',
+    )
+    expect(posts.at(-1)).toEqual([
+      '/api/v1/academy/replay/rp-0123456789abcdef/marks',
+      { kind: 'pivot_high', price: '101.5', bar_index: 0 },
+    ])
+  })
+})
