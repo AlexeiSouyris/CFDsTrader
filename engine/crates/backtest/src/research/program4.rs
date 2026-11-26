@@ -18,7 +18,7 @@
 //! ```
 //! Funciones puras sobre velas cerradas: lo calculado para una vela no cambia con velas nuevas.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use cfds_core::Candle;
 use cfds_indicators::wilder_atr;
@@ -28,8 +28,9 @@ use chrono::{DateTime, NaiveDate, TimeDelta, Utc};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 
-use super::{Plan, Program4Config, StudyTrade, decision_allowed, simulate_leg};
-use crate::{Execution, Setup, fill_price};
+use super::luck::{LuckConfig, LuckSeries};
+use super::{Plan, Program4Config, StudyTrade, decision_allowed};
+use crate::Setup;
 
 /// Cuerpo de la vela: |cierre − apertura|.
 pub fn body(c: &Candle) -> Decimal {
@@ -436,61 +437,13 @@ impl SplitMix64 {
     }
 }
 
-/// R neto de una ejecución: `(salida − entrada) × lado / distancia`, con los precios ejecutados.
-fn net_r(side: Side, entry_price: Decimal, exit_price: Decimal, distance: Decimal) -> Decimal {
-    let s = match side {
-        Side::Long => Decimal::ONE,
-        Side::Short => Decimal::NEGATIVE_ONE,
-    };
-    (exit_price - entry_price) * s / distance
-}
-
-/// R neto medio y retorno total con `risk` por operación (∏(1 + risk·R) − 1).
-pub fn r_summary(rs: &[Decimal], risk: Decimal) -> (Decimal, Decimal) {
-    if rs.is_empty() {
-        return (Decimal::ZERO, Decimal::ZERO);
-    }
-    let mean = rs.iter().sum::<Decimal>() / Decimal::from(rs.len());
-    let total = rs
-        .iter()
-        .fold(Decimal::ONE, |acc, r| acc * (Decimal::ONE + risk * r))
-        - Decimal::ONE;
-    (mean, total)
-}
-
-/// R neto de una operación ejecutada, medido como en el test de suerte (sin financiación).
-pub fn trade_net_r(t: &StudyTrade) -> Option<Decimal> {
-    let d = (t.entry_mid - t.stop).abs();
-    (d > Decimal::ZERO).then(|| net_r(t.side, t.entry_price, t.exit_price, d))
-}
-
-/// Resultado del test de suerte: la estrategia y cada simulación, `(R neto medio, retorno total)`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LuckTest {
-    pub strategy: (Decimal, Decimal),
-    pub simulations: Vec<(Decimal, Decimal)>,
-}
-
-impl LuckTest {
-    /// Porcentaje de simulaciones con un valor menor que el de la estrategia (R medio, total).
-    pub fn percentiles(&self) -> (Decimal, Decimal) {
-        let n = Decimal::from(self.simulations.len().max(1));
-        let below = |f: &dyn Fn(&(Decimal, Decimal)) -> Decimal, v: Decimal| {
-            Decimal::ONE_HUNDRED
-                * Decimal::from(self.simulations.iter().filter(|s| f(s) < v).count())
-                / n
-        };
-        (
-            below(&|s| s.0, self.strategy.0),
-            below(&|s| s.1, self.strategy.1),
-        )
-    }
-}
+pub use super::luck::{LuckTest, r_summary, trade_net_r};
 
 /// Test de suerte (§7.2, §13.2): `simulations` corridas al azar con la misma cantidad de
 /// operaciones por sesión que `trades`, sus distancias de stop en orden, la proporción de largos
 /// de la estrategia, el mismo objetivo en R, la misma gestión y los mismos costos. `risk` es el
-/// riesgo por operación del retorno total. Solo reporte.
+/// riesgo por operación del retorno total. Solo reporte. Es el test general de
+/// [`super::luck::luck_test`] con la salida planificada del programa ([`execution_exit`]).
 #[allow(clippy::too_many_arguments)]
 pub fn luck_test(
     m15: &[Candle],
@@ -503,90 +456,23 @@ pub fn luck_test(
     setup: &Setup,
     risk: Decimal,
 ) -> LuckTest {
-    let real: Vec<Decimal> = trades.iter().filter_map(trade_net_r).collect();
-    let strategy = r_summary(&real, risk);
-    let longs = trades.iter().filter(|t| t.side == Side::Long).count();
-    // Por sesión: las distancias de las operaciones reales, en orden.
-    let mut per_day: BTreeMap<NaiveDate, Vec<Decimal>> = BTreeMap::new();
-    for t in trades {
-        let d = (t.entry_mid - t.stop).abs();
-        if d > Decimal::ZERO {
-            per_day
-                .entry(session.trading_day(t.entry_time))
-                .or_default()
-                .push(d);
-        }
-    }
-    // Velas de ejecución permitidas por sesión, con su salida planificada.
-    let mut candidates: BTreeMap<NaiveDate, Vec<(usize, usize)>> = BTreeMap::new();
-    for j in 1..m15.len() {
-        if !decision_allowed(m15, entries, j - 1) {
-            continue;
-        }
-        if let Some(exit) = execution_exit(m15, session, excluded, cfg, j) {
-            let day = session.trading_day(m15[j].start);
-            if per_day.contains_key(&day) {
-                candidates.entry(day).or_default().push((j, exit));
-            }
-        }
-    }
-    let mut rng = SplitMix64::new(cfg.luck_seed);
-    let mut simulations = Vec::with_capacity(cfg.luck_simulations);
-    for _ in 0..cfg.luck_simulations {
-        let mut rs = Vec::new();
-        for (day, distances) in &per_day {
-            let Some(pool) = candidates.get(day) else {
-                continue;
-            };
-            // n velas distintas (Fisher–Yates parcial), en orden.
-            let mut idx: Vec<usize> = (0..pool.len()).collect();
-            let n = distances.len().min(pool.len());
-            for k in 0..n {
-                let r = k + rng.below(pool.len() - k);
-                idx.swap(k, r);
-            }
-            let mut picked: Vec<(usize, usize)> = idx[..n].iter().map(|&k| pool[k]).collect();
-            picked.sort_unstable();
-            let mut busy_until: Option<usize> = None;
-            for (k, (entry_index, exit_index)) in picked.into_iter().enumerate() {
-                let side = if rng.chance(longs, trades.len()) {
-                    Side::Long
-                } else {
-                    Side::Short
-                };
-                if busy_until.is_some_and(|b| entry_index <= b) {
-                    continue;
-                }
-                let distance = distances[k];
-                let entry_mid = m15[entry_index].open;
-                let (stop, target) = match side {
-                    Side::Long => (entry_mid - distance, entry_mid + cfg.target_r * distance),
-                    Side::Short => (entry_mid + distance, entry_mid - cfg.target_r * distance),
-                };
-                let Some((out_index, exit_mid, _)) = simulate_leg(
-                    side,
-                    entry_index,
-                    stop,
-                    Some(target),
-                    exit_index,
-                    m15,
-                    force_close,
-                ) else {
-                    continue;
-                };
-                let c = &setup.backtest.costs;
-                let entry_price = fill_price(side, Execution::Entry, entry_mid, &setup.costs, c);
-                let exit_price = fill_price(side, Execution::Exit, exit_mid, &setup.costs, c);
-                rs.push(net_r(side, entry_price, exit_price, distance));
-                busy_until = Some(out_index);
-            }
-        }
-        simulations.push(r_summary(&rs, risk));
-    }
-    LuckTest {
-        strategy,
-        simulations,
-    }
+    super::luck::luck_test(
+        &LuckSeries {
+            m15,
+            session,
+            entries,
+            force_close,
+        },
+        |j| execution_exit(m15, session, excluded, cfg, j),
+        &LuckConfig {
+            simulations: cfg.luck_simulations,
+            seed: cfg.luck_seed,
+            target_r: Some(cfg.target_r),
+        },
+        trades,
+        setup,
+        risk,
+    )
 }
 
 /// Con barras de 1 minuto `(máximo, mínimo)` en orden, ¿qué tocó primero una vela que tocó el
