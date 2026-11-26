@@ -211,6 +211,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "cfds-academy"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "jsonschema",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.21",
+ "toml",
+]
+
+[[package]]
 name = "cfds-backtest"
 version = "0.1.0"
 dependencies = [
