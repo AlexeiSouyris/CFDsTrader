@@ -7,11 +7,13 @@
 //! - [`grade_quiz`]: `quiz_answer.v1` → `quiz_result.v1`.
 //! - [`progress`]: eventos (`academy_event.v1`) → `academy_progress.v1`.
 //! - [`pg::PgAcademy`]: la tabla `academy_events` (migración 0052), de solo agregar.
+//! - [`replay`]: sesiones de replay de los exámenes (semilla, fecha oculta, cursor del motor).
 
 pub mod catalog;
 pub mod pg;
 pub mod progress;
 pub mod quiz;
+pub mod replay;
 
 pub use catalog::{AcademyConfig, Catalog, ExamKind, QuestionKind, Thresholds};
 pub use progress::{

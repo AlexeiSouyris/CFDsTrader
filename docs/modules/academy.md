@@ -2,7 +2,7 @@
 modulo: academy
 ruta: `engine/crates/academy` (crate `cfds-academy`)
 lenguaje: Rust
-estado: en curso (#718, #740)
+estado: en curso (#718, #740, #721)
 resumen: Academia: catálogo de lecciones y herramientas con candado, corrección de exámenes y progreso desde eventos de solo agregar.
 ---
 
@@ -14,17 +14,19 @@ resumen: Academia: catálogo de lecciones y herramientas con candado, correcció
 - Corrección de exámenes de preguntas (`quiz_answer.v1` → `quiz_result.v1`, función pura `grade_quiz`): una opción o un número con su tolerancia; una pregunta sin responder cuenta como incorrecta; la nota se redondea hacia abajo a 2 decimales (`quiz.rs`).
 - Eventos de progreso de **solo agregar** (`academy_event.v1`, tabla `academy_events`, migración 0052, `pg.rs`, `PgAcademy`): intento de examen con la corrección del motor, lección sin examen completada y desbloqueo o rebloqueo a mano (una herramienta o `*`), con quién y cuándo.
 - Estado calculado por el motor (`academy_progress.v1`, función pura `progress`): lee los eventos en orden de `seq`; una lección se aprueba con un intento aprobado (o, sin examen, al completarla); una herramienta queda abierta si se aprobó su lección o si el último desbloqueo a mano que la alcanza es `unlock` (`relock` vuelve a lo que digan las lecciones). El pedido de la UI (`$defs/request`) se valida contra el catálogo (`EventRequest::body`).
+- Sesiones de replay de los exámenes (`replay.rs`, `[replay]` de `config/academy.toml`): instrumento, timeframe y fecha **al azar con una semilla** (`SplitMix64` de la investigación; misma semilla y mismos datos, misma sesión), **solo dentro del período de investigación** (el fuera de muestra de `config/data_split.toml` se calcula con `cfds_market_data::plan` y cada ventana pasa por la guardia `research_period` de `cfds-backtest`); velas sin fecha real (número, día de la sesión, hora UTC: `replay_session.v1`, `replay_step.v1`); el **cursor vive en el motor** y `bars_until` rechaza cualquier vela posterior; marcas y entradas con el cursor del momento (`replay_mark.v1`, `replay_order.v1`); todas las velas solo con la sesión terminada. Las velas salen de un `BarStore` (en producción, el gateway).
 - Umbrales educativos (no de trading) en `[thresholds]`, **provisorios** hasta que el dueño los apruebe (`provisional = true`).
 
 No calcula nada de trading ni toca el riesgo, el paper o las órdenes: el desbloqueo solo cambia qué se ve en la UI. La UI no corrige ni decide si algo se aprobó (CLAUDE.md §1).
 
 ## Estado
 
-- Diseño: `docs/design/2026-11-academia.md` (#709). Contratos: #717. Base del motor (catálogo y corrección): #718. Eventos y progreso: #740.
-- Sigue: rutas del gateway, replay de exámenes y su calificación (plan del diseño, §8).
+- Diseño: `docs/design/2026-11-academia.md` (#709). Contratos: #717. Base del motor (catálogo y corrección): #718. Eventos y progreso: #740. Replay: contratos #720, motor #721.
+- Rutas del gateway: #719. Sigue: calificación del replay (#722) y sus rutas (#723).
 
 ## Interfaces
 
 - Config: `config/academy.toml`.
-- Contratos: `academy_catalog.v1`, `quiz_answer.v1`, `quiz_result.v1`, `academy_event.v1`, `academy_progress.v1`.
+- Contratos: `academy_catalog.v1`, `quiz_answer.v1`, `quiz_result.v1`, `academy_event.v1`, `academy_progress.v1`, `replay_session.v1`, `replay_step.v1`, `replay_mark.v1`, `replay_order.v1`.
+- Usa: `cfds-backtest` (`SplitMix64`, `research_period`), `cfds-market-data` (`plan`, `SplitConfig`), `cfds-core` (`Candle`).
 - PostgreSQL: `academy_events` (`infra/migrations/0052_academy_events.sql`).

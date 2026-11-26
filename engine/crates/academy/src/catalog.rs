@@ -109,6 +109,8 @@ pub struct Catalog {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AcademyConfig {
     pub catalog: Catalog,
+    /// `[replay]`: sesiones de replay de los exámenes (#721).
+    pub replay: crate::replay::ReplayConfig,
     /// `(id de la pregunta, clave)`.
     keys: Vec<(String, Key)>,
 }
@@ -117,6 +119,7 @@ pub struct AcademyConfig {
 #[serde(deny_unknown_fields)]
 struct Raw {
     thresholds: Thresholds,
+    replay: crate::replay::ReplayConfig,
     tools: Vec<RawTool>,
     levels: Vec<RawLevel>,
     lessons: Vec<RawLesson>,
@@ -275,6 +278,7 @@ impl AcademyConfig {
             pass > Decimal::ZERO && pass <= Decimal::ONE_HUNDRED,
             "thresholds.quiz_pass_pct: entre 0 (excluido) y 100"
         );
+        raw.replay.validate().map_err(AcademyError::Config)?;
         let mut tool_ids = BTreeSet::new();
         for t in &raw.tools {
             ensure!(
@@ -386,7 +390,11 @@ impl AcademyConfig {
             tools,
             thresholds: raw.thresholds,
         };
-        Ok(Self { catalog, keys })
+        Ok(Self {
+            catalog,
+            replay: raw.replay,
+            keys,
+        })
     }
 
     pub fn lessons(&self) -> impl Iterator<Item = &Lesson> {

@@ -214,6 +214,9 @@ dependencies = [
 name = "cfds-academy"
 version = "0.1.0"
 dependencies = [
+ "cfds-backtest",
+ "cfds-core",
+ "cfds-market-data",
  "cfds-storage",
  "chrono",
  "jsonschema",
