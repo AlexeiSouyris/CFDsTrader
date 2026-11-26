@@ -1,23 +1,24 @@
 /**
- * Armazón de la app: barra superior, navegación (lateral en escritorio, inferior en el celular),
- * escenario, paleta de comandos (⌘K), avisos y ajustes (vidrio del Inicio y del Fondo, ver la intro).
+ * Armazón de la app: barra superior con la línea de comandos, navegación (lateral en escritorio,
+ * inferior en el celular), escenario, barra de estado, paleta de comandos (⌘K o `/`), atajos de
+ * función (F1–F9, `?` los muestra), avisos y ajustes.
  *
- * Une dos componentes de referencia que hacían lo mismo (#164): "Glassy Dashboard" (barra,
- * docks y búsqueda) y "Adjustable Glass Dashboard" (panel para ajustar el vidrio). Queda un solo
- * armazón; el contenido de cada vista lo decide la app.
+ * Nació de dos componentes de vidrio (#164). Desde #708 es una terminal profesional: superficies
+ * lisas, reglas de 1 px y teclado primero. El contenido de cada vista lo decide la app.
  */
 import {
   Bell,
   Clock3,
   Ellipsis,
   House,
+  Keyboard,
   Layers,
   LineChart,
   Moon,
   Play,
-  Search,
   SlidersHorizontal,
   Sun,
+  Terminal,
   X,
   type LucideIcon,
 } from 'lucide-react'
@@ -33,7 +34,7 @@ import {
 } from 'react'
 
 import { CandlestickIcon } from '@/components/ui/animated-icons'
-import { PRESETS, type GlassSettings } from '@/components/ui/glass-settings'
+import { StatusBar } from '@/components/ui/status-bar'
 import { TOOLS } from '@/lib/analysis-layers'
 import { useInstruments } from '@/lib/liquidity-api'
 import type { InstrumentInfo } from '@/lib/liquidity-contracts'
@@ -52,7 +53,7 @@ export type ShellView = {
   icon: LucideIcon
 }
 
-type Popover = 'notices' | 'settings' | null
+type Popover = 'notices' | 'settings' | 'keys' | null
 
 export function GlassShell({
   brand = 'CFDsTrader',
@@ -68,8 +69,7 @@ export function GlassShell({
   onReplayIntro,
   theme,
   onThemeChange,
-  glass,
-  onGlassChange,
+  fkeys = {},
   notices,
   user,
   heading,
@@ -95,8 +95,8 @@ export function GlassShell({
   onReplayIntro?: () => void
   theme: 'dark' | 'light'
   onThemeChange: (t: 'dark' | 'light') => void
-  glass: GlassSettings
-  onGlassChange: (g: GlassSettings) => void
+  /** atajo de función de cada sección (#708): `{ inicio: 'F1', ... }` */
+  fkeys?: Readonly<Record<string, string>>
   notices: { id: string; title: string; detail: string }[]
   user: { name: string; initials: string }
   /** encabezado propio para una página que no es una vista (por ejemplo, el 404) */
@@ -116,13 +116,37 @@ export function GlassShell({
   // los popovers del encabezado se cierran también con un toque afuera (#579)
   useDismiss(popover !== null, () => setPopover(null), [popButtons, popPanel])
 
+  // el último `onSelect` y los atajos, sin volver a registrar el oyente en cada render
+  const keys = useRef({ onSelect, fkeys })
+  useEffect(() => {
+    keys.current = { onSelect, fkeys }
+  })
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setSearching(true)
+        return
       }
       if (e.key === 'Escape') setPopover(null)
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return
+      // F1–F9 (#708): a la sección, también mientras se escribe (las teclas de función no escriben)
+      const target = Object.entries(keys.current.fkeys).find(([, k]) => k === e.key)?.[0]
+      if (target && !e.shiftKey) {
+        e.preventDefault()
+        keys.current.onSelect(target)
+        return
+      }
+      if (typing(e.target) || document.querySelector('dialog[open]')) return
+      // `/` abre la línea de comandos y `?` la lista de atajos, como en una terminal
+      if (e.key === '/') {
+        e.preventDefault()
+        setSearching(true)
+      } else if (e.key === '?') {
+        e.preventDefault()
+        setPopover('keys')
+      }
     }
     const open = () => setSearching(true)
     window.addEventListener('keydown', onKey)
@@ -134,57 +158,65 @@ export function GlassShell({
   }, [])
 
   return (
-    <div
-      className="relative mx-auto flex min-h-svh w-full max-w-[1400px] flex-col px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 md:pb-6"
-      style={
-        {
-          '--glass-blur': `${glass.blur}px`,
-          '--glass-opacity': glass.opacity,
-        } as CSSProperties
-      }
-    >
+    <div className="relative flex min-h-svh w-full flex-col pb-[calc(4.25rem+env(safe-area-inset-bottom))] md:pb-0">
       <a
         href="#contenido"
-        className="sr-only z-50 rounded-full bg-primary px-4 py-2 text-[13px] font-bold text-primary-foreground focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+        className="sr-only z-50 bg-primary px-4 py-2 text-[13px] font-bold text-primary-foreground focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
       >
         Saltar al contenido
       </a>
-      <header className="glass relative z-20 grid grid-cols-[1fr_auto] items-center gap-3 rounded-section px-3 py-2 md:grid-cols-[1fr_minmax(220px,380px)_1fr] md:rounded-full">
+      <header className="sticky top-0 z-20 grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1.5 border-b border-rule bg-card px-3 pt-[max(0.375rem,env(safe-area-inset-top))] pb-1.5 md:grid-cols-[auto_minmax(240px,560px)_1fr]">
         <a
           href={`#${home}`}
-          className="flex min-w-0 items-center gap-2.5"
+          className="flex min-w-0 items-center gap-2"
           onClick={(e) => {
             if (e.metaKey || e.ctrlKey || e.shiftKey) return
             e.preventDefault()
             onSelect(home)
           }}
         >
-          <span className="grid size-9 place-items-center rounded-full bg-primary text-primary-foreground">
-            <CandlestickIcon size={20} playOnMount duration={1.4} />
+          <span className="grid size-7 place-items-center rounded-sm bg-primary text-primary-foreground">
+            <CandlestickIcon size={16} playOnMount duration={1.4} />
           </span>
-          <span className="min-w-0">
-            <strong className="block text-[12px] font-extrabold tracking-[0.18em] uppercase">
+          <span className="flex min-w-0 items-baseline gap-2">
+            <strong className="text-[12px] font-extrabold tracking-[0.16em] uppercase">
               {brand}
             </strong>
-            <small className="block text-[10px] text-muted-foreground">Simulación · paper</small>
+            <small className="hidden font-mono text-[10px] tracking-[0.08em] text-primary uppercase sm:inline">
+              Simulación · paper
+            </small>
             {/* el nombre accesible sale del texto visible (WCAG 2.5.3, axe, #661) */}
             <span className="sr-only">: ir a {homeLabel}</span>
           </span>
         </a>
 
+        {/* la línea de comandos (#708): abre la paleta, también con ⌘K o `/` */}
         <button
           type="button"
           onClick={() => setSearching(true)}
-          className="col-span-2 row-start-2 flex min-h-10 items-center gap-2.5 rounded-full border border-border bg-[color-mix(in_srgb,var(--card)_40%,transparent)] px-3 text-left text-[12px] font-semibold text-muted-foreground hover:text-foreground md:col-span-1 md:row-start-auto"
+          aria-keyshortcuts="Meta+K Control+K /"
+          className="col-span-2 row-start-2 flex min-h-8 items-center gap-2 rounded-sm border border-border bg-background px-2.5 text-left font-mono text-[12px] text-muted-foreground hover:border-rule hover:text-foreground md:col-span-1 md:row-start-auto"
         >
-          <Search className="size-4" aria-hidden="true" />
+          <span aria-hidden className="font-bold text-primary">
+            &gt;
+          </span>
           <span className="truncate">Buscar o elegir un comando</span>
-          <kbd className="ml-auto hidden rounded border border-border px-1.5 text-[10px] sm:inline">
+          <kbd className="ml-auto hidden rounded-sm border border-border px-1.5 text-[10px] sm:inline">
             {SHORTCUT}
+          </kbd>
+          <kbd className="hidden rounded-sm border border-border px-1.5 text-[10px] sm:inline">
+            /
           </kbd>
         </button>
 
-        <div ref={popButtons} className="relative flex items-center justify-end gap-1.5">
+        <div ref={popButtons} className="relative flex items-center justify-end gap-1">
+          <IconButton
+            label="Atajos de teclado"
+            expanded={popover === 'keys'}
+            onClick={() => setPopover(popover === 'keys' ? null : 'keys')}
+          >
+            <Keyboard />
+          </IconButton>
           <IconButton
             label="Ajustes"
             expanded={popover === 'settings'}
@@ -208,12 +240,12 @@ export function GlassShell({
           >
             <Bell />
             {!seen && notices.length > 0 && (
-              <i className="absolute top-2 right-2 size-1.5 rounded-full bg-down" />
+              <i className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-down" />
             )}
           </IconButton>
           <span
             title={user.name}
-            className="hidden size-9 place-items-center rounded-full border border-border text-[11px] font-bold sm:grid"
+            className="hidden h-8 place-items-center rounded-sm border border-border px-2 font-mono text-[11px] font-bold sm:grid"
           >
             {user.initials}
           </span>
@@ -223,15 +255,29 @@ export function GlassShell({
               {notices.length === 0 ? (
                 <p className="text-[12px] text-muted-foreground">No hay avisos nuevos.</p>
               ) : (
-                <ul className="grid gap-2">
+                <ul className="grid divide-y divide-border">
                   {notices.map((n) => (
-                    <li key={n.id} className="rounded-xl border border-border p-2.5">
+                    <li key={n.id} className="py-2 first:pt-0 last:pb-0">
                       <strong className="block text-[12px]">{n.title}</strong>
                       <span className="text-[11px] text-muted-foreground">{n.detail}</span>
                     </li>
                   ))}
                 </ul>
               )}
+            </Popover>
+          )}
+          {popover === 'keys' && (
+            <Popover title="Atajos de teclado" panelRef={popPanel} onClose={() => setPopover(null)}>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[12px]">
+                {Object.entries(fkeys).map(([id, key]) => (
+                  <KeyRow key={id} keys={key}>
+                    {views.find((v) => v.id === id)?.label ?? id}
+                  </KeyRow>
+                ))}
+                <KeyRow keys={`${SHORTCUT} · /`}>Línea de comandos</KeyRow>
+                <KeyRow keys="?">Esta lista</KeyRow>
+                <KeyRow keys="Esc">Cerrar</KeyRow>
+              </dl>
             </Popover>
           )}
           {popover === 'settings' && (
@@ -242,43 +288,21 @@ export function GlassShell({
                * filas separadas por líneas finas. Sin cajas dentro del popover.
                */}
               <SettingsGroup
-                title="Vidrio del Inicio y del Fondo"
-                hint="Solo se ve en el Inicio, el ingreso y el Fondo. Las demás secciones van lisas."
+                title="Tema"
+                hint="Claro u oscuro para toda la app. La Terminal es siempre oscura."
               >
-                <div
-                  role="group"
-                  aria-label="Vidrio predefinido"
-                  className="flex gap-0.5 rounded-full border border-border p-0.5"
+                <button
+                  type="button"
+                  onClick={() => onThemeChange(theme === 'dark' ? 'light' : 'dark')}
+                  className="flex min-h-8 items-center gap-2 text-[12px] font-semibold text-foreground underline-offset-4 hover:underline"
                 >
-                  {PRESETS.map((p) => (
-                    <button
-                      key={p.name}
-                      type="button"
-                      onClick={() => onGlassChange(p.value)}
-                      className="min-h-7 flex-1 rounded-full text-[11px] font-semibold hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
-                    >
-                      {p.name}
-                    </button>
-                  ))}
-                </div>
-                <Range
-                  label="Desenfoque"
-                  value={glass.blur}
-                  min={0}
-                  max={36}
-                  step={1}
-                  text={`${glass.blur} px`}
-                  onChange={(blur) => onGlassChange({ ...glass, blur })}
-                />
-                <Range
-                  label="Opacidad"
-                  value={glass.opacity}
-                  min={0.08}
-                  max={0.92}
-                  step={0.01}
-                  text={`${Math.round(glass.opacity * 100)} %`}
-                  onChange={(opacity) => onGlassChange({ ...glass, opacity })}
-                />
+                  {theme === 'dark' ? (
+                    <Sun className="size-4" aria-hidden="true" />
+                  ) : (
+                    <Moon className="size-4" aria-hidden="true" />
+                  )}
+                  {theme === 'dark' ? 'Pasar al tema claro' : 'Pasar al tema oscuro'}
+                </button>
               </SettingsGroup>
               {onReplayIntro && (
                 <SettingsGroup title="Intro" hint="La animación del comienzo, una vez más.">
@@ -288,7 +312,7 @@ export function GlassShell({
                       setPopover(null)
                       onReplayIntro()
                     }}
-                    className="flex min-h-9 items-center gap-2 text-[12px] font-semibold text-foreground underline-offset-4 hover:underline"
+                    className="flex min-h-8 items-center gap-2 text-[12px] font-semibold text-foreground underline-offset-4 hover:underline"
                   >
                     <Play className="size-4" aria-hidden="true" />
                     Ver la intro otra vez
@@ -300,11 +324,12 @@ export function GlassShell({
         </div>
       </header>
 
-      <div className="relative mt-3 flex flex-1 gap-3">
+      <div className="relative flex min-w-0 flex-1">
         <Dock
           views={nav}
           active={active}
           section={section}
+          fkeys={fkeys}
           onSelect={onSelect}
           onMore={menu ? openMore : undefined}
           side
@@ -312,23 +337,29 @@ export function GlassShell({
         <main
           id="contenido"
           tabIndex={-1}
-          className="glass min-w-0 flex-1 rounded-section p-4 outline-none sm:p-7"
+          className="min-w-0 flex-1 px-3 py-3 outline-none sm:px-4"
         >
-          <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h1 className="text-[clamp(26px,3vw,42px)] leading-none font-bold tracking-[-0.05em]">
+          <header className="mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-border pb-2">
+            <div className="min-w-0">
+              <h1 className="text-[20px] leading-tight font-bold tracking-[-0.01em]">
                 {current.label}
               </h1>
-              <p className="mt-2 text-[13px] text-muted-foreground">{current.description}</p>
+              <p className="mt-0.5 text-[12px] text-muted-foreground">{current.description}</p>
             </div>
             {tabs.length > 0 && (
-              <Tabs tabs={tabs} active={active} section={section} onSelect={onSelect} />
+              <Tabs
+                tabs={tabs}
+                active={active}
+                section={section}
+                fkeys={fkeys}
+                onSelect={onSelect}
+              />
             )}
           </header>
           {children}
           <p
             role="note"
-            className="mt-8 rounded-xl border border-border px-3 py-2 text-[11px] text-muted-foreground"
+            className="mt-6 border-t border-border pt-2 text-[11px] text-muted-foreground"
           >
             Prototipo en <strong className="text-foreground">simulación (paper)</strong>: muestra lo
             que guardó el motor. Lo que todavía no tiene datos del motor lleva el sello EJEMPLO. La
@@ -337,7 +368,15 @@ export function GlassShell({
           </p>
         </main>
       </div>
-      <Dock views={bar} active={active} section={section} onSelect={onSelect} onMore={openMore} />
+      <StatusBar className="md:sticky md:bottom-0 md:z-20" />
+      <Dock
+        views={bar}
+        active={active}
+        section={section}
+        fkeys={fkeys}
+        onSelect={onSelect}
+        onMore={openMore}
+      />
 
       {menuOpen && menu && (
         <ViewsMenu
@@ -360,6 +399,7 @@ export function GlassShell({
       {searching && (
         <CommandPalette
           views={views}
+          fkeys={fkeys}
           active={active}
           theme={theme}
           onThemeChange={onThemeChange}
@@ -375,60 +415,57 @@ export function GlassShell({
   )
 }
 
+/** Un atajo de una tecla no debe saltar mientras se escribe o se usa un control. */
+const typing = (t: EventTarget | null) =>
+  t instanceof HTMLElement &&
+  (t.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName))
+
 /**
- * Las pestañas principales. Son enlaces con su hash (entran en el historial); la marca de la
- * pestaña activa se desliza con `transform` (barata, sin animar el layout).
+ * Las pestañas principales. Son enlaces con su hash (entran en el historial). Desde #708, una línea
+ * fina debajo de la activa (ámbar), como las pestañas de una terminal; cada una con su tecla.
  */
 function Tabs({
   tabs,
   active,
   section,
+  fkeys,
   onSelect,
 }: {
   tabs: ShellView[]
   active: string
   section: string
+  fkeys: Readonly<Record<string, string>>
   onSelect: (id: string) => void
 }) {
-  const at = tabs.findIndex((t) => t.id === section)
   return (
-    // en el celular las cuatro no entran iguales: cada una toma el ancho de su nombre (sin íconos)
-    // y la activa lleva su propio fondo; desde `sm`, columnas iguales con la marca que se desliza
+    // en el celular cada una toma el ancho de su nombre (sin íconos ni teclas)
     <nav
       aria-label="Secciones"
-      className="relative flex w-full rounded-full border border-border p-1 sm:grid sm:w-auto sm:grid-cols-[repeat(var(--tabs),minmax(0,1fr))]"
+      className="flex w-full border-b border-border sm:grid sm:w-auto sm:grid-cols-[repeat(var(--tabs),minmax(0,1fr))] sm:border-b-0"
       style={{ '--tabs': tabs.length } as CSSProperties}
     >
-      {at >= 0 && (
-        <span
-          aria-hidden
-          className="tab-thumb absolute inset-y-1 left-1 hidden rounded-full bg-primary sm:block"
-          style={{
-            width: `calc((100% - 8px) / ${tabs.length})`,
-            transform: `translateX(${at * 100}%)`,
-          }}
-        />
-      )}
       {tabs.map(({ id, label, icon: Icon }) => {
         const on = id === section
+        const key = fkeys[id]
         return (
           <a
             key={id}
             href={`#${id}`}
             aria-current={id === active ? 'page' : on ? 'true' : undefined}
+            aria-keyshortcuts={key}
             onClick={(e) => {
               if (e.metaKey || e.ctrlKey || e.shiftKey) return
               e.preventDefault()
               onSelect(id)
             }}
             className={cn(
-              'relative z-10 flex min-h-9 flex-auto items-center justify-center gap-1.5 rounded-full px-2 text-[12px] font-bold whitespace-nowrap sm:px-4',
+              '-mb-px flex min-h-8 flex-auto items-center justify-center gap-1.5 border-b-2 px-2 text-[12px] font-bold whitespace-nowrap sm:px-3',
               on
-                ? 'bg-primary text-primary-foreground sm:bg-transparent'
-                : 'text-muted-foreground hover:text-foreground',
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
           >
-            <Icon className="hidden size-[15px] sm:block" aria-hidden="true" />
+            <Icon className="hidden size-[14px] sm:block" aria-hidden="true" />
             {label}
           </a>
         )
@@ -455,7 +492,10 @@ function IconButton({
       title={label}
       aria-expanded={expanded}
       onClick={onClick}
-      className="relative grid size-10 place-items-center rounded-full border border-border hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)] [&_svg]:size-[17px]"
+      className={cn(
+        'relative grid size-8 place-items-center rounded-sm border border-transparent hover:border-border hover:bg-surface [&_svg]:size-[15px]',
+        expanded && 'border-border bg-surface text-primary',
+      )}
     >
       {children}
     </button>
@@ -478,23 +518,35 @@ function Popover({
     <section
       ref={panelRef}
       aria-labelledby={id}
-      className="glass-strong absolute top-[calc(100%+10px)] right-0 z-30 w-[min(300px,calc(100vw-24px))] rounded-2xl p-4"
+      className="panel-raised absolute top-[calc(100%+6px)] right-0 z-30 w-[min(300px,calc(100vw-24px))] rounded-sm p-3"
     >
-      <header className="mb-3 flex items-center justify-between">
-        <h2 id={id} className="text-[14px] font-bold">
+      <header className="mb-2 flex items-center justify-between border-b border-border pb-2">
+        <h2 id={id} className="text-[11px] font-bold tracking-[0.1em] uppercase">
           {title}
         </h2>
         <button
           type="button"
           aria-label={`Cerrar ${title.toLowerCase()}`}
           onClick={onClose}
-          className="rounded-full p-1"
+          className="rounded-sm p-1 hover:bg-surface"
         >
           <X className="size-4" />
         </button>
       </header>
       {children}
     </section>
+  )
+}
+
+/** Una fila de la lista de atajos: la tecla y lo que hace. */
+function KeyRow({ keys, children }: { keys: string; children: ReactNode }) {
+  return (
+    <>
+      <dt>
+        <kbd className="rounded-sm border border-border px-1.5 text-[11px]">{keys}</kbd>
+      </dt>
+      <dd className="text-muted-foreground">{children}</dd>
+    </>
   )
 }
 
@@ -509,7 +561,7 @@ function SettingsGroup({
   children: ReactNode
 }) {
   return (
-    <section className="grid gap-3 border-t border-border py-3 first:border-t-0 first:pt-0 last:pb-0">
+    <section className="grid gap-2 border-t border-border py-2.5 first:border-t-0 first:pt-0 last:pb-0">
       <div className="grid gap-0.5">
         <h3 className="text-[12px] font-bold">{title}</h3>
         <p className="text-[11px] leading-snug text-muted-foreground">{hint}</p>
@@ -519,48 +571,11 @@ function SettingsGroup({
   )
 }
 
-function Range({
-  label,
-  value,
-  min,
-  max,
-  step,
-  text,
-  onChange,
-}: {
-  label: string
-  value: number
-  min: number
-  max: number
-  step: number
-  text: string
-  onChange: (v: number) => void
-}) {
-  return (
-    <label className="block text-[11px] font-semibold">
-      <span className="flex justify-between">
-        {label}
-        <output className="text-muted-foreground">{text}</output>
-      </span>
-      <input
-        type="range"
-        aria-label={label}
-        aria-valuetext={text}
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-2 block h-6 w-full accent-[var(--primary)]"
-      />
-    </label>
-  )
-}
-
 function Dock({
   views,
   active,
   section = active,
+  fkeys = {},
   onSelect,
   onMore,
   side = false,
@@ -569,6 +584,7 @@ function Dock({
   active: string
   /** la sección de la vista abierta: se marca aunque la vista sea una de adentro */
   section?: string
+  fkeys?: Readonly<Record<string, string>>
   onSelect: (id: string) => void
   /** abre "Todas las vistas" (#618) */
   onMore?: () => void
@@ -583,15 +599,15 @@ function Dock({
       title="Todas las vistas"
       onClick={onMore}
       className={cn(
-        'flex min-h-11 shrink-0 items-center justify-center gap-1 rounded-full text-[10px] font-bold transition-colors',
-        side ? 'size-11' : 'min-w-[56px] flex-col px-2 py-1',
-        elsewhere
-          ? 'bg-primary text-primary-foreground'
-          : 'hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]',
+        'flex min-h-9 shrink-0 items-center gap-2 text-[11px] font-bold',
+        side
+          ? 'w-full rounded-sm px-2.5 text-muted-foreground hover:bg-surface hover:text-foreground'
+          : 'min-w-[56px] flex-col justify-center gap-0.5 px-2 py-1',
+        elsewhere && (side ? 'text-primary' : 'border-t-2 border-primary text-primary'),
       )}
     >
-      <Ellipsis className="size-[17px]" aria-hidden="true" />
-      {!side && <span>Más</span>}
+      <Ellipsis className="size-[16px]" aria-hidden="true" />
+      <span className={cn(side && 'hidden lg:inline')}>{side ? 'Más vistas' : 'Más'}</span>
     </button>
   )
 
@@ -599,47 +615,65 @@ function Dock({
     <nav
       aria-label={side ? 'Accesos' : 'Vistas'}
       className={cn(
-        'flex gap-1',
+        'flex',
         side
-          ? 'glass sticky top-6 z-20 hidden h-fit flex-col self-start rounded-full p-1.5 md:flex'
+          ? 'sticky top-[45px] hidden h-[calc(100svh-45px-29px)] w-12 shrink-0 flex-col gap-0.5 self-start overflow-y-auto border-r border-border bg-card p-1 md:flex lg:w-44'
           : 'min-w-0 flex-1 justify-between',
       )}
     >
       {views.map(({ id, label, short, icon: Icon }) => {
         const on = id === section
+        const key = fkeys[id]
         return (
           <a
             key={id}
             href={`#${id}`}
             aria-current={id === active ? 'page' : on ? 'true' : undefined}
-            aria-label={side ? label : undefined}
-            title={side ? label : undefined}
+            aria-keyshortcuts={key}
+            title={side ? (key ? `${label} (${key})` : label) : undefined}
             onClick={(e) => {
               if (e.metaKey || e.ctrlKey || e.shiftKey) return
               e.preventDefault()
               onSelect(id)
             }}
             className={cn(
-              'flex min-h-11 items-center justify-center gap-1 rounded-full text-[10px] font-bold transition-colors',
-              side ? 'size-11' : 'min-w-0 flex-1 flex-col px-1 py-1 whitespace-nowrap',
+              'flex min-h-9 items-center text-[11px] font-bold',
+              side
+                ? 'gap-2.5 rounded-sm border-l-2 px-2 lg:px-2.5'
+                : 'min-w-0 flex-1 flex-col justify-center gap-0.5 border-t-2 px-1 py-1 whitespace-nowrap',
               on
-                ? 'bg-primary text-primary-foreground'
-                : 'hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]',
+                ? 'border-primary bg-surface text-foreground'
+                : 'border-transparent text-muted-foreground hover:bg-surface hover:text-foreground',
             )}
           >
-            <Icon className="size-[17px]" aria-hidden="true" />
-            {!side && <span>{short}</span>}
+            <Icon className={cn('size-[16px] shrink-0', on && 'text-primary')} aria-hidden="true" />
+            {side ? (
+              // el nombre es el texto visible (WCAG 2.5.3); entre 768 y 1024 px, solo para el lector
+              <span className="min-w-0 flex-1 items-center lg:flex">
+                <span className="sr-only truncate lg:not-sr-only">{label}</span>
+                {key && (
+                  <kbd
+                    aria-hidden
+                    className="ml-auto hidden text-[10px] font-normal text-muted-foreground lg:inline"
+                  >
+                    {key}
+                  </kbd>
+                )}
+              </span>
+            ) : (
+              <span>{short}</span>
+            )}
           </a>
         )
       })}
-      {side && more && <span aria-hidden className="mx-2.5 h-px bg-border" />}
+      {side && more && <span aria-hidden className="mx-1 my-1 h-px bg-border" />}
       {side && more}
     </nav>
   )
   if (side) return links
   // en el celular: las pestañas principales y "Más", sin desplazarse (#618)
   return (
-    <div className="glass fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-20 flex items-stretch gap-1 rounded-full p-1.5 md:hidden">
+    <div className="fixed inset-x-0 bottom-0 z-20 flex items-stretch border-t border-rule bg-card px-1 pb-[env(safe-area-inset-bottom)] md:hidden">
       {links}
       {more}
     </div>
@@ -693,6 +727,8 @@ type Command = {
   /** el texto con el que se busca */
   text: string
   icon: LucideIcon
+  /** la tecla de función de la vista, si tiene (#708) */
+  hotkey?: string
   run: () => void
 }
 
@@ -722,6 +758,7 @@ const CHART_VIEWS = ['graficos', 'multigrafico']
 
 function CommandPalette({
   views,
+  fkeys,
   active: view,
   theme,
   onThemeChange,
@@ -730,6 +767,7 @@ function CommandPalette({
   onSelect,
 }: {
   views: ShellView[]
+  fkeys: Readonly<Record<string, string>>
   /** la vista abierta: en Gráficos y Multigráfico el timeframe se aplica ahí mismo */
   active: string
   theme: 'dark' | 'light'
@@ -806,6 +844,7 @@ function CommandPalette({
       detail: v.description,
       text: `${v.label} ${v.description}`,
       icon: v.icon,
+      hotkey: fkeys[v.id],
       run: () => onSelect(v.id),
     })),
     ...instruments.map((i) => ({
@@ -965,15 +1004,20 @@ function CommandPalette({
       onClick={() => choose(item)}
       onMouseMove={() => i !== active && setMark(i)}
       className={cn(
-        'flex cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2 text-left select-none',
-        i === active && 'bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]',
+        'flex cursor-pointer items-center gap-2.5 rounded-sm border-l-2 border-transparent px-2 py-1.5 text-left select-none',
+        i === active && 'border-primary bg-surface',
       )}
     >
       <item.icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-      <span className="min-w-0">
+      <span className="min-w-0 flex-1">
         <strong className="block text-[13px]">{item.label}</strong>
         <small className="block truncate text-[11px] text-muted-foreground">{item.detail}</small>
       </span>
+      {item.hotkey && (
+        <kbd aria-hidden className="shrink-0 text-[10px] text-muted-foreground">
+          {item.hotkey}
+        </kbd>
+      )}
     </div>
   )
 
@@ -996,11 +1040,11 @@ function CommandPalette({
           e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom
         if (outside) onClose()
       }}
-      className="glass-strong m-auto w-[min(520px,calc(100%-24px))] rounded-3xl p-4 text-foreground backdrop:bg-black/40 backdrop:backdrop-blur-sm"
+      className="panel-raised m-auto mt-[12svh] w-[min(600px,calc(100%-24px))] rounded-sm p-0 text-foreground backdrop:bg-black/60"
     >
-      <div className="flex items-center gap-2">
-        <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-border px-3">
-          <Search className="size-4 text-muted-foreground" aria-hidden="true" />
+      <div className="flex items-center gap-2 border-b border-rule p-2">
+        <label className="flex min-w-0 flex-1 items-center gap-2 px-1.5">
+          <Terminal className="size-4 text-primary" aria-hidden="true" />
           <input
             autoFocus
             role="combobox"
@@ -1017,14 +1061,14 @@ function CommandPalette({
               waiting.current = false
             }}
             onKeyDown={onKeyDown}
-            className="min-h-11 min-w-0 flex-1 bg-transparent text-[14px] outline-none"
+            className="min-h-10 min-w-0 flex-1 bg-transparent font-mono text-[14px] outline-none placeholder:text-muted-foreground"
           />
         </label>
         <button
           type="button"
           aria-label="Cerrar la paleta"
           onClick={onClose}
-          className="grid size-11 shrink-0 place-items-center rounded-full border border-border hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
+          className="grid size-9 shrink-0 place-items-center rounded-sm border border-border hover:bg-surface"
         >
           <X className="size-4" aria-hidden="true" />
         </button>
@@ -1033,7 +1077,7 @@ function CommandPalette({
         id={listId}
         role="listbox"
         aria-label="Resultados"
-        className="mt-3 grid max-h-[min(60svh,440px)] grid-cols-[minmax(0,1fr)] gap-2 overflow-y-auto"
+        className="grid max-h-[min(60svh,460px)] grid-cols-[minmax(0,1fr)] gap-1 overflow-y-auto p-1.5"
       >
         {GROUPS.map((g) => {
           const inGroup = items.filter((c) => c.group === g)
@@ -1044,7 +1088,7 @@ function CommandPalette({
               <div
                 id={headId}
                 role="presentation"
-                className="px-2.5 pb-1 text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground uppercase"
+                className="px-2 pt-1 pb-0.5 font-mono text-[10px] font-bold tracking-[0.12em] text-info uppercase"
               >
                 {g}
               </div>
@@ -1054,19 +1098,19 @@ function CommandPalette({
         })}
       </div>
       {items.length === 0 && (
-        <p className="p-2 text-[12px] text-muted-foreground">
+        <p className="px-3 pb-2 text-[12px] text-muted-foreground">
           No hay vistas, instrumentos ni comandos con ese nombre.
         </p>
       )}
       {catalog.status === 'loading' && instruments.length === 0 && (
-        <p className="px-2 pt-2 text-[11px] text-muted-foreground">Pidiendo los instrumentos…</p>
+        <p className="px-3 pb-2 text-[11px] text-muted-foreground">Pidiendo los instrumentos…</p>
       )}
       {catalog.status === 'error' && (
-        <p className="px-2 pt-2 text-[11px] text-muted-foreground">
+        <p className="px-3 pb-2 text-[11px] text-muted-foreground">
           Sin instrumentos: el gateway no respondió. Las vistas y los comandos andan igual.
         </p>
       )}
-      <p className="hidden px-2 pt-2 text-[10.5px] text-muted-foreground sm:block">
+      <p className="hidden border-t border-border px-3 py-1.5 text-[10.5px] text-muted-foreground sm:block">
         <kbd>↑</kbd> <kbd>↓</kbd> para moverse, <kbd>Enter</kbd> para elegir, <kbd>Esc</kbd> para
         cerrar.
       </p>

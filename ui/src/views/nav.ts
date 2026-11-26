@@ -186,3 +186,18 @@ export const MAIN_TABS = ['inicio', 'terminal', 'graficos', 'investigacion'] as 
  * desplazarse en 320 px; el resto de las secciones y las vistas de adentro están en "Más".
  */
 export const BAR_VIEWS = MAIN_TABS
+
+/**
+ * Atajos de función (#708), como en una terminal: F1 a F4 las pestañas principales y F6 a F9 las
+ * demás secciones. F5 queda libre (recarga la página en el navegador).
+ */
+export const FKEYS: Readonly<Record<string, string>> = {
+  inicio: 'F1',
+  terminal: 'F2',
+  graficos: 'F3',
+  investigacion: 'F4',
+  noticias: 'F6',
+  fondo: 'F7',
+  operaciones: 'F8',
+  competencia: 'F9',
+}
