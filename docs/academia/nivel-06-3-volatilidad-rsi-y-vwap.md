@@ -107,7 +107,7 @@ herramienta que no existe.
 | Retorno diario | `cierre_t / cierre_{t−1} − 1` | `engine/crates/indicators/src/volatility.rs` | A |
 | R019: alfa por mes, p y Sharpe frente a comprar y mantener | `+0.192 % (p 0.171; 0.245 vs 0.261)` | `docs/analysis/registro-de-resultados.csv` `R019` | A |
 | R019: hacía falta p menor que 0,0125 | `hacía falta < 0,0125` | `docs/analysis/2026-11-ronda3-volatilidad-y-numeros-redondos.md` | A |
-| El motor no tiene RSI | `**no existe en el motor**` | `docs/guides/golden-tradingview.md` | A |
+| El motor no tiene RSI | `no existe en el motor` | `docs/guides/golden-tradingview.md` | A |
 | Indicadores que sí tiene el motor (sin RSI ni VWAP) | `pub use moving_average::{ema, ema_values, sma, sma_values};` | `engine/crates/indicators/src/lib.rs` | A |
 | VWAP: precio del día ponderado por el volumen | `Precio promedio del día ponderado por el volumen` | `docs/GLOSARIO.md` | A |
 | RSI: fórmula, 14 velas, 70 y 30, Wilder (1978) | — | [TradingView, *Relative Strength Index (RSI)*](https://in.tradingview.com/support/solutions/43000502338-relative-strength-index-rsi/), leída el 26-11-2026 | B |

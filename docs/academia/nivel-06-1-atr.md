@@ -117,7 +117,7 @@ Los tres están dentro del rango permitido (0,5 a 3 ATR).
 | Colchón por gaps | 0,25 ATR (`0.25`) | `config/risk.toml` `gap.gap_atr` | A |
 | Tolerancia del examen de niveles | 0,25 ATR (`0.25`) | `config/academy.toml` `replay.level_tolerance_atr` | A |
 | Contraste con la fórmula publicada de TradingView, desde la primera vela | `matches_the_published_tradingview_formulas_from_the_first_candle` | `engine/crates/indicators/tests/reference.rs` | A |
-| 300 velas sintéticas | `300 velas **sintéticas**` | `engine/crates/indicators/tests/reference.rs` | A |
+| 300 velas sintéticas | `tiene 300 velas` | `engine/crates/indicators/tests/reference.rs` | A |
 | Tolerancia relativa 10⁻¹⁸ | `let tol = Decimal::new(1, 18);` | `engine/crates/indicators/tests/reference.rs` | A |
 | TA-Lib da su primer ATR una vela después | `el ATR de TA-Lib` | `engine/crates/indicators/tests/reference.rs` | A |
 | La comparación con TradingView real se corre a mano | `solo corre a mano` | `engine/crates/indicators/tests/reference.rs` | A |

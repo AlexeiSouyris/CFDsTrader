@@ -103,7 +103,7 @@ Nada nuevo: las capas de indicadores se abren en 6.1, 6.2 y 6.4.
 | Cifra | Valor | Fuente | Prueba |
 |---|---|---|---|
 | Contraste con la fórmula publicada, desde la primera vela | `matches_the_published_tradingview_formulas_from_the_first_candle` | `engine/crates/indicators/tests/reference.rs` | A |
-| 300 velas sintéticas | `300 velas **sintéticas**` | `engine/crates/indicators/tests/reference.rs` | A |
+| 300 velas sintéticas | `tiene 300 velas` | `engine/crates/indicators/tests/reference.rs` | A |
 | Tolerancia contra la fórmula publicada | `let tol = Decimal::new(1, 18);` | `engine/crates/indicators/tests/reference.rs` | A |
 | Versión de TA-Lib | `TA-Lib 0.8.3` | `engine/crates/indicators/tests/reference.rs` | A |
 | Tolerancia contra TA-Lib | `let tol = Decimal::new(1, 12);` | `engine/crates/indicators/tests/reference.rs` | A |
