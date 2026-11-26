@@ -19,7 +19,7 @@ comprobar sin opinar.
 **La tendencia de 1 h del motor.** El motor no cuenta pivotes para la tendencia: usa una regla más
 simple, sobre la **última vela de 1 h cerrada**:
 
-```
+```text
 pendiente = SMA50_1h[ahora] − SMA50_1h[hace 5 velas]
 cierre_1h > SMA50_1h y pendiente > 0  → ALCISTA
 cierre_1h < SMA50_1h y pendiente < 0  → BAJISTA
