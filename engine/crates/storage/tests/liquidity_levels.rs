@@ -18,8 +18,7 @@ async fn store() -> PgStore {
 }
 
 async fn fresh_instrument(s: &PgStore) -> InstrumentId {
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let id: InstrumentId = format!("ITLL{nanos}").parse().unwrap();
+    let id: InstrumentId = cfds_storage::test_db::unique_id("ITLL").parse().unwrap();
     s.upsert_instrument(&Instrument {
         id: id.clone(),
         name: "Test niveles".into(),

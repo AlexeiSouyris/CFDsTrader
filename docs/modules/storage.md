@@ -18,7 +18,7 @@ resumen: Esquema y migraciones de PostgreSQL, escritura idempotente y publicaci�
 - eventos de los trabajos del laboratorio en Redis Streams (`LabStream`, #775): `lab_jobs.v1.<job_id>`, una entrada por `lab_job_event.v1` con ID `<seq>-0` (sin duplicados), vencimiento con `EXPIRE`; lo publica el `lab_worker` y el gateway lo lee con `XREAD BLOCK` para el SSE. PostgreSQL (`lab_job_events`) es la fuente de verdad
 - docker-compose
 - `backtest_run_curves`, curva de cada corrida de solo agregar que escribe `cfds-journal` (migración 0030, #299)
-- guardia de los tests de integración (`test_db::test_database_url`, #376: solo corren contra una base `cfds_test…`, nunca la real)
+- guardia de los tests de integración (`test_db::test_database_url`, #376: solo corren contra una base `cfds_test…`, nunca la real), y sus ids propios que no se repiten aunque los tests corran en paralelo (`test_db::unique_id`, #688; `test_db::unique_number` para las claves que no aceptan ese texto, #768)
 - cargas de diarias e indicadores diarios que no pisan ni frenan ante una fila ya guardada con otro valor y la reportan (`insert_daily_keeping` y sus pares de indicadores, #409, para extender la historia de los futuros hacia atrás)
 - en esas cargas de indicadores, un valor guardado en NULL por falta de historia se completa una sola vez (NULL → valor) y queda en `daily_null_fills`, de solo agregar
 - todo otro UPDATE o DELETE sigue fallando (migración 0040, #417)

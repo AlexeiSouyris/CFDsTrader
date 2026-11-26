@@ -34,8 +34,7 @@ fn row(id: &str, contract: &str, size: &str, start: &str, close: Decimal) -> Ibk
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn ibkr_bars_are_idempotent_per_contract_and_refuse_to_repaint() {
     let s = store().await;
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let id = format!("ITIB{nanos}");
+    let id = cfds_storage::test_db::unique_id("ITIB");
     let batch = vec![
         row(&id, "MNQZ6", "1h", "2026-11-24T09:00:00Z", dec!(26000.25)),
         row(&id, "MNQZ6", "1h", "2026-11-24T10:00:00Z", dec!(26001)),
@@ -102,8 +101,7 @@ async fn ibkr_bars_are_idempotent_per_contract_and_refuse_to_repaint() {
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn ibkr_bars_between_and_series_list_one_series_in_order() {
     let s = store().await;
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let id = format!("ITIW{nanos}");
+    let id = cfds_storage::test_db::unique_id("ITIW");
     let batch = vec![
         row(&id, "MNQZ6", "1m", "2026-11-24T10:02:00Z", dec!(26002)),
         row(&id, "MNQZ6", "1m", "2026-11-24T10:00:00Z", dec!(26000)),
@@ -172,8 +170,7 @@ fn correction(b: &IbkrBarRow, close: Decimal, volume: Option<Decimal>) -> IbkrBa
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn reads_use_the_latest_correction_and_corrections_are_append_only() {
     let s = store().await;
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let id = format!("ITIC{nanos}");
+    let id = cfds_storage::test_db::unique_id("ITIC");
     let bars = vec![
         row(&id, "MNQZ6", "15m", "2026-11-25T03:30:00Z", dec!(26044)),
         row(&id, "MNQZ6", "15m", "2026-11-25T03:45:00Z", dec!(26049)),
@@ -270,8 +267,7 @@ async fn ibkr_candles_splice_contracts_without_repainting() {
     use cfds_core::Timeframe;
     use cfds_storage::IbkrFeed;
     let s = store().await;
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let id = format!("ITIC{nanos}");
+    let id = cfds_storage::test_db::unique_id("ITIC");
     let feed = IbkrFeed {
         source: "ibkr",
         instrument: &id,

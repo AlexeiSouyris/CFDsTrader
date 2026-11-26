@@ -615,8 +615,7 @@ async fn the_store_reads_closed_bars_and_the_previous_session() {
     let url = cfds_storage::test_db::test_database_url();
     let store = PgStore::connect(&url).await.unwrap();
     store.migrate().await.unwrap();
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let id = format!("ITGI{nanos}");
+    let id = cfds_storage::test_db::unique_id("ITGI");
     let mut rows = fake().0;
     rows.retain(|r| r.instrument_id == "MNQ");
     for r in &mut rows {

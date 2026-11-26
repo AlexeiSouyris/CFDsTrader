@@ -8,6 +8,7 @@ use cfds_core::{
     AssetClass, Candle, CandleSpread, Currency, DailyCandle, Instrument, InstrumentId,
     SentimentObservation, Timeframe,
 };
+use cfds_storage::test_db::{unique_id, unique_number};
 use cfds_storage::{
     AllowanceRecord, CandlePublisher, PgStore, Published, StorageError, stream_key,
 };
@@ -510,8 +511,8 @@ async fn the_database_rejects_impossible_daily_candles() {
 async fn reference_rates_are_read_only_once_published_in_publication_order() {
     let s = store().await;
     // La tabla es de solo agregar: una serie propia por corrida.
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap();
-    let series = format!("ITRATE{nanos}");
+    // La serie no admite guiones: un número propio.
+    let series = format!("ITRATE{}", unique_number());
     let pool = sqlx::PgPool::connect(&cfds_storage::test_db::test_database_url())
         .await
         .unwrap();
@@ -562,10 +563,14 @@ async fn reference_rates_are_read_only_once_published_in_publication_order() {
 #[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
 async fn fx_rates_are_read_only_once_published_in_publication_order() {
     let s = store().await;
-    // La tabla es de solo agregar: un par propio por corrida (seis letras al azar).
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap().unsigned_abs();
+    // La tabla es de solo agregar: un par propio por corrida (seis letras de un número propio).
+    let mut n = unique_number();
     let pair: String = (0..6)
-        .map(|i| char::from(b'A' + ((nanos >> (i * 5)) % 26) as u8))
+        .map(|_| {
+            let letter = char::from(b'A' + (n % 26) as u8);
+            n /= 26;
+            letter
+        })
         .collect();
     let pool = sqlx::PgPool::connect(&cfds_storage::test_db::test_database_url())
         .await
@@ -705,8 +710,7 @@ async fn allowance_window_keeps_only_the_observations_not_yet_renewed() {
 async fn daily_indicators_are_idempotent_and_refuse_to_repaint() {
     let s = store().await;
     // La tabla es de solo agregar: un instrumento propio por corrida.
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let us = with_instrument(&s, &format!("ITIND{nanos}")).await;
+    let us = with_instrument(&s, &unique_id("ITIND")).await;
     let row = |day: &str, atr: Option<Decimal>| cfds_core::DailyIndicator {
         instrument_id: us.clone(),
         day: day.parse().unwrap(),
@@ -748,8 +752,7 @@ async fn daily_indicators_are_idempotent_and_refuse_to_repaint() {
 async fn daily_drawdowns_are_idempotent_and_refuse_to_repaint() {
     let s = store().await;
     // La tabla es de solo agregar: un instrumento propio por corrida.
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let us = with_instrument(&s, &format!("ITDD{nanos}")).await;
+    let us = with_instrument(&s, &unique_id("ITDD")).await;
     let row = |day: &str, drawdown: Option<Decimal>| cfds_core::DailyDrawdown {
         instrument_id: us.clone(),
         day: day.parse().unwrap(),
@@ -789,8 +792,7 @@ async fn daily_vol_terciles_are_idempotent_read_back_and_refuse_to_repaint() {
     use cfds_core::{DailyVolTercile, VolTercile};
     let s = store().await;
     // La tabla es de solo agregar: un instrumento propio por corrida.
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let us = with_instrument(&s, &format!("ITVT{nanos}")).await;
+    let us = with_instrument(&s, &unique_id("ITVT")).await;
     let row = |day: &str, tercile: Option<VolTercile>| DailyVolTercile {
         instrument_id: us.clone(),
         day: day.parse().unwrap(),
@@ -876,7 +878,7 @@ async fn news_interpretations_are_read_by_interpreter_range_and_cutoff() {
     let s = store().await;
     let pool = s.pool().clone();
     // La tabla es de solo agregar: ids y versión del intérprete propios de esta corrida.
-    let run = Utc::now().timestamp_nanos_opt().unwrap();
+    let run = unique_number();
     let version = format!("t{run}");
     let other = format!("u{run}");
     let id = |k: i64| format!("{:064x}", i128::from(run) * 10 + i128::from(k));
@@ -981,8 +983,7 @@ async fn keeping_loads_save_the_rest_and_report_the_rows_that_differ() {
     use cfds_core::{DailyVolTercile, VolTercile};
     let s = store().await;
     // Tablas de solo agregar: un instrumento propio por corrida.
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let us = with_instrument(&s, &format!("ITKEEP{nanos}")).await;
+    let us = with_instrument(&s, &unique_id("ITKEEP")).await;
     let d = days(&us);
     // La historia vieja empezaba en el día 2 y ese día quedó distinto.
     let mut old_first = d[1].clone();
@@ -1071,8 +1072,7 @@ async fn null_fills(
 async fn daily_indicator_nulls_are_filled_once_with_audit_and_nothing_else_changes() {
     use cfds_core::{DailyDrawdown, DailyIndicator, DailyVolTercile, VolTercile};
     let s = store().await;
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let us = with_instrument(&s, &format!("ITFILL{nanos}")).await;
+    let us = with_instrument(&s, &unique_id("ITFILL")).await;
     let pool = s.pool().clone();
     let at = |day: &str| -> DateTime<Utc> { format!("{day}T23:00:00Z").parse().unwrap() };
     let t = |day: &str, tercile: Option<VolTercile>| DailyVolTercile {

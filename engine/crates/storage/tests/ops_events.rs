@@ -33,7 +33,7 @@ async fn saved_from_a_read_only_session_in_order_append_only_and_purged_only_by_
     rw.migrate().await.unwrap();
     let ro = PgStore::connect(&read_only(&url)).await.unwrap();
     // Hora futura propia de esta corrida: estos eventos son los más nuevos de la tabla.
-    let run = Utc::now().timestamp_nanos_opt().unwrap().to_string();
+    let run = cfds_storage::test_db::unique_id("ops");
     let t = Utc::now() + TimeDelta::days(3650);
     let events = vec![
         event(t, &run, 0),
