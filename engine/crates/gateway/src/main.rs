@@ -30,6 +30,9 @@ use cfds_core::Instrument;
 use cfds_fund::FundConfig;
 use cfds_fund::pg::PgFund;
 use cfds_gateway::academy::{AcademyRoutes, is_academy_route, respond_academy};
+use cfds_gateway::academy_replay::{
+    PgBars, ReplayDeps, ReplaySessions, is_replay_route, respond_replay,
+};
 use cfds_gateway::context::{ContextConfig, is_context_route, respond_context};
 use cfds_gateway::emotions::{is_emotions_route, respond_emotions};
 use cfds_gateway::fund::{is_fund_route, respond_fund};
@@ -85,6 +88,7 @@ const PATTERNS: &str = include_str!("../../../../config/patterns.toml");
 const TERMINAL: &str = include_str!("../../../../config/terminal.toml");
 const IBKR: &str = include_str!("../../../../config/ibkr.toml");
 const ACADEMY: &str = include_str!("../../../../config/academy.toml");
+const DATA_SPLIT: &str = include_str!("../../../../config/data_split.toml");
 
 /// `config/` del repo (sesiones y feriados del calendario se leen de ahí).
 fn config_dir() -> PathBuf {
@@ -125,6 +129,9 @@ struct State {
     academy: PgAcademy,
     academy_cfg: AcademyConfig,
     academy_routes: AcademyRoutes,
+    /// Replay de exámenes (#723): sesiones en memoria y su config.
+    replay_sessions: ReplaySessions,
+    replay_deps: ReplayDeps,
 }
 
 fn header<'a>(req: &'a Request<Incoming>, name: &str) -> Option<&'a str> {
@@ -159,6 +166,35 @@ async fn academy_reply(state: &State, req: Request<Incoming>) -> Reply {
     };
     respond_academy(
         &state.academy,
+        &state.academy_cfg,
+        &state.academy_routes,
+        state.token.as_deref(),
+        HttpIn {
+            method: &method,
+            path: &path,
+            token: token.as_deref(),
+            content_type: content_type.as_deref(),
+            body: &body,
+        },
+        chrono::Utc::now(),
+    )
+    .await
+}
+
+async fn replay_reply(state: &State, req: Request<Incoming>) -> Reply {
+    let max = state.academy_routes.max_body_bytes;
+    let (method, path, token, content_type, body) = match read_request(req, max).await {
+        Ok(r) => r,
+        Err(reply) => return reply,
+    };
+    let bars = PgBars {
+        store: &state.source.store,
+        source: &state.academy_cfg.replay.futures_source,
+    };
+    respond_replay(
+        &bars,
+        &state.replay_sessions,
+        &state.replay_deps,
         &state.academy_cfg,
         &state.academy_routes,
         state.token.as_deref(),
@@ -240,6 +276,8 @@ async fn handle(state: Arc<State>, req: Request<Incoming>) -> Result<Response<Bo
     }
     let reply = if is_paper_route(req.uri().path()) {
         paper_reply(&state, req).await
+    } else if is_replay_route(req.uri().path()) {
+        replay_reply(&state, req).await
     } else if is_academy_route(req.uri().path()) {
         academy_reply(&state, req).await
     } else if is_status_route(req.uri().path()) {
@@ -411,6 +449,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let risk = RiskConfig::from_toml(RISK)?;
     let academy_cfg = AcademyConfig::from_toml(ACADEMY)?;
     let academy_routes = AcademyRoutes::from_toml(GATEWAY)?;
+    let replay_deps = ReplayDeps::from_config(
+        &academy_cfg,
+        &catalog,
+        &risk,
+        &BacktestConfig::from_toml(BACKTEST)?,
+        DATA_SPLIT,
+        PATTERNS,
+    )?;
     // Logs sin secretos: el token local y la base se registran antes del primer log. Las líneas
     // ya redactadas del broker y de las alertas quedan además en memoria para la UI (#314) y se
     // guardan en `ops_events` en segundo plano (#337): la cola existe desde ya y la tarea que la
@@ -616,6 +662,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         academy: PgAcademy::new(store.pool().clone()),
         academy_cfg,
         academy_routes,
+        replay_sessions: ReplaySessions::default(),
+        replay_deps,
         source: PgSource {
             store,
             config: cfg.clone(),

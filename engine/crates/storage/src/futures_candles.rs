@@ -182,6 +182,26 @@ impl PgStore {
         Ok(row.0.zip(row.1))
     }
 
+    /// Inicio de la primera y de la última vela armada de `source` para `instrument` en
+    /// `timeframe` (el replay de la Academia sortea dentro de ese tramo, #723). `None` sin velas.
+    pub async fn futures_candle_range(
+        &self,
+        source: &str,
+        instrument: &InstrumentId,
+        timeframe: Timeframe,
+    ) -> Result<Option<(DateTime<Utc>, DateTime<Utc>)>, StorageError> {
+        let row: (Option<DateTime<Utc>>, Option<DateTime<Utc>>) = sqlx::query_as(
+            "SELECT min(start_at), max(start_at) FROM futures_candles
+             WHERE source = $1 AND instrument_id = $2 AND timeframe = $3",
+        )
+        .bind(source)
+        .bind(instrument.as_str())
+        .bind(timeframe.as_str())
+        .fetch_one(self.pool())
+        .await?;
+        Ok(row.0.zip(row.1))
+    }
+
     /// Velas de 15m o 1h de la fuente `feed` para el CFD `base`, con inicio en `[from, to)`, en
     /// orden, con `out` como instrumento (el id derivado de la fuente, para que lo que se calcule
     /// con ellas se guarde aparte). Con [`CandleFeed::Ig`] son las de `candles`.
