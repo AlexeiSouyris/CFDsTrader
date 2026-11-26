@@ -144,12 +144,15 @@ pub struct LabConfig {
     pub params: BTreeMap<String, BTreeMap<String, ParamRange>>,
     pub report: super::sections::ReportConfig,
     pub worker: super::worker::WorkerConfig,
+    /// Simulador de varianza (#801).
+    pub variance: super::variance::VarianceConfig,
 }
 
 impl LabConfig {
     pub fn from_toml(text: &str) -> Result<Self, String> {
         let cfg: Self = toml::from_str(text).map_err(|e| format!("lab.toml: {e}"))?;
         cfg.worker.validate()?;
+        cfg.variance.validate()?;
         Ok(cfg)
     }
 }

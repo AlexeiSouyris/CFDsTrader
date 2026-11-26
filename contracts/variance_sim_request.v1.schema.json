@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/variance_sim_request.v1.schema.json",
+  "title": "Variance simulation request v1",
+  "description": "Pedido del simulador de varianza (docs/design/2026-11-laboratorio.md §4.2, #801): de dónde salen los R de cada operación (un modelo con win rate y R medio ganador y perdedor, opcionalmente con la incertidumbre del win rate; una lista de R reales; o los R de un informe guardado del laboratorio), el riesgo por operación y cuántas operaciones y caminos. Los campos opcionales ausentes toman el valor de [variance] de config/lab.toml (lo dice la respuesta). Educativo: no decide ninguna operación. POST /api/v1/lab/variance → variance_sim_report.v1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source", "risk_pct", "trades"],
+  "properties": {
+    "source": {
+      "oneOf": [
+        {
+          "description": "Modelo: cada operación gana avg_win_r con probabilidad win_rate o pierde avg_loss_r. Con observed_trades, el win rate de cada camino se sortea de una Beta(p·N + 1, (1 − p)·N + 1).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "win_rate", "avg_win_r", "avg_loss_r"],
+          "properties": {
+            "kind": { "const": "model" },
+            "win_rate": { "description": "Probabilidad de ganar, en [0, 1].", "$ref": "#/$defs/decimal" },
+            "avg_win_r": { "description": "R de una ganadora (> 0).", "$ref": "#/$defs/decimal" },
+            "avg_loss_r": { "description": "Pérdida de una perdedora en R, en positivo (> 0; 1 = el stop).", "$ref": "#/$defs/decimal" },
+            "observed_trades": { "description": "Operaciones con las que se midió el win rate (incertidumbre), o null para tomarlo como cierto.", "oneOf": [{ "type": "integer", "minimum": 1, "maximum": 1000000 }, { "type": "null" }] }
+          }
+        },
+        {
+          "description": "R reales (en orden), remuestreados con el bootstrap circular por bloques de research::montecarlo.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "r"],
+          "properties": {
+            "kind": { "const": "r_values" },
+            "r": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/signed" } },
+            "block_len": { "description": "Largo de los bloques (1 = bootstrap simple).", "type": "integer", "minimum": 1 }
+          }
+        },
+        {
+          "description": "Los R netos de un informe guardado del laboratorio (lab_report.v1, trade_list), remuestreados igual que r_values.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "report_id"],
+          "properties": {
+            "kind": { "const": "report" },
+            "report_id": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "block_len": { "type": "integer", "minimum": 1 }
+          }
+        }
+      ]
+    },
+    "risk_pct": { "description": "Riesgo por operación sobre el capital del momento, en % (> 0).", "$ref": "#/$defs/decimal" },
+    "trades": { "description": "Operaciones por camino.", "type": "integer", "minimum": 1 },
+    "paths": { "description": "Caminos (tope en config).", "type": "integer", "minimum": 1 },
+    "seed": { "description": "Semilla de SplitMix64: misma semilla y mismo pedido, mismo informe.", "type": "integer", "minimum": 0 },
+    "ruin_threshold_pct": { "description": "Caída desde el capital inicial que cuenta como ruina, en % (0 < x ≤ 100).", "$ref": "#/$defs/decimal" }
+  },
+  "$defs": {
+    "decimal": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "signed": { "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" }
+  }
+}
