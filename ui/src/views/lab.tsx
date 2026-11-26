@@ -11,6 +11,7 @@ import { FlaskConical, Play, Plus, ShieldCheck, Trash2, X } from 'lucide-react'
 import { useId, useState, type ReactNode } from 'react'
 
 import { LabReports } from '@/components/ui/lab-report'
+import { PropSimulator } from '@/components/ui/lab-propsim'
 import { RiskCalculator } from '@/components/ui/lab-risk'
 import { VarianceSimulator } from '@/components/ui/lab-variance'
 import { Segmented } from '@/components/ui/segmented'
@@ -705,6 +706,7 @@ function Builder({ cat }: { cat: StrategyCatalog }) {
         {event?.state === 'done' && <LabReports ids={event.report_ids} />}
         <RiskCalculator cat={cat} />
         <VarianceSimulator reports={event?.state === 'done' ? event.report_ids : []} />
+        <PropSimulator reports={event?.state === 'done' ? event.report_ids : []} />
       </div>
     </div>
   )

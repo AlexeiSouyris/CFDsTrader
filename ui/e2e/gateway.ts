@@ -13,6 +13,7 @@ import type { Page } from '@playwright/test'
 
 import labCatalog from '../src/mocks/lab-catalog.json' with { type: 'json' }
 import labReport from '../src/mocks/lab-report.json' with { type: 'json' }
+import propsimTemplates from '../src/mocks/propsim-templates.json' with { type: 'json' }
 import liquidityUs100 from '../src/mocks/liquidity-us100-15m.json' with { type: 'json' }
 import academyCatalog from './fixtures/academy-catalog.json' with { type: 'json' }
 import academyLessonDoc from './fixtures/academy-lesson-doc.json' with { type: 'json' }
@@ -358,6 +359,14 @@ export const ROUTES: MockRoute[] = [
     path: `/api/v1/lab/reports/${labReport.report_id}`,
     schema: 'lab_report.v1.schema.json',
     body: () => labReport,
+  },
+  // el simulador de cuenta fondeada (#807): las plantillas de config/propsim.toml (solo la genérica
+  // en blanco)
+  {
+    path: '/api/v1/lab/propsim/templates',
+    schema: 'prop_rules.v1.schema.json',
+    array: true,
+    body: () => propsimTemplates,
   },
   // la Academia (#769): el catálogo de config/academy.toml (niveles 0–2 con su texto, sin preguntas) y
   // el progreso de alguien que recién empieza (nada aprobado, nada abierto a mano)
