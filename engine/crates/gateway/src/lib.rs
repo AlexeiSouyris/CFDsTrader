@@ -27,6 +27,7 @@
 //! No calcula nada nuevo, no envía órdenes ni escribe en la base.
 
 pub mod academy;
+pub mod academy_replay;
 pub mod context;
 pub mod emotions;
 pub mod fund;

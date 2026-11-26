@@ -34,8 +34,9 @@ provisional = true
 # muestra de config/data_split.toml). La fecha real no viaja hasta el final.
 # PROVISORIOS (propuesta del diseño, §10.3 y §10.4): parámetros EDUCATIVOS, no de trading; el dueño
 # los puede cambiar cuando quiera.
-# Instrumentos del catálogo con velas de futuros guardadas (ES, NQ, YM, FDAX, desde 2011). Los
-# costos son los del CFD de config/instruments.toml.
+# Instrumentos del catálogo con velas de futuros guardadas: ES, NQ e YM desde 2011; FDAX solo desde
+# 03-2025 (su período de investigación es corto). Los costos son los del CFD de
+# config/instruments.toml.
 instruments = ["US500", "US100", "US30", "DE40"]
 timeframes = ["15m", "1h"]
 # Velas: hoy solo las de los futuros (futures_candles de `futures_source`); las del CFD de IG casi

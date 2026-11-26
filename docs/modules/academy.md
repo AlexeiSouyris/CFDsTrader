@@ -2,7 +2,7 @@
 modulo: academy
 ruta: `engine/crates/academy` (crate `cfds-academy`)
 lenguaje: Rust
-estado: en curso (#718, #740, #721, #722)
+estado: en curso (#718, #740, #721, #722, #723)
 resumen: Academia: catálogo de lecciones y herramientas con candado, corrección de exámenes y progreso desde eventos de solo agregar.
 ---
 
@@ -23,7 +23,7 @@ No calcula nada de trading ni toca el riesgo, el paper o las órdenes: el desblo
 ## Estado
 
 - Diseño: `docs/design/2026-11-academia.md` (#709). Contratos: #717. Base del motor (catálogo y corrección): #718. Eventos y progreso: #740. Replay: contratos #720, motor #721, calificación #722.
-- Rutas del gateway: #719. Sigue: las rutas del replay (#723).
+- Rutas del gateway: #719. Rutas del replay: #723. Pendiente: guardar el resultado de un examen de replay de una lección como evento (cuando haya lecciones con examen de replay, niveles 3 en adelante), calificar las marcas de pivotes y el contenido de cada nivel.
 
 ## Interfaces
 
