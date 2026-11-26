@@ -122,13 +122,13 @@ describe('fondo del motor (fase 6b, #312)', () => {
     expect(await screen.findByText('999,99 €')).toBeInTheDocument()
   })
 
-  it('es un resumen con vidrio y dibuja la curva con el NAV de cada liquidación (#581)', async () => {
+  it('es un resumen sin vidrio y dibuja la curva con el NAV de cada liquidación (#581)', async () => {
     gateway()
     const { container } = render(<FundView />)
     const curve = await screen.findByRole('img', { name: /Valor de la unidad en 3 liquidaciones/ })
     expect(curve).toHaveAccessibleName(/de 1,0000 el .* a 1,1000 el/)
     const section = container.querySelector('[data-section="fund"]')
-    expect(section).toHaveAttribute('data-glass', 'on')
+    expect(section).not.toHaveAttribute('data-glass')
     expect(screen.getByText(/Resultados del pasado, no promesas/)).toBeInTheDocument()
   })
 

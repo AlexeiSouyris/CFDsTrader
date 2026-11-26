@@ -31,7 +31,7 @@ export function ProposalsView({ member }: { member: Member }) {
       {/* cada tarjeta lleva un h3: este h2 deja el orden de títulos sin saltos (axe heading-order) */}
       <h2 className="mt-1 text-[14px] font-bold">En espera ({PROPOSALS.length})</h2>
       {PROPOSALS.length === 0 ? (
-        <p className="panel rounded-[20px] p-6 text-center text-[13px] text-muted-foreground">
+        <p className="panel rounded-section p-6 text-center text-[13px] text-muted-foreground">
           No hay propuestas esperando.
         </p>
       ) : (
@@ -119,14 +119,8 @@ export function FundView() {
     </div>
   )
   return (
-    // Fondo (#581, etapa 8): resumen con vidrio, como una extensión del Inicio. El vidrio se
-    // prende solo en esta vista (`data-glass`); el fondo animado sigue siendo solo del Inicio.
-    <div
-      className="grid gap-4"
-      data-section="fund"
-      data-glass="on"
-      data-fund-source={live ? 'engine' : 'example'}
-    >
+    // Fondo (#581, etapa 8): resumen del valor de la unidad. Superficie lisa como todo (#708).
+    <div className="grid gap-4" data-section="fund" data-fund-source={live ? 'engine' : 'example'}>
       <p className="max-w-3xl text-[12.5px] text-muted-foreground">
         {live ? (
           <>

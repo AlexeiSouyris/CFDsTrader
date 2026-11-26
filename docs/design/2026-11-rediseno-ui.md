@@ -3,6 +3,9 @@
 Issue: #581 · Estado: **propuesta** (no implementa nada; la implementación va en PRs por etapas, sección 5).
 Fecha: 25-11-2026.
 
+> **26-11-2026:** el vidrio y el fondo animado se sacaron de toda la app por pedido del dueño. Ver
+> `docs/design/2026-11-terminal-pro.md` (#708); lo de este documento sobre vidrio quedó superado.
+
 > Pedido del dueño (25-11-2026), textual: "no me gusto que todo este construido alrededor el mismo
 > tipo de Liquid Glass Panel. Me parecia buena idea solo para elegir el tipo de estrategia o qcy
 > cosas mas simples y despues entrar a diferentes secciones que tienen su propio estilo. Tipo para

@@ -30,7 +30,7 @@ function Section({
   children: ReactNode
 }) {
   return (
-    <section aria-labelledby={id} className="panel relative min-w-0 rounded-[20px] p-4">
+    <section aria-labelledby={id} className="panel relative min-w-0 rounded-section p-4">
       <header className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h2 id={id} className="text-[14px] font-bold">
           {title}

@@ -27,7 +27,7 @@ export function MetricBento({ label, metrics }: { label: string; metrics: Metric
           key={m.id}
           data-metric={m.id}
           className={cn(
-            'glass flex min-w-0 flex-col justify-between gap-2 rounded-[20px] p-4',
+            'glass flex min-w-0 flex-col justify-between gap-2 rounded-section p-4',
             m.wide && 'col-span-2',
           )}
         >

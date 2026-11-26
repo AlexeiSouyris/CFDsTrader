@@ -12,7 +12,6 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import { LoadingScreen } from '@/components/ui/dot-loader'
 import { DEFAULT_GLASS } from '@/components/ui/glass-settings'
 import { GlassShell } from '@/components/ui/glass-shell'
-import { HalftoneWallpaper } from '@/components/ui/halftone-wallpaper'
 import { NotFound } from '@/components/ui/not-found'
 import { PortalTransition } from '@/components/ui/portal-transition'
 import { SignIn } from '@/components/ui/sign-in'
@@ -29,7 +28,6 @@ import { TerminalView } from '@/views/terminal'
 import { HomeView } from '@/views/home'
 import {
   BAR_VIEWS,
-  GLASS_VIEWS,
   HOME_VIEW,
   MAIN_TABS,
   MENU_GROUPS,
@@ -134,7 +132,7 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
     // barra del sistema en el celular (PWA, #307), del color del fondo de cada tema
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute('content', theme === 'dark' ? '#101113' : '#e7e9ec')
+      ?.setAttribute('content', theme === 'dark' ? '#0a0b0d' : '#eef0f2')
   }, [theme])
 
   // El título de la pestaña dice la vista (#580): el historial y las pestañas se distinguen.
@@ -172,18 +170,9 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
     stage === 'app' && tab >= 0,
   )
 
-  // Vidrio y fondo animado son opt-in (#581): `data-glass="on"` activa el vidrio en esa zona y
-  // el fondo semitono se monta solo donde hay vidrio: el ingreso y el Inicio.
-  // Mientras corre la intro, el fondo semitono no se monta.
-  const ambient = !intro && (stage !== 'app' || GLASS_VIEWS.includes(view))
-
   return (
-    <div
-      data-theme={theme}
-      data-glass={ambient ? 'on' : undefined}
-      className="relative isolate min-h-svh text-foreground"
-    >
-      {ambient && <HalftoneWallpaper light={theme === 'light'} />}
+    // Sin vidrio ni fondo animado en ninguna parte (#708): superficies lisas de la terminal.
+    <div data-theme={theme} className="relative isolate min-h-svh bg-background text-foreground">
       <div className="relative z-10">
         {stage === 'loading' && !intro && <LoadingScreen />}
         {stage === 'signin' && (

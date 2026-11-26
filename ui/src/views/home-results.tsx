@@ -156,7 +156,7 @@ export function RecentResults({
       <MetricBento label="Resumen de resultados" metrics={metrics} />
 
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <div className="glass min-w-0 rounded-[20px] p-4">
+        <div className="glass min-w-0 rounded-section p-4">
           <h3 className="mb-2 text-[13px] font-bold">Registro de resultados</h3>
           <ol aria-label="Últimas pruebas del registro" className="grid gap-2">
             {latest.map((r) => (
@@ -183,7 +183,7 @@ export function RecentResults({
           )}
         </div>
 
-        <div className="glass min-w-0 rounded-[20px] p-4">
+        <div className="glass min-w-0 rounded-section p-4">
           <h3 className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[13px] font-bold">
             Corridas del motor
             {!runsLive && <ExampleBadge />}

@@ -172,7 +172,7 @@ function Holdout({ r }: { r: WalkForwardReport }) {
   return (
     <section
       aria-label="Fuera de muestra"
-      className="rounded-[14px] border-2 border-dashed border-border p-3"
+      className="rounded-section border-2 border-dashed border-border p-3"
     >
       <h4 className="text-[12.5px] font-bold">
         Fuera de muestra · {dayYear(h.from)} – {dayYear(h.to)}

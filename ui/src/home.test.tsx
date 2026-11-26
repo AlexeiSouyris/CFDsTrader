@@ -39,20 +39,19 @@ afterEach(() => {
 })
 
 describe('Inicio como vista de entrada', () => {
-  it('sin hash abre el Inicio, con vidrio y fondo animado', () => {
+  it('sin hash abre el Inicio, sin vidrio ni fondo animado (#708)', () => {
     const { container } = render(<App initialStage="app" />)
     expect(heading()).toHaveTextContent('Inicio')
-    expect(container.firstElementChild).toHaveAttribute('data-glass', 'on')
-    expect(container.querySelector('[data-wallpaper]')).not.toBeNull()
+    expect(container.querySelector('[data-glass]')).toBeNull()
+    expect(container.querySelector('[data-wallpaper]')).toBeNull()
     expect(container.querySelector('[data-section="hub"]')).not.toBeNull()
   })
 
-  it('las demás vistas no tienen vidrio ni fondo animado; los hashes viejos siguen', () => {
+  it('las demás vistas tampoco; los hashes viejos siguen', () => {
     history.replaceState(null, '', '/#terminal')
     const { container } = render(<App initialStage="app" />)
     expect(heading()).toHaveTextContent('Terminal')
-    expect(container.firstElementChild).not.toHaveAttribute('data-glass')
-    expect(container.querySelector('[data-wallpaper]')).toBeNull()
+    expect(container.querySelector('[data-glass]')).toBeNull()
 
     act(() => {
       history.pushState(null, '', '/#panel')
@@ -62,10 +61,10 @@ describe('Inicio como vista de entrada', () => {
     expect(container.querySelector('[data-wallpaper]')).toBeNull()
   })
 
-  it('el ingreso conserva el vidrio y el fondo', () => {
+  it('el ingreso tampoco tiene vidrio ni fondo animado', () => {
     const { container } = render(<App initialStage="signin" />)
-    expect(container.firstElementChild).toHaveAttribute('data-glass', 'on')
-    expect(container.querySelector('[data-wallpaper]')).not.toBeNull()
+    expect(container.querySelector('[data-glass]')).toBeNull()
+    expect(container.querySelector('[data-wallpaper]')).toBeNull()
   })
 })
 

@@ -67,7 +67,7 @@ export function ChartToolsMenu({
           id={panelId}
           role="dialog"
           aria-label="Herramientas de análisis"
-          className="w-72 max-w-[calc(100vw-1rem)] rounded-2xl border border-[var(--glass-rim)] bg-[var(--card)] p-3 text-left shadow-[0_18px_40px_-12px_rgba(0,0,0,0.6)]"
+          className="w-72 max-w-[calc(100vw-1rem)] rounded-2xl panel-raised p-3 text-left"
         >
           <p className="mb-2 text-[11.5px] leading-snug text-muted-foreground">
             Capas para mirar el precio, calculadas por el motor. No son señales ni recomendaciones.

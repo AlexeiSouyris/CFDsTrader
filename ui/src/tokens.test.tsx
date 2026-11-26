@@ -1,8 +1,8 @@
 /// <reference types="node" />
 /**
- * Tokens compartidos y por sección (#581, etapa 1): fuentes autoalojadas, escala de 4 px, colores
- * de gráficos iguales en toda la app, variables por `data-section`, contraste AA en claro y oscuro
- * y vidrio opt-in.
+ * Tokens compartidos y por sección (#581, etapa 1; terminal profesional #708): fuentes
+ * autoalojadas, escala de 4 px, colores de gráficos iguales en toda la app, variables por
+ * `data-section`, contraste AA en claro y oscuro y ningún vidrio.
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -106,10 +106,12 @@ describe('escala y secciones', () => {
     for (const b of [terminal, ...own]) {
       expect(Object.keys(b)).toEqual(expect.arrayContaining(['--density', '--radius', '--accent']))
     }
+    // esquinas casi rectas en toda la app (#708)
     const editorial = block("[data-section='journal']")
-    expect(editorial['--radius']).toBe('8px')
-    expect(terminal['--radius']).toBe('4px')
-    expect(block("[data-section='fund']")['--radius']).toBe('20px')
+    expect(editorial['--radius']).toBe('3px')
+    expect(terminal['--radius']).toBe('2px')
+    expect(block("[data-section='fund']")['--radius']).toBe('3px')
+    for (const r of Object.values(block('@theme'))) expect(parseInt(r)).toBeLessThanOrEqual(4)
   })
 
   it('ninguna sección redefine los colores de los gráficos', () => {
@@ -192,23 +194,27 @@ describe('contraste AA de los sellos (#605)', () => {
   }
 })
 
-describe('vidrio opt-in', () => {
-  it('fuera de data-glass="on" es una superficie lisa; adentro, el vidrio', () => {
-    const glass = css.slice(css.indexOf('@utility glass {'), css.indexOf('@utility glass-strong'))
-    const flat = glass.slice(0, glass.indexOf('&:where'))
-    expect(flat).not.toContain('backdrop-filter')
-    expect(glass).toMatch(
-      /&:where\(\[data-glass='on'\] \*, \[data-glass='on'\]\) \{[^}]*backdrop-filter/,
-    )
+describe('sin vidrio (#708)', () => {
+  it('ningún desenfoque de fondo ni token de vidrio', () => {
+    expect(css).not.toMatch(/backdrop-filter|--glass-|data-glass/)
   })
 
-  it('el Inicio activa el vidrio (las demás vistas, ver home.test.tsx)', () => {
+  it('`.glass` y `.glass-strong` son superficies lisas, iguales a `.panel` y `.panel-raised`', () => {
+    const body = (name: string) => {
+      const at = css.indexOf(`@utility ${name} {`)
+      return css.slice(css.indexOf('{', at) + 1, css.indexOf('}', at)).trim()
+    }
+    expect(body('glass')).toBe(body('panel'))
+    expect(body('glass-strong')).toBe(body('panel-raised'))
+  })
+
+  it('la app no monta el fondo animado ni activa el vidrio', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response('sin gateway', { status: 503 })),
     )
     const { container } = render(<App initialStage="app" />)
-    expect(container.firstElementChild).toHaveAttribute('data-glass', 'on')
+    expect(container.querySelector('[data-glass], [data-wallpaper]')).toBeNull()
     vi.unstubAllGlobals()
   })
 })
