@@ -8,18 +8,20 @@ use cfds_academy::{AcademyConfig, Catalog, ExamKind};
 use common::{REAL, assert_valid, validator, with_questions, without_questions};
 
 #[test]
-fn the_real_config_loads_with_levels_0_to_2_and_provisional_thresholds() {
+fn the_real_config_loads_with_consecutive_levels_and_provisional_thresholds() {
     let cfg = AcademyConfig::from_toml(REAL).unwrap();
     let c = &cfg.catalog;
-    assert_eq!(
-        c.levels.iter().map(|l| l.level).collect::<Vec<_>>(),
-        [0, 1, 2]
-    );
-    assert_eq!(cfg.lessons().count(), 10);
+    // Los niveles empiezan en 0 y no saltan ninguno (hoy 0–3: #760 y #819).
+    let levels: Vec<u8> = c.levels.iter().map(|l| l.level).collect();
+    assert!(levels.len() >= 4, "{levels:?}");
+    assert!(levels.iter().zip(0u8..).all(|(l, i)| *l == i), "{levels:?}");
+    for l in &c.levels {
+        assert!(!l.lessons.is_empty(), "nivel {} sin lecciones", l.level);
+    }
     assert!(c.thresholds.provisional);
     assert_eq!(c.thresholds.quiz_pass_pct.to_string(), "80");
     assert_eq!(c.catalog_version.len(), 64);
-    // Con el contenido de los niveles 0–2 (#760): todos los exámenes están listos, cada examen de
+    // Con el contenido de los niveles (#760, #819): todos los exámenes están listos, cada examen de
     // preguntas tiene al menos 5 y cada lección tiene su texto.
     for l in cfg.lessons() {
         assert!(l.exam.ready, "{}", l.id);
@@ -28,10 +30,11 @@ fn the_real_config_loads_with_levels_0_to_2_and_provisional_thresholds() {
             assert!(l.exam.questions.len() >= 5, "{}", l.id);
         }
     }
-    // Sin sus preguntas, un examen de preguntas no está listo (0.3 no tiene examen).
+    // Sin sus preguntas, un examen de preguntas no está listo; los demás (sin examen o de replay)
+    // no dependen de las preguntas.
     let bare = AcademyConfig::from_toml(&without_questions(REAL)).unwrap();
     for l in bare.lessons() {
-        assert_eq!(l.exam.ready, l.exam.kind == ExamKind::None, "{}", l.id);
+        assert_eq!(l.exam.ready, l.exam.kind != ExamKind::Quiz, "{}", l.id);
     }
     let watchlist = c.tools.iter().find(|t| t.id == "tool.watchlist").unwrap();
     assert_eq!(watchlist.lesson_id, "0.1");
@@ -90,7 +93,7 @@ fn invalid_configs_are_rejected_at_startup() {
         ("dos lecciones abren la misma", base.replace("unlocks = [\"tool.glossary\"]", "unlocks = [\"tool.watchlist\"]")),
         ("desbloquea algo que no existe", base.replace("unlocks = []\n\n[[lessons]]\nid = \"1.1\"", "unlocks = [\"tool.nada\"]\n\n[[lessons]]\nid = \"1.1\"")),
         ("lección repetida", base.replace("id = \"0.2\"", "id = \"0.1\"")),
-        ("lección de un nivel que no existe", base.replace("id = \"2.4\"", "id = \"3.1\"")),
+        ("lección de un nivel que no existe", base.replace("id = \"2.4\"", "id = \"99.1\"")),
         ("id de lección", base.replace("id = \"2.4\"", "id = \"2.04\"")),
         ("nivel repetido", base.replace("level = 2\n", "level = 1\n")),
         ("replay sin su tipo", base.replace("exam = \"none\"", "exam = \"replay\"")),
@@ -144,16 +147,18 @@ fn a_replay_exam_is_ready_and_says_its_session_kind() {
     for bad in [no_kind, stray] {
         assert!(!v.is_valid(&bad));
     }
-    // Un catálogo de antes de #759 (sin el campo) sigue valiendo.
+    // Un catálogo de antes de #759 (sin el campo y sin exámenes de replay, que llegaron con él)
+    // sigue valiendo. Las lecciones de replay de la config real (4.1, 4.2) pasan a sin examen.
     let mut old = AcademyConfig::from_toml(&with_questions())
         .map(|c| serde_json::to_value(&c.catalog).unwrap())
         .unwrap();
     for level in old["levels"].as_array_mut().unwrap() {
         for lesson in level["lessons"].as_array_mut().unwrap() {
-            lesson["exam"]
-                .as_object_mut()
-                .unwrap()
-                .remove("replay_kind");
+            let exam = lesson["exam"].as_object_mut().unwrap();
+            if exam["kind"] == "replay" {
+                exam.insert("kind".into(), "none".into());
+            }
+            exam.remove("replay_kind");
         }
     }
     assert!(v.is_valid(&old));

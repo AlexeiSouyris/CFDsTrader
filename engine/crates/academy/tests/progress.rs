@@ -63,7 +63,8 @@ fn tool<'a>(p: &'a Progress, id: &str) -> &'a cfds_academy::progress::ToolProgre
 fn nothing_done_is_all_locked() {
     let cfg = AcademyConfig::from_toml(&with_questions()).unwrap();
     let p = progress(&cfg, "owner", &[], t(0));
-    assert_eq!(p.lessons.len(), 10);
+    // Una entrada por lección del catálogo (crece con cada nivel nuevo, #819).
+    assert_eq!(p.lessons.len(), cfg.lessons().count());
     assert!(p.lessons.iter().all(|l| !l.passed && l.attempts == 0));
     assert!(p.tools.iter().all(|t| !t.unlocked && t.by.is_none()));
     assert!(!p.unlock_all);
