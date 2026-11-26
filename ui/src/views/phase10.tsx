@@ -136,7 +136,7 @@ export function FundView() {
       </p>
       <section
         aria-labelledby="fondo-unidad"
-        className="glass relative grid min-w-0 gap-6 rounded-section p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]"
+        className="panel relative grid min-w-0 gap-6 rounded-section p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]"
       >
         <div className="grid min-w-0 content-between gap-6">
           <div className="grid gap-2">
@@ -167,7 +167,7 @@ export function FundView() {
         <NavCurve movements={movements} />
       </section>
 
-      <section className="glass relative min-w-0 rounded-section p-4 sm:p-5">
+      <section className="panel relative min-w-0 rounded-section p-4 sm:p-5">
         <h2 className="mb-3 flex flex-wrap items-center gap-x-2 text-[14px] font-bold">
           Cada miembro: <Term id="unidades">unidades</Term> y <Term id="pl">P&amp;L</Term>{' '}
           {originMark}
@@ -217,7 +217,7 @@ export function FundView() {
         )}
       </section>
 
-      <section className="glass min-w-0 rounded-section p-4 sm:p-5">
+      <section className="panel min-w-0 rounded-section p-4 sm:p-5">
         <h2 className="flex flex-wrap items-center gap-2 text-[14px] font-bold">
           Historial {originMark}
         </h2>
@@ -278,7 +278,7 @@ export function FundView() {
           muestran.
         </p>
       ) : (
-        <section className="glass rounded-section p-4 sm:p-5" data-example>
+        <section className="panel rounded-section p-4 sm:p-5" data-example>
           <h2 className="flex flex-wrap items-center gap-2 text-[14px] font-bold">
             Movimientos pendientes <ExampleBadge />
           </h2>

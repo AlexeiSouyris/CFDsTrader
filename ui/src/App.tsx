@@ -10,7 +10,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 
 import { LoadingScreen } from '@/components/ui/dot-loader'
-import { GlassShell } from '@/components/ui/glass-shell'
+import { AppShell } from '@/components/ui/app-shell'
 import { NotFound } from '@/components/ui/not-found'
 import { PortalTransition } from '@/components/ui/portal-transition'
 import { SignIn } from '@/components/ui/sign-in'
@@ -183,7 +183,7 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
           />
         )}
         {stage === 'app' && (
-          <GlassShell
+          <AppShell
             views={VIEWS}
             nav={NAV}
             bar={BAR}
@@ -225,7 +225,7 @@ export default function App({ initialStage = FIRST_STAGE }: { initialStage?: Sta
               {view === 'glosario' && <GlossaryView />}
               {view === NOT_FOUND && <NotFound onHome={() => select(HOME_VIEW)} />}
             </div>
-          </GlassShell>
+          </AppShell>
         )}
       </div>
       {portal && <PortalTransition onDone={() => setPortal(false)} />}
