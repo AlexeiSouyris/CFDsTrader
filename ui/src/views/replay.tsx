@@ -1,6 +1,6 @@
 /**
  * Replay de la Academia (#772, diseño §5): práctica vela a vela con velas del pasado, con marcas
- * de niveles y pivotes (#773). El motor
+ * de niveles y pivotes (#773) y un ticket de estudio (#791). El motor
  * elige instrumento, timeframe y fecha (solo del período de investigación) y guarda el cursor: la
  * UI pide «avanzar N» y dibuja solo las velas que vuelven, nunca una posterior. La fecha real no
  * viaja hasta el final. La UI no calcula nada de trading.
@@ -8,7 +8,7 @@
 import { useState, type KeyboardEvent } from 'react'
 
 import { ReplayChart } from '@/components/ui/replay-chart'
-import { MarkForm, SessionLog, type Picked } from '@/components/ui/replay-tools'
+import { MarkForm, SessionLog, StudyTicket, type Picked } from '@/components/ui/replay-tools'
 import { decimal, priceDigits } from '@/lib/format'
 import { GatewayError } from '@/lib/paper-api'
 import {
@@ -16,11 +16,12 @@ import {
   keep,
   markReplay,
   openReplay,
+  orderReplay,
   stepReplay,
   withStep,
   type Live,
 } from '@/lib/replay-api'
-import type { MarkRequest } from '@/lib/replay-contracts'
+import type { MarkRequest, OrderRequest } from '@/lib/replay-contracts'
 
 const STEPS = [1, 5, 20, 100] as const
 
@@ -60,7 +61,7 @@ export function ReplayView() {
   const start = () =>
     run(async () => {
       const s = await openReplay({ kind: 'practice', ...(seed.trim() && { seed: seed.trim() }) })
-      setLive({ session: s, bars: s.bars, cursor: s.cursor, done: false, marks: [] })
+      setLive({ session: s, bars: s.bars, cursor: s.cursor, done: false, marks: [], orders: [] })
     })
   const step = (n: number) =>
     live &&
@@ -73,6 +74,12 @@ export function ReplayView() {
     run(async () => {
       const m = await markReplay(live.session.session_id, req)
       setLive({ ...live, marks: [...live.marks, m] })
+    })
+  const order = (req: OrderRequest) =>
+    live &&
+    run(async () => {
+      const o = await orderReplay(live.session.session_id, req)
+      setLive({ ...live, orders: [...live.orders, o] })
     })
 
   const alert = error && (
@@ -115,7 +122,7 @@ export function ReplayView() {
     )
   }
 
-  const { session: s, bars, cursor, done, marks } = live
+  const { session: s, bars, cursor, done, marks, orders } = live
   const total = s.warmup_bars + s.exam_bars
   const digits = priceDigits(bars.slice(0, 50).flatMap((b) => [b.open, b.high, b.low, b.close]))
   const r = s.rules
@@ -146,9 +153,21 @@ export function ReplayView() {
             bars={bars}
             digits={digits}
             onPick={setPicked}
-            lines={marks
-              .filter((m) => m.kind === 'level')
-              .map((m) => ({ price: m.price, label: `M${m.mark_id}`, tone: 'mark' as const }))}
+            lines={[
+              ...marks
+                .filter((m) => m.kind === 'level')
+                .map((m) => ({ price: m.price, label: `M${m.mark_id}`, tone: 'mark' as const })),
+              ...orders.flatMap((o) =>
+                (
+                  [
+                    [o.stop, 'stop'],
+                    [o.target, 'obj.'],
+                  ] as const
+                ).flatMap(([p, l]) =>
+                  p ? [{ price: p, label: `E${o.order_id} ${l}`, tone: 'order' as const }] : [],
+                ),
+              ),
+            ]}
             points={marks.flatMap((m) =>
               m.bar_index === null
                 ? []
@@ -182,6 +201,7 @@ export function ReplayView() {
         </div>
         <div className="panel grid content-start gap-4 p-3">
           <MarkForm picked={picked} busy={busy} onMark={(r) => void mark(r)} />
+          <StudyTicket at={bars.at(-1)} busy={busy || done} onOrder={(r) => void order(r)} />
         </div>
       </div>
       {alert}
@@ -190,7 +210,7 @@ export function ReplayView() {
           Llegaste a la última vela de la práctica.
         </p>
       )}
-      <SessionLog marks={marks} bars={bars} digits={digits} />
+      <SessionLog marks={marks} orders={orders} bars={bars} digits={digits} />
       <p className="text-[12px] text-muted-foreground">
         Reglas con las que se califica un examen
         {r.provisional ? ' (provisorias, del dueño)' : ''}: al menos {r.trades_per_exam}{' '}
