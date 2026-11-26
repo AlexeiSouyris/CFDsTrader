@@ -4,6 +4,7 @@ import {
   BookOpen,
   ClipboardCheck,
   FlaskConical,
+  FlaskRound,
   CandlestickChart,
   Droplets,
   FolderOpen,
@@ -58,6 +59,14 @@ export const VIEWS: ShellView[] = [
     icon: FlaskConical,
     description:
       'Corridas, modelo, propuestas, liquidez y glosario en un solo informe. Resultados del pasado, no promesas.',
+  },
+  {
+    id: 'laboratorio',
+    label: 'Laboratorio',
+    short: 'Laboratorio',
+    icon: FlaskRound,
+    description:
+      'Armá una estrategia con bloques y corrila sobre el pasado. Exploratorio, no vota: resultados del pasado en simulación, no promesas.',
   },
   {
     id: 'performance',
@@ -141,6 +150,7 @@ export const NAV_SECTIONS = [
   'terminal',
   'graficos',
   'investigacion',
+  'laboratorio',
   'noticias',
   'fondo',
   'operaciones',

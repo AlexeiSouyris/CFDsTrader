@@ -1,0 +1,717 @@
+{
+  "buy_and_hold": {
+    "max_drawdown": "0.253013",
+    "monthly_mean": "0.008041",
+    "sharpe": "0.146451",
+    "total_return": "0.266128"
+  },
+  "candle_source": "futures",
+  "computed_at": "2026-11-26T04:26:54Z",
+  "cost_multiplier": "1",
+  "cost_stress": {
+    "mean_r_net": "0.092022",
+    "monthly_mean": "0.001298",
+    "sharpe": "0.253083",
+    "stress": "1.5"
+  },
+  "edge": {
+    "cost_per_trade_r": "0.045796",
+    "edge_cost_factor": "2",
+    "measured_gross_r": "0.160717",
+    "required_gross_r": "0.091593"
+  },
+  "excursions": {
+    "mae_r": {
+      "p25": "0.211678",
+      "p50": "0.408877",
+      "p75": "0.861",
+      "p90": "1"
+    },
+    "mfe_r": {
+      "p25": "0.327984",
+      "p50": "0.576949",
+      "p75": "1.057405",
+      "p90": "1.5594"
+    },
+    "mfe_r_losers": {
+      "p25": "0.202983",
+      "p50": "0.304427",
+      "p75": "0.513937",
+      "p90": "0.699553"
+    }
+  },
+  "expectancy": {
+    "confidence": "0.95",
+    "mean_r_gross": "0.160717",
+    "mean_r_net": "0.11492",
+    "mean_r_net_ci": {
+      "high": "0.258724",
+      "low": "-0.028883"
+    },
+    "profit_factor": "1.47604",
+    "win_rate": "0.54902",
+    "win_rate_ci": {
+      "high": "0.642054",
+      "low": "0.452427"
+    }
+  },
+  "family_sha256": "ce892b2c2accee845e4394265f42226b00c50d6d6b39aafa98fd36208f4e4b0d",
+  "halves": {
+    "first": "0.001653",
+    "second": "0.001592",
+    "split_month": "2021-07"
+  },
+  "holdout_start": "2025-11-01T00:00:00Z",
+  "initial_equity": "100000",
+  "instrument_id": "US500.FUT",
+  "label": "exploratorio, no vota",
+  "luck": {
+    "percentile_mean_r": "93.9",
+    "percentile_total": "94.5",
+    "simulations": 1000,
+    "strategy_mean_r": "0.135935"
+  },
+  "mode": "exploratory",
+  "monte_carlo": {
+    "block_len": 5,
+    "final_return": {
+      "mean": "0.060022",
+      "p5": "-0.002914",
+      "p50": "0.0593",
+      "p95": "0.125742"
+    },
+    "longest_losing_streak": {
+      "mean": "4.3069",
+      "p5": "3",
+      "p50": "4",
+      "p95": "6"
+    },
+    "longest_under_water": {
+      "mean": "37.0221",
+      "p5": "13",
+      "p50": "32",
+      "p95": "81"
+    },
+    "max_drawdown": {
+      "mean": "0.024778",
+      "p5": "0.013228",
+      "p50": "0.022777",
+      "p95": "0.043077"
+    },
+    "observed_max_drawdown": "0.020084",
+    "paths": 10000,
+    "risk_of_ruin": "0",
+    "ruin_threshold": "0.3"
+  },
+  "months": [
+    {
+      "buy_and_hold": "-0.006948",
+      "drawdown": "0",
+      "equity": "1.001926",
+      "month": "2020-01",
+      "return": "0.001926",
+      "return_stressed": "0.001243",
+      "trades": 4
+    },
+    {
+      "buy_and_hold": "-0.074852",
+      "drawdown": "0",
+      "equity": "1.007377",
+      "month": "2020-02",
+      "return": "0.005441",
+      "return_stressed": "0.005093",
+      "trades": 2
+    },
+    {
+      "buy_and_hold": "-0.076514",
+      "drawdown": "0",
+      "equity": "1.011943",
+      "month": "2020-03",
+      "return": "0.004532",
+      "return_stressed": "0.004424",
+      "trades": 2
+    },
+    {
+      "buy_and_hold": "0.119676",
+      "drawdown": "0.004577",
+      "equity": "1.007312",
+      "month": "2020-04",
+      "return": "-0.004577",
+      "return_stressed": "-0.004643",
+      "trades": 1
+    },
+    {
+      "buy_and_hold": "0.047073",
+      "drawdown": "0.009173",
+      "equity": "1.002661",
+      "month": "2020-05",
+      "return": "-0.004617",
+      "return_stressed": "-0.004703",
+      "trades": 1
+    },
+    {
+      "buy_and_hold": "0.064753",
+      "drawdown": "0.009173",
+      "equity": "1.002661",
+      "month": "2020-06",
+      "return": "0",
+      "return_stressed": "0",
+      "trades": 0
+    },
+    {
+      "buy_and_hold": "0.051785",
+      "drawdown": "0.01089",
+      "equity": "1.000923",
+      "month": "2020-07",
+      "return": "-0.001733",
+      "return_stressed": "-0.002408",
+      "trades": 5
+    },
+    {
+      "buy_and_hold": "0.060867",
+      "drawdown": "0.01089",
+      "equity": "1.000923",
+      "month": "2020-08",
+      "return": "0",
+      "return_stressed": "0",
+      "trades": 0
+    },
+    {
+      "buy_and_hold": "-0.023032",
+      "drawdown": "0.004538",
+      "equity": "1.007351",
+      "month": "2020-09",
+      "return": "0.006422",
+      "return_stressed": "0.005935",
+      "trades": 5
+    },
+    {
+      "buy_and_hold": "-0.024061",
+      "drawdown": "0",
+      "equity": "1.015622",
+      "month": "2020-10",
+      "return": "0.00821",
+      "return_stressed": "0.007841",
+      "trades": 3
+    },
+    {
+      "buy_and_hold": "0.096784",
+      "drawdown": "0",
+      "equity": "1.015705",
+      "month": "2020-11",
+      "return": "0.000082",
+      "return_stressed": "-0.000106",
+      "trades": 2
+    },
+    {
+      "buy_and_hold": "0.027851",
+      "drawdown": "0.000819",
+      "equity": "1.014873",
+      "month": "2020-12",
+      "return": "-0.000819",
+      "return_stressed": "-0.001306",
+      "trades": 3
+    },
+    {
+      "buy_and_hold": "-0.019204",
+      "drawdown": "0.001768",
+      "equity": "1.01391",
+      "month": "2021-01",
+      "return": "-0.00095",
+      "return_stressed": "-0.001271",
+      "trades": 3
+    },
+    {
+      "buy_and_hold": "0.037526",
+      "drawdown": "0",
+      "equity": "1.023384",
+      "month": "2021-02",
+      "return": "0.009344",
+      "return_stressed": "0.009006",
+      "trades": 3
+    },
+    {
+      "buy_and_hold": "0.03559",
+      "drawdown": "0",
+      "equity": "1.029773",
+      "month": "2021-03",
+      "return": "0.006244",
+      "return_stressed": "0.005581",
+      "trades": 5
+    },
+    {
+      "buy_and_hold": "0.04635",
+      "drawdown": "0.001376",
+      "equity": "1.028357",
+      "month": "2021-04",
+      "return": "-0.001376",
+      "return_stressed": "-0.001657",
+      "trades": 2
+    },
+    {
+      "buy_and_hold": "0.002592",
+      "drawdown": "0",
+      "equity": "1.032602",
+      "month": "2021-05",
+      "return": "0.004129",
+      "return_stressed": "0.003799",
+      "trades": 2
+    },
+    {
+      "buy_and_hold": "0.028077",
+      "drawdown": "0.002501",
+      "equity": "1.03002",
+      "month": "2021-06",
+      "return": "-0.002501",
+      "return_stressed": "-0.003033",
+      "trades": 3
+    },
+    {
+      "buy_and_hold": "0.019589",
+      "drawdown": "0",
+      "equity": "1.032962",
+      "month": "2021-07",
+      "return": "0.002856",
+      "return_stressed": "0.002732",
+      "trades": 1
+    },
+    {
+      "buy_and_hold": "0.025974",
+      "drawdown": "0.004398",
+      "equity": "1.028419",
+      "month": "2021-08",
+      "return": "-0.004398",
+      "return_stressed": "-0.005052",
+      "trades": 4
+    },
+    {
+      "buy_and_hold": "-0.036273",
+      "drawdown": "0.00378",
+      "equity": "1.029057",
+      "month": "2021-09",
+      "return": "0.00062",
+      "return_stressed": "0.000287",
+      "trades": 1
+    },
+    {
+      "buy_and_hold": "0.062564",
+      "drawdown": "0.014548",
+      "equity": "1.017935",
+      "month": "2021-10",
+      "return": "-0.010808",
+      "return_stressed": "-0.011181",
+      "trades": 3
+    },
+    {
+      "buy_and_hold": "-0.006969",
+      "drawdown": "0.011089",
+      "equity": "1.021507",
+      "month": "2021-11",
+      "return": "0.00351",
+      "return_stressed": "0.003173",
+      "trades": 2
+    },
+    {
+      "buy_and_hold": "0.0378",
+      "drawdown": "0.011824",
+      "equity": "1.020748",
+      "month": "2021-12",
+      "return": "-0.000743",
+      "return_stressed": "-0.000822",
+      "trades": 1
+    },
+    {
+      "buy_and_hold": "-0.0537",
+      "drawdown": "0.01275",
+      "equity": "1.019791",
+      "month": "2022-01",
+      "return": "-0.000937",
+      "return_stressed": "-0.001277",
+      "trades": 3
+    },
+    {
+      "buy_and_hold": "-0.025256",
+      "drawdown": "0.014284",
+      "equity": "1.018207",
+      "month": "2022-02",
+      "return": "-0.001554",
+      "return_stressed": "-0.001828",
+      "trades": 3
+    },
+    {
+      "buy_and_hold": "0.020317",
+      "drawdown": "0.004244",
+      "equity": "1.028578",
+      "month": "2022-03",
+      "return": "0.010186",
+      "return_stressed": "0.009872",
+      "trades": 4
+    },
+    {
+      "buy_and_hold": "-0.084872",
+      "drawdown": "0",
+      "equity": "1.041781",
+      "month": "2022-04",
+      "return": "0.012836",
+      "return_stressed": "0.012391",
+      "trades": 5
+    },
+    {
+      "buy_and_hold": "0.001186",
+      "drawdown": "0",
+      "equity": "1.043616",
+      "month": "2022-05",
+      "return": "0.001762",
+      "return_stressed": "0.001564",
+      "trades": 3
+    },
+    {
+      "buy_and_hold": "-0.084914",
+      "drawdown": "0.008084",
+      "equity": "1.03518",
+      "month": "2022-06",
+      "return": "-0.008084",
+      "return_stressed": "-0.008284",
+      "trades": 3
+    },
+    {
+      "buy_and_hold": "0.079306",
+      "drawdown": "0.004082",
+      "equity": "1.039357",
+      "month": "2022-07",
+      "return": "0.004035",
+      "return_stressed": "0.003648",
+      "trades": 4
+    },
+    {
+      "buy_and_hold": "-0.041648",
+      "drawdown": "0",
+      "equity": "1.046627",
+      "month": "2022-08",
+      "return": "0.006995",
+      "return_stressed": "0.006824",
+      "trades": 2
+    },
+    {
+      "buy_and_hold": "-0.08477",
+      "drawdown": "0.000165",
+      "equity": "1.046455",
+      "month": "2022-09",
+      "return": "-0.000165",
+      "return_stressed": "-0.000681",
+      "trades": 6
+    },
+    {
+      "buy_and_hold": "0.073026",
+      "drawdown": "0",
+      "equity": "1.055999",
+      "month": "2022-10",
+      "return": "0.009121",
+      "return_stressed": "0.008897",
+      "trades": 4
+    },
+    {
+      "buy_and_hold": "0.048329",
+      "drawdown": "0.000416",
+      "equity": "1.05556",
+      "month": "2022-11",
+      "return": "-0.000416",
+      "return_stressed": "-0.00051",
+      "trades": 1
+    },
+    {
+      "buy_and_hold": "-0.054538",
+      "drawdown": "0",
+      "equity": "1.05961",
+      "month": "2022-12",
+      "return": "0.003837",
+      "return_stressed": "0.003169",
+      "trades": 6
+    }
+  ],
+  "notes": [
+    "exploratorio, no vota: ninguna cifra cuenta para el N del proyecto",
+    "con velas de futuros los costos usan el spread típico de config (sin spread medido del CFD): los años viejos pueden pagar de más (C5 del autoanálisis)",
+    "mirar cortes es probar más: no sirven para elegir",
+    "PBO: hacen falta 4 variantes de la familia corridas juntas (hay 1)"
+  ],
+  "pbo": null,
+  "period": {
+    "from": "2020-01-01T00:00:00Z",
+    "to": "2023-01-01T00:00:00Z"
+  },
+  "r_distribution": {
+    "bins": [
+      {
+        "from": "-1.5",
+        "gross": 0,
+        "net": 1,
+        "to": "-1"
+      },
+      {
+        "from": "-1",
+        "gross": 21,
+        "net": 20,
+        "to": "-0.5"
+      },
+      {
+        "from": "-0.5",
+        "gross": 22,
+        "net": 25,
+        "to": "0"
+      },
+      {
+        "from": "0",
+        "gross": 27,
+        "net": 25,
+        "to": "0.5"
+      },
+      {
+        "from": "0.5",
+        "gross": 20,
+        "net": 19,
+        "to": "1"
+      },
+      {
+        "from": "1",
+        "gross": 6,
+        "net": 6,
+        "to": "1.5"
+      },
+      {
+        "from": "1.5",
+        "gross": 6,
+        "net": 6,
+        "to": "2"
+      }
+    ],
+    "step": "0.5"
+  },
+  "report_id": "f62441bd3aedf5f0dcb187640c3fd2480cffe4efb3245809240f84add15762bd",
+  "reproducibility": {
+    "code_version": "9b5debcd8561",
+    "config_sha256": "60c32eebe375cc8e8a2670b06529f5995780654fbdc45ae22cf8dbcd44ec0e60",
+    "last_candle": "2025-10-31T20:45:00Z",
+    "seed": 20261125
+  },
+  "sharpe": {
+    "deflated": "0.144357",
+    "family_variants": 1,
+    "monthly_mean": "0.001623",
+    "project_trials": 361,
+    "sharpe": "0.315227",
+    "sortino": "0.60311",
+    "trials": 362
+  },
+  "slices": {
+    "by_hour_utc": [
+      {
+        "key": "14",
+        "mean_r_net": "-0.195172",
+        "trades": 13,
+        "win_rate": "0.384615"
+      },
+      {
+        "key": "15",
+        "mean_r_net": "0.191735",
+        "trades": 18,
+        "win_rate": "0.611111"
+      },
+      {
+        "key": "16",
+        "mean_r_net": "0.027553",
+        "trades": 12,
+        "win_rate": "0.583333"
+      },
+      {
+        "key": "17",
+        "mean_r_net": "0.21132",
+        "trades": 19,
+        "win_rate": "0.578947"
+      },
+      {
+        "key": "18",
+        "mean_r_net": "0.250912",
+        "trades": 15,
+        "win_rate": "0.6"
+      },
+      {
+        "key": "19",
+        "mean_r_net": "0.15308",
+        "trades": 16,
+        "win_rate": "0.5625"
+      },
+      {
+        "key": "20",
+        "mean_r_net": "0.027687",
+        "trades": 9,
+        "win_rate": "0.444444"
+      }
+    ],
+    "by_side": [
+      {
+        "key": "long",
+        "mean_r_net": "0.098698",
+        "trades": 55,
+        "win_rate": "0.6"
+      },
+      {
+        "key": "short",
+        "mean_r_net": "0.133903",
+        "trades": 47,
+        "win_rate": "0.489362"
+      }
+    ],
+    "by_year": [
+      {
+        "key": "2020",
+        "mean_r_net": "0.107055",
+        "trades": 28,
+        "win_rate": "0.5"
+      },
+      {
+        "key": "2021",
+        "mean_r_net": "0.039533",
+        "trades": 30,
+        "win_rate": "0.566667"
+      },
+      {
+        "key": "2022",
+        "mean_r_net": "0.171326",
+        "trades": 44,
+        "win_rate": "0.568182"
+      }
+    ]
+  },
+  "spec": {
+    "catalog_version": 1,
+    "cost_multiplier": "1",
+    "direction": "both",
+    "entry": [
+      {
+        "params": {
+          "average": "ema",
+          "fast": 20,
+          "slow": 50
+        },
+        "type": "ma_cross"
+      }
+    ],
+    "exit": {
+      "params": {
+        "max_candles": 8,
+        "target_r": "2"
+      },
+      "type": "time_target"
+    },
+    "filters": [],
+    "market": {
+      "instrument_id": "US500",
+      "source": "futures",
+      "timeframe": "1h"
+    },
+    "mode": "exploratory",
+    "period": {
+      "from": "2020-01-01T00:00:00Z",
+      "to": "2023-01-01T00:00:00Z"
+    },
+    "risk_pct": "0.5",
+    "stop": {
+      "params": {
+        "k": "2",
+        "period": 14
+      },
+      "type": "atr"
+    }
+  },
+  "spec_sha256": "941f7aaea753a93cb0c0c074f71ec292277a90b645173626c7f073d61b5012b7",
+  "trades": {
+    "count": 102,
+    "exits": {
+      "force_close": 20,
+      "planned": 55,
+      "stop": 21,
+      "stop_gap": 0,
+      "target": 6
+    },
+    "long": 55,
+    "rejected": [],
+    "short": 47,
+    "through_stop": 0
+  },
+  "votes": false,
+  "walk_forward": [
+    {
+      "from": "2020-01-01T00:00:00Z",
+      "return": "0.011943",
+      "to": "2020-04-01T00:00:00Z",
+      "trades": 8
+    },
+    {
+      "from": "2020-04-01T00:00:00Z",
+      "return": "-0.009173",
+      "to": "2020-07-01T00:00:00Z",
+      "trades": 2
+    },
+    {
+      "from": "2020-07-01T00:00:00Z",
+      "return": "0.004678",
+      "to": "2020-10-01T00:00:00Z",
+      "trades": 10
+    },
+    {
+      "from": "2020-10-01T00:00:00Z",
+      "return": "0.007467",
+      "to": "2021-01-01T00:00:00Z",
+      "trades": 8
+    },
+    {
+      "from": "2021-01-01T00:00:00Z",
+      "return": "0.014682",
+      "to": "2021-04-01T00:00:00Z",
+      "trades": 11
+    },
+    {
+      "from": "2021-04-01T00:00:00Z",
+      "return": "0.000239",
+      "to": "2021-07-01T00:00:00Z",
+      "trades": 7
+    },
+    {
+      "from": "2021-07-01T00:00:00Z",
+      "return": "-0.000935",
+      "to": "2021-10-01T00:00:00Z",
+      "trades": 6
+    },
+    {
+      "from": "2021-10-01T00:00:00Z",
+      "return": "-0.008074",
+      "to": "2022-01-01T00:00:00Z",
+      "trades": 6
+    },
+    {
+      "from": "2022-01-01T00:00:00Z",
+      "return": "0.007671",
+      "to": "2022-04-01T00:00:00Z",
+      "trades": 10
+    },
+    {
+      "from": "2022-04-01T00:00:00Z",
+      "return": "0.006418",
+      "to": "2022-07-01T00:00:00Z",
+      "trades": 11
+    },
+    {
+      "from": "2022-07-01T00:00:00Z",
+      "return": "0.010892",
+      "to": "2022-10-01T00:00:00Z",
+      "trades": 12
+    },
+    {
+      "from": "2022-10-01T00:00:00Z",
+      "return": "0.012571",
+      "to": "2023-01-01T00:00:00Z",
+      "trades": 11
+    }
+  ]
+}
