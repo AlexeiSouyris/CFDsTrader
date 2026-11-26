@@ -302,3 +302,30 @@ fn the_replay_config_is_validated() {
         assert!(AcademyConfig::from_toml(&text).is_err(), "{to}");
     }
 }
+
+#[tokio::test]
+async fn a_session_needs_ordered_bars_and_an_exam_after_the_warmup() {
+    let mut s = open(13, ReplayKind::Practice).await;
+    s.finish().unwrap();
+    let bars = s.all_bars().unwrap().to_vec();
+    let new = |bars: Vec<Candle>, warmup| {
+        ReplaySession::new(
+            "rp-0".into(),
+            ReplayKind::Practice,
+            None,
+            1,
+            s.draw.clone(),
+            bars,
+            warmup,
+        )
+    };
+    assert!(new(bars.clone(), 300).is_ok());
+    let mut shuffled = bars.clone();
+    shuffled.swap(10, 11);
+    assert!(new(shuffled, 300).is_err());
+    assert!(
+        new(bars[..300].to_vec(), 300).is_err(),
+        "sin velas de examen"
+    );
+    assert!(new(bars, 0).is_err());
+}
