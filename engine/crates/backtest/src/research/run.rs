@@ -70,6 +70,11 @@ pub struct StudyTrade {
     pub net_pnl: Decimal,
     /// Capital realizado de la cuenta al decidir.
     pub equity_at_entry: Decimal,
+    /// Máxima excursión adversa (MAE): cuánto llegó a ir en contra el precio medio desde
+    /// `entry_mid` antes de cerrar, en puntos (≥ 0). Ver [`excursions`].
+    pub mae: Decimal,
+    /// Máxima excursión favorable (MFE): cuánto llegó a ir a favor, en puntos (≥ 0).
+    pub mfe: Decimal,
 }
 
 impl StudyTrade {
@@ -77,6 +82,55 @@ impl StudyTrade {
     pub fn total_costs(&self) -> Decimal {
         self.mid_pnl - self.net_pnl
     }
+
+    /// MAE y MFE en R, con R = `|entry_mid − stop|` (la distancia del stop desde la entrada a
+    /// precio medio, como `program4::trade_net_r`). `None` si esa distancia es cero.
+    pub fn excursions_r(&self) -> Option<(Decimal, Decimal)> {
+        let d = (self.entry_mid - self.stop).abs();
+        (d > Decimal::ZERO).then(|| (self.mae / d, self.mfe / d))
+    }
+}
+
+/// MAE y MFE (en puntos, ≥ 0) de una pata de `side` que entró a `entry_mid` en la apertura de
+/// `entry_index` y salió en `exit_index` a `exit_mid` por `exit` (C6 del autoanálisis, #728).
+///
+/// ```text
+/// velas de entry_index a exit_index − 1: el máximo y el mínimo enteros
+/// vela de salida, según el motivo:
+///   gap del stop (StopGap): solo la apertura (sale ahí: nada más de esa vela pasó con la posición)
+///   stop: el lado adverso se corta en el stop; el favorable cuenta la vela entera
+///   objetivo: el lado favorable se corta en el objetivo; el adverso cuenta la vela entera
+///   salida planificada o cierre forzado (al cierre): la vela entera
+/// ```
+/// Dentro de una vela no se sabe el orden de máximo y mínimo: donde se cuenta la vela entera
+/// es una cota (como `diagnostico`). `None` si falta alguna vela.
+pub fn excursions(
+    side: Side,
+    entry_mid: Decimal,
+    entry_index: usize,
+    exit_index: usize,
+    exit_mid: Decimal,
+    exit: StudyExit,
+    m15: &[Candle],
+) -> Option<(Decimal, Decimal)> {
+    let last = m15.get(exit_index)?;
+    let (mut hi, mut lo) = (entry_mid, entry_mid);
+    for c in m15.get(entry_index..exit_index)? {
+        hi = hi.max(c.high);
+        lo = lo.min(c.low);
+    }
+    let (last_hi, last_lo) = match (exit, side) {
+        (StudyExit::StopGap, _) => (last.open, last.open),
+        (StudyExit::Stop, Side::Long) | (StudyExit::Target, Side::Short) => (last.high, exit_mid),
+        (StudyExit::Stop, Side::Short) | (StudyExit::Target, Side::Long) => (exit_mid, last.low),
+        (StudyExit::Planned | StudyExit::ForceClose, _) => (last.high, last.low),
+    };
+    hi = hi.max(last_hi);
+    lo = lo.min(last_lo);
+    Some(match side {
+        Side::Long => (entry_mid - lo, hi - entry_mid),
+        Side::Short => (hi - entry_mid, entry_mid - lo),
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -178,6 +232,16 @@ pub fn execute_plan(
     .ok_or(RunError::NoEntryCandle)?;
     let exit_price = fill_price(side, Execution::Exit, exit_mid, &setup.costs, cfg);
     let exit_time = m15[exit_index].end();
+    let (mae, mfe) = excursions(
+        side,
+        entry_mid,
+        entry_index,
+        exit_index,
+        exit_mid,
+        exit,
+        m15,
+    )
+    .ok_or(RunError::NoEntryCandle)?;
     let commission_total =
         commission(&setup.costs, size, entry_price) + commission(&setup.costs, size, exit_price);
     let cutoffs = funding_cutoffs(
@@ -227,6 +291,8 @@ pub fn execute_plan(
         gross_pnl,
         net_pnl: gross_pnl - commission_total - funding,
         equity_at_entry,
+        mae,
+        mfe,
     })
 }
 
