@@ -12,6 +12,7 @@ import { useId, useState, type ReactNode } from 'react'
 
 import { LabReports } from '@/components/ui/lab-report'
 import { RiskCalculator } from '@/components/ui/lab-risk'
+import { VarianceSimulator } from '@/components/ui/lab-variance'
 import { Segmented } from '@/components/ui/segmented'
 import type {
   BlockSchema,
@@ -703,6 +704,7 @@ function Builder({ cat }: { cat: StrategyCatalog }) {
         {jobError && <p className="text-[12.5px] text-down">{jobError}</p>}
         {event?.state === 'done' && <LabReports ids={event.report_ids} />}
         <RiskCalculator cat={cat} />
+        <VarianceSimulator reports={event?.state === 'done' ? event.report_ids : []} />
       </div>
     </div>
   )
