@@ -1,5 +1,6 @@
 //! La vista de liquidez leída de PostgreSQL **real** (#231). Necesita `DATABASE_URL`; está
-//! marcado `#[ignore]` y el CI lo corre con `-- --ignored`. Cada corrida usa un instrumento propio.
+//! marcado `#[ignore]` y el CI lo corre con `-- --ignored`. Cada test usa un instrumento propio,
+//! con un id que no se repite aunque los tests corran en paralelo (`test_db::unique_id`, #688).
 
 use std::num::NonZeroU32;
 use std::path::PathBuf;
@@ -82,9 +83,10 @@ fn view_analysis() -> ViewAnalysis {
     .unwrap()
 }
 
+/// Un instrumento nuevo, solo de este test. El id no sale de la hora (#688): dos tests en paralelo
+/// podían leer el mismo valor del reloj, compartir el instrumento y ver las velas del otro.
 async fn fresh_instrument(s: &PgStore) -> InstrumentId {
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let id: InstrumentId = format!("ITGW{nanos}").parse().unwrap();
+    let id: InstrumentId = cfds_storage::test_db::unique_id("ITGW").parse().unwrap();
     s.upsert_instrument(&Instrument {
         id: id.clone(),
         name: "Test gateway".into(),
