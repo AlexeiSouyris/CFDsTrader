@@ -3,7 +3,7 @@
 # academy_catalog.v1 (GET /api/v1/academy/catalog). Nada de esto toca el motor de trading, el
 # riesgo ni el paper: solo qué se enseña, cómo se corrige y qué se ve en la UI.
 #
-# Por ahora, niveles 0 a 6, con su contenido (#760, #819 y #828; §8 PR 6, 11 y 15): el texto de
+# Por ahora, niveles 0 a 7, con su contenido (#760, #819 y #828; §8 PR 6, 11 y 15): el texto de
 # cada lección está en `doc` (docs/academia/*.md, formato que valida cfds_academy::lesson_doc: secciones fijas, aviso,
 # sin promesas y una tabla de cifras que el motor compara con su fuente del repo). Mientras una
 # lección con examen no tenga preguntas, su examen sale `ready = false` y no se puede rendir (sus
@@ -27,7 +27,7 @@
 # Examen de replay (#759): `exam = "replay"` con `replay_kind = "levels"` (marcar niveles),
 # `"pivots"` (marcar pivotes confirmados, #800) o `"trades"` (operar con proceso), sin preguntas. Lo califica el motor al terminar la sesión
 # (exam_result.v1) y el intento queda guardado como evento; la lección se aprueba con el proceso
-# aprobado. Lo usan 4.1 (pivots) y 4.2 (levels).
+# aprobado. Lo usan 4.1 (pivots), 4.2 (levels) y 7.2 (trades).
 
 [thresholds]
 # PROVISORIOS (propuesta del diseño, §10.3 y §10.5): son parámetros EDUCATIVOS, no de trading, y
@@ -188,6 +188,15 @@ name = "Precios de fondo"
 id = "tool.vix_regime"
 name = "Régimen del VIX"
 
+# Nivel 7 (#828).
+[[tools]]
+id = "tool.paper_ticket"
+name = "Ticket de paper (preview y órdenes simuladas)"
+
+[[tools]]
+id = "tool.trading_status_bar"
+name = "Barra de estado de la operación (kill switch y pérdida del día)"
+
 [[levels]]
 level = 0
 title = "Orientación: qué es esto y por qué la mayoría pierde"
@@ -215,6 +224,10 @@ title = "Liquidez: niveles, barridas, FVG y order blocks (con advertencias)"
 [[levels]]
 level = 6
 title = "Indicadores"
+
+[[levels]]
+level = 7
+title = "Riesgo y tamaño de posición"
 
 # exam: quiz (preguntas que corrige el motor) | none (se completa sin nota).
 # Las fuentes de cada número están en la tabla «Cifras y fuentes» del `doc` de la lección.
@@ -1667,5 +1680,219 @@ id = "6.5"
 title = "Evidencia: reglas técnicas y fórmulas verificadas"
 objective = "Separar si la fórmula está bien calculada (tests) de si la regla sirve después de costos (estudios y nuestro registro)."
 doc = "docs/academia/nivel-06-5-evidencia-indicadores.md"
+exam = "none"
+unlocks = []
+
+# --- Nivel 7: riesgo y tamaño (#828). R, stop y su distancia, tamaño con los topes aprobados y
+# límites de la cuenta, con los valores de config/risk.toml y config/instruments.toml; caso real
+# R039. 7.2 tiene examen de replay de operaciones: los umbrales son los de [replay] y [thresholds],
+# provisorios, y las reglas de proceso las de config/risk.toml. ---
+
+[[lessons]]
+id = "7.1"
+title = "R"
+objective = "Medir todo en múltiplos del riesgo: 1 R es lo que perdés si toca el stop. Pasar de puntos a euros y a R."
+doc = "docs/academia/nivel-07-1-r.md"
+exam = "quiz"
+unlocks = []
+
+[[lessons.questions]]
+id = "7.1.1"
+kind = "number"
+prompt = "Tamaño 2 € por punto y stop a 25 puntos. ¿Cuánto es 1 R, en €?"
+answer = "50"
+tolerance = "0"
+unit = "€"
+
+[[lessons.questions]]
+id = "7.1.2"
+kind = "number"
+prompt = "Con esa misma operación (1 R = 50 €), cerrás con +60 puntos. ¿Cuántos R ganaste?"
+answer = "2.4"
+tolerance = "0"
+unit = "R"
+
+[[lessons.questions]]
+id = "7.1.3"
+kind = "number"
+prompt = "Perdiste 30 € en una operación con 1 R = 50 €. ¿Cuánto es en R (negativo si perdés)?"
+answer = "-0.6"
+tolerance = "0"
+unit = "R"
+
+[[lessons.questions]]
+id = "7.1.4"
+kind = "number"
+prompt = "Capital 10.000 € y riesgo por operación del 1 % (1 R = 100 €). La operación gana 250 €. ¿Cuántos R?"
+answer = "2.5"
+tolerance = "0"
+unit = "R"
+
+[[lessons.questions]]
+id = "7.1.5"
+kind = "number"
+prompt = "Stop a 40 puntos de la entrada. ¿A cuántos puntos de la entrada va un objetivo de 2 R?"
+answer = "80"
+tolerance = "0"
+unit = "pts"
+
+[[lessons.questions]]
+id = "7.1.6"
+kind = "number"
+prompt = "Spread del US500 de 0,9 puntos y stop a 30 puntos. ¿Cuántos R cuesta el spread de la operación?"
+answer = "0.03"
+tolerance = "0"
+unit = "R"
+
+[[lessons]]
+id = "7.2"
+title = "Stop obligatorio y su distancia"
+objective = "Poner siempre un stop, del lado correcto y entre 0,5 y 3 ATR de la entrada, sabiendo que un gap lo puede saltar."
+doc = "docs/academia/nivel-07-2-stop-obligatorio.md"
+exam = "replay"
+replay_kind = "trades"
+unlocks = []
+
+[[lessons]]
+id = "7.3"
+title = "Tamaño"
+objective = "Calcular el tamaño como el motor: 1 % de riesgo, colchón por gaps, tope del grupo de EE. UU., tope de apalancamiento de 10:1 y mínimo del broker."
+doc = "docs/academia/nivel-07-3-tamano.md"
+exam = "quiz"
+unlocks = ["tool.paper_ticket"]
+
+[[lessons.questions]]
+id = "7.3.1"
+kind = "number"
+prompt = "Capital 10.000 €, riesgo 1 %, US500 en 6.000, ATR 20 y stop a 30 puntos, con el colchón por gaps de 0,25 ATR. ¿Qué tamaño da el motor, en € por punto?"
+answer = "2.86"
+tolerance = "0.01"
+unit = "€/pt"
+
+[[lessons.questions]]
+id = "7.3.2"
+kind = "number"
+prompt = "Con ese tamaño (100 ÷ 35 € por punto), si el precio toca el stop justo a 30 puntos, ¿cuánto perdés, en €?"
+answer = "85.71"
+tolerance = "0.01"
+unit = "€"
+
+[[lessons.questions]]
+id = "7.3.3"
+kind = "number"
+prompt = "Capital 10.000 €. Hay un largo abierto en US100 que arriesga 100 €. Llega una señal en US500 con stop a 30 puntos y ATR 20 (35 puntos con el colchón). Con el tope del grupo de EE. UU. del 1,5 %, ¿qué tamaño da el motor, en € por punto?"
+answer = "1.43"
+tolerance = "0.01"
+unit = "€/pt"
+
+[[lessons.questions]]
+id = "7.3.4"
+kind = "number"
+prompt = "Capital 10.000 €, US100 en 25.000, ATR 20 y stop a 10 puntos (15 con el colchón). Por riesgo daría 6,67 € por punto. Con el tope de apalancamiento de 10:1, ¿qué tamaño da el motor, en € por punto?"
+answer = "4"
+tolerance = "0"
+unit = "€/pt"
+
+[[lessons.questions]]
+id = "7.3.5"
+kind = "choice"
+prompt = "Capital 10.000 €. Hay abiertos un US100 que arriesga 100 € y un US30 que arriesga 50 €. Llega una señal en US500. ¿Qué hace el motor?"
+options = [
+  { id = "a", text = "La abre al 1 %, como siempre." },
+  { id = "b", text = "La rechaza: el grupo de EE. UU. ya usa el 1,5 % y no queda lugar." },
+  { id = "c", text = "Cierra el US30 para hacer lugar." },
+  { id = "d", text = "La abre con el doble de tamaño." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "7.3.6"
+kind = "choice"
+prompt = "Al US500 le queda lugar para arriesgar 20 € en el grupo y la distancia con el colchón es de 35 puntos: el tamaño daría 0,57 € por punto, y el mínimo de IG en US500 es 1. ¿Qué hace el motor?"
+options = [
+  { id = "a", text = "Lo sube a 1, el mínimo." },
+  { id = "b", text = "La rechaza: queda por debajo del mínimo del broker." },
+  { id = "c", text = "Abre 0,57 igual." },
+  { id = "d", text = "Mueve el stop más cerca para que el tamaño llegue a 1." },
+]
+answer = "b"
+
+[[lessons]]
+id = "7.4"
+title = "Límites de la cuenta"
+objective = "Conocer y calcular los frenos de la cuenta: pérdida diaria del 3 %, reducción gradual por caída y kill switch al 15 %."
+doc = "docs/academia/nivel-07-4-limites-de-la-cuenta.md"
+exam = "quiz"
+unlocks = ["tool.trading_status_bar"]
+
+[[lessons.questions]]
+id = "7.4.1"
+kind = "number"
+prompt = "El día empezó con 10.000 € de capital. Con la pérdida diaria máxima del 3 %, ¿con qué capital se cortan las entradas nuevas, en €?"
+answer = "9700"
+tolerance = "0"
+unit = "€"
+
+[[lessons.questions]]
+id = "7.4.2"
+kind = "number"
+prompt = "La caída desde el máximo es del 7,5 %. Con la reducción gradual lineal (5 %, 1) y (10 %, 0,5), ¿cuál es el riesgo por operación, en %?"
+answer = "0.75"
+tolerance = "0"
+unit = "%"
+
+[[lessons.questions]]
+id = "7.4.3"
+kind = "number"
+prompt = "La caída desde el máximo es del 11,25 %. Con los puntos (10 %, 0,5) y (12,5 %, 0,25), ¿cuál es el riesgo por operación, en %?"
+answer = "0.375"
+tolerance = "0"
+unit = "%"
+
+[[lessons.questions]]
+id = "7.4.4"
+kind = "number"
+prompt = "La caída desde el máximo es del 13 %, después del último punto (12,5 %, 0,25). ¿Cuál es el riesgo por operación, en %?"
+answer = "0.25"
+tolerance = "0"
+unit = "%"
+
+[[lessons.questions]]
+id = "7.4.5"
+kind = "number"
+prompt = "El máximo del capital fue 12.000 €. Con el kill switch al 15 % de caída, ¿con qué capital salta, en €?"
+answer = "10200"
+tolerance = "0"
+unit = "€"
+
+[[lessons.questions]]
+id = "7.4.6"
+kind = "choice"
+prompt = "Saltó el kill switch en paper. ¿Qué pasa después?"
+options = [
+  { id = "a", text = "Se reactiva solo al día siguiente." },
+  { id = "b", text = "No se opera más hasta que el dueño decida; en vivo no se reactiva solo." },
+  { id = "c", text = "Se duplica el tamaño para recuperar." },
+  { id = "d", text = "Se reactiva a los 20 días hábiles, igual que en el backtest." },
+]
+answer = "b"
+
+[[lessons.questions]]
+id = "7.4.7"
+kind = "choice"
+prompt = "¿Qué hacen la pérdida diaria, la reducción gradual y el kill switch con las señales de la estrategia?"
+options = [
+  { id = "a", text = "Las mejoran." },
+  { id = "b", text = "Nada: no cambian ninguna señal; solo achican el tamaño o cortan las entradas nuevas." },
+  { id = "c", text = "Invierten las señales en una mala racha." },
+  { id = "d", text = "Eligen qué instrumento operar." },
+]
+answer = "b"
+
+[[lessons]]
+id = "7.5"
+title = "Caso real: los topes no crean ventaja"
+objective = "Leer R039: con los topes, la estrategia en uso pierde menos y más despacio, pero sigue perdiendo."
+doc = "docs/academia/nivel-07-5-caso-real-topes.md"
 exam = "none"
 unlocks = []
