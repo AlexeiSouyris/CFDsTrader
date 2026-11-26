@@ -7,6 +7,10 @@
 //! | `GET /api/v1/academy/progress` | `academy_progress.v1` |
 //! | `POST /api/v1/academy/events` | `academy_event.v1#/$defs/request` → `academy_event.v1` (guardado) |
 //! | `POST /api/v1/academy/quiz/{lesson_id}` | `quiz_answer.v1` → `quiz_result.v1` (el intento se guarda) |
+//! | `GET /api/v1/academy/lessons/{lesson_id}/doc` | `academy_lesson_doc.v1` (el texto de la lección, #798) |
+//!
+//! El texto de las lecciones se lee al arrancar ([`LessonDocs::load`], solo dentro de
+//! `docs/academia/`): la ruta lo busca en memoria por el id, nunca abre un archivo del pedido.
 //!
 //! Escritura: los mismos chequeos que el broker simulado (token anti-CSRF `x-cfds-token`,
 //! `application/json`, tamaño; [`crate::paper::write_guard`]) y solo en `academy_events`, de solo
@@ -16,8 +20,8 @@ use std::future::Future;
 
 use cfds_academy::pg::PgAcademy;
 use cfds_academy::{
-    AcademyConfig, AcademyEvent, EventBody, EventRequest, QuizAnswer, QuizError, grade_quiz,
-    progress,
+    AcademyConfig, AcademyEvent, EventBody, EventRequest, LessonDocs, QuizAnswer, QuizError,
+    grade_quiz, progress,
 };
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
@@ -124,11 +128,12 @@ fn internal(e: String) -> Reply {
     text(500, "error interno")
 }
 
-/// Atiende las rutas de la Academia. `token` es el token local esperado (`None`: escritura
-/// apagada).
+/// Atiende las rutas de la Academia. `docs` es el texto de las lecciones leído al arrancar.
+/// `token` es el token local esperado (`None`: escritura apagada).
 pub async fn respond_academy<S: AcademyStore>(
     store: &S,
     academy: &AcademyConfig,
+    docs: &LessonDocs,
     routes: &AcademyRoutes,
     token: Option<&str>,
     req: HttpIn<'_>,
@@ -136,7 +141,10 @@ pub async fn respond_academy<S: AcademyStore>(
 ) -> Reply {
     let rest = req.path.strip_prefix(PREFIX).unwrap_or_default();
     let quiz_lesson = rest.strip_prefix("quiz/");
-    let read = matches!(rest, "catalog" | "progress");
+    let doc_lesson = rest
+        .strip_prefix("lessons/")
+        .and_then(|r| r.strip_suffix("/doc"));
+    let read = matches!(rest, "catalog" | "progress") || doc_lesson.is_some();
     if !read && rest != "events" && quiz_lesson.is_none() {
         return text(404, "ruta desconocida");
     }
@@ -148,6 +156,13 @@ pub async fn respond_academy<S: AcademyStore>(
     let version = academy.catalog.catalog_version.as_str();
     if rest == "catalog" {
         return json(&academy.catalog);
+    }
+    if let Some(id) = doc_lesson {
+        // El id solo es una clave del catálogo: nada del pedido llega a una ruta de archivo.
+        return match docs.get(id) {
+            Some(t) => json(t),
+            None => text(404, "esa lección no existe o no tiene texto"),
+        };
     }
     if rest == "progress" {
         return match store.events(member).await {

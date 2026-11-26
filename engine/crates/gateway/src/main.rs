@@ -23,8 +23,8 @@ use std::convert::Infallible;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use cfds_academy::AcademyConfig;
 use cfds_academy::pg::PgAcademy;
+use cfds_academy::{AcademyConfig, LessonDocs};
 use cfds_backtest::BacktestConfig;
 use cfds_broker::BrokerConfig;
 use cfds_core::Instrument;
@@ -101,6 +101,11 @@ fn config_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../config")
 }
 
+/// La raíz del repo (el texto de las lecciones de la Academia está en `docs/academia/`).
+fn repo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..")
+}
+
 struct State {
     source: PgSource,
     catalog: Vec<Instrument>,
@@ -134,6 +139,8 @@ struct State {
     /// Academia (#719): catálogo validado al arrancar y sus eventos de solo agregar.
     academy: PgAcademy,
     academy_cfg: AcademyConfig,
+    /// El texto de cada lección (#798), leído y validado al arrancar.
+    lesson_docs: LessonDocs,
     academy_routes: AcademyRoutes,
     /// Replay de exámenes (#723): sesiones en memoria y su config.
     replay_sessions: ReplaySessions,
@@ -177,6 +184,7 @@ async fn academy_reply(state: &State, req: Request<Incoming>) -> Reply {
     respond_academy(
         &state.academy,
         &state.academy_cfg,
+        &state.lesson_docs,
         &state.academy_routes,
         state.token.as_deref(),
         HttpIn {
@@ -513,6 +521,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let risk = RiskConfig::from_toml(RISK)?;
     let academy_cfg = AcademyConfig::from_toml(ACADEMY)?;
+    let lesson_docs = LessonDocs::load(&academy_cfg, &repo_root())?;
     let academy_routes = AcademyRoutes::from_toml(GATEWAY)?;
     let replay_deps = ReplayDeps::from_config(
         &academy_cfg,
@@ -750,6 +759,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         live_hub,
         academy: PgAcademy::new(store.pool().clone()),
         academy_cfg,
+        lesson_docs,
         academy_routes,
         replay_sessions: ReplaySessions::default(),
         replay_deps,

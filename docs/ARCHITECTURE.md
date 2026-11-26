@@ -46,7 +46,7 @@ Todos los mensajes entre capas están definidos en `contracts/`.
 | [ci](modules/ci.md) | `.github/workflows/ci.yml` | YAML | Checks de Rust, Python y TypeScript en cada PR. | hecho |
 | [contracts](modules/contracts.md) | `contracts/` | JSON Schema | Mensajes entre capas en JSON Schema (índice en `contracts/README.md`). | hecho |
 | [glosario](modules/glosario.md) | `docs/GLOSARIO.md` | Markdown | Única fuente de las definiciones de términos (la UI las reutiliza como tooltips). | hecho |
-| [academy](modules/academy.md) | `engine/crates/academy` (crate `cfds-academy`) | Rust | Academia: catálogo de lecciones con candados, corrección de exámenes, progreso desde eventos de solo agregar y validación del texto de las lecciones. | en curso (#718, #740, #721, #722, #723, #760) |
+| [academy](modules/academy.md) | `engine/crates/academy` (crate `cfds-academy`) | Rust | Academia: catálogo de lecciones con candados, corrección de exámenes, progreso desde eventos de solo agregar y validación del texto de las lecciones. | en curso (#718, #740, #721, #722, #723, #760, #798) |
 | [auth](modules/auth.md) | `engine/crates/auth` | Rust | Cuentas de los miembros, 2FA (TOTP), roles, sesiones y registro de acciones. | planeado |
 | [lab](modules/lab.md) | `engine/crates/backtest/src/lab` (módulo `cfds_backtest::lab`) | Rust | Laboratorio de estrategias: specs por bloques (`strategy_spec.v1`), su catálogo, su validación con hash canónico y su corrida con el arnés de investigación. | en curso (#710) |
 | [backtest](modules/backtest.md) | `engine/crates/backtest` (crate `cfds-backtest`) | Rust | Simulación histórica y paper trading en tiempo real, P/L, costos, métricas y walk-forward. | hecho |

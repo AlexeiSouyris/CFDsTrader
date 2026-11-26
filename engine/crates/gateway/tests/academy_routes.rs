@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use cfds_academy::{AcademyConfig, AcademyEvent, EventBody};
+use cfds_academy::{AcademyConfig, AcademyEvent, EventBody, LessonDocs};
 use cfds_gateway::Reply;
 use cfds_gateway::academy::{AcademyRoutes, AcademyStore, respond_academy};
 use cfds_gateway::paper::HttpIn;
@@ -54,6 +54,12 @@ answer = "2"
 "#;
     let text = without_questions(ACADEMY).replacen(anchor, &format!("{anchor}{questions}"), 1);
     AcademyConfig::from_toml(&text).unwrap()
+}
+
+/// El texto de las lecciones del repo, como lo lee el gateway al arrancar.
+fn docs() -> LessonDocs {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    LessonDocs::load(&academy(), &root).unwrap()
 }
 
 #[derive(Default)]
@@ -115,7 +121,7 @@ async fn call(
         content_type: Some("application/json; charset=utf-8"),
         body: &body,
     };
-    respond_academy(store, &academy(), &routes, Some(TOKEN), req, now()).await
+    respond_academy(store, &academy(), &docs(), &routes, Some(TOKEN), req, now()).await
 }
 
 async fn post(store: &MemStore, path: &str, body: Value) -> Reply {
@@ -196,6 +202,47 @@ async fn catalog_and_progress_follow_their_contracts() {
             .iter()
             .all(|t| t["unlocked"] == json!(false))
     );
+}
+
+#[tokio::test]
+async fn a_lesson_text_follows_its_contract() {
+    let store = MemStore::default();
+    let doc = get(&store, "/api/v1/academy/lessons/0.1/doc").await;
+    assert_valid("academy_lesson_doc.v1.schema.json", &doc);
+    let lesson = academy().lesson("0.1").unwrap().clone();
+    assert_eq!(doc["doc"], json!(lesson.doc));
+    assert_eq!(
+        doc["catalog_version"],
+        json!(academy().catalog.catalog_version)
+    );
+    let md = doc["markdown"].as_str().unwrap();
+    assert!(md.starts_with(&format!("# 0.1 {}", lesson.title)));
+    // Ni lecciones que no existen ni nada que parezca una ruta de archivo.
+    for path in [
+        "/api/v1/academy/lessons/9.9/doc",
+        "/api/v1/academy/lessons/../doc",
+        "/api/v1/academy/lessons/%2e%2e/doc",
+        "/api/v1/academy/lessons/..%2F..%2FCLAUDE.md/doc",
+        "/api/v1/academy/lessons/docs/academia/nivel-00-1-que-es-un-mercado.md/doc",
+        "/api/v1/academy/lessons//doc",
+        "/api/v1/academy/lessons/0.1",
+        "/api/v1/academy/lessons/0.1/doc/",
+        "/api/v1/academy/lessons/0.1/docs",
+    ] {
+        let r = call(&store, "GET", path, None, &json!(null)).await;
+        assert_eq!(r.status, 404, "{path}: {}", r.body);
+        assert!(!r.body.contains("no es consejo"), "{path}");
+    }
+    let r = call(
+        &store,
+        "POST",
+        "/api/v1/academy/lessons/0.1/doc",
+        Some(TOKEN),
+        &json!({}),
+    )
+    .await;
+    assert_eq!(r.status, 405);
+    assert!(store.events.lock().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -375,9 +422,17 @@ async fn bad_requests_get_their_status_and_write_nothing() {
             body,
         };
         assert_eq!(
-            respond_academy(&store, &academy(), &routes, Some(TOKEN), req, now())
-                .await
-                .status,
+            respond_academy(
+                &store,
+                &academy(),
+                &docs(),
+                &routes,
+                Some(TOKEN),
+                req,
+                now()
+            )
+            .await
+            .status,
             status
         );
     }
@@ -390,7 +445,7 @@ async fn bad_requests_get_their_status_and_write_nothing() {
         body: b"{}",
     };
     assert_eq!(
-        respond_academy(&store, &academy(), &routes, None, req, now())
+        respond_academy(&store, &academy(), &docs(), &routes, None, req, now())
             .await
             .status,
         403

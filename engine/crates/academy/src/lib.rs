@@ -11,7 +11,8 @@
 //! - [`grade::grade`]: la calificación de una sesión terminada (`exam_result.v1`), proceso
 //!   separado del R.
 //! - [`lesson_doc`]: el texto de cada lección (`docs/academia/*.md`): formato, aviso, sin
-//!   promesas y cada cifra comparada con su fuente del repo (#760).
+//!   promesas y cada cifra comparada con su fuente del repo (#760); [`LessonDocs`] lo lee al
+//!   arrancar, solo dentro de `docs/academia/`, para servirlo (`academy_lesson_doc.v1`, #798).
 
 pub mod catalog;
 pub mod grade;
@@ -22,6 +23,7 @@ pub mod quiz;
 pub mod replay;
 
 pub use catalog::{AcademyConfig, Catalog, ExamKind, QuestionKind, Thresholds};
+pub use lesson_doc::{LessonDocs, LessonText};
 pub use progress::{
     AcademyEvent, EventBody, EventRequest, OverrideAction, Progress, UnlockedBy, progress,
 };
