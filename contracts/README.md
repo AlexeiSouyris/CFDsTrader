@@ -79,6 +79,9 @@ Lista de todos los contratos, generada desde `contracts/*.schema.json` (`title` 
 | [`paper_account.v1`](paper_account.v1.schema.json) | Paper account v1 | Estado de la cuenta del broker simulado (fase 7, #278) al cierre de la última vela (as_of) |
 | [`paper_comparison.v1`](paper_comparison.v1.schema.json) | Paper comparison v1 | Comparación de paper trading (registro del broker simulado) contra el backtest del mismo período, sobre las mismas velas cerradas y la misma config (fase 8, #3… |
 | [`position.v1`](position.v1.schema.json) | Position v1 | Una posición abierta del broker simulado (fase 7, #278), valuada al cierre de la última vela (as_of) |
+| [`prop_rules.v1`](prop_rules.v1.schema.json) | Prop firm rules v1 | Reglas de una cuenta fondeada (docs/design/2026-11-academia.md §6.1, #802) |
+| [`prop_sim_request.v1`](prop_sim_request.v1.schema.json) | Prop firm simulation request v1 | Pedido del simulador de cuentas fondeadas (docs/design/2026-11-academia.md §6.2, #802 y #803) |
+| [`prop_sim_result.v1`](prop_sim_result.v1.schema.json) | Prop firm simulation result v1 | Resultado del simulador de cuentas fondeadas (docs/design/2026-11-academia.md §6.2, #802 y #803) |
 | [`proposal.v1`](proposal.v1.schema.json) | Proposal v1 | Una propuesta de operación del diario (spec §15b) |
 | [`quiz_answer.v1`](quiz_answer.v1.schema.json) | Quiz answer v1 | Las respuestas de un examen de preguntas de la Academia (docs/design/2026-11-academia.md §5.5, #717) |
 | [`quiz_result.v1`](quiz_result.v1.schema.json) | Quiz result v1 | La corrección del motor de un examen de preguntas de la Academia (docs/design/2026-11-academia.md §5.5, #717) |
@@ -516,6 +519,20 @@ Una sesión de replay de la Academia (§5 del diseño): velas reales guardadas, 
 - **Sin mirar el futuro:** la ruta de pasos nunca devuelve una vela después del cursor; marcas y órdenes llevan el cursor del momento, que pone el motor. Una operación se califica con lo que se sabía al decidir (ATR, posición abierta) y su resultado se calcula al terminar.
 - **Costos:** los del CFD del catálogo (`InstrumentCosts::from_spec`, mismas funciones que el backtest): medio spread y slippage en cada ejecución y financiación por noche. Con velas de futuros, la financiación neta es la del CFD menos lo que la base ya descontó (ADR 0015, #467).
 - Los umbrales (operaciones por examen, tolerancia de niveles, calentamiento) son educativos y **provisorios** (`rules.provisional`).
+
+#### Simulador de cuentas fondeadas (#802, #803)
+
+§6 del diseño de la Academia. Lo calcula el motor (crate `cfds-propsim`); la UI solo muestra. Educativo: pagar una evaluación real es dinero real y queda fuera de la app.
+
+| Contrato | Dónde | Qué es |
+|---|---|---|
+| `prop_rules.v1` | plantillas de `config/propsim.toml` (`GET /api/v1/lab/propsim/templates`, lista de `prop_rules.v1`) y dentro del pedido | Las reglas de una cuenta fondeada: fases de evaluación (objetivo, días mínimos y máximos, consistencia), corte del día de la firma (zona IANA y hora), pérdida diaria (% del tamaño o del saldo al inicio del día), caída máxima (`static`, `trailing_eod` o `trailing_intraday`, con o sin traba en el saldo inicial), etapa fondeada hasta el primer cobro (días, ganancia mínima, reparto) y cuotas. En una plantilla los valores pueden ir en `null` (en blanco); para simular, el motor exige los obligatorios y en los opcionales `null` = la regla no existe. |
+| `prop_sim_request.v1` | body de `POST /api/v1/lab/propsim` | Reglas + riesgo por operación (% fijo del tamaño de la cuenta: 1 R = el mismo dinero siempre) + fuente: lista `trades` (cierre UTC y R), `report` (los R netos de un informe guardado, `lab_report.v1#/trade_list`) o `model` (el del simulador de varianza, con operaciones por día). Lo opcional de `monte_carlo` toma `[monte_carlo]` de `config/propsim.toml`. |
+| `prop_sim_result.v1` | respuesta de esa ruta | `observed`: el recorrido determinista de la lista real (pasó, cobró, falló con qué regla y qué día de la firma, se acabó el tiempo o sin terminar). `monte_carlo`: probabilidades por intento con Wilson, por fase, cuotas y valor esperado en dinero, y la comparación con operaciones de esperanza 0 (`beats_zero_edge`). `unsimulable` y `upper_bound` cuando una regla no se pudo simular. |
+
+- **No se inventan reglas:** la única plantilla es la genérica en blanco. Una plantilla con algún valor es de una firma real y necesita `source` (firma, enlace `https` a su reglamento publicado y fecha de lectura); sin eso el motor no arranca.
+- **Saldo al cierre de cada operación:** sin capital vela por vela, la caída que sigue al máximo **intradía** no se simula (no se aproxima): queda en `unsimulable` y pasar es, como mucho, lo que se muestra. Tocar un límite es fallar.
+- Montos en dinero como texto decimal (`Decimal`); probabilidades como texto decimal.
 
 ### Laboratorio de estrategias (#710, #725)
 
