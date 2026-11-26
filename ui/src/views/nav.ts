@@ -123,20 +123,20 @@ export const VIEWS: ShellView[] = [
       'El diario de las operaciones en simulación: cada una con su motivo, el resultado del motor y la nota.',
   },
   {
-    id: 'academia',
-    label: 'Academia',
-    short: 'Academia',
-    icon: GraduationCap,
-    description:
-      'El curso por niveles, sus exámenes y qué herramienta abre cada lección. Lo califica el motor; todo en simulación.',
-  },
-  {
     id: 'competencia',
     label: 'Trofeos',
     short: 'Trofeos',
     icon: Trophy,
     description:
       'Logros del proceso: respetar el stop, anotar cada operación y cumplir las reglas. Nunca premian la ganancia.',
+  },
+  {
+    id: 'academia',
+    label: 'Academia',
+    short: 'Academia',
+    icon: GraduationCap,
+    description:
+      'El curso por niveles, sus exámenes y qué herramienta abre cada lección. Lo califica el motor; todo en simulación.',
   },
   {
     id: 'panel',
@@ -163,8 +163,8 @@ export const NAV_SECTIONS = [
   'noticias',
   'fondo',
   'operaciones',
-  'academia',
   'competencia',
+  'academia',
 ] as const
 
 /** La sección de cada vista que vive dentro de otra (los hashes viejos siguen funcionando). */
