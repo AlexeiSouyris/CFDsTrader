@@ -54,6 +54,7 @@ Lista de todos los contratos, generada desde `contracts/*.schema.json` (`title` 
 | [`imbalance.v1`](imbalance.v1.schema.json) | Imbalance v1 | Desequilibrio aproximado desde el precio al cierre de una vela (spec §5.4.1, #231) |
 | [`instrument.v1`](instrument.v1.schema.json) | Instrument v1 | Un instrumento operable o de contexto |
 | [`lab_report.v1`](lab_report.v1.schema.json) | Lab report v1 | Informe de una corrida del laboratorio de estrategias (docs/design/2026-11-laboratorio.md §3, #710) |
+| [`lab_trial.v1`](lab_trial.v1.schema.json) | Lab trial v1 | Una variante probada en el laboratorio de estrategias (docs/design/2026-11-laboratorio.md §2.2, #710) |
 | [`learning_report.v1`](learning_report.v1.schema.json) | Learning report v1 | Informe de aprendizaje continuo (fase 8b, spec §15b, #327), armado solo con el diario (proposal.v1 + outcome.v1) de un período |
 | [`liquidity_level.v1`](liquidity_level.v1.schema.json) | Liquidity level v1 | Un nivel del mapa de liquidez (spec §5.4.1, #231) |
 | [`liquidity_stats.v1`](liquidity_stats.v1.schema.json) | Liquidity stats v1 | Agregados de FVG (fvg_event.v1) o de gaps de apertura (opening_gap.v1) de un grupo |
@@ -518,6 +519,7 @@ Diseño: `docs/design/2026-11-laboratorio.md`. Por ahora no viajan por Redis ni 
 | `strategy_spec.v1` | (UI o archivo → motor) La estrategia declarativa: `market`, `direction`, `entry` (condiciones unidas con "y"), `filters`, `stop`, `exit`, `risk_pct`, `cost_multiplier`, `period` y `mode`. Cada bloque es `{type, params}` con los nombres del catálogo. |
 | `spec_validation.v1` | (motor → UI) `valid`, la versión del catálogo, el hash de la spec y el de su familia (o `null`) y la lista completa de errores con `code`, `path` (JSON Pointer) y `message`. |
 | `lab_report.v1` | (motor → archivo, después UI) El informe de una corrida (§3 del diseño): operaciones y salidas, esperanza en R con IC, win rate con Wilson, profit factor, histograma de R, curva mensual con caída y comprar y mantener, Sharpe, Sortino y Sharpe deflactado con su N, PBO, Monte Carlo y riesgo de ruina, walk-forward, mitades, costos × 1,5, test de suerte, MAE/MFE, borde bruto contra costos, cortes y avisos. `votes` y `label` dicen si vota (en exploratorio, nunca). `report_id` = SHA-256 de lo que lo reproduce (spec, config, código, última vela, semilla). |
+| `lab_trial.v1` | (motor → archivo de solo agregar, después tabla) Una variante probada: hash de la spec y de la familia, instrumento, timeframe, modo, versión del catálogo, informe y hora. Las variantes distintas de una familia suman al N del Sharpe deflactado del laboratorio; una spec repetida no suma de nuevo. |
 
 - **El catálogo manda:** un bloque, un parámetro o un valor que el catálogo no tiene se rechaza (`spec_validation.v1`), aunque el schema de la spec lo acepte por su forma.
 - **Un parámetro opcional ausente queda apagado:** el motor nunca rellena con `default` (es solo lo que la UI propone), así la spec dice exactamente lo que se corre.

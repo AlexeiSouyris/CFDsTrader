@@ -6,7 +6,8 @@
 use std::path::PathBuf;
 
 use cfds_backtest::lab::{
-    LabConfig, LabSeries, StrategySpec, ValidSpec, catalog, plans_from_spec, validate_spec,
+    LabConfig, LabSeries, StrategySpec, ValidSpec, catalog, planned_exit_for, plans_from_spec,
+    validate_spec,
 };
 use cfds_backtest::research::{OrbConfig, Plan, orb_plans};
 use cfds_core::{Candle, InstrumentId, Timeframe};
@@ -297,6 +298,36 @@ fn all_conditions_have_to_agree_and_warmup_gives_nothing() {
     let mut cold = one.clone();
     cold["stop"]["params"]["period"] = json!(40);
     assert!(plans(&cold, &m15, &session).is_empty());
+}
+
+#[test]
+fn the_planned_exit_of_any_decision_follows_the_spec() {
+    let session = session();
+    let closes: Vec<Decimal> = (0..96).map(|k| v_shape(k / 4)).collect();
+    let m15 = candles_from(at("2024-01-10T00:00:00Z"), &closes);
+    let h1 = aggregate_h1(&m15).unwrap();
+    let entries = vec![true; m15.len()];
+    let s = LabSeries {
+        m15: &m15,
+        h1: &h1,
+        session: &session,
+        entries: &entries,
+    };
+    for (timeframe, n) in [("15m", 3), ("1h", 2)] {
+        let v = valid(&spec(timeframe, ma(2, 4), json!({ "max_candles": n })));
+        let got = plans_from_spec(&v, &s);
+        assert!(!got.is_empty());
+        for p in &got {
+            assert_eq!(planned_exit_for(&v, &s, p.signal_index), Some(p.exit_index));
+        }
+        // Con 1h, una vela de 15m que no cierra con la hora no es una decisión.
+        if timeframe == "1h" {
+            assert_eq!(planned_exit_for(&v, &s, 1), None);
+            assert!(planned_exit_for(&v, &s, 3).is_some());
+        }
+        // Sin la vela de la salida (fin de los datos) no hay salida.
+        assert_eq!(planned_exit_for(&v, &s, m15.len() - 2), None);
+    }
 }
 
 // ── Sin repintado: cortar la serie no cambia los planes anteriores ──────────────────────────

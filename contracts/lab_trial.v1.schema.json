@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/lab_trial.v1.schema.json",
+  "title": "Lab trial v1",
+  "description": "Una variante probada en el laboratorio de estrategias (docs/design/2026-11-laboratorio.md §2.2, #710): cada corrida exploratoria deja una de solo agregar, así la búsqueda queda contada. Las variantes distintas de una familia (spec_sha256 distintos con el mismo family_sha256) suman al N del Sharpe deflactado que muestra el laboratorio y forman el conteo visible (\"probaste 23 variantes de esta familia\"); una spec repetida no suma de nuevo. Las exploratorias NO suman al N del proyecto (regla del presupuesto #660 §4.1; el cambio propuesto en §9 punto 1 del diseño sigue PENDIENTE). Lo escribe el motor (Rust); mientras no haya tabla (L8) va a un archivo JSON Lines de solo agregar.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spec_sha256", "family_sha256", "instrument_id", "timeframe", "mode", "catalog_version",
+    "report_id", "recorded_at"
+  ],
+  "properties": {
+    "spec_sha256": { "$ref": "#/$defs/sha256" },
+    "family_sha256": { "$ref": "#/$defs/sha256" },
+    "instrument_id": {
+      "description": "El instrumento de la spec (el CFD, por ejemplo US500).",
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$"
+    },
+    "timeframe": { "enum": ["15m", "1h"] },
+    "mode": { "enum": ["exploratory", "confirmatory"] },
+    "catalog_version": { "type": "integer", "minimum": 1 },
+    "report_id": {
+      "description": "El informe (lab_report.v1) de la corrida.",
+      "$ref": "#/$defs/sha256"
+    },
+    "recorded_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
