@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/academy_lesson_doc.v1.schema.json",
+  "title": "Academy lesson doc v1",
+  "description": "El texto de una lección de la Academia (docs/design/2026-11-academia.md §2, #798): respuesta de GET /api/v1/academy/lessons/{lesson_id}/doc. Es el Markdown del repo que indica el campo doc del catálogo (academy_catalog.v1), leído por el motor al arrancar solo dentro de docs/academia/ y validado con el formato fijo de las lecciones (título, aviso de que no es consejo de inversión, secciones y tabla de cifras con su fuente, sin promesas de ganancias). La ruta del archivo sale del catálogo, nunca del pedido. La UI lo muestra sin inyectar HTML: solo el plegable <details><summary> del formato se vuelve un elemento; todo otro HTML queda como texto. Las claves de los exámenes no viajan acá (las tiene el motor).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["lesson_id", "doc", "catalog_version", "markdown"],
+  "properties": {
+    "lesson_id": { "$ref": "academy_catalog.v1.schema.json#/$defs/lesson_id" },
+    "doc": { "description": "La ruta del texto en el repo, igual que el campo doc de la lección en el catálogo.", "type": "string", "pattern": "^docs/academia/[a-z0-9._/-]{1,120}\\.md$" },
+    "catalog_version": { "description": "La versión del catálogo con la que el motor cargó el texto.", "$ref": "academy_catalog.v1.schema.json#/$defs/version" },
+    "markdown": { "description": "El texto de la lección en Markdown (UTF-8, hasta 256 KiB), tal como está en el repo.", "type": "string", "minLength": 1, "maxLength": 262144 }
+  }
+}

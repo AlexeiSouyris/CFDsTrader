@@ -17,6 +17,7 @@ Lista de todos los contratos, generada desde `contracts/*.schema.json` (`title` 
 |---|---|---|
 | [`academy_catalog.v1`](academy_catalog.v1.schema.json) | Academy catalog v1 | El catálogo de la Academia (docs/design/2026-11-academia.md §4 y §5.5, #717) |
 | [`academy_event.v1`](academy_event.v1.schema.json) | Academy event v1 | Un evento de progreso de la Academia (docs/design/2026-11-academia.md §4.2, #717), tal como se guarda en academy_events (solo agregar |
+| [`academy_lesson_doc.v1`](academy_lesson_doc.v1.schema.json) | Academy lesson doc v1 | El texto de una lección de la Academia (docs/design/2026-11-academia.md §2, #798) |
 | [`academy_progress.v1`](academy_progress.v1.schema.json) | Academy progress v1 | El estado de la Academia de una persona, calculado por el motor leyendo sus eventos (academy_event.v1) contra el catálogo vigente (docs/design/2026-11-academia… |
 | [`analog_report.v1`](analog_report.v1.schema.json) | Analog report v1 | Análogos históricos de la última ventana de un índice (spec §13, #148, #294) |
 | [`backtest_run.v1`](backtest_run.v1.schema.json) | Backtest run v1 | Una corrida de backtest del diario (spec §15b, #200) |
@@ -492,6 +493,7 @@ Diseño en `docs/design/2026-11-academia.md` (§4 y §5.5). Todo lo calcula el m
 | `quiz_result.v1` | respuesta de esa ruta, y detalle del intento guardado | Qué pregunta estuvo bien o mal (nunca la respuesta correcta), `score_pct` = correctas / total × 100 redondeado hacia abajo a 2 decimales, `pass_pct` vigente y `passed`. Una pregunta sin responder cuenta como incorrecta. |
 | `academy_event.v1` | tabla `academy_events` (#718); el pedido de `POST /api/v1/academy/events` es `$defs/request` | Un evento de progreso: `exam_attempt` (con su `quiz_result.v1`), `lesson_completed` (solo lecciones sin examen) o `tool_override` (`unlock` / `relock` de una herramienta o de todas con `*`), con quién (`member_id`) y cuándo. |
 | `academy_progress.v1` | `GET /api/v1/academy/progress` | Estado calculado por el motor leyendo los eventos en orden: por lección, si se aprobó (y cuándo, la primera vez), intentos y mejor nota; por herramienta, si está abierta y si es por su lección o solo a mano. |
+| `academy_lesson_doc.v1` | `GET /api/v1/academy/lessons/{lesson_id}/doc` (#798) | El texto de la lección en Markdown, tal como está en el repo (`docs/academia/`, el `doc` del catálogo). El motor lo lee al arrancar **solo dentro de esa carpeta** (la ruta sale del catálogo, nunca del pedido; un enlace simbólico que sale de la carpeta se rechaza) y lo valida con el formato de las lecciones. La UI lo muestra sin inyectar HTML. |
 
 - **Solo agregar:** `academy_events` nunca se edita; cada intento queda guardado. El estado no se guarda aparte: se reconstruye.
 - **Desbloqueo a mano:** `unlock` abre la herramienta aunque no se haya aprobado su lección; `relock` quita ese desbloqueo (vuelve a lo que digan las lecciones: lo aprobado sigue abierto). El último evento que alcanza a una herramienta (el suyo o uno de `*`) decide. Desbloquear no cambia nada del motor, del riesgo ni del paper.

@@ -7,9 +7,11 @@ mod common;
 
 use std::path::{Path, PathBuf};
 
-use cfds_academy::AcademyConfig;
 use cfds_academy::catalog::{Exam, ExamKind, Lesson};
-use cfds_academy::lesson_doc::{Evidence, FigureSource, parse_lesson_doc, verify_figures};
+use cfds_academy::lesson_doc::{
+    Evidence, FigureSource, MAX_DOC_BYTES, parse_lesson_doc, verify_figures,
+};
+use cfds_academy::{AcademyConfig, LessonDocs};
 use common::REAL;
 
 fn repo() -> PathBuf {
@@ -185,4 +187,105 @@ fn malformed_texts_are_rejected() {
             "{what}: debería rechazarse"
         );
     }
+}
+
+#[test]
+fn the_real_texts_load_at_startup_and_are_served_by_lesson_id() {
+    let cfg = AcademyConfig::from_toml(REAL).unwrap();
+    let docs = LessonDocs::load(&cfg, &repo()).unwrap();
+    assert_eq!(
+        docs.len(),
+        cfg.lessons().filter(|l| l.doc.is_some()).count()
+    );
+    let first = cfg.lessons().next().unwrap();
+    let text = docs.get(&first.id).unwrap();
+    assert_eq!(Some(text.doc.as_str()), first.doc.as_deref());
+    assert_eq!(text.catalog_version, cfg.catalog.catalog_version);
+    assert_eq!(Some(text.markdown.clone()), read(&text.doc));
+    // El id es solo una clave: nada que parezca una ruta encuentra un texto.
+    for odd in [
+        "9.9",
+        "..",
+        "docs/academia/nivel-00-1-que-es-un-mercado.md",
+        "",
+    ] {
+        assert!(docs.get(odd).is_none(), "{odd}");
+    }
+}
+
+/// Una config mínima con la lección 2.1 (texto en `doc`, o sin texto con `None`).
+fn one_lesson(doc: Option<&str>) -> AcademyConfig {
+    let head = REAL.split("# Herramientas con candado").next().unwrap();
+    let doc = doc.map_or(String::new(), |d| format!("doc = \"{d}\"\n"));
+    let text = format!(
+        "{head}[[tools]]\nid = \"tool.watchlist\"\nname = \"Watchlist\"\n\n\
+         [[levels]]\nlevel = 2\ntitle = \"Costos\"\n\n\
+         [[lessons]]\nid = \"2.1\"\ntitle = \"Spread\"\nobjective = \"Saber que se entra pagando.\"\n\
+         {doc}exam = \"none\"\nunlocks = [\"tool.watchlist\"]\n"
+    );
+    AcademyConfig::from_toml(&text).unwrap()
+}
+
+/// Una raíz de repo de prueba (vacía) con `docs/academia/`.
+fn temp_root(name: &str) -> PathBuf {
+    let root = std::env::temp_dir().join(format!("cfds-academy-{}-{name}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("docs/academia")).unwrap();
+    root
+}
+
+#[test]
+fn texts_load_only_from_docs_academia_and_only_when_valid() {
+    let root = temp_root("load");
+    let cfg = one_lesson(Some("docs/academia/x.md"));
+    // Sin el archivo, no arranca.
+    assert!(LessonDocs::load(&cfg, &root).is_err());
+    std::fs::write(root.join("docs/academia/x.md"), GOOD).unwrap();
+    let docs = LessonDocs::load(&cfg, &root).unwrap();
+    assert_eq!(docs.get("2.1").unwrap().markdown, GOOD);
+    // Un texto que no cumple el formato tampoco.
+    std::fs::write(
+        root.join("docs/academia/x.md"),
+        GOOD.replace("## Ejercicio\n", ""),
+    )
+    .unwrap();
+    assert!(LessonDocs::load(&cfg, &root).is_err());
+    // Ni uno demasiado grande.
+    let big = format!(
+        "{GOOD}{}",
+        "a".repeat(usize::try_from(MAX_DOC_BYTES).unwrap())
+    );
+    std::fs::write(root.join("docs/academia/x.md"), big).unwrap();
+    assert!(LessonDocs::load(&cfg, &root).is_err());
+    // Una carpeta con el nombre del texto no es un texto.
+    std::fs::remove_file(root.join("docs/academia/x.md")).unwrap();
+    std::fs::create_dir(root.join("docs/academia/x.md")).unwrap();
+    assert!(LessonDocs::load(&cfg, &root).is_err());
+    // Una lección sin texto no se sirve.
+    let docs = LessonDocs::load(&one_lesson(None), &root).unwrap();
+    assert!(docs.is_empty() && docs.get("2.1").is_none());
+    // Sin la carpeta, no arranca.
+    assert!(LessonDocs::load(&cfg, &root.join("otra")).is_err());
+    std::fs::remove_dir_all(&root).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlink_that_leaves_docs_academia_is_rejected() {
+    let root = temp_root("symlink");
+    std::fs::write(root.join("secreto.md"), GOOD).unwrap();
+    std::os::unix::fs::symlink(root.join("secreto.md"), root.join("docs/academia/x.md")).unwrap();
+    let cfg = one_lesson(Some("docs/academia/x.md"));
+    let e = LessonDocs::load(&cfg, &root).unwrap_err().to_string();
+    assert!(e.contains("sale de docs/academia"), "{e}");
+    // Un enlace que queda adentro sí vale.
+    std::fs::write(root.join("docs/academia/y.md"), GOOD).unwrap();
+    std::fs::remove_file(root.join("docs/academia/x.md")).unwrap();
+    std::os::unix::fs::symlink(
+        root.join("docs/academia/y.md"),
+        root.join("docs/academia/x.md"),
+    )
+    .unwrap();
+    assert!(LessonDocs::load(&cfg, &root).is_ok());
+    std::fs::remove_dir_all(&root).unwrap();
 }

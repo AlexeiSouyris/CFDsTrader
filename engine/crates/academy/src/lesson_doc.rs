@@ -17,11 +17,18 @@
 //! - `` `<otro archivo del repo>` `` (`config/`, `docs/`, `engine/`, `contracts/` o `CLAUDE.md`): el
 //!   valor aparece escrito tal cual en el archivo.
 //! - Un enlace `https://...`: fuente externa, verificada a mano (fecha en la fila).
+//!
+//! [`LessonDocs::load`] lee al arrancar el texto de cada lección del catálogo, **solo** dentro de
+//! `docs/academia/`, para que el gateway lo sirva (`academy_lesson_doc.v1`, #798).
+
+use std::collections::BTreeMap;
+use std::path::Path;
 
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 
-use crate::AcademyError;
 use crate::catalog::Lesson;
+use crate::{AcademyConfig, AcademyError};
 
 /// Las secciones obligatorias, en orden (§2 del diseño más las fuentes).
 pub const SECTIONS: [&str; 6] = [
@@ -311,4 +318,87 @@ pub fn verify_figures(
         }
     }
     Ok(())
+}
+
+/// La carpeta de los textos, relativa a la raíz del repo. El campo `doc` del catálogo empieza así.
+pub const DOCS_DIR: &str = "docs/academia";
+
+/// Tamaño máximo de un texto (el mismo tope que `academy_lesson_doc.v1`).
+pub const MAX_DOC_BYTES: u64 = 256 * 1024;
+
+/// `contracts/academy_lesson_doc.v1`: el texto de una lección, tal como está en el repo.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LessonText {
+    pub lesson_id: String,
+    pub doc: String,
+    pub catalog_version: String,
+    pub markdown: String,
+}
+
+/// El texto de cada lección con `doc`, leído y validado al arrancar. El gateway lo busca por el
+/// id de la lección: el pedido nunca elige un archivo.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LessonDocs(BTreeMap<String, LessonText>);
+
+impl LessonDocs {
+    /// Lee de `root` (la raíz del repo) el texto de cada lección del catálogo que tiene `doc`.
+    /// Falla si alguno no está, sale de `docs/academia/` (también con un enlace simbólico), pasa
+    /// de [`MAX_DOC_BYTES`], no es UTF-8 o no cumple el formato ([`parse_lesson_doc`]).
+    pub fn load(cfg: &AcademyConfig, root: &Path) -> Result<Self, AcademyError> {
+        let err = |m: String| AcademyError::LessonDoc(m);
+        let base = root
+            .join(DOCS_DIR)
+            .canonicalize()
+            .map_err(|e| err(format!("{DOCS_DIR}: {e}")))?;
+        let version = &cfg.catalog.catalog_version;
+        let mut out = BTreeMap::new();
+        for lesson in cfg.lessons() {
+            let Some(doc) = lesson.doc.as_deref() else {
+                continue;
+            };
+            let id = &lesson.id;
+            let inside = doc
+                .strip_prefix(DOCS_DIR)
+                .is_some_and(|r| r.starts_with('/') && !r.contains(".."));
+            ensure!(inside, "lección {id}: {doc} no está en {DOCS_DIR}/");
+            let file = root
+                .join(doc)
+                .canonicalize()
+                .map_err(|e| err(format!("lección {id}: {doc}: {e}")))?;
+            ensure!(
+                file.starts_with(&base),
+                "lección {id}: {doc} sale de {DOCS_DIR}/"
+            );
+            let meta = std::fs::metadata(&file).map_err(|e| err(format!("{doc}: {e}")))?;
+            ensure!(
+                meta.is_file() && meta.len() <= MAX_DOC_BYTES,
+                "lección {id}: {doc} no es un archivo o pasa de {MAX_DOC_BYTES} bytes"
+            );
+            let markdown =
+                std::fs::read_to_string(&file).map_err(|e| err(format!("{doc}: {e}")))?;
+            parse_lesson_doc(lesson, &markdown)?;
+            let text = LessonText {
+                lesson_id: id.clone(),
+                doc: doc.to_owned(),
+                catalog_version: version.clone(),
+                markdown,
+            };
+            out.insert(id.clone(), text);
+        }
+        Ok(Self(out))
+    }
+
+    /// El texto de `lesson_id`, o `None` si la lección no existe o no tiene texto.
+    pub fn get(&self, lesson_id: &str) -> Option<&LessonText> {
+        self.0.get(lesson_id)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
