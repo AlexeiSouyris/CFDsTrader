@@ -41,3 +41,4 @@ Diseño: `docs/design/2026-11-laboratorio.md` (#710). Contratos: `strategy_catal
   cargo run --release -p cfds-backtest --example lab_worker -- [--once]
   ```
   Con `--once` corre lo que haya en la cola y termina (para cron con `lockf -t 0`); sin él queda mirando la cola. La sesión puede ser de solo lectura: cada escritura en las tablas del laboratorio declara su transacción de escritura.
+- Rutas del gateway (#776, `cfds_gateway::lab`): catálogo, validación, encolar, estado, cancelar, informe y progreso por SSE (ver la ficha del gateway). La UI solo arma la spec; el motor la valida y la corre.

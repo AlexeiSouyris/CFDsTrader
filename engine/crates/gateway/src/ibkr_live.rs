@@ -270,6 +270,13 @@ impl LiveMessage {
 /// Cuerpo de una respuesta SSE: lo que manda la tarea de esa conexión.
 pub struct SseBody(mpsc::Receiver<Bytes>);
 
+impl SseBody {
+    /// El cuerpo que lee lo que manda `rx` (también lo usa el SSE del laboratorio).
+    pub fn new(rx: mpsc::Receiver<Bytes>) -> Self {
+        Self(rx)
+    }
+}
+
 impl hyper::body::Body for SseBody {
     type Data = Bytes;
     type Error = Infallible;

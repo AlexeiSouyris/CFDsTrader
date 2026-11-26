@@ -34,6 +34,7 @@ pub mod fund;
 pub mod ibkr;
 pub mod ibkr_live;
 pub mod journal;
+pub mod lab;
 pub mod learning;
 pub mod ml;
 pub mod news;
@@ -188,6 +189,9 @@ struct RawConfig {
     /// `[academy]`: lo lee [`academy::AcademyRoutes`] (#719).
     #[allow(dead_code)]
     academy: toml::Table,
+    /// `[lab]`: lo lee [`lab::LabRoutes`] (#776).
+    #[allow(dead_code)]
+    lab: toml::Table,
 }
 
 #[derive(Deserialize)]
