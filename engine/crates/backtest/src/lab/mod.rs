@@ -7,6 +7,9 @@
 //!             (validation)
 //! catálogo:   bloques y parámetros del código + rangos de config/lab.toml + riesgo y distancia
 //!             del stop de config/risk.toml                                   → blocks::catalog
+//! validación: forma del contrato, bloques y parámetros del catálogo, topes, riesgo ≤ config,
+//!             costos ≥ catálogo, período antes del fuera de muestra (research_period)
+//!                                                         → validate_spec → ValidSpec + hashes
 //! hash:       SHA-256 de la spec canónica (claves ordenadas, decimales normalizados, sin
 //!             espacios); familia = mismo instrumento y mismos tipos de bloque (PENDIENTE §9.2)
 //! ```
@@ -15,11 +18,13 @@
 pub mod blocks;
 pub mod catalog;
 pub mod spec;
+pub mod validate;
 pub mod validation;
 
 pub use blocks::{LabConfig, catalog};
 pub use catalog::StrategyCatalog;
 pub use spec::{StrategySpec, canonical_json, family_sha256, sha256_hex, spec_sha256};
+pub use validate::{validate_spec, validate_spec_json};
 pub use validation::{
     Average, EntryCondition, EntryFilter, ErrorCode, ExitRule, SpecError, SpecValidation, StopRule,
     ValidSpec,
