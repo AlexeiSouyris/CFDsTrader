@@ -17,4 +17,24 @@ La Mac mini hace de servidor: los backtests corren ahí, y la MacBook o el celu 
 
 - Tienen que estar andando: Docker, el gateway + Vite (`sh infra/scripts/ui_liquidez.sh`) y el reenvío (`python3 -I infra/scripts/tailnet_forward.py`).
 - La Mac no se duerme (`pmset sleep 0`); la pantalla sí se apaga a los 10 min.
-- Pendiente: que todo arranque solo al prender la Mac (Issue aparte).
+- Arranque automático al prender la Mac: ver abajo (#863).
+
+## Arranque automático (#863)
+
+Una sola vez, en la Mac mini:
+
+```sh
+sh infra/scripts/install_autostart.sh
+```
+
+Desde ahí, al iniciar sesión arrancan solos:
+
+- **Docker Desktop** (ítem de inicio de sesión), que levanta PostgreSQL y Redis.
+- **La terminal** (`com.cfdstrader.terminal`): espera a la base y corre `ui_liquidez.sh` sin abrir el navegador.
+- **El link** (`com.cfdstrader.tailnet`): `tailnet_forward.py`. Si Tailscale todavía no tiene IP, reintenta cada 30 s.
+
+Si alguno se cae, `launchd` lo vuelve a levantar. Los registros quedan en `logs/autostart_*.log`.
+Para sacarlo: `sh infra/scripts/install_autostart.sh --remove`.
+
+**Límite:** con FileVault prendido, después de un corte de luz la Mac pide la contraseña al arrancar.
+Hasta que alguien la escriba, no arranca nada. Eso no se puede (ni se debe) saltear.

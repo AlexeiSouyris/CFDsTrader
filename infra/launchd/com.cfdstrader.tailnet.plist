@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Plantilla (#863): install_autostart.sh reemplaza @ROOT@ y @PATH@ y la copia a ~/Library/LaunchAgents. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.cfdstrader.tailnet</string>
+  <key>ProgramArguments</key>
+  <array><string>/usr/bin/python3</string><string>-I</string><string>@ROOT@/infra/scripts/tailnet_forward.py</string></array>
+  <key>WorkingDirectory</key><string>@ROOT@</string>
+  <key>EnvironmentVariables</key>
+  <dict><key>PATH</key><string>@PATH@</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>StandardOutPath</key><string>@ROOT@/logs/autostart_tailnet.log</string>
+  <key>StandardErrorPath</key><string>@ROOT@/logs/autostart_tailnet.log</string>
+</dict>
+</plist>
