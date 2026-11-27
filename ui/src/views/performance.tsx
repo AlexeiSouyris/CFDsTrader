@@ -19,6 +19,7 @@ import { SortHeader } from '@/components/ui/sort-header'
 import { Term } from '@/components/ui/term'
 import { ToolLock } from '@/components/ui/tool-lock'
 import { dateTimeUtc, decimal } from '@/lib/format'
+import { instrumentName, useInstrumentNames } from '@/lib/liquidity-api'
 import { currencySign, useFund } from '@/lib/fund-api'
 import { dayYear, numOrDash, pctOrDash, signedPct, tone } from '@/lib/run-format'
 import { useBacktestRuns, useRunDetail } from '@/lib/paper-api'
@@ -107,6 +108,7 @@ function RunsTable({
   onOpen: (runId: string) => void
 }) {
   const th = 'py-2 pr-3 font-bold whitespace-nowrap last:pr-0'
+  const names = useInstrumentNames()
   // ordenar es presentación (#581): las corridas se reordenan tal como llegan del motor
   const [sort, onSort] = useSort(NUMERIC)
   const col = COLUMNS.find((c) => c.key === sort?.key)
@@ -160,7 +162,7 @@ function RunsTable({
                   </span>
                 </td>
                 <td data-label="Instrumentos" className={cn(cell, 'pr-3 max-lg:col-span-2')}>
-                  {r.instruments.join(', ')}
+                  {r.instruments.map((id) => instrumentName(names, id)).join(', ')}
                 </td>
                 <td data-label="TF" className={cn(cell, 'pr-3')}>
                   {r.timeframe}

@@ -206,7 +206,8 @@ describe('Terminal con IBKR (#556)', () => {
 
     // volver a un instrumento del broker: 1m no existe ahí, pasa a 15 m; el aviso se va
     const pick = screen.getByRole('group', { name: 'Instrumento del gráfico 1' })
-    fireEvent.click(within(pick).getByRole('button', { name: 'DE40' }))
+    // el selector muestra el nombre del catálogo, no el id (#861)
+    fireEvent.click(within(pick).getByRole('button', { name: 'Alemania 40' }))
     expect(within(tf).getByRole('button', { name: '15m' })).toHaveAttribute('aria-pressed', 'true')
     expect(document.querySelector('[data-ibkr-not-tradable]')).toBeNull()
     expect(gw.posts).toEqual([])

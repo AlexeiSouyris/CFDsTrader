@@ -12,6 +12,7 @@ import { MetricBento, type Metric } from '@/components/ui/metric-bento'
 import { ToolLock } from '@/components/ui/tool-lock'
 import { WorkspacePanel } from '@/components/ui/workspace-panel'
 import type { BacktestRun } from '@/lib/backtest-contracts'
+import { instrumentName, useInstrumentNames } from '@/lib/liquidity-api'
 import { REGISTRY, registryPrograms, type RegistryRow } from '@/lib/results-registry'
 import { dayYear, signedPct, tone } from '@/lib/run-format'
 import { cn } from '@/lib/utils'
@@ -37,6 +38,8 @@ export function RecentResults({
   onOpen: (view: string) => void
 }) {
   const programs = registryPrograms(REGISTRY)
+  const names = useInstrumentNames()
+  const instrumentsText = (ids: string[]) => ids.map((id) => instrumentName(names, id)).join(', ')
   const [strategy, setStrategy] = useState(() => {
     const s = savedStrategy()
     return programs.includes(s) ? s : ALL
@@ -81,7 +84,7 @@ export function RecentResults({
         '—'
       ),
       detail: lastRun
-        ? `${lastRun.instruments.join(', ')} ${lastRun.timeframe} · ${dayYear(lastRun.finished_at)}`
+        ? `${instrumentsText(lastRun.instruments)} ${lastRun.timeframe} · ${dayYear(lastRun.finished_at)}`
         : undefined,
       example: !runsLive,
     },
@@ -201,7 +204,7 @@ export function RecentResults({
                 >
                   <span className="min-w-0">
                     <span className="font-bold">
-                      {run.instruments.join(', ')} {run.timeframe}
+                      {instrumentsText(run.instruments)} {run.timeframe}
                     </span>
                     <span className="block text-[11px] text-muted-foreground">
                       {dayYear(run.from)} – {dayYear(run.to)} · {run.metrics.trades} operaciones

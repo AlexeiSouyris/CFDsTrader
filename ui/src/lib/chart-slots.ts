@@ -10,7 +10,7 @@
 import { fetchOlderIbkrBars, ibkrChartBars, useIbkrBars } from '@/lib/ibkr-api'
 import { liveLabel, useIbkrLive, withLiveBars } from '@/lib/ibkr-live'
 import { IBKR_TIMEFRAMES, type GatewayIbkrBars, type IbkrTimeframe } from '@/lib/ibkr-contracts'
-import { fetchOlderBars, useInstruments, useLiquidityView } from '@/lib/liquidity-api'
+import { catalogNames, fetchOlderBars, useInstruments, useLiquidityView } from '@/lib/liquidity-api'
 import type { OlderPage } from '@/lib/liquidity-api'
 import { chartBars, type ChartBar, type ChartTimeframe } from '@/lib/liquidity-bars'
 import type { LiquidityViewData, ViewTimeframe } from '@/lib/liquidity-contracts'
@@ -79,15 +79,19 @@ export const selKey = (sel: { instrument: string; feed?: 'ibkr' }) =>
 export const parseSelKey = (key: string): { instrument: string; feed?: 'ibkr' } =>
   key.startsWith('ibkr:') ? { instrument: key.slice(5), feed: 'ibkr' } : { instrument: key }
 
-/** Instrumentos y timeframes del catálogo del gateway; sin gateway, los de ejemplo. */
+/**
+ * Instrumentos, timeframes y nombres legibles (#861) del catálogo del gateway; sin gateway, los de
+ * ejemplo y sin nombres (se ve el id).
+ */
 export function useChartCatalog() {
   const catalog = useInstruments()
   return catalog.status === 'ok'
     ? {
         instruments: catalog.data.instruments.map((i) => i.id),
         timeframes: catalog.data.timeframes,
+        names: catalogNames(catalog),
       }
-    : { instruments: TERMINAL_INSTRUMENTS, timeframes: TIMEFRAMES }
+    : { instruments: TERMINAL_INSTRUMENTS, timeframes: TIMEFRAMES, names: catalogNames(catalog) }
 }
 
 /** Los timeframes que ofrece un lugar: los del catálogo o, con IBKR, los de IBKR. */

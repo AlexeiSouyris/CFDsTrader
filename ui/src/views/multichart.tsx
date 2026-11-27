@@ -60,6 +60,7 @@ import {
   type SlotData,
 } from '@/lib/chart-slots'
 import { SlotChart } from '@/components/ui/chart-slot'
+import { instrumentLabel, instrumentName, type InstrumentNames } from '@/lib/liquidity-api'
 import { ChartToolsMenu } from '@/components/ui/chart-tools'
 import { Segmented } from '@/components/ui/segmented'
 import { CursorSync } from '@/lib/cursor-sync'
@@ -143,7 +144,7 @@ export function MultichartView({ single = false }: { single?: boolean }) {
     Array.from({ length: MAX }, () => NO_TOOLS),
   )
   const [chartTools, toggleChartTool, chartToolLocks] = useChartTools()
-  const { instruments, timeframes } = useChartCatalog()
+  const { instruments, timeframes, names } = useChartCatalog()
   const ibkrInstruments = useIbkrInstruments()
   const [cursorHub] = useState(() => new CursorSync())
   const canvasRef = useRef<HTMLDivElement>(null)
@@ -238,7 +239,7 @@ export function MultichartView({ single = false }: { single?: boolean }) {
             <optgroup label="Broker simulado">
               {brokerKeys.map((id) => (
                 <option key={id} value={id}>
-                  {id}
+                  {instrumentLabel(names, id)}
                 </option>
               ))}
             </optgroup>
@@ -272,7 +273,7 @@ export function MultichartView({ single = false }: { single?: boolean }) {
           />
         )}
         <span className="ml-auto" />
-        {single && <CompactHeading slot={current} />}
+        {single && <CompactHeading slot={current} names={names} />}
         {single && current.source && (
           <span className="text-[11px] text-muted-foreground max-sm:hidden">
             {SOURCE[current.source]}
@@ -363,7 +364,7 @@ export function MultichartView({ single = false }: { single?: boolean }) {
               data-chart-slot={i}
               data-active={i === active || undefined}
               aria-current={i === active ? 'true' : undefined}
-              aria-label={`Gráfico ${i + 1}: ${saved.slots[i].instrument} ${saved.slots[i].timeframe}`}
+              aria-label={`Gráfico ${i + 1}: ${instrumentName(names, saved.slots[i].instrument)} ${saved.slots[i].timeframe}`}
               onPointerDownCapture={() => setActive(i)}
               onFocusCapture={() => setActive(i)}
               // el activo se marca con el punto del encabezado (#570), sin borde alrededor del panel
@@ -401,7 +402,7 @@ export function MultichartView({ single = false }: { single?: boolean }) {
                     Gráfico {i + 1}
                     <span className="sr-only">{i === active ? ' (activo)' : ', activar'}</span>
                   </button>
-                  {layout.compact && <CompactHeading slot={slot} />}
+                  {layout.compact && <CompactHeading slot={slot} names={names} />}
                   {slot.source && (
                     // en compacto y en el celular, la fuente queda en el panel de información
                     <span
@@ -417,6 +418,7 @@ export function MultichartView({ single = false }: { single?: boolean }) {
               )}
               <SlotChart
                 slot={slot}
+                names={names}
                 height={height}
                 ruler={tools[i].ruler}
                 onRuler={(ruler) => patchTools(i, ruler ? { ruler, draw: 'none' } : { ruler })}
@@ -434,7 +436,7 @@ export function MultichartView({ single = false }: { single?: boolean }) {
 
         {!single && (
           <ToolLock tool="tool.instrument_panel">
-            <SlotInfo index={active} slot={current} />
+            <SlotInfo index={active} slot={current} names={names} />
           </ToolLock>
         )}
       </div>
@@ -464,7 +466,7 @@ const slotDigits = (slot: SlotData) => priceDigits(slot.bars.slice(-50).map((b) 
  * El encabezado mínimo de un panel en modo compacto (#545): instrumento, timeframe y el cierre de
  * la última vela, tal cual llega del motor (solo con formato de pantalla).
  */
-function CompactHeading({ slot }: { slot: SlotData }) {
+function CompactHeading({ slot, names }: { slot: SlotData; names: InstrumentNames }) {
   const { sel, view, ibkr } = slot
   const last = lastClosed(slot)
   return (
@@ -475,7 +477,7 @@ function CompactHeading({ slot }: { slot: SlotData }) {
       className="flex min-w-0 flex-auto items-baseline gap-2 overflow-hidden text-[12px] whitespace-nowrap"
     >
       <span className="truncate font-bold tracking-[0.08em] text-muted-foreground uppercase">
-        {view?.instrument_id ?? ibkr?.instrument_id ?? sel.instrument} ·{' '}
+        {instrumentName(names, view?.instrument_id ?? ibkr?.instrument_id ?? sel.instrument)} ·{' '}
         {view?.timeframe ?? ibkr?.timeframe ?? sel.timeframe}
       </span>
       {last && (
@@ -492,12 +494,23 @@ function CompactHeading({ slot }: { slot: SlotData }) {
 }
 
 /** Panel lateral: lo que el motor manda del gráfico activo, tal cual llega. */
-function SlotInfo({ index, slot }: { index: number; slot: SlotData }) {
+function SlotInfo({
+  index,
+  slot,
+  names,
+}: {
+  index: number
+  slot: SlotData
+  names: InstrumentNames
+}) {
   const { sel, view, ibkr } = slot
   const last = lastClosed(slot)
   const digits = slotDigits(slot)
   const rows: [string, string][] = [
-    ['Instrumento', sel.feed === 'ibkr' ? `${sel.instrument} (IBKR)` : sel.instrument],
+    [
+      'Instrumento',
+      sel.feed === 'ibkr' ? `${sel.instrument} (IBKR)` : instrumentLabel(names, sel.instrument),
+    ],
     ['Timeframe', sel.timeframe],
     ['Fuente', slot.source ? SOURCE[slot.source] : slot.loading ? 'pidiendo…' : 'sin velas'],
   ]

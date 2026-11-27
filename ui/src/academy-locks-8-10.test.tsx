@@ -8,7 +8,7 @@
  * Catálogo y progreso: los fixtures e2e (el catálogo real, todo bloqueado); «abierto» los abre a
  * mano, como desde Ajustes.
  */
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import catalogFixture from '../e2e/fixtures/academy-catalog.json'
@@ -106,12 +106,15 @@ describe('Laboratorio (#846)', () => {
     expect(await screen.findByRole('form', { name: 'Constructor de estrategias' })).toBeVisible()
     expect(screen.getByText(/Sin corrida todavía/)).toBeVisible()
     expect(screen.getByRole('region', { name: 'Simulador de varianza' })).toBeVisible()
-    // el único candado que queda es el del simulador de cuenta fondeada (nivel 12, #851)
-    expect(
-      [...document.querySelectorAll('[data-tool-lock]')].map((e) =>
-        e.getAttribute('data-tool-lock'),
-      ),
-    ).toEqual(['tool.propsim'])
+    // el único candado que queda es el del simulador de cuenta fondeada (nivel 12, #851); la
+    // Academia llega aparte (con los nombres del catálogo, #861, el orden de las respuestas cambia)
+    await waitFor(() =>
+      expect(
+        [...document.querySelectorAll('[data-tool-lock]')].map((e) =>
+          e.getAttribute('data-tool-lock'),
+        ),
+      ).toEqual(['tool.propsim']),
+    )
   })
 
   it('sin la Academia del motor no se bloquea nada', async () => {

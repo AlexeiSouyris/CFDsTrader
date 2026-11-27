@@ -185,14 +185,14 @@ describe('terminal de trading completa (#552)', () => {
     const options = within(form).getAllByRole('option') as HTMLOptionElement[]
     expect(options.map((o) => o.value)).toEqual(['DE40', 'US30', 'US500'])
     expect(
-      within(form).getByRole('option', { name: /US30 · Wall Street \(sin velas\)/ }),
+      within(form).getByRole('option', { name: /Wall Street \(US30\) \(sin velas\)/ }),
     ).toBeDisabled()
 
     // el gráfico pasa a US500 (operable): el ticket lo sigue, vacío
     fireEvent.change(within(form).getByLabelText(/Stop/), { target: { value: '99' } })
     fireEvent.click(within(markets()).getByText('US 500'))
     const pick = screen.getByRole('group', { name: 'Instrumento del gráfico 1' })
-    expect(within(pick).getByRole('button', { name: 'US500' })).toHaveAttribute(
+    expect(within(pick).getByRole('button', { name: 'US 500' })).toHaveAttribute(
       'aria-pressed',
       'true',
     )

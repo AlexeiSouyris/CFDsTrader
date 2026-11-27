@@ -137,12 +137,12 @@ describe('buscador del encabezado (#362)', () => {
   it('busca instrumentos del catálogo y elegir uno abre el Terminal con ese gráfico', async () => {
     openSearch()
     fireEvent.change(input(), { target: { value: 'alemania' } })
-    const opt = await screen.findByRole('option', { name: /DE40 · Alemania 40/ })
+    const opt = await screen.findByRole('option', { name: /Alemania 40 \(DE40\)/ })
     expect(options()).toHaveLength(1)
     fireEvent.click(opt)
     expect(location.hash).toBe('#terminal')
     const group = await screen.findByRole('group', { name: 'Instrumento del gráfico 1' })
-    expect(within(group).getByRole('button', { name: 'DE40' })).toHaveAttribute(
+    expect(within(group).getByRole('button', { name: 'Alemania 40' })).toHaveAttribute(
       'aria-pressed',
       'true',
     )
@@ -157,11 +157,11 @@ describe('buscador del encabezado (#362)', () => {
       }),
     ).toHaveAttribute('aria-pressed', 'true')
     fireEvent.change(input(), { target: { value: 'DE40' } })
-    await screen.findByRole('option', { name: /^DE40 · / })
+    await screen.findByRole('option', { name: /\(DE40\)$/ })
     fireEvent.keyDown(input(), { key: 'Enter' })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     const group = screen.getByRole('group', { name: 'Instrumento del gráfico 1' })
-    expect(within(group).getByRole('button', { name: 'DE40' })).toHaveAttribute(
+    expect(within(group).getByRole('button', { name: 'Alemania 40' })).toHaveAttribute(
       'aria-pressed',
       'true',
     )

@@ -527,7 +527,7 @@ unlocks = []
 [[lessons.questions]]
 id = "1.2.1"
 kind = "number"
-prompt = "Largo de tamaño 2 (2 € por punto) en US500: entrás en 6.000 y salís en 6.025. ¿Cuál es el resultado antes de costos, en €?"
+prompt = "Largo de tamaño 2 (2 € por punto) en el S&P 500: entrás en 6.000 y salís en 6.025. ¿Cuál es el resultado antes de costos, en €?"
 answer = "50"
 tolerance = "0"
 unit = "€"
@@ -535,7 +535,7 @@ unit = "€"
 [[lessons.questions]]
 id = "1.2.2"
 kind = "number"
-prompt = "Corto de tamaño 1 en US100: entrás en 25.000 y salís en 25.040. ¿Cuál es el resultado antes de costos, en € (negativo si perdés)?"
+prompt = "Corto de tamaño 1 en el Nasdaq 100: entrás en 25.000 y salís en 25.040. ¿Cuál es el resultado antes de costos, en € (negativo si perdés)?"
 answer = "-40"
 tolerance = "0"
 unit = "€"
@@ -543,7 +543,7 @@ unit = "€"
 [[lessons.questions]]
 id = "1.2.3"
 kind = "number"
-prompt = "Corto de tamaño 3 en DE40: entrás en 24.000 y salís en 23.950. ¿Cuál es el resultado antes de costos, en €?"
+prompt = "Corto de tamaño 3 en el DAX 40: entrás en 24.000 y salís en 23.950. ¿Cuál es el resultado antes de costos, en €?"
 answer = "150"
 tolerance = "0"
 unit = "€"
@@ -604,7 +604,7 @@ answer = "a"
 [[lessons.questions]]
 id = "1.3.3"
 kind = "number"
-prompt = "Capital 10.000 €, US100 en 25.000 (1 € por punto). Con el tope de 10:1, ¿cuál es el tamaño máximo, en € por punto?"
+prompt = "Capital 10.000 €, Nasdaq 100 en 25.000 (1 € por punto). Con el tope de 10:1, ¿cuál es el tamaño máximo, en € por punto?"
 answer = "4"
 tolerance = "0"
 unit = "€/pt"
@@ -628,7 +628,7 @@ unit = "€"
 [[lessons.questions]]
 id = "1.3.6"
 kind = "number"
-prompt = "Capital 10.000 €, tamaño 4 en US100 y cierre cuando el capital baja de 2.500 €. ¿Cuántos puntos tiene que caer el US100 para que te cierren (con el margen de la entrada)?"
+prompt = "Capital 10.000 €, tamaño 4 en el Nasdaq 100 y cierre cuando el capital baja de 2.500 €. ¿Cuántos puntos tiene que caer el Nasdaq 100 para que te cierren (con el margen de la entrada)?"
 answer = "1875"
 tolerance = "0"
 unit = "pts"
@@ -666,7 +666,7 @@ unlocks = ["tool.ticket_costs"]
 [[lessons.questions]]
 id = "2.1.1"
 kind = "number"
-prompt = "Entrás largo en US500 y salís enseguida, sin que el precio medio se mueva. Con un spread de 0,9 puntos, ¿cuántos puntos perdiste por el spread (entrada más salida)?"
+prompt = "Entrás largo en el S&P 500 y salís enseguida, sin que el precio medio se mueva. Con un spread de 0,9 puntos, ¿cuántos puntos perdiste por el spread (entrada más salida)?"
 answer = "0.9"
 tolerance = "0"
 unit = "pts"
@@ -674,7 +674,7 @@ unit = "pts"
 [[lessons.questions]]
 id = "2.1.2"
 kind = "number"
-prompt = "US30 con spread de 3,7 puntos y tamaño 2 € por punto: ¿cuánto pagás de spread por la operación completa, en €?"
+prompt = "Dow Jones 30 con spread de 3,7 puntos y tamaño 2 € por punto: ¿cuánto pagás de spread por la operación completa, en €?"
 answer = "7.4"
 tolerance = "0"
 unit = "€"
@@ -682,7 +682,7 @@ unit = "€"
 [[lessons.questions]]
 id = "2.1.3"
 kind = "number"
-prompt = "Stop a 1 ATR = 8 puntos en US500, así que 1 R = 8 puntos. ¿Cuántos R es un spread de 0,9 puntos?"
+prompt = "Stop a 1 ATR = 8 puntos en el S&P 500, así que 1 R = 8 puntos. ¿Cuántos R es un spread de 0,9 puntos?"
 answer = "0.1125"
 tolerance = "0.005"
 unit = "R"
@@ -698,7 +698,7 @@ unit = "R"
 [[lessons.questions]]
 id = "2.1.5"
 kind = "choice"
-prompt = "En la demo de IG, el spread de US30 fue 3,7 puntos en la sesión y 12,2 entre las 21 y las 22 UTC. ¿Qué conviene recordar?"
+prompt = "En la demo de IG, el spread del Dow Jones 30 fue 3,7 puntos en la sesión y 12,2 entre las 21 y las 22 UTC. ¿Qué conviene recordar?"
 options = [
   { id = "a", text = "Fuera de la sesión regular el spread puede ser varias veces mayor." },
   { id = "b", text = "El spread es siempre el mismo." },
@@ -725,7 +725,7 @@ unit = "pts"
 [[lessons.questions]]
 id = "2.2.2"
 kind = "number"
-prompt = "US500 en 6.000 (precio de ejemplo), SOFR 3,94 % + 3 % de IG, base 360. Largo de tamaño 1 (1 € por punto): ¿cuánto pagás por noche, en €?"
+prompt = "S&P 500 en 6.000 (precio de ejemplo), SOFR 3,94 % + 3 % de IG, base 360. Largo de tamaño 1 (1 € por punto): ¿cuánto pagás por noche, en €?"
 answer = "1.1567"
 tolerance = "0.01"
 unit = "€"
@@ -741,7 +741,7 @@ unit = "€"
 [[lessons.questions]]
 id = "2.2.4"
 kind = "number"
-prompt = "Corto de tamaño 1 en US500 en 6.000: la tasa es 3 % − 3,94 % = −0,94 % (base 360). ¿Cuál es el costo por noche, en € (negativo si cobrás)?"
+prompt = "Corto de tamaño 1 en el S&P 500 en 6.000: la tasa es 3 % − 3,94 % = −0,94 % (base 360). ¿Cuál es el costo por noche, en € (negativo si cobrás)?"
 answer = "-0.1567"
 tolerance = "0.01"
 unit = "€"
@@ -749,9 +749,9 @@ unit = "€"
 [[lessons.questions]]
 id = "2.2.5"
 kind = "choice"
-prompt = "En DE40 la referencia es el €STR (2,441 %) y la tasa de IG es 3 %. Un corto..."
+prompt = "En el DAX 40 la referencia es el €STR (2,441 %) y la tasa de IG es 3 %. Un corto..."
 options = [
-  { id = "a", text = "Cobra, como en US500." },
+  { id = "a", text = "Cobra, como en el S&P 500." },
   { id = "b", text = "Paga 0,559 % anual, porque 3 % − 2,441 % es positivo." },
   { id = "c", text = "No paga ni cobra nada." },
 ]
@@ -779,7 +779,7 @@ unlocks = []
 [[lessons.questions]]
 id = "2.3.1"
 kind = "number"
-prompt = "El motor supone un slippage por ejecución de 0,1 × spread + 1 tick. En US500 (spread 0,9; tick 0,01), ¿cuántos puntos es?"
+prompt = "El motor supone un slippage por ejecución de 0,1 × spread + 1 tick. En el S&P 500 (spread 0,9; tick 0,01), ¿cuántos puntos es?"
 answer = "0.1"
 tolerance = "0"
 unit = "pts"
@@ -787,7 +787,7 @@ unit = "pts"
 [[lessons.questions]]
 id = "2.3.2"
 kind = "number"
-prompt = "Con la misma regla, en US100 (spread 1,6; tick 0,1), ¿cuántos puntos de slippage por ejecución?"
+prompt = "Con la misma regla, en el Nasdaq 100 (spread 1,6; tick 0,1), ¿cuántos puntos de slippage por ejecución?"
 answer = "0.26"
 tolerance = "0"
 unit = "pts"
@@ -795,7 +795,7 @@ unit = "pts"
 [[lessons.questions]]
 id = "2.3.3"
 kind = "number"
-prompt = "Costo de ida y vuelta en US500 = spread + slippage de 2 ejecuciones (0,1 cada una). ¿Cuántos puntos da?"
+prompt = "Costo de ida y vuelta en el S&P 500 = spread + slippage de 2 ejecuciones (0,1 cada una). ¿Cuántos puntos da?"
 answer = "1.1"
 tolerance = "0"
 unit = "pts"
@@ -849,7 +849,7 @@ unlocks = ["tool.cost_calculator"]
 [[lessons.questions]]
 id = "2.4.1"
 kind = "choice"
-prompt = "Estrategia en uso, US500, 2011–2025 (R001): −0,02 R por operación antes de costos y 0,18 R de costos. ¿De dónde sale casi toda la pérdida?"
+prompt = "Estrategia en uso, S&P 500, 2011–2025 (R001): −0,02 R por operación antes de costos y 0,18 R de costos. ¿De dónde sale casi toda la pérdida?"
 options = [
   { id = "a", text = "De los costos." },
   { id = "b", text = "De las señales, que antes de costos pierden mucho." },
@@ -860,7 +860,7 @@ answer = "a"
 [[lessons.questions]]
 id = "2.4.2"
 kind = "number"
-prompt = "En R001 (US500) los costos sumaron 56.162 € y el spread 43.528 €. ¿Qué porcentaje de los costos fue el spread? (redondeá a un decimal)"
+prompt = "En R001 (S&P 500) los costos sumaron 56.162 € y el spread 43.528 €. ¿Qué porcentaje de los costos fue el spread? (redondeá a un decimal)"
 answer = "77.5"
 tolerance = "0.5"
 unit = "%"
@@ -920,7 +920,7 @@ unlocks = ["tool.candle_chart"]
 [[lessons.questions]]
 id = "3.1.1"
 kind = "choice"
-prompt = "Vela de 15 m de US500 (precios de ejemplo): apertura 6.000, máximo 6.012, mínimo 5.996, cierre 6.010. ¿Qué vela es?"
+prompt = "Vela de 15 m del S&P 500 (precios de ejemplo): apertura 6.000, máximo 6.012, mínimo 5.996, cierre 6.010. ¿Qué vela es?"
 options = [
   { id = "a", text = "Alcista: cerró arriba de la apertura." },
   { id = "b", text = "Bajista: el mínimo está abajo de la apertura." },
@@ -1213,7 +1213,7 @@ answer = "b"
 [[lessons.questions]]
 id = "5.1.4"
 kind = "number"
-prompt = "El US500 cierra en 6.020 y el paso de los números redondos es 50. ¿Cuál es el número redondo más cercano por encima del cierre?"
+prompt = "El S&P 500 cierra en 6.020 y el paso de los números redondos es 50. ¿Cuál es el número redondo más cercano por encima del cierre?"
 answer = "6050"
 tolerance = "0"
 unit = "pts"
@@ -1427,7 +1427,7 @@ prompt = "R037: las operaciones de la estrategia en uso que coinciden con el pri
 options = [
   { id = "a", text = "Que filtrar por FVG no mejora la estrategia." },
   { id = "b", text = "Que filtrar por FVG la vuelve ganadora." },
-  { id = "c", text = "Que hay que operar solo en US100." },
+  { id = "c", text = "Que hay que operar solo en el Nasdaq 100." },
 ]
 answer = "a"
 
@@ -1448,7 +1448,7 @@ kind = "choice"
 prompt = "¿Cuál conclusión es correcta?"
 options = [
   { id = "a", text = "El FVG nunca sirve en ningún mercado." },
-  { id = "b", text = "Con estas reglas, en US100 y US500 de 2013 a 2025, el primer toque de un FVG de 15 m no rebotó más que un placebo." },
+  { id = "b", text = "Con estas reglas, en el Nasdaq 100 y el S&P 500 de 2013 a 2025, el primer toque de un FVG de 15 m no rebotó más que un placebo." },
   { id = "c", text = "El FVG funciona, pero solo en velas de 1 h." },
 ]
 answer = "b"
@@ -1659,7 +1659,7 @@ options = [
   { id = "a", text = "Pasó con un Sharpe muy superior al de comprar y mantener." },
   { id = "b", text = "No pasó: alfa de +0,19 % por mes con p = 0,17 y un Sharpe menor que el de comprar y mantener." },
   { id = "c", text = "No se pudo correr por falta de datos." },
-  { id = "d", text = "Pasó en US100 y no en US500." },
+  { id = "d", text = "Pasó en el Nasdaq 100 y no en el S&P 500." },
 ]
 answer = "b"
 
@@ -1811,7 +1811,7 @@ unit = "pts"
 [[lessons.questions]]
 id = "7.1.6"
 kind = "number"
-prompt = "Spread del US100 de 1,6 puntos y stop a 32 puntos. ¿Cuántos R cuesta el spread de la operación?"
+prompt = "Spread del Nasdaq 100 de 1,6 puntos y stop a 32 puntos. ¿Cuántos R cuesta el spread de la operación?"
 answer = "0.05"
 tolerance = "0"
 unit = "R"
@@ -1836,7 +1836,7 @@ unlocks = ["tool.paper_ticket"]
 [[lessons.questions]]
 id = "7.3.1"
 kind = "number"
-prompt = "Capital 10.000 €, riesgo 1 %, US500 en 6.000, ATR 24 y stop a 36 puntos, con el colchón por gaps de 0,25 ATR. ¿Qué tamaño da el motor, en € por punto?"
+prompt = "Capital 10.000 €, riesgo 1 %, S&P 500 en 6.000, ATR 24 y stop a 36 puntos, con el colchón por gaps de 0,25 ATR. ¿Qué tamaño da el motor, en € por punto?"
 answer = "2.38"
 tolerance = "0.01"
 unit = "€/pt"
@@ -1852,7 +1852,7 @@ unit = "€"
 [[lessons.questions]]
 id = "7.3.3"
 kind = "number"
-prompt = "Capital 10.000 €. Hay un largo abierto en US30 que arriesga 80 €. Llega una señal en US500 con stop a 36 puntos y ATR 24 (42 puntos con el colchón). Con el tope del grupo de EE. UU. del 1,5 %, ¿qué tamaño da el motor, en € por punto?"
+prompt = "Capital 10.000 €. Hay un largo abierto en el Dow Jones 30 que arriesga 80 €. Llega una señal en el S&P 500 con stop a 36 puntos y ATR 24 (42 puntos con el colchón). Con el tope del grupo de EE. UU. del 1,5 %, ¿qué tamaño da el motor, en € por punto?"
 answer = "1.67"
 tolerance = "0.01"
 unit = "€/pt"
@@ -1860,7 +1860,7 @@ unit = "€/pt"
 [[lessons.questions]]
 id = "7.3.4"
 kind = "number"
-prompt = "Capital 10.000 €, US100 en 20.000, ATR 16 y stop a 8 puntos (12 con el colchón). Por riesgo daría 8,33 € por punto. Con el tope de apalancamiento de 10:1, ¿qué tamaño da el motor, en € por punto?"
+prompt = "Capital 10.000 €, Nasdaq 100 en 20.000, ATR 16 y stop a 8 puntos (12 con el colchón). Por riesgo daría 8,33 € por punto. Con el tope de apalancamiento de 10:1, ¿qué tamaño da el motor, en € por punto?"
 answer = "5"
 tolerance = "0"
 unit = "€/pt"
@@ -1868,11 +1868,11 @@ unit = "€/pt"
 [[lessons.questions]]
 id = "7.3.5"
 kind = "choice"
-prompt = "Capital 10.000 €. Hay abiertos un US100 que arriesga 100 € y un US30 que arriesga 50 €. Llega una señal en US500. ¿Qué hace el motor?"
+prompt = "Capital 10.000 €. Hay abiertos un largo en el Nasdaq 100 que arriesga 100 € y otro en el Dow Jones 30 que arriesga 50 €. Llega una señal en el S&P 500. ¿Qué hace el motor?"
 options = [
   { id = "a", text = "La abre al 1 %, como siempre." },
   { id = "b", text = "La rechaza: el grupo de EE. UU. ya usa el 1,5 % y no queda lugar." },
-  { id = "c", text = "Cierra el US30 para hacer lugar." },
+  { id = "c", text = "Cierra el Dow Jones 30 para hacer lugar." },
   { id = "d", text = "La abre con el doble de tamaño." },
 ]
 answer = "b"
@@ -1880,7 +1880,7 @@ answer = "b"
 [[lessons.questions]]
 id = "7.3.6"
 kind = "choice"
-prompt = "Al US500 le queda lugar para arriesgar 30 € en el grupo y la distancia con el colchón es de 42 puntos: el tamaño daría 0,71 € por punto, y el mínimo de IG en US500 es 1. ¿Qué hace el motor?"
+prompt = "Al S&P 500 le queda lugar para arriesgar 30 € en el grupo y la distancia con el colchón es de 42 puntos: el tamaño daría 0,71 € por punto, y el mínimo de IG en el S&P 500 es 1. ¿Qué hace el motor?"
 options = [
   { id = "a", text = "Lo sube a 1, el mínimo." },
   { id = "b", text = "La rechaza: queda por debajo del mínimo del broker." },
@@ -1995,7 +1995,7 @@ unit = "R"
 [[lessons.questions]]
 id = "8.1.2"
 kind = "number"
-prompt = "La misma regla (40 %, +2 R, −1 R) paga 0,18 R de costos en cada operación, como la estrategia en uso en US500 (R001). ¿Cuál es la expectativa después de costos, en R?"
+prompt = "La misma regla (40 %, +2 R, −1 R) paga 0,18 R de costos en cada operación, como la estrategia en uso en el S&P 500 (R001). ¿Cuál es la expectativa después de costos, en R?"
 answer = "0.02"
 tolerance = "0"
 unit = "R"
@@ -2011,7 +2011,7 @@ unit = "%"
 [[lessons.questions]]
 id = "8.1.4"
 kind = "number"
-prompt = "Objetivo de 1,5 R y stop de 1 R, con 0,13 R de costos por operación (US100, R002). ¿Qué porcentaje de aciertos hace falta, como mínimo, para no perder?"
+prompt = "Objetivo de 1,5 R y stop de 1 R, con 0,13 R de costos por operación (Nasdaq 100, R002). ¿Qué porcentaje de aciertos hace falta, como mínimo, para no perder?"
 answer = "45.2"
 tolerance = "0.1"
 unit = "%"
@@ -2155,7 +2155,7 @@ unit = "€"
 [[lessons.questions]]
 id = "8.3.4"
 kind = "choice"
-prompt = "En H2 (US100), la racha perdedora real fue de 11 meses y el p95 de los caminos remuestreados es 10. ¿Qué es lo más razonable concluir?"
+prompt = "En H2 (Nasdaq 100), la racha perdedora real fue de 11 meses y el p95 de los caminos remuestreados es 10. ¿Qué es lo más razonable concluir?"
 options = [
   { id = "a", text = "Que fue pura mala suerte y no hay nada que mirar." },
   { id = "b", text = "Que la serie real tuvo algo que el remuestreo no reproduce (por ejemplo, un cambio desde 2021) y que conviene mirarlo, sin sacar conclusiones de un solo dato." },
@@ -2519,7 +2519,7 @@ answer = "b"
 [[lessons.questions]]
 id = "9.4.4"
 kind = "choice"
-prompt = "En US100, la estrategia en uso daba +0,07 % por ventana con 8 ventanas (R006) y −6,1 % con 51 (R007). ¿Qué enseña?"
+prompt = "En el Nasdaq 100, la estrategia en uso daba +0,07 % por ventana con 8 ventanas (R006) y −6,1 % con 51 (R007). ¿Qué enseña?"
 options = [
   { id = "a", text = "Que la estrategia mejoró con el tiempo." },
   { id = "b", text = "Que 8 ventanas eran un tramo favorable: con la historia completa, pierde." },
@@ -2713,7 +2713,7 @@ answer = "c"
 [[lessons.questions]]
 id = "10.2.2"
 kind = "number"
-prompt = "Costo por operación en US100 intradía C = 2,12 puntos y factor k = 2. ¿Qué ventaja bruta esperada por operación hace falta, como mínimo, para pasar el filtro, en puntos?"
+prompt = "Costo por operación en el Nasdaq 100 intradía C = 2,12 puntos y factor k = 2. ¿Qué ventaja bruta esperada por operación hace falta, como mínimo, para pasar el filtro, en puntos?"
 answer = "4.24"
 tolerance = "0"
 unit = "pts"
@@ -2909,7 +2909,7 @@ answer = "a"
 [[lessons.questions]]
 id = "10.5.2"
 kind = "choice"
-prompt = "Nuestra prueba A (tendencia de 12 meses en US500, US100 y US30, R016) dio +0,080 % por mes con p 0,14. ¿Por qué no pasó?"
+prompt = "Nuestra prueba A (tendencia de 12 meses en el S&P 500, Nasdaq 100 y Dow Jones 30, R016) dio +0,080 % por mes con p 0,14. ¿Por qué no pasó?"
 options = [
   { id = "a", text = "Porque perdió plata." },
   { id = "b", text = "Porque el resultado es chico y no se distingue del azar (hacía falta p < 0,0125), y su Sharpe fue un tercio del de comprar y mantener." },
@@ -2985,7 +2985,7 @@ unit = "minutos"
 [[lessons.questions]]
 id = "10.6.3"
 kind = "choice"
-prompt = "H1 probó la deriva antes del comunicado del FOMC en US100 (R027). ¿Qué dio?"
+prompt = "H1 probó la deriva antes del comunicado del FOMC en el Nasdaq 100 (R027). ¿Qué dio?"
 options = [
   { id = "a", text = "Pasó con p 0,001." },
   { id = "b", text = "No pasó: alfa de +0,071 % por mes con p 0,120 y Sharpe deflactado 0,036, y la ventaja vino casi toda de 2021–2025." },
@@ -3061,7 +3061,7 @@ unit = "%"
 [[lessons.questions]]
 id = "10.7.4"
 kind = "choice"
-prompt = "Probamos tres reglas suyas en US100 con reglas congeladas (H4.1, H4.2 y H4.3). ¿Qué dieron?"
+prompt = "Probamos tres reglas suyas en el Nasdaq 100 con reglas congeladas (H4.1, H4.2 y H4.3). ¿Qué dieron?"
 options = [
   { id = "a", text = "Las tres pasaron." },
   { id = "b", text = "Ninguna pasó: la literal no se distingue del azar, la normalizada pierde y la estrategia C pierde y no llega a 100 operaciones." },
@@ -3196,7 +3196,7 @@ unit = "%"
 [[lessons.questions]]
 id = "11.2.5"
 kind = "choice"
-prompt = "¿Qué dio H4.3, la regla de Bruni con perfil de volumen, probada con reglas congeladas en US100?"
+prompt = "¿Qué dio H4.3, la regla de Bruni con perfil de volumen, probada con reglas congeladas en el Nasdaq 100?"
 options = [
   { id = "a", text = "Pasó todos los criterios." },
   { id = "b", text = "No pasó: 85 operaciones (menos de las 100 mínimas), pierde antes y después de costos, y queda peor que la mayoría de las entradas al azar." },
@@ -3252,12 +3252,12 @@ answer = "c"
 [[lessons.questions]]
 id = "11.3.4"
 kind = "choice"
-prompt = "Probamos la hipótesis de Baltussen (la última media hora sigue al resto del día) en US500, US100 y US30. ¿Qué dio?"
+prompt = "Probamos la hipótesis de Baltussen (la última media hora sigue al resto del día) en el S&P 500, Nasdaq 100 y Dow Jones 30. ¿Qué dio?"
 options = [
   { id = "a", text = "Ganó mucho con costos." },
   { id = "b", text = "Antes de costos quedó en cero o negativa, y con los costos del CFD perdió alrededor de 2 % por mes: no pasó." },
   { id = "c", text = "No se pudo probar." },
-  { id = "d", text = "Pasó en US100 y en US500." },
+  { id = "d", text = "Pasó en el Nasdaq 100 y en el S&P 500." },
 ]
 answer = "b"
 

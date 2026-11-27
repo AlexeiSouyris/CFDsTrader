@@ -861,7 +861,7 @@ function CommandPalette({
     ...instruments.map((i) => ({
       key: `instrument:${i.id}`,
       group: 'Instrumentos' as const,
-      label: `${i.id} · ${i.name}`,
+      label: `${i.name} (${i.id})`,
       detail: `Instrumento (${i.currency}): abre el Terminal con su gráfico.`,
       text: `${i.id} ${i.name} ${i.asset_class}`,
       icon: LineChart,

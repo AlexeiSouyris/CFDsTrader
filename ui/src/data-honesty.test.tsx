@@ -67,7 +67,10 @@ describe('honestidad de los datos (#577)', () => {
     gateway()
     render(<MultichartView />)
     await waitFor(() =>
-      expect(screen.getAllByText(/El motor todavía no tiene velas de US100 en 15m/).length).toBe(1),
+      expect(
+        screen.getAllByText(/El motor todavía no tiene velas de EEUU Tech 100 \(US100\) en 15m/)
+          .length,
+      ).toBe(1),
     )
     expect(document.querySelector('[data-example]')).toBeNull()
     expect(document.querySelector('svg[role="img"]')).toBeNull()

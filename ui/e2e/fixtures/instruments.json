@@ -9,42 +9,42 @@
  "instruments": [
   {
    "id": "DE40",
-   "name": "Alemania 40",
+   "name": "DAX 40 (Alemania)",
    "asset_class": "index",
    "currency": "EUR",
    "exchange_timezone": "Europe/Berlin"
   },
   {
    "id": "US100",
-   "name": "EEUU Tech 100",
+   "name": "Nasdaq 100",
    "asset_class": "index",
    "currency": "EUR",
    "exchange_timezone": "America/New_York"
   },
   {
    "id": "US2000",
-   "name": "EE. UU. Russell 2000",
+   "name": "Russell 2000",
    "asset_class": "index",
    "currency": "EUR",
    "exchange_timezone": "America/New_York"
   },
   {
    "id": "US30",
-   "name": "Wall Street",
+   "name": "Dow Jones 30",
    "asset_class": "index",
    "currency": "EUR",
    "exchange_timezone": "America/New_York"
   },
   {
    "id": "US500",
-   "name": "US 500",
+   "name": "S&P 500",
    "asset_class": "index",
    "currency": "EUR",
    "exchange_timezone": "America/New_York"
   },
   {
    "id": "XAUUSD",
-   "name": "Oro al contado",
+   "name": "Oro",
    "asset_class": "commodity",
    "currency": "USD",
    "exchange_timezone": "America/Chicago"

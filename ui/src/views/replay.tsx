@@ -19,6 +19,7 @@ import { Segmented } from '@/components/ui/segmented'
 import { ToolLock } from '@/components/ui/tool-lock'
 import { reloadAcademy } from '@/lib/academy-api'
 import { decimal, priceDigits } from '@/lib/format'
+import { instrumentLabel, useInstrumentNames } from '@/lib/liquidity-api'
 import { GatewayError } from '@/lib/paper-api'
 import { cn } from '@/lib/utils'
 import {
@@ -65,6 +66,7 @@ export function ReplayView() {
   const [seed, setSeed] = useState('')
   const [kind, setKind] = useState<ReplayKind>('practice')
   const [picked, setPicked] = useState<Picked>(null)
+  const names = useInstrumentNames()
   const setLive = (l: Live | null) => {
     keep(l)
     setLiveState(l)
@@ -187,7 +189,7 @@ export function ReplayView() {
       {lessonId !== null && <LessonExamBanner lessonId={lessonId} />}
       <dl className="panel flex flex-wrap gap-x-6 gap-y-1 px-2.5 py-2 text-[12px]">
         {[
-          ['Instrumento', `${s.instrument_id} · ${s.timeframe}`],
+          ['Instrumento', `${instrumentLabel(names, s.instrument_id)} · ${s.timeframe}`],
           ['Velas', s.source === 'futures' ? 'de futuros (costos del CFD)' : 'del CFD de IG'],
           ['Vela', `${cursor + 1} de ${total}`],
           ['Semilla', s.seed],
@@ -294,6 +296,7 @@ export function ReplayView() {
       {closed && (
         <ReplayResult
           result={result}
+          names={names}
           digits={digits}
           barAt={(i) => {
             const b = bars.find((x) => x.index === i)

@@ -142,11 +142,12 @@ function WatchGroupList({
                 )}
               >
                 <span className="min-w-0">
-                  <span className="block text-[12.5px] font-extrabold tracking-tight">
-                    {r.instrument_id}
+                  {/* el nombre conocido arriba y el id chico abajo (#861) */}
+                  <span className="block truncate text-[12.5px] font-extrabold tracking-tight">
+                    {names[r.instrument_id] ?? r.instrument_id}
                   </span>
                   <span className="block truncate text-[10.5px] text-muted-foreground">
-                    {names[r.instrument_id] ?? ''}
+                    {names[r.instrument_id] ? r.instrument_id : ''}
                   </span>
                 </span>
                 <span className="text-right">
