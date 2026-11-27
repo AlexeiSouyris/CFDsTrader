@@ -24,6 +24,7 @@ from pathlib import Path
 import psycopg
 
 from cfds_intel.models.config import ROOT, load_config
+from cfds_intel.models.dataset import BacktestOutcomes
 from cfds_intel.models.experiment import CONFIG_FILES, code_version
 from cfds_intel.models.experiment import run as run_experiment
 from cfds_intel.models.registry import record
@@ -77,7 +78,9 @@ def main(argv: list[str]) -> int:
         texts = {n: (ROOT / "config" / n).read_text() for n in CONFIG_FILES}
         with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
             try:
-                _, _, doc = run_experiment(conn, on_id, load_config(texts["ml.toml"]), texts)
+                _, _, doc, _ = run_experiment(
+                    conn, BacktestOutcomes(on_id), load_config(texts["ml.toml"]), texts
+                )
                 record(conn, doc)
             except ValueError as e:  # dataset o cortes imposibles: el informe lo dice
                 print(f"ML: sin experimento ({e})", file=sys.stderr)

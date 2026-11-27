@@ -238,7 +238,7 @@ riesgo_€   = 1 % × capital_actual
 tamaño     = riesgo_€ / R              (€ por punto, convertido a la moneda del instrumento)
 nocional   = tamaño × entrada
 apalanc.   = nocional / capital_actual
-si apalanc. > tope del instrumento (índices 10:1, acciones 3:1):
+si apalanc. > tope del instrumento (índices 10:1, acciones 3:1, oro 10:1, otras materias primas 5:1):
      tamaño = tope × capital_actual / entrada     # el riesgo queda por debajo del 1 %
 si el margen requerido supera el margen libre → no se abre
 si el tamaño es menor al mínimo del broker → no se abre
@@ -364,7 +364,7 @@ Para todas: "la media" es el retorno medio del mismo instrumento y horizonte en 
 | [Drawdown](../GLOSARIO.md#drawdown) desde el máximo del fondo | −15 % | **[Kill switch](../GLOSARIO.md#kill-switch):** no se proponen operaciones y se alerta. Se reactiva solo por votación (sección 1.2) |
 | Posiciones abiertas | 5 | No se abren más |
 | Posiciones por instrumento | 1 | No se abren más |
-| Apalancamiento por posición | índices 10:1, acciones 3:1 | Se reduce el tamaño |
+| Apalancamiento por posición | índices 10:1, acciones 3:1, oro 10:1, otras materias primas 5:1 (ADR 0013) | Se reduce el tamaño |
 | [Stop-out](../GLOSARIO.md#stop-out) del broker | 50 % del margen (mínimo ESMA) | La simulación replica el cierre forzado |
 
 **Kill switch en el backtest (#277).** En vivo, y por omisión en el papel, el kill switch se reactiva solo por votación. El backtest no puede votar, así que tiene una regla **solo para el backtest**:
@@ -436,7 +436,7 @@ NAV = valor total del fondo / unidades emitidas
 aportes: lunes, antes de la apertura europea, al NAV del cierre del viernes; mínimo 10 €
 retiros: se piden antes del lunes y se pagan al NAV del cierre del viernes
 P&L por miembro = unidades × NAV − (aportes − retiros)
-capital simulado inicial: 1.000 €
+capital simulado inicial: 10.000 € (era 1.000 €; cambio del dueño, 24-11-2026, #484)
 ```
 Invariante: la suma del valor de todos los miembros es igual al valor total del fondo, al céntimo.
 
@@ -471,7 +471,7 @@ El sistema aprende de sus resultados, pero **nunca cambia solo sus propios pará
 **Lo decidió el agente** (el grupo no es experto en lo técnico; se puede revisar en cualquier momento, y la fase 5 lo valida con datos):
 - Todos los parámetros técnicos: N = 3 de los pivotes, tolerancias, ATR14 Wilder, pesos del puntaje, umbral 5, 10 minutos de validez, tope de stop de 0,5–3 ATR, trailing a 2 ATR.
 - Reglas de casos borde (sección 12) y salida por tiempo a las 8 h.
-- Topes de apalancamiento propios (10:1 y 3:1, por debajo de ESMA) y stop-out al 50 %.
+- Topes de apalancamiento propios (10:1 y 3:1; oro 10:1 y otras materias primas 5:1, ADR 0013; todos por debajo de ESMA) y stop-out al 50 %.
 - Filtros extra: primeros 15 minutos de sesión, spread anormal, 1 posición por instrumento.
 - Índices de Asia solo como contexto en v1.
 - Análogos solo informativos en v1, y la noticia como señal propia en modo experimental.

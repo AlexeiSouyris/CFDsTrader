@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import App from '@/App'
@@ -39,12 +39,12 @@ describe('vista de liquidez en vivo (#231)', () => {
       return new Response(JSON.stringify(body), { status: 200 })
     })
 
-  it('se abre desde la navegación y pide los datos al gateway', async () => {
+  it('se abre desde la paleta y pide los datos al gateway', async () => {
     const fetch = gateway(() => DATA)
     vi.stubGlobal('fetch', fetch)
     render(<App initialStage="app" />)
-    const nav = screen.getByRole('navigation', { name: 'Vistas' })
-    fireEvent.click(within(nav).getByText('Liquidez'))
+    fireEvent.keyDown(window, { key: 'k', metaKey: true })
+    fireEvent.click(screen.getByRole('option', { name: /^Liquidez/ }))
     expect(screen.getByRole('heading', { level: 1, name: 'Liquidez' })).toBeInTheDocument()
     expect(location.hash).toBe('#liquidez')
     expect(
@@ -226,6 +226,27 @@ describe('vista de liquidez en vivo (#231)', () => {
     )
   })
 
+  it('se lee como informe: secciones numeradas con regla fina, sin tarjetas (#626)', () => {
+    const { container } = render(<LiquidityContent data={DATA} />)
+    const sections = container.querySelectorAll('[data-report-section]')
+    expect(sections).toHaveLength(5)
+    for (const s of sections) {
+      expect(s.className).not.toMatch(/\bpanel\b|rounded-\[20px\]/)
+      expect(s.className).toMatch(/border-t/)
+    }
+    expect(within(sections[1] as HTMLElement).getByText('02')).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    )
+  })
+
+  it('la reacción en ATR se acorta a 2 decimales, sin cambiar el valor del motor (#626)', () => {
+    const long = { ...DATA.fvgs[0], reactions: [{ bars: 4, return_atr: '-1.008479621068377' }] }
+    render(<FvgTable fvgs={[long]} />)
+    expect(screen.getByText('−1,01 ATR')).toBeInTheDocument()
+    expect(screen.queryByText(/1,0084/)).toBeNull()
+  })
+
   it('el ejemplo trae un nivel vencido y la tabla lo muestra atenuado', () => {
     const expired = DATA.levels.filter((l) => l.expired_at)
     expect(expired).toHaveLength(1)
@@ -302,10 +323,13 @@ describe('vista de liquidez en vivo (#231)', () => {
         height={440}
       />,
     )
-    const ys = [...container.querySelectorAll('[data-level-label]')].map((g) =>
-      Number(g.querySelector('rect')!.getAttribute('y')),
-    )
-    expect(ys).toHaveLength(9)
+    const groups = [...container.querySelectorAll('[data-level-label]')]
+    const ys = groups.map((g) => Number(g.querySelector('rect')!.getAttribute('y')))
+    // los que se pisan se agrupan en uno con "+N" (#580): están los 9, en pocos rótulos
+    const total = groups.reduce((s, g) => s + Number(g.getAttribute('data-label-count') ?? 1), 0)
+    expect(total).toBe(9)
+    expect(ys.length).toBeLessThan(9)
+    expect(groups.some((g) => / \+\d+$/.test(g.querySelector('text')!.textContent!))).toBe(true)
     // la caja de cada rótulo (11 px) queda dentro del panel de precio: de 6 a 440 − 22
     for (const y of ys) {
       expect(y).toBeGreaterThanOrEqual(6)
@@ -388,5 +412,83 @@ describe('vista de liquidez en vivo (#231)', () => {
       '/api/v1/liquidity?instrument=US100&timeframe=15m&source=futures',
       expect.anything(),
     )
+  })
+
+  it('abre en automática: si IG no tiene velas muestra futuros, dice por qué y se puede elegir a mano (#628)', async () => {
+    const auto = 'automática (IG; sin velas de IG, futuros)'
+    const fut = 'futuros CME/Eurex (base distinta al CFD)'
+    const note =
+      'IG todavía no tiene velas de este instrumento y timeframe: se muestran futuros de CME/Eurex (Databento). Base distinta al CFD: los niveles no son precios del CFD.'
+    const withSources = {
+      ...INSTRUMENTS,
+      sources: [
+        { id: 'auto', label: auto },
+        { id: 'ig', label: 'IG CFD' },
+        { id: 'futures', label: fut },
+      ],
+    }
+    const fetch = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input), 'http://ui.test')
+      const source = url.searchParams.get('source')
+      const body =
+        url.pathname === '/api/v1/instruments'
+          ? withSources
+          : source === 'auto'
+            ? { ...DATA, source: { id: 'futures', label: fut }, fallback: { from: 'ig', note } }
+            : source === 'futures'
+              ? { ...DATA, source: { id: 'futures', label: fut } }
+              : { ...DATA, source: { id: 'ig', label: 'IG CFD' } }
+      return new Response(JSON.stringify(body), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetch)
+    render(<LiquidityView />)
+    // la etiqueta es la de la fuente que de verdad se usó, con el motivo
+    expect(await screen.findByText(fut, { selector: 'strong' })).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(`Fuente automática: ${note}`)
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/liquidity?instrument=US100&timeframe=15m&source=auto',
+      expect.anything(),
+    )
+    expect(screen.getByRole('button', { name: auto })).toHaveAttribute('aria-pressed', 'true')
+    // a mano, IG: sin reemplazo ni motivo
+    fireEvent.click(screen.getByRole('button', { name: 'IG CFD' }))
+    expect(await screen.findByText('IG CFD', { selector: 'strong' })).toBeInTheDocument()
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/liquidity?instrument=US100&timeframe=15m',
+      expect.anything(),
+    )
+  })
+
+  it('con IG de vuelta, la automática muestra IG sin motivo (#628)', () => {
+    render(<LiquidityContent data={{ ...DATA, source: { id: 'ig', label: 'IG CFD' } }} />)
+    expect(screen.getByText('IG CFD', { selector: 'strong' })).toBeInTheDocument()
+    expect(screen.queryByText(/Fuente automática/)).not.toBeInTheDocument()
+  })
+
+  it('con IBKR muestra el motivo con MNQ y sin diarias, como los futuros (#630)', () => {
+    const note =
+      'IG todavía no tiene velas: se muestran futuros de CME (MNQ, IBKR, ~10 min de atraso). Base distinta al CFD.'
+    const label = 'futuros micro CME de IBKR (~10 min de atraso; base distinta al CFD)'
+    render(
+      <LiquidityContent
+        data={{ ...DATA, source: { id: 'ibkr', label }, fallback: { from: 'ig', note } }}
+      />,
+    )
+    expect(screen.getByText(label, { selector: 'strong' })).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(`Fuente automática: ${note}`)
+    cleanup()
+    render(
+      <LiquidityContent
+        data={{
+          ...DATA,
+          timeframe: '1d',
+          as_of: null,
+          candles: [],
+          source: { id: 'ibkr', label },
+        }}
+      />,
+    )
+    expect(screen.getByText(/Los futuros no tienen velas diarias/)).toBeInTheDocument()
   })
 })

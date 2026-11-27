@@ -62,7 +62,9 @@ describe('detalle de una corrida de backtest (#299)', () => {
     expect(rows.at(-1)).toHaveTextContent('sin resultado')
 
     // lugar reservado para el walk-forward, sin datos inventados
-    expect(detail.querySelector('[data-walk-forward="pending"]')).toHaveTextContent('fase 5')
+    expect(detail.querySelector('[data-walk-forward="pending"]')).toHaveTextContent(
+      'solo las corridas del motor',
+    )
     expect(detail.textContent).not.toMatch(/garantiz|asegurad|sin riesgo|ganancia segura/i)
 
     fireEvent.click(within(detail).getByRole('button', { name: /Cerrar el detalle/ }))

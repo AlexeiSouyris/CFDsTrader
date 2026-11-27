@@ -1,0 +1,319 @@
+# Estrategias de ESTUDIO de las rondas 1 (#472) y 2 (#486) de investigación. Definiciones y regla de decisión de
+# docs/analysis/2026-11-propuesta-investigacion.md (#466) y su pre-registro,
+# docs/analysis/2026-11-ronda1-preregistro.md y docs/analysis/2026-11-ronda2-preregistro.md. Los valores salen de la fuente citada allí: NO se
+# ajustan mirando resultados (cambiarlos es una prueba nueva, con su costo en el presupuesto).
+# Solo los leen los ejemplos `ronda1`, `ronda2` y `ronda3` de cfds-backtest: ni el runner ni el paper ni la estrategia en
+# uso (config/strategy.toml) los usan.
+
+[orb]
+# Familia C, ruptura del rango de apertura: el rango son las primeras `range_candles` velas de 15m
+# de la sesión de contado.
+range_candles = 2
+# La vela de la ruptura tiene que cerrar a esta hora local de la bolsa o antes; si no, ese día no
+# se opera.
+last_breakout_close = "15:00"
+
+[turn_of_month]
+# Familia D1, cambio de mes (McConnell y Xu, 2008): salida al cierre del día hábil número
+# `exit_business_day` del mes nuevo.
+exit_business_day = 3
+# Stop de protección a `stop_atr` × ATR(`atr_period`) de las diarias de la sesión de contado.
+atr_period = 20
+stop_atr = "2"
+
+[rule]
+# Regla de decisión pre-registrada (#466 §4.3).
+# Nivel unilateral de la prueba t de los retornos mensuales de la cartera (ronda 1: 2,5 % / 2).
+alpha = "0.0125"
+# Sharpe deflactado: pruebas registradas hasta ahora y mínimo para pasar.
+dsr_trials = 350
+dsr_min = "0.95"
+# Estrés de costos: multiplicador de todos los costos sobre las mismas operaciones.
+cost_stress = "1.5"
+# Inicio de la segunda mitad de la validación para la consistencia (criterio 3).
+second_half_from = "2020-01-01"
+
+
+# ── Ronda 2 (#486) ────────────────────────────────────────────────────────────────────────────
+
+[trend]
+# Familia A, tendencia mensual (Moskowitz, Ooi y Pedersen, 2012): largo si el retorno de los
+# últimos `lookback_months` meses (encadenado en los vencimientos) es > 0, corto si es < 0.
+lookback_months = 12
+# Stop de protección a `stop_atr` × ATR(`atr_period`) DIARIO (diarias de la sesión de contado).
+# El riesgo mide la distancia con ese mismo ATR diario.
+atr_period = 20
+stop_atr = "3"
+
+[intraday_momentum]
+# Familia B, momentum intradía (Gao, Han, Li y Zhou, 2018), horarios de la bolsa (ET).
+# Señal: retorno desde el cierre de la sesión anterior hasta el cierre de la vela que termina
+# `signal_minutes_after_open` minutos después de la apertura (10:00 ET).
+signal_minutes_after_open = 30
+# Decisión al cierre de la vela que termina `decision_minutes_before_close` minutos antes del
+# cierre (15:30 ET); salida al cierre de la sesión.
+decision_minutes_before_close = 30
+# Stop de protección a `stop_atr` × ATR(`atr_period`) de 15m.
+atr_period = 14
+stop_atr = "2"
+
+[rule_round2]
+# Regla de #466 §4.3 para la ronda 2: el 2,5 % que dejó la ronda 1 dividido por 2 familias.
+alpha = "0.0125"
+# 350 pruebas registradas hasta la ronda 1 (incluidas C y D1) más A y B.
+dsr_trials = 352
+dsr_min = "0.95"
+cost_stress = "1.5"
+second_half_from = "2020-01-01"
+
+
+# ── Ronda 3 (#493, programa 2) ───────────────────────────────────────────────────────────────
+# Definiciones y regla: docs/analysis/2026-11-programa-2-propuesta.md y
+# docs/analysis/2026-11-ronda3-preregistro.md. Solo los lee el ejemplo `ronda3`.
+
+[vol_managed]
+# Familia V (Moreira y Muir, 2017): peso = min(cap, c / RV), con c estimado en el entrenamiento.
+# El tope lo fijamos nosotros (no viene del artículo): 2 veces el capital.
+cap = "2"
+# Pares (retorno, varianza anterior) mínimos del entrenamiento para estimar c.
+min_training_pairs = 12
+
+[round_number]
+# Familia M1 (Osler 2003 y 2005; informe de #492): salida a `horizon_minutes` del cierre del cruce.
+horizon_minutes = 120
+# Stop de protección a `stop_atr` × ATR(`atr_period`) de 15m (el riesgo mide con ese ATR).
+atr_period = 14
+stop_atr = "2"
+
+[round_number.steps]
+# Paso de los niveles redondos en puntos del futuro (informe de #492 §4.5, fijado antes de mirar).
+US500 = "50"
+US100 = "100"
+US30 = "500"
+
+[overnight_drift]
+# Descriptivo sin voto (Boyarchenko, Larsen y Whelan, 2023): de 02:00 a 03:00 ET.
+timezone = "America/New_York"
+from = "02:00"
+to = "03:00"
+
+[rule_round3]
+# Programa 2: 2,5 % para la ronda 3 dividido por 2 familias (V y M1).
+alpha = "0.0125"
+# 352 pruebas registradas hasta la ronda 2 más V y M1.
+dsr_trials = 354
+dsr_min = "0.95"
+cost_stress = "1.5"
+second_half_from = "2020-01-01"
+
+# ── Programa Nasdaq (#526): H1 y H2 en US100 ─────────────────────────────────────────────────
+# Pre-registro: docs/analysis/2026-11-programa-nasdaq-preregistro.md. El 2,5 % de reserva del
+# programa 2 dividido por 2 hipótesis (H1 y H2): el programa 2 queda en 0 %.
+
+[rule_nasdaq]
+alpha = "0.0125"
+# 354 pruebas registradas hasta la ronda 3 más H1 y H2 (registro de ensayos al congelar).
+dsr_trials = 356
+dsr_min = "0.95"
+cost_stress = "1.5"
+# Mitades: 2013–2020 y desde 2021 (propuesta del programa Nasdaq §3.2).
+second_half_from = "2021-01-01"
+
+[pre_fomc]
+# H1 (pre-registro §3.2): entrada en la apertura de la vela de las 14:00 ET del día hábil anterior
+# al comunicado programado; salida en la apertura de la vela que empieza 30 minutos antes de la
+# hora del comunicado. Horas locales de Nueva York, con su horario de verano.
+timezone = "America/New_York"
+entry_time = "14:00"
+exit_minutes_before = 30
+
+[macro_day]
+# H2 (pre-registro §4.2), congelada; se corre cuando esté cargado el BLS: entrada en la apertura
+# de la vela de las 08:00 ET del día del dato (fuera de la sesión de contado: spread de IG de
+# 2,5 puntos, docs/research/ig-spreads-2026-11.md); salida en la apertura de la última vela de la
+# sesión de contado. Solo datos de las 08:30 ET (§4.2).
+timezone = "America/New_York"
+entry_time = "08:00"
+release_time = "08:30"
+out_of_session_spread_points = "2.5"
+# Solo para el descriptivo en US500 y US30 (§3.5, sin voto): spread de IG fuera de la sesión de
+# contado en la franja 08–13 UTC (docs/research/ig-spreads-2026-11.md, mediana por hora).
+descriptive_out_of_session_spread_points = { US500 = "1.6", US30 = "5.0" }
+
+# ── Chequeos de la revisión externa (#512) ─────────────────────────────────────────────────────
+# Descriptivos, sin voto y sin presupuesto: docs/analysis/2026-11-chequeos-revision-externa.md.
+# Fijados antes de mirar los resultados. Solo los lee el ejemplo `chequeos_revision`.
+
+[review_checks]
+# La deriva nocturna se parte en 2013–2020 y desde esta fecha (2021–10/2025).
+drift_split_from = "2021-01-01"
+# Caída fuerte: el retorno de cierre a cierre de sesión del día queda por debajo del percentil
+# 20 de los 250 días anteriores (k-ésimo menor, k = ⌈0,2 × 250⌉ = 50).
+drop_lookback_days = 250
+drop_quantile = "0.2"
+# Cartera mezclada: 50 % comprar y mantener + 50 % V escalada a su volatilidad.
+blend_hold_weight = "0.5"
+
+# ── Programa 4 (#561): reglas de Gianluca Bruni en US100 ───────────────────────────────────────
+# Pre-registro: docs/analysis/2026-11-programa-4-preregistro.md. Presupuesto propio del 5 %
+# (aprobación del dueño, 25-11-2026), 1,25 % unilateral para cada una de H4.1, H4.2 y H4.3, y
+# 1,25 % de reserva sin asignar. Solo lo leen los ejemplos `programa_4_*`.
+
+[rule_program4]
+alpha = "0.0125"
+# 356 pruebas registradas hasta el programa Nasdaq más H4.1, H4.2 y H4.3 (al congelar).
+dsr_trials = 359
+dsr_min = "0.95"
+cost_stress = "1.5"
+# Mitades: 02-2013 → 12-2020 y 01-2021 → 10-2025 (§7, criterio 3).
+second_half_from = "2021-01-01"
+
+[program4]
+# ATR de Wilder de 15m (umbral de H4.2 y riesgo), reiniciado en cada vencimiento (§2.5, §13.2).
+atr_period = 14
+# Una zona se rompe con al menos 3 velas válidas del color contrario y un cierre afuera (δ = 0).
+min_valid_in_zone = 3
+# H4.1: cuerpo mínimo de las dos velas del impulso, en puntos (60 ticks del NQ).
+body_points = "15"
+# H4.2: cuerpo mínimo = k × ATR(14) de 15m de la vela anterior al impulso. k calibrado (§5.1) con
+# `programa_4_k` el 25-11-2026 03:58 UTC: 6360 velas de sesión en 11-2024 → 10-2025, q = 0,574057
+# (cuerpo ≥ 15 puntos), cuantil 1 − q de cuerpo / ATR redondeado a 0,05.
+body_atr_k = "0.35"
+# Objetivo: 1,5 R.
+target_r = "1.5"
+# La vela de ejecución empieza antes del cierre de la sesión menos 30 minutos.
+last_entry_minutes_before_close = 30
+# Cierre forzado del día: apertura de la última vela de 15m de la sesión.
+exit_minutes_before_close = 15
+# Calibración de k (§5.1): velas de la sesión de contado en [desde, hasta), redondeo a 0,05.
+k_reference_from = "2024-11-01"
+k_reference_to = "2025-11-01"
+k_step = "0.05"
+# Datos fuertes que excluyen el día entero (decisión 11). Hoy solo está cargado el FOMC; CPI y
+# empleo del BLS se agregan cuando estén en official_releases (H4.3 los espera).
+strong_releases = ["fed_fomc/fomc_statement"]
+# Mínimo de operaciones para pasar (decisión 4).
+min_trades = 100
+# Test de suerte (§7.2, solo reporte): SplitMix64.
+luck_simulations = 1000
+luck_seed = 20261125
+
+[program4_c]
+# H4.3, estrategia C de Bruni (pre-registro §6 y §13; valores exactos del archivo congelado).
+# Perfil de volumen de la sesión del CME (decisión 9): de las 18:00 ET del día hábil anterior a
+# las 17:00 ET del día d, con las barras de 1 minuto del NQ.
+timezone = "America/New_York"
+profile_session_start = "18:00"
+profile_session_end = "17:00"
+# Si a la sesión d − 1 le falta más del 10 % de sus barras de 1 minuto, su perfil no existe.
+profile_min_bars_fraction = "0.9"
+# Casillero: tick × máx(1, redondeo(0,0002 × apertura de la sesión / tick)).
+profile_bin_fraction = "0.0002"
+tick = "0.25"
+# Área de valor del 70 %.
+value_area = "0.7"
+# m = 6 ticks = 1,5 puntos fijos (decisión 10).
+trigger_margin_points = "1.5"
+# Volumen eficiente: menor que el de la vela anterior o que la media simple de 20 (decisión 12).
+volume_sma = 20
+# Objetivo: 2 R o el máximo de la estructura, el más cercano.
+target_r = "2"
+# Régimen, solo descriptivo (§6.4): percentil del ATR(14) en 200 velas; tramos ≤ 25, ≤ 50, ≤ 75.
+regime_window = 200
+regime_bands = ["25", "50", "75"]
+# Datos fuertes que excluyen el día entero (decisión 11): FOMC, CPI y empleo del BLS.
+strong_releases = ["fed_fomc/fomc_statement", "bls/cpi", "bls/employment_situation"]
+
+[rule_program5]
+# Programa 5 (#649, docs/analysis/2026-11-programa-5-fvg-preregistro.md, congelado el 25-11-2026):
+# 5 % nuevo repartido por Bonferroni, H5.1 2,5 % y H5.2 2,5 %, unilateral (punto abierto 1).
+alpha = "0.025"
+# 359 pruebas registradas hasta el programa 4 más H5.1 y H5.2 (al congelar). Solo lo usa el
+# descriptivo de la estrategia filtrada (§5.4, punto abierto 14: no vota).
+dsr_trials = 361
+dsr_min = "0.95"
+# Estrés de costos que vota en H5.2 (§5.3, criterio 4).
+cost_stress = "1.5"
+# Mitades: 02-2013 → 12-2020 y 01-2021 → 10-2025.
+second_half_from = "2021-01-01"
+
+[program5]
+# El FVG, el toque, el llenado, el ATR (14) y el máximo de 500 velas son los del motor
+# (config/liquidity.toml, [fvg_stats] y [order_blocks]); esto fija solo lo del programa.
+# Orden del sorteo (§6): US100 y luego US500.
+instruments = ["US100", "US500"]
+# Timeframe que vota (punto 2) y el descriptivo.
+timeframe = "15m"
+descriptive_timeframe = "1h"
+# Reacción a 8 velas (vota) y a 4 (consistencia, > 0) (punto 6).
+horizon = 8
+consistency_horizon = 4
+# 5 placebos por evento, con reposición (punto 9).
+placebos_per_event = 5
+# Newey-West de 3 rezagos sobre la serie mensual (punto 11).
+newey_west_lags = 3
+# Muestras mínimas por instrumento (punto 15).
+min_events = 1000
+min_f_trades = 100
+# Test de suerte (§6, punto 18): SplitMix64, semilla 20261125, 1.000 repeticiones.
+luck_simulations = 1000
+luck_seed = 20261125
+# Spread del CFD fuera de la sesión de contado, solo para el descriptivo de costos de H5.1
+# (punto 12): la franja más frecuente fuera de la sesión de docs/research/ig-spreads-2026-11.md.
+out_of_session_spread = { US100 = "2.5", US500 = "1.6" }
+
+
+# ── Monte Carlo por bloques (#662) ───────────────────────────────────────────────────────────
+# Distribución de la caída máxima, la racha perdedora, el tiempo bajo el agua, el retorno final y
+# el riesgo de ruina de una serie de retornos (research::montecarlo, ejemplo `montecarlo_report`).
+# Son valores de INGENIERÍA de la simulación, no parámetros de una estrategia: no deciden ninguna
+# operación ni ningún voto. Cambiarlos cambia la precisión o la pregunta, no el resultado medido.
+
+[montecarlo]
+# 10.000 caminos: el error de Monte Carlo de una probabilidad p es √(p(1−p)/10.000) ≤ 0,5 %.
+paths = 10000
+# Bloques circulares de 5 períodos (Politis y Romano, 1992). Regla práctica: ≈ T^(1/3); con 153
+# meses da 5,3. Para otra serie, el ejemplo acepta `--bloque N`.
+block_len = 5
+# Semilla de SplitMix64: misma serie y misma semilla, mismo resultado.
+seed = 20261125
+# Ruina = el capital tocó el 70 % del inicial (−30 %) en algún momento del camino.
+ruin_threshold = "0.30"
+
+[pbo]
+# Probabilidad de sobreajuste por CSCV (Bailey, Borwein, López de Prado y Zhu, 2015;
+# research::pbo, ejemplo `montecarlo_report --pbo`). Valor de INGENIERÍA, no de una estrategia.
+# S = 16 bloques, el del artículo: C(16, 8) = 12.870 combinaciones. Con 153 meses quedan bloques
+# de 9 meses (sobran 9 al final, que no se usan). Tiene que ser par, entre 2 y 20.
+partitions = 16
+
+
+# ── Presupuesto global de error (#660, aprobado por el dueño el 25-11-2026; adopción #690) ───
+# Regla de docs/analysis/2026-11-regla-presupuesto-global.md (los 16 puntos de §6 en su valor
+# recomendado): alfa-inversión de Foster y Stine (2008) para TODO el proyecto, investigación y
+# pruebas confirmatorias de ML. Reemplaza al "5 % nuevo por programa". El libro con el estado de
+# W está en docs/analysis/registro-de-resultados.md ("Presupuesto global"); el CI
+# (tools/research/check_dsr_trials.py) verifica su aritmética contra estos valores.
+# Cambiar cualquiera de estos números (o abrir una época nueva) pide una decisión registrada del
+# dueño en un Issue, con el motivo (punto 6).
+
+[alpha_budget]
+# α del proyecto (punto 2).
+alpha = "0.05"
+# W(0) = α × η con η = 1 − α (punto 3).
+initial_wealth = "0.0475"
+# Desde cuándo rige la época (fecha de la aprobación). Lo gastado antes no se arrastra (punto 4).
+start = "2026-11-25"
+# Apuesta por hipótesis: α_j = mín(max_bet, W/(1 + W)); el pre-registro puede apostar menos,
+# nunca más. Paga α_j/(1 − α_j), pase o no, al congelarse (puntos 5 y 7).
+max_bet = "0.0125"
+# Premio ω, pagado solo si el fuera de muestra confirma la hipótesis (punto 5).
+payout = "0.05"
+# Filtro de borde bruto: E_bruto ≥ k × C antes de congelar (puntos 12 a 14).
+edge_cost_factor = "2"
+# IC previo cuando no hay cita: E_bruto ≈ IC × σ_h (punto 15).
+default_ic = "0.05"
+# Pruebas de antes del registro (pre-registro de la ronda 1 §2.5), base del N del Sharpe
+# deflactado del chequeo del CI (punto 10). No se llama `dsr_trials` a propósito: el chequeo
+# toma cada `dsr_trials` como el N de una regla.
+dsr_trials_base = 344

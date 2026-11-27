@@ -1,10 +1,17 @@
-"""Barras de 1 minuto de Databento: estimación del costo, conversión y validación (ADR 0011, #247).
+"""Barras de Databento: estimación del costo, conversión y validación (ADR 0011, #247).
+
+Sirve para los dos esquemas que se bajan: `ohlcv-1m` (barras de 1 minuto) y `ohlcv-1d` (velas
+diarias, #522). La lógica es la misma; cambia solo cuánto dura una barra.
 
 Reglas:
 - Solo el SDK oficial (`databento`) y sus métodos documentados. La metadata (`get_cost`,
   `get_record_count`, `get_dataset_range`) no se cobra: "Access to metadata, symbology, and
   account management is free" (docs: api-reference-historical/basics).
-- `ts_event` es el **inicio** de la barra, en nanosegundos UTC. Tiene que caer justo en un minuto.
+- `ts_event` es el **inicio** de la barra, en nanosegundos UTC. Tiene que caer justo en un minuto
+  (`ohlcv-1m`) o en una medianoche UTC (`ohlcv-1d`).
+- La vela diaria de Databento va de **medianoche a medianoche UTC**, no de la hora de liquidación
+  (settlement) de la bolsa ni de la medianoche de Madrid de las diarias de IG. Quien la use para
+  un estudio que pida el cierre de liquidación tiene que decirlo (borrador del programa 3, #513).
 - Los precios llegan como enteros con escala 1e-9: se pasan a `Decimal` exacto, nunca a float.
 - Un minuto sin operaciones no trae barra (docs: schemas-and-data-formats/ohlcv). Por eso un
   hueco no es un error de la fuente, pero `--sample` lo informa.
@@ -22,12 +29,20 @@ from decimal import Decimal
 from itertools import pairwise
 from typing import Any, Protocol
 
-from cfds_intel.databento.config import DatabentoConfig, SymbolConfig
+from cfds_intel.databento.config import (
+    DAILY,
+    MINUTE,
+    DatabentoConfig,
+    SymbolConfig,
+    effective_start,
+)
 
 SOURCE = "databento"
 _SCALE = Decimal(1_000_000_000)
 _UNDEF_PRICE = 9_223_372_036_854_775_807  # databento_dbn.UNDEF_PRICE (INT64_MAX)
 _NS_PER_MINUTE = 60_000_000_000
+# Duración de una barra de cada esquema, en nanosegundos.
+BAR_NS = {MINUTE: _NS_PER_MINUTE, DAILY: 24 * 60 * _NS_PER_MINUTE}
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
@@ -36,7 +51,7 @@ class DatabentoError(ValueError):
 
 
 class BudgetError(DatabentoError):
-    """La estimación pasa `budget.max_usd`: no se baja nada."""
+    """La estimación (o lo gastado en la corrida) pasa `budget.max_usd`: no se baja (más) nada."""
 
 
 class Metadata(Protocol):
@@ -95,12 +110,14 @@ def _price(raw: object, where: str) -> Decimal:
     return Decimal(raw) / _SCALE
 
 
-def to_bar(record: Any, sym: SymbolConfig) -> Bar:
-    """Convierte un registro OHLCV del SDK (atributos enteros) en una [`Bar`]."""
+def to_bar(record: Any, sym: SymbolConfig, step_ns: int = _NS_PER_MINUTE) -> Bar:
+    """Convierte un registro OHLCV del SDK (atributos enteros) en una [`Bar`]. `step_ns` es la
+    duración de la barra (`BAR_NS`): el inicio tiene que caer justo en ese paso, en UTC."""
     ts = getattr(record, "ts_event", None)
     where = f"{sym.symbol} ts_event={ts!r}"
-    if not isinstance(ts, int) or ts < 0 or ts % _NS_PER_MINUTE != 0:
-        raise DatabentoError(f"{where}: no es el inicio de un minuto en UTC")
+    if not isinstance(ts, int) or ts < 0 or ts % step_ns != 0:
+        what = "una medianoche" if step_ns == BAR_NS[DAILY] else "el inicio de un minuto"
+        raise DatabentoError(f"{where}: no es {what} en UTC")
     contract, volume = getattr(record, "instrument_id", None), getattr(record, "volume", None)
     if not isinstance(contract, int) or contract <= 0:
         raise DatabentoError(f"{where}: instrument_id inválido {contract!r}")
@@ -136,7 +153,13 @@ class Fetched:
     shared_minutes: int
 
 
-def to_bars(records: Iterable[Any], sym: SymbolConfig, start: datetime, end: datetime) -> Fetched:
+def to_bars(
+    records: Iterable[Any],
+    sym: SymbolConfig,
+    start: datetime,
+    end: datetime,
+    step_ns: int = _NS_PER_MINUTE,
+) -> Fetched:
     """Barras de `[start, end)` del publisher `sym.publisher_id`, en orden estricto y sin
     repetir. Los registros de otros publishers se descartan y se cuentan."""
     kept: list[Any] = []
@@ -151,7 +174,7 @@ def to_bars(records: Iterable[Any], sym: SymbolConfig, start: datetime, end: dat
         else:
             dropped[pub] = dropped.get(pub, 0) + 1
             other_minutes.add(getattr(r, "ts_event", -1))
-    bars = [to_bar(r, sym) for r in kept]
+    bars = [to_bar(r, sym, step_ns) for r in kept]
     for prev, cur in pairwise(bars):
         if cur.start == prev.start:
             raise DatabentoError(
@@ -208,21 +231,28 @@ class Estimate:
     from_dataset_start: bool = False
 
 
-def dataset_start(client: Client, dataset: str, schema: str) -> date:
-    """Primer día con datos del esquema en el dataset (`get_dataset_range`, gratis)."""
-    r = client.metadata.get_dataset_range(dataset)
+def _range_day(dataset: str, r: Mapping[str, Any], schema: str, key: str) -> date:
     per_schema = r.get("schema")
-    raw = r.get("start")
+    raw = r.get(key)
     if isinstance(per_schema, Mapping) and isinstance(per_schema.get(schema), Mapping):
-        raw = per_schema[schema].get("start", raw)
+        raw = per_schema[schema].get(key, raw)
     if not isinstance(raw, str):
         if isinstance(per_schema, Mapping) and schema not in per_schema:
             raise DatabentoError(f"{dataset} no tiene el esquema {schema}")
-        raise DatabentoError(f"{dataset}: get_dataset_range sin start")
+        raise DatabentoError(f"{dataset}: get_dataset_range sin {key}")
     try:
         return date.fromisoformat(raw[:10])
     except ValueError as e:
-        raise DatabentoError(f"{dataset}: start inválido {raw!r}") from e
+        raise DatabentoError(f"{dataset}: {key} inválido {raw!r}") from e
+
+
+def dataset_range(client: Client, dataset: str, schema: str) -> tuple[date, date]:
+    """`[primer día, último día completo + 1)` con datos del esquema en el dataset
+    (`get_dataset_range`, gratis). El fin que da Databento es un instante (por ejemplo
+    "2026-11-23T18:10:06Z"): se corta a la medianoche UTC anterior, así nunca se pide más allá de
+    lo publicado (422 `dataset_unavailable_range`, #396) ni se guarda un día a medias."""
+    r = client.metadata.get_dataset_range(dataset)
+    return _range_day(dataset, r, schema, "start"), _range_day(dataset, r, schema, "end")
 
 
 def chunk_cost(
@@ -233,11 +263,11 @@ def chunk_cost(
 
 
 def _missing(
-    cfg: DatabentoConfig, available: date, end: date, stored: Stored | None
+    wanted: date, available: date, end: date, stored: Stored | None
 ) -> list[tuple[str | None, date, date]]:
     """Tramos que faltan de un símbolo: `[desde, hasta)` con su parte. Lo que hay entre el primer
     y el último tramo guardado no se vuelve a pedir: los tramos se guardan sin huecos."""
-    first = max(cfg.start, available)
+    first = max(wanted, available)
     if stored is None:
         return [(None, first, end)]
     return [
@@ -254,37 +284,46 @@ def estimate(
 ) -> list[Estimate]:
     """Costo y cantidad de barras de lo que **falta** bajar de cada símbolo, hasta `end`: el
     tramo anterior a lo ya guardado (si `start` es anterior) y el posterior. Un símbolo puede
-    tener entonces dos tramos; el tope de gasto se aplica al total de todos."""
-    starts: dict[str, date] = {}
+    tener entonces dos tramos; el tope de gasto se aplica al total de todos. El fin de cada tramo
+    es el menor entre `end` y el fin publicado del dataset (#396)."""
+    ranges: dict[str, tuple[date, date]] = {}
     out: list[Estimate] = []
     for sym in cfg.symbols:
-        if sym.dataset not in starts:
-            starts[sym.dataset] = dataset_start(client, sym.dataset, cfg.schema)
+        if sym.dataset not in ranges:
+            ranges[sym.dataset] = dataset_range(client, sym.dataset, cfg.schema)
         # Si el dataset empieza después de `start` (Eurex), se baja desde su inicio.
-        available = starts[sym.dataset]
+        available, published = ranges[sym.dataset]
+        # El inicio propio del símbolo gana sobre el global (#410).
+        wanted = effective_start(cfg, sym)
+        until = min(end, published)
         parts = [
             (part, a, b)
-            for part, a, b in _missing(cfg, available, end, stored.get((sym.dataset, sym.symbol)))
+            for part, a, b in _missing(
+                wanted, available, until, stored.get((sym.dataset, sym.symbol))
+            )
             if a < b
         ]
         if not parts:
-            out.append(Estimate(sym, end, end, Decimal(0), 0, "ya está todo guardado"))
+            key = (sym.dataset, sym.symbol)
+            why = "ya está todo guardado" if key in stored else "no hay datos en el período pedido"
+            out.append(Estimate(sym, until, until, Decimal(0), 0, why))
             continue
         for part, a, b in parts:
             cost = chunk_cost(client, cfg, sym, a, b)
             records = int(client.metadata.get_record_count(**_request(cfg, sym, a, b)))
             if cost < 0 or records < 0:
                 raise DatabentoError(f"{sym.symbol}: estimación negativa")
-            from_dataset = a == available and available > cfg.start
+            from_dataset = a == available and available > wanted
             out.append(Estimate(sym, a, b, cost, records, None, part, from_dataset))
     return out
 
 
-def chunks(e: Estimate) -> list[tuple[date, date]]:
-    """Los meses de un tramo en el orden de bajada. El tramo anterior va del mes más nuevo al
-    más viejo: si la corrida se corta, lo guardado sigue sin huecos y la próxima retoma desde
-    el primer día guardado."""
-    out = months(e.start, e.end)
+def chunks(e: Estimate, schema: str = MINUTE) -> list[tuple[date, date]]:
+    """Los pedidos de un tramo en el orden de bajada: de a un mes en `ohlcv-1m` y de a un año en
+    `ohlcv-1d` (un año de diarias son unas 300 velas; de a mes serían cientos de pedidos). El
+    tramo anterior va del más nuevo al más viejo: si la corrida se corta, lo guardado sigue sin
+    huecos y la próxima retoma desde el primer día guardado."""
+    out = years(e.start, e.end) if schema == DAILY else months(e.start, e.end)
     return out[::-1] if e.part == BACKWARD else out
 
 
@@ -293,6 +332,19 @@ def check_budget(estimates: Iterable[Estimate], max_usd: Decimal) -> Decimal:
     total = sum((e.cost_usd for e in estimates), Decimal(0))
     if total > max_usd:
         raise BudgetError(f"la estimación (USD {total}) pasa el tope de USD {max_usd}")
+    return total
+
+
+def check_spend(spent: Decimal, next_cost: Decimal, max_usd: Decimal) -> Decimal:
+    """Tope duro durante la corrida: lo ya pedido más el próximo pedido (cada uno con su
+    `get_cost` propio, justo antes de bajarlo) no puede pasar `max_usd`. Si lo pasa,
+    [`BudgetError`] y ese pedido no se hace. Devuelve el nuevo total."""
+    total = spent + next_cost
+    if total > max_usd:
+        raise BudgetError(
+            f"el próximo pedido (USD {next_cost}) llevaría la corrida a USD {total}, más que el"
+            f" tope de USD {max_usd}"
+        )
     return total
 
 
@@ -307,12 +359,23 @@ def months(start: date, end: date) -> list[tuple[date, date]]:
     return out
 
 
+def years(start: date, end: date) -> list[tuple[date, date]]:
+    """`[start, end)` partido en años de calendario (para las diarias)."""
+    out: list[tuple[date, date]] = []
+    a = start
+    while a < end:
+        nxt = date(a.year + 1, 1, 1)
+        out.append((a, min(nxt, end)))
+        a = nxt
+    return out
+
+
 def fetch_bars(
     client: Client, cfg: DatabentoConfig, sym: SymbolConfig, start: date, end: date
 ) -> Fetched:
     """Baja las barras de `[start, end)` (esto **sí** consume crédito)."""
     records = client.timeseries.get_range(**_request(cfg, sym, start, end))
-    return to_bars(records, sym, _midnight(start), _midnight(end))
+    return to_bars(records, sym, _midnight(start), _midnight(end), BAR_NS[cfg.schema])
 
 
 @dataclass(frozen=True)
@@ -332,6 +395,8 @@ class SampleReport:
 def validate_day(bars: list[Bar], sym: SymbolConfig, day: date, max_gap: int) -> SampleReport:
     """Validación de un día UTC: sesión de al menos `min_session_hours` con barras y sin huecos
     de más de `max_gap` minutos, salvo el más largo (la pausa diaria del mercado)."""
+    if sym.min_session_hours is None:
+        raise DatabentoError(f"{sym.symbol}: la validación de un día es solo para {MINUTE}")
     problems: list[str] = []
     gaps = [
         (prev.start, int((cur.start - prev.start).total_seconds() // 60) - 1)

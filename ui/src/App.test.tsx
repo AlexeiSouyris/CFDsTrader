@@ -2,13 +2,11 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import App from '@/App'
-import { GlassFolder } from '@/components/ui/glass-folder'
 import { squarify } from '@/lib/squarify'
 import { SignIn } from '@/components/ui/sign-in'
 import { TradingChart } from '@/components/ui/trading-chart'
-import { TrophyCard } from '@/components/ui/trophy-card'
 import { decimal, signed } from '@/lib/format'
-import { FOLDERS, HEATMAP, MEMBERS, TROPHIES, US100_1H } from '@/mocks'
+import { HEATMAP, US100_1H } from '@/mocks'
 
 describe('la app', () => {
   it('arranca con la pantalla de carga y pasa al ingreso', () => {
@@ -22,18 +20,19 @@ describe('la app', () => {
 
   it('avisa siempre que los datos son de ejemplo y que no hay promesas de ganancia', () => {
     render(<App initialStage="app" />)
-    const note = screen.getByRole('note')
-    expect(note).toHaveTextContent('datos de ejemplo')
+    // el aviso del pie (el Inicio tiene además su propio aviso de ejemplo)
+    const note = screen.getAllByRole('note').find((n) => n.textContent?.includes('sello EJEMPLO'))!
+    expect(note).toHaveTextContent('sello EJEMPLO')
     expect(note).toHaveTextContent('ni una promesa de ganancia')
   })
 
-  it('navega entre vistas desde la barra de vistas', () => {
+  it('navega entre vistas desde la barra de vistas', async () => {
     render(<App initialStage="app" />)
     const nav = screen.getByRole('navigation', { name: 'Vistas' })
     fireEvent.click(within(nav).getByText('Gráficos'))
     expect(screen.getByRole('heading', { level: 1, name: 'Gráficos' })).toBeInTheDocument()
     expect(location.hash).toBe('#graficos')
-    expect(screen.getAllByRole('img', { name: /US100/ }).length).toBeGreaterThan(0)
+    expect((await screen.findAllByRole('img', { name: /US100/ })).length).toBeGreaterThan(0)
   })
 
   it('muestra el 404 para una dirección que no existe', () => {
@@ -42,8 +41,8 @@ describe('la app', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: 'Página no encontrada' }),
     ).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Ir al panel' }))
-    expect(screen.getByRole('heading', { level: 1, name: 'Panel' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Ir al inicio' }))
+    expect(screen.getByRole('heading', { level: 1, name: 'Inicio' })).toBeInTheDocument()
   })
 })
 
@@ -74,27 +73,6 @@ describe('gráfico de precio', () => {
     expect(screen.getByText(decimal(last.rsi14!))).toBeInTheDocument()
     expect(screen.getByText(decimal(last.macd!))).toBeInTheDocument()
     expect(screen.getByText('RSI 14'.toUpperCase())).toBeInTheDocument()
-  })
-})
-
-describe('carpetas de noticias', () => {
-  it('el dueño puede agregar; los demás solo leen', () => {
-    const { rerender } = render(<GlassFolder folder={FOLDERS[0]} editable />)
-    fireEvent.click(screen.getByRole('button', { name: /Agregar una nota/ }))
-    expect(screen.getByText('4 noticias')).toBeInTheDocument()
-    rerender(<GlassFolder folder={FOLDERS[1]} editable={false} />)
-    expect(screen.queryByRole('button', { name: /Agregar una nota/ })).not.toBeInTheDocument()
-    expect(screen.getByText(/solo lectura/)).toBeInTheDocument()
-  })
-})
-
-describe('trofeos', () => {
-  it('muestra al ganador y se da vuelta con un clic', () => {
-    render(<TrophyCard trophy={TROPHIES[1]} />)
-    const card = screen.getByRole('button', { name: /Trofeo de la semana/ })
-    expect(card).toHaveTextContent(MEMBERS[0].name)
-    fireEvent.click(card)
-    expect(card).toHaveAttribute('aria-pressed', 'true')
   })
 })
 

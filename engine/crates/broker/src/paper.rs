@@ -8,6 +8,10 @@
 //!   → cfds_risk::check (stop, distancia en ATR, riesgo, apalancamiento, margen, pérdida diaria,
 //!     drawdown, kill switch, posiciones, mínimo del broker): **el único que da el tamaño**
 //!   → fill a la apertura con medio spread + slippage, y comisión (cfds-backtest)
+//!   → si la vela del fill todavía no llegó (una orden manual de ahora, #471): **pendiente**.
+//!     No entra al registro: espera esa vela y recién ahí se decide igual que en la
+//!     reconstrucción (`settle_pending`), que ya tiene la vela. Se guarda como pendiente
+//!     (#479): al arrancar se retoma sin evaluarla otra vez (`restore_pending`)
 //! cada posición se valúa con cfds_backtest::simulate (stop, TP1, trailing, tiempo, gaps y el
 //! cierre de fin de semana de la spec §8, con las mismas marcas que el backtest: #334)
 //! y paga la financiación nocturna (swap) de cada corte en que siguió abierta, con la tasa de
@@ -17,24 +21,35 @@
 //! Sin ejecuciones parciales (la spec §12 las prevé solo para el registro real).
 //! Si en algún corte no hay tasa de referencia publicada, no se inventa: ese corte no se cobra y
 //! se activa el kill switch por error de datos (spec §12).
+//!
+//! Moneda (ADR 0013 §4): los montos de un contrato en otra moneda que la cuenta (el oro, en USD)
+//! pasan a EUR con el tipo **vigente en cada momento** (`MarketSetup::account_to_instrument`,
+//! el mismo `AccountFx` del backtest): la comisión de entrada al tipo de la apertura, cada salida
+//! al de su vela, lo no realizado y el margen al de `now`, y el riesgo de una orden al de la vela
+//! de la señal. Sin tipo publicado a la hora de la señal, la orden se rechaza
+//! (`missing_fx_rate`); si falta para valuar algo ya abierto, ese monto no se cuenta y se activa
+//! el kill switch por error de datos, como con la financiación.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use std::cell::Cell;
 
 use cfds_backtest::{
-    CostConfig, Execution, ExitConfig, ExitReason, Fill, FundingRates, InstrumentCosts, Trade,
-    commission, fill_price, funding_cutoffs, funding_over, simulate,
+    AccountFx, CostConfig, Execution, ExitConfig, ExitReason, Fill, FundingRates, InstrumentCosts,
+    Trade, commission, fill_price, funding_cutoffs, funding_over, simulate,
 };
 use cfds_core::{
     AccountCurrency, Candle, ClientId, InstrumentId, KillSwitch, Order, OrderRejection,
     OrderReport, OrderSide, OrderStatus, PaperAccount, PaperMode, Position, TicketVerdict,
 };
-use cfds_indicators::wilder_atr;
+use cfds_indicators::{AtrSeed, wilder_atr, wilder_atr_after};
 use cfds_market_data::{ExchangeCalendar, Session, trading_window};
-use cfds_risk::{Account, InstrumentLimits, Rejection, Request, RiskConfig, Sizing, check};
+use cfds_risk::{
+    Account, InstrumentLimits, OpenPosition, Rejection, Request, RiskConfig, Sizing, check,
+    mark_peak,
+};
 use cfds_strategy::Side;
-use chrono::{DateTime, NaiveTime, Utc};
+use chrono::{DateTime, NaiveTime, TimeDelta, Utc};
 use chrono_tz::Tz;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -146,8 +161,9 @@ fn week_close_flags(session: Option<&Session>, candles: &[Candle], from: usize) 
 pub struct MarketSetup {
     pub limits: InstrumentLimits,
     pub costs: InstrumentCosts,
-    /// Moneda del instrumento por 1 unidad de la moneda de la cuenta (1 si son iguales).
-    pub account_to_instrument: Decimal,
+    /// Moneda del instrumento por 1 unidad de la moneda de la cuenta, en cada momento
+    /// (`AccountFx::Same` si son iguales; la serie `fx_rates` si no, ADR 0013).
+    pub account_to_instrument: AccountFx,
     pub candles: Vec<Candle>,
     /// Financiación nocturna: corte del catálogo y tasa de referencia (€STR guardado o constante).
     pub funding: FundingSetup,
@@ -162,8 +178,10 @@ pub struct FundingSetup {
     pub rates: FundingRates,
 }
 
-#[derive(Debug, Clone)]
-struct OpenTrade {
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct OpenTrade {
+    /// Posición de su orden en el registro (para devolver las operaciones en ese orden).
+    pub(crate) seq: usize,
     position_id: ClientId,
     order_id: ClientId,
     instrument: InstrumentId,
@@ -173,16 +191,41 @@ struct OpenTrade {
     entry_mid: Decimal,
     /// Precio pagado (con medio spread y slippage).
     entry_fill: Decimal,
-    entry_index: usize,
+    /// Índice de la vela del fill en las velas del broker (que pueden empezar en un punto de
+    /// control, #463).
+    pub(crate) entry_index: usize,
     entry_commission: Decimal,
     stop: Decimal,
     tp1: Option<Decimal>,
     margin: Decimal,
-    opened_at: DateTime<Utc>,
+    pub(crate) opened_at: DateTime<Utc>,
+}
+
+impl OpenTrade {
+    pub(crate) fn instrument(&self) -> &InstrumentId {
+        &self.instrument
+    }
+}
+
+/// Operaciones ya cerradas que selló un punto de control (#463): su resultado no cambia más, así
+/// que no se vuelven a valuar ni hacen falta sus velas.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct Sealed {
+    /// Lo realizado por cada una, en EUR (comisiones, salidas y financiación), con la posición
+    /// de su orden en el registro: el capital se suma en ese mismo orden, así da exactamente lo
+    /// mismo que valuándolas (la suma de decimales redondea según el orden).
+    pub(crate) realized: Vec<(usize, Decimal)>,
+    /// Momento de su último movimiento: antes de esto no se puede valuar sin ellas.
+    pub(crate) until: Option<DateTime<Utc>>,
+    /// Sus instrumentos: valuarlas en `t` miraba el tipo de cambio de `t` (aunque el monto sea
+    /// 0), y sin tipo activaba el kill switch. Se sigue mirando igual.
+    pub(crate) instruments: BTreeSet<InstrumentId>,
+    /// Su resultado final (`trade_outcomes`), con la posición de su orden en el registro.
+    pub(crate) outcomes: Vec<(usize, PaperTrade)>,
 }
 
 /// Una salida de una operación del broker simulado.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaperExit {
     /// Fin de la vela de la salida.
     pub time: DateTime<Utc>,
@@ -197,7 +240,7 @@ pub struct PaperExit {
 
 /// Una operación del broker simulado, valuada (ver [`PaperBroker::trade_outcomes`]). Montos en la
 /// moneda del instrumento.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaperTrade {
     pub order_id: ClientId,
     pub instrument: InstrumentId,
@@ -230,6 +273,12 @@ pub enum BrokerEvent {
     OrderDuplicate {
         order_id: ClientId,
     },
+    /// El riesgo la aceptaría, pero la vela del fill (la primera que empieza en `created_at` o
+    /// después) todavía no llegó: queda pendiente hasta esa vela (#471).
+    OrderPending {
+        order_id: ClientId,
+        created_at: DateTime<Utc>,
+    },
     /// La decisión del riesgo (o el motivo del broker) sobre una orden enviada.
     RiskDecision {
         order_id: ClientId,
@@ -248,6 +297,17 @@ pub enum BrokerEvent {
     },
 }
 
+/// Por qué una orden guardada como pendiente no se puede retomar (#479).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RestorePending {
+    /// Ya está en el registro: se decidió.
+    AlreadyDecided,
+    /// Ya está pendiente.
+    AlreadyPending,
+    /// Su instrumento no se opera en este arranque (no está en los mercados del broker).
+    UnknownInstrument,
+}
+
 /// El broker simulado. Solo modo paper.
 #[derive(Debug, Clone)]
 pub struct PaperBroker {
@@ -257,12 +317,36 @@ pub struct PaperBroker {
     /// Las órdenes procesadas, en el orden en que llegaron, con su informe: lo que se guarda
     /// para reconstruir el broker al arrancar (ver `crate::reconcile`).
     journal: Vec<(Order, OrderReport)>,
+    /// Órdenes que el riesgo aceptaría pero cuya vela del fill todavía no llegó (#471), en
+    /// orden de llegada. No están en el registro: se deciden en `settle_pending`.
+    pending: Vec<Order>,
+    /// Si está, las velas se recortan a esto antes de la **primera** orden que entra al
+    /// registro (#438), en el momento en que entra: con órdenes pendientes (#471) la primera en
+    /// llegar puede no ser la primera del registro.
+    first_order_window: Option<TimeDelta>,
     events: Vec<BrokerEvent>,
-    trades: Vec<OpenTrade>,
-    kill_switch: Option<(String, DateTime<Utc>)>,
-    peak_equity: Decimal,
+    pub(crate) trades: Vec<OpenTrade>,
+    pub(crate) kill_switch: Option<(String, DateTime<Utc>)>,
+    /// Máximo del capital para el drawdown (reducción gradual y kill switch), con el capital
+    /// valuado a mercado al cierre de **cada** vela cerrada hasta `peak_through`, como el
+    /// backtest de cartera (#691, `cfds_risk::mark_peak`). Lo pone al día `assess` (cada orden)
+    /// hasta la vela de la señal, nunca una lectura: el valor depende solo del registro y de las
+    /// velas, así la reconstrucción desde el registro llega al mismo valor (#464).
+    pub(crate) peak_equity: Decimal,
+    /// Hasta qué cierre de vela está incluido el capital en `peak_equity` (`None`: ninguno).
+    pub(crate) peak_through: Option<DateTime<Utc>>,
+    /// Estado del ATR de Wilder antes de la primera vela de cada instrumento cuyas velas
+    /// empiezan en un punto de control (#463): el ATR sigue igual que con todas las velas.
+    pub(crate) atr_seeds: BTreeMap<InstrumentId, AtrSeed>,
+    /// Lo que selló el último punto de control (#463).
+    pub(crate) sealed: Sealed,
+    /// Una valuación anterior al último movimiento de lo sellado (no se puede repetir igual sin
+    /// las velas): se activa el kill switch, nunca se adivina.
+    before_checkpoint: Cell<Option<DateTime<Utc>>>,
     /// Primer corte sin tasa de referencia que encontró una valuación (error de datos).
     missing_rate: Cell<Option<DateTime<Utc>>>,
+    /// Primer momento sin tipo de cambio que encontró una valuación (error de datos).
+    missing_fx: Cell<Option<DateTime<Utc>>>,
 }
 
 fn strategy_side(s: OrderSide) -> Side {
@@ -293,6 +377,7 @@ pub fn rejection_code(r: &Rejection) -> OrderRejection {
         Rejection::InsufficientMargin => OrderRejection::InsufficientMargin,
         Rejection::BelowMinDealSize => OrderRejection::BelowMinDealSize,
         Rejection::MinDealSizeUnknown => OrderRejection::MinDealSizeUnknown,
+        Rejection::GroupRiskLimit => OrderRejection::GroupRiskLimit,
     }
 }
 
@@ -323,11 +408,18 @@ impl PaperBroker {
             markets,
             reports: BTreeMap::new(),
             journal: Vec::new(),
+            pending: Vec::new(),
+            first_order_window: None,
             events: Vec::new(),
             trades: Vec::new(),
             kill_switch: None,
             peak_equity: peak,
+            peak_through: None,
+            atr_seeds: BTreeMap::new(),
+            sealed: Sealed::default(),
+            before_checkpoint: Cell::new(None),
             missing_rate: Cell::new(None),
+            missing_fx: Cell::new(None),
         }
     }
 
@@ -362,9 +454,158 @@ impl PaperBroker {
         std::mem::take(&mut self.events)
     }
 
+    /// Fija el comienzo de las velas antes de la **primera** orden (#438): quita las velas que
+    /// empiezan antes de `from`. Quien reconstruye el broker carga las velas desde ese mismo
+    /// punto, así el ATR de Wilder (que depende de la primera vela) sale igual en la sesión y en
+    /// la reconstrucción. Con órdenes ya procesadas no cambia nada y devuelve error: cambiar
+    /// las velas por debajo de un informe es repintado.
+    pub fn start_candles_at(&mut self, from: DateTime<Utc>) -> Result<(), &'static str> {
+        if !self.journal.is_empty() {
+            return Err("el broker ya procesó órdenes: sus velas no se recortan");
+        }
+        for m in self.markets.values_mut() {
+            m.candles.retain(|c| c.start >= from);
+        }
+        Ok(())
+    }
+
+    /// Agrega velas **anteriores** a las que tiene un instrumento, mientras el registro está
+    /// vacío (#481): quien carga las velas desde `now` menos la ventana y recibe una primera
+    /// orden con `created_at` anterior a `now` completa así las que le faltan desde esa orden
+    /// menos la ventana, como las cargará la reconstrucción (#438). Con órdenes ya procesadas,
+    /// con el instrumento ya cortado por un punto de control, o con velas desordenadas o que no
+    /// terminan antes de la primera que tiene, no cambia nada y devuelve error.
+    pub fn prepend_candles(
+        &mut self,
+        instrument: &InstrumentId,
+        candles: Vec<Candle>,
+    ) -> Result<(), &'static str> {
+        if !self.journal.is_empty() {
+            return Err("el broker ya procesó órdenes: sus velas no se cambian");
+        }
+        if self.atr_seeds.contains_key(instrument) {
+            return Err("el instrumento ya arranca en un punto de control");
+        }
+        let m = self
+            .markets
+            .get_mut(instrument)
+            .ok_or("instrumento desconocido")?;
+        if candles.iter().any(|c| &c.instrument_id != instrument)
+            || candles.windows(2).any(|w| w[0].start >= w[1].start)
+        {
+            return Err("velas de otro instrumento o fuera de orden");
+        }
+        if let (Some(last), Some(first)) = (candles.last(), m.candles.first())
+            && last.start >= first.start
+        {
+            return Err("las velas agregadas no terminan antes de las que ya están");
+        }
+        m.candles.splice(0..0, candles);
+        Ok(())
+    }
+
+    /// Las velas van a empezar `window` antes de la primera orden que entre al registro
+    /// ([`Self::start_candles_at`] en ese momento), como las carga la reconstrucción (#438).
+    /// Con órdenes ya en el registro no cambia nada.
+    pub fn anchor_candles_before_first_order(&mut self, window: TimeDelta) {
+        self.first_order_window = Some(window);
+    }
+
+    /// Reemplaza la serie de tasas de referencia de la financiación de un instrumento por una
+    /// leída de nuevo (#439), con las publicaciones que llegaron desde el arranque. Cada corte
+    /// usa la tasa publicada hasta ese corte (`DailyRates`, sin mirar el futuro), así que las
+    /// publicaciones nuevas no cambian los cortes ya pasados: solo dejan de usar una tasa vieja
+    /// en los cortes nuevos. Un instrumento desconocido es un error.
+    pub fn update_funding_rates(
+        &mut self,
+        instrument: &InstrumentId,
+        rates: FundingRates,
+    ) -> Result<(), &'static str> {
+        let m = self
+            .markets
+            .get_mut(instrument)
+            .ok_or("instrumento desconocido")?;
+        m.funding.rates = rates;
+        Ok(())
+    }
+
+    /// Reemplaza la serie del tipo de cambio cuenta → instrumento por una leída de nuevo (#439,
+    /// ADR 0013), con las publicaciones que llegaron desde el arranque. Cada momento usa el tipo
+    /// publicado hasta ese momento (`FxRates`, sin mirar el futuro): lo ya valuado no cambia.
+    pub fn update_account_fx(
+        &mut self,
+        instrument: &InstrumentId,
+        fx: AccountFx,
+    ) -> Result<(), &'static str> {
+        let m = self
+            .markets
+            .get_mut(instrument)
+            .ok_or("instrumento desconocido")?;
+        m.account_to_instrument = fx;
+        Ok(())
+    }
+
     /// Los mercados con sus velas (para reconstruir aparte, por ejemplo al reconciliar).
     pub fn markets(&self) -> &BTreeMap<InstrumentId, MarketSetup> {
         &self.markets
+    }
+
+    pub(crate) fn markets_mut(&mut self) -> &mut BTreeMap<InstrumentId, MarketSetup> {
+        &mut self.markets
+    }
+
+    /// Solo para arrancar desde un punto de control (#463): las órdenes que ya cubre, con sus
+    /// informes (para la idempotencia y la reconciliación).
+    pub(crate) fn set_journal(&mut self, journal: &[(Order, OrderReport)]) {
+        self.reports = journal
+            .iter()
+            .map(|(o, r)| (o.order_id.clone(), r.clone()))
+            .collect();
+        self.journal = journal.to_vec();
+    }
+
+    /// El ATR de Wilder de `candles` (velas del broker de `instrument`, desde la primera): si
+    /// empiezan en un punto de control, sigue desde su estado (#463).
+    pub(crate) fn atr(
+        &self,
+        instrument: &InstrumentId,
+        candles: &[Candle],
+    ) -> Vec<Option<Decimal>> {
+        match self.atr_seeds.get(instrument) {
+            Some(seed) => wilder_atr_after(*seed, candles, self.cfg.atr_period),
+            None => wilder_atr(candles, self.cfg.atr_period),
+        }
+    }
+
+    /// Lo sellado por un punto de control, mirado en `t` (#463): su resultado es constante
+    /// desde su último movimiento. Mira el tipo de cambio de `t` de sus instrumentos como lo
+    /// hacía su valuación (`with_last`: solo si el instrumento ya tiene una vela cerrada en `t`).
+    fn touch_sealed(&self, t: DateTime<Utc>, with_last: bool) {
+        if self.sealed.until.is_some_and(|until| t < until)
+            && self.before_checkpoint.get().is_none_or(|prev| t < prev)
+        {
+            self.before_checkpoint.set(Some(t));
+        }
+        for id in &self.sealed.instruments {
+            let closed = self
+                .markets
+                .get(id)
+                .is_some_and(|m| m.candles.first().is_some_and(|c| c.end() <= t));
+            if !with_last || closed {
+                self.to_eur(id, Decimal::ZERO, t);
+            }
+        }
+    }
+
+    /// Las marcas de error de datos pendientes (para que un punto de control no selle nada
+    /// valuado con datos faltantes).
+    pub(crate) fn take_data_flags(&self) -> (Option<DateTime<Utc>>, Option<DateTime<Utc>>) {
+        (self.missing_rate.take(), self.missing_fx.take())
+    }
+
+    pub(crate) fn restore_data_flags(&self, flags: (Option<DateTime<Utc>>, Option<DateTime<Utc>>)) {
+        self.missing_rate.set(flags.0);
+        self.missing_fx.set(flags.1);
     }
 
     pub fn config(&self) -> &BrokerConfig {
@@ -375,7 +616,20 @@ impl PaperBroker {
         self.kill_switch.is_some()
     }
 
-    /// Si una valuación encontró un corte sin tasa de referencia, activa el kill switch.
+    /// El kill switch activo: motivo y desde cuándo.
+    pub fn kill_switch(&self) -> Option<(&str, DateTime<Utc>)> {
+        self.kill_switch.as_ref().map(|(r, at)| (r.as_str(), *at))
+    }
+
+    /// Solo para reconstruir el broker desde el registro (`crate::reconcile`): una
+    /// liberación **ya guardada** (después de la votación de la spec §1.2, #441). El broker en
+    /// marcha nunca se libera solo.
+    pub(crate) fn replay_kill_switch_release(&mut self) {
+        self.kill_switch = None;
+    }
+
+    /// Si una valuación encontró un corte sin tasa de referencia o un momento sin tipo de
+    /// cambio, activa el kill switch.
     fn flag_missing_rate(&mut self) {
         if let Some(at) = self.missing_rate.take() {
             self.activate_kill_switch(
@@ -384,6 +638,40 @@ impl PaperBroker {
                 ),
                 at,
             );
+        }
+        if let Some(at) = self.missing_fx.take() {
+            self.activate_kill_switch(
+                format!("Falta el tipo de cambio de {at} (ADR 0013, spec §12)."),
+                at,
+            );
+        }
+        if let Some(at) = self.before_checkpoint.take() {
+            self.activate_kill_switch(
+                format!(
+                    "Valuación en {at}, antes de lo que selló el punto de control del broker \
+                     (#463): no se puede repetir igual."
+                ),
+                at,
+            );
+        }
+    }
+
+    /// Tipo de cambio de `instrument` vigente en `at`, o `None` (sin inventar).
+    fn fx_at(&self, instrument: &InstrumentId, at: DateTime<Utc>) -> Option<Decimal> {
+        self.markets.get(instrument)?.account_to_instrument.at(at)
+    }
+
+    /// `amount` (moneda del instrumento) en EUR al tipo vigente en `at`. Si no hay tipo, 0 y
+    /// se anota el error de datos (kill switch en el próximo `flag_missing_rate`).
+    fn to_eur(&self, instrument: &InstrumentId, amount: Decimal, at: DateTime<Utc>) -> Decimal {
+        match self.fx_at(instrument, at) {
+            Some(fx) => amount / fx,
+            None => {
+                if self.missing_fx.get().is_none_or(|prev| at < prev) {
+                    self.missing_fx.set(Some(at));
+                }
+                Decimal::ZERO
+            }
         }
     }
 
@@ -412,24 +700,37 @@ impl PaperBroker {
     /// cierra al último cierre ya cerrado, como `EndOfData` en el backtest. Montos en la moneda
     /// del instrumento.
     pub fn trade_outcomes(&self, now: DateTime<Utc>) -> Vec<PaperTrade> {
-        self.trades
+        // Las selladas por un punto de control (#463) ya terminaron: su resultado guardado.
+        let mut out: Vec<(usize, PaperTrade)> = self
+            .sealed
+            .outcomes
             .iter()
-            .filter(|t| t.opened_at <= now)
-            .map(|t| self.outcome(t, now))
-            .collect()
+            .filter(|(_, t)| t.opened_at <= now)
+            .cloned()
+            .collect();
+        out.extend(
+            self.trades
+                .iter()
+                .filter(|t| t.opened_at <= now)
+                .map(|t| (t.seq, self.outcome(t, now))),
+        );
+        out.sort_by_key(|(seq, _)| *seq);
+        out.into_iter().map(|(_, t)| t).collect()
+    }
+
+    /// La operación valuada en `now` (para sellarla en un punto de control, #463).
+    pub(crate) fn outcome_of(&self, t: &OpenTrade, now: DateTime<Utc>) -> PaperTrade {
+        self.outcome(t, now)
     }
 
     fn outcome(&self, t: &OpenTrade, now: DateTime<Utc>) -> PaperTrade {
         let m = &self.markets[&t.instrument];
         let side = strategy_side(t.side);
-        let closed: Vec<Candle> = m
-            .candles
-            .iter()
-            .filter(|c| c.end() <= now)
-            .cloned()
-            .collect();
+        // Las velas de un instrumento entran en orden (`push_candle`): las cerradas en `now`
+        // son un prefijo.
+        let closed = &m.candles[..m.candles.partition_point(|c| c.end() <= now)];
         let exit_px = |mid| fill_price(side, Execution::Exit, mid, &m.costs, &self.cfg.costs);
-        let (fills, open) = self.exits_of(t, &closed);
+        let (fills, open) = self.exits_of(t, closed);
         let mut exits: Vec<PaperExit> = fills
             .iter()
             .map(|f| PaperExit {
@@ -483,6 +784,156 @@ impl PaperBroker {
         &self.journal
     }
 
+    /// Las órdenes pendientes de su vela del fill (#471), en orden de llegada.
+    pub fn pending(&self) -> &[Order] {
+        &self.pending
+    }
+
+    /// Decide las órdenes pendientes cuya vela del fill ya llegó, en orden de llegada, y
+    /// devuelve lo que entró al registro (para guardarlo). Cada una se decide con
+    /// [`Self::decide`] sobre el estado de ese momento, igual que la reconstrucción la decide
+    /// en ese mismo punto del registro (#471).
+    pub fn settle_pending(&mut self) -> Vec<(Order, OrderReport)> {
+        let mut out = Vec::new();
+        let mut i = 0;
+        while i < self.pending.len() {
+            if self.awaits_fill(&self.pending[i]) {
+                i += 1;
+                continue;
+            }
+            let order = self.pending.remove(i);
+            let report = self.decide(&order);
+            out.push((order, report));
+        }
+        out
+    }
+
+    /// Vuelve a dejar pendiente una orden guardada como pendiente (#479), al arrancar y después
+    /// de reconstruir el broker desde el registro, en el orden en que llegó. No se evalúa otra
+    /// vez: la sesión que la recibió ya la evaluó al llegar y no la vuelve a mirar hasta su vela
+    /// del fill; ahí la decide [`Self::settle_pending`] con el estado de ese momento, igual que
+    /// si no hubiera habido reinicio.
+    pub fn restore_pending(&mut self, order: Order) -> Result<(), RestorePending> {
+        if self.reports.contains_key(&order.order_id) {
+            return Err(RestorePending::AlreadyDecided);
+        }
+        if self.pending.iter().any(|o| o.order_id == order.order_id) {
+            return Err(RestorePending::AlreadyPending);
+        }
+        if !self.markets.contains_key(&order.instrument_id) {
+            return Err(RestorePending::UnknownInstrument);
+        }
+        self.pending.push(order);
+        Ok(())
+    }
+
+    /// Quita una orden pendiente (la que no se pudo guardar como pendiente, #479): así no queda
+    /// una pendiente que un reinicio perdería, y se puede reenviar con el mismo `order_id`.
+    pub fn forget_pending(&mut self, order_id: &ClientId) -> Option<Order> {
+        let i = self.pending.iter().position(|o| &o.order_id == order_id)?;
+        Some(self.pending.remove(i))
+    }
+
+    /// `true` si el instrumento existe y todavía no hay vela que empiece en `created_at` o
+    /// después (la del fill).
+    fn awaits_fill(&self, order: &Order) -> bool {
+        self.markets
+            .get(&order.instrument_id)
+            .is_some_and(|m| m.candles.last().is_none_or(|c| c.start < order.created_at))
+    }
+
+    fn pending_report(order: &Order) -> OrderReport {
+        OrderReport {
+            order_id: order.order_id.clone(),
+            status: OrderStatus::Pending,
+            rejection: None,
+            position_id: None,
+            size: None,
+            fill_price: None,
+            commission: None,
+            at: order.created_at,
+        }
+    }
+
+    /// Decide la orden (riesgo y fill) y la anota en el registro. La vela del fill, si el riesgo
+    /// la acepta, tiene que estar (si no, `no_price`).
+    fn decide(&mut self, order: &Order) -> OrderReport {
+        if let (true, Some(w)) = (self.journal.is_empty(), self.first_order_window) {
+            // Registro vacío: no puede fallar.
+            let _ = self.start_candles_at(order.created_at - w);
+        }
+        let a = self.assess(order);
+        self.events.push(BrokerEvent::RiskDecision {
+            order_id: order.order_id.clone(),
+            accepted: a.result.is_ok(),
+            rejection: a.result.as_ref().err().copied(),
+            size: a.result.as_ref().ok().map(|s| s.size),
+            as_of: a.as_of,
+        });
+        let report = match (a.result, a.fill_index) {
+            (Ok(s), Some(i)) => self.open_trade(order, &s, i),
+            (result, _) => OrderReport {
+                order_id: order.order_id.clone(),
+                status: OrderStatus::Rejected,
+                rejection: Some(result.err().unwrap_or(OrderRejection::NoPrice)),
+                position_id: None,
+                size: None,
+                fill_price: None,
+                commission: None,
+                at: order.created_at,
+            },
+        };
+        self.reports.insert(order.order_id.clone(), report.clone());
+        self.journal.push((order.clone(), report.clone()));
+        self.events.push(BrokerEvent::OrderReport {
+            report: report.clone(),
+        });
+        report
+    }
+
+    /// Abre la operación en la apertura de la vela `i` (la del fill).
+    fn open_trade(&mut self, order: &Order, s: &Sizing, i: usize) -> OrderReport {
+        let m = &self.markets[&order.instrument_id];
+        let bar = &m.candles[i];
+        let side = strategy_side(order.side);
+        let px = fill_price(side, Execution::Entry, bar.open, &m.costs, &self.cfg.costs);
+        let fee = commission(&m.costs, s.size, px);
+        let position_id: ClientId = format!("pos:{}", order.order_id)
+            .chars()
+            .take(200)
+            .collect::<String>()
+            .parse()
+            .expect("prefijo y order_id válidos");
+        let opened_at = bar.start;
+        let entry_mid = bar.open;
+        self.trades.push(OpenTrade {
+            seq: self.journal.len(),
+            position_id: position_id.clone(),
+            order_id: order.order_id.clone(),
+            instrument: order.instrument_id.clone(),
+            side: order.side,
+            size: s.size,
+            entry_mid,
+            entry_fill: px,
+            entry_index: i,
+            entry_commission: fee,
+            stop: order.stop,
+            tp1: order.tp1,
+            margin: s.margin,
+            opened_at,
+        });
+        OrderReport {
+            order_id: order.order_id.clone(),
+            status: OrderStatus::Filled,
+            rejection: None,
+            position_id: Some(position_id),
+            size: Some(s.size),
+            fill_price: Some(px),
+            commission: Some(fee),
+            at: opened_at,
+        }
+    }
+
     /// Informe ya guardado de una orden, si existe.
     pub fn report(&self, order_id: &ClientId) -> Option<&OrderReport> {
         self.reports.get(order_id)
@@ -496,7 +947,7 @@ impl PaperBroker {
         if closed.len() <= t.entry_index {
             return (Vec::new(), Decimal::ONE);
         }
-        let atr = wilder_atr(closed, self.cfg.atr_period);
+        let atr = self.atr(&t.instrument, closed);
         let trade = Trade {
             side: strategy_side(t.side),
             entry_index: t.entry_index,
@@ -520,24 +971,31 @@ impl PaperBroker {
         }
     }
 
+    pub(crate) fn valuate_open_fraction_and_events(
+        &self,
+        t: &OpenTrade,
+        now: DateTime<Utc>,
+    ) -> (Decimal, Decimal, Vec<(DateTime<Utc>, Decimal)>) {
+        let v = self.valuate(t, now);
+        (v.open_fraction, v.realized_eur, v.realized_events)
+    }
+
     fn valuate(&self, t: &OpenTrade, now: DateTime<Utc>) -> Valued {
         let m = &self.markets[&t.instrument];
-        let fx = m.account_to_instrument;
-        let closed: Vec<Candle> = m
-            .candles
-            .iter()
-            .filter(|c| c.end() <= now)
-            .cloned()
-            .collect();
+        let eur = |amount, at| self.to_eur(&t.instrument, amount, at);
+        // Las velas de un instrumento entran en orden (`push_candle`): las cerradas en `now`
+        // son un prefijo.
+        let closed = &m.candles[..m.candles.partition_point(|c| c.end() <= now)];
+        let entry_fee = eur(-t.entry_commission, t.opened_at);
         let mut v = Valued {
-            realized_eur: -t.entry_commission / fx,
-            realized_events: vec![(t.opened_at, -t.entry_commission / fx)],
+            realized_eur: entry_fee,
+            realized_events: vec![(t.opened_at, entry_fee)],
             open_fraction: Decimal::ONE,
             last: closed.last().map(|c| c.close),
             unrealized: Decimal::ZERO,
             as_of: closed.last().map(Candle::end),
         };
-        let (fills, open) = self.exits_of(t, &closed);
+        let (fills, open) = self.exits_of(t, closed);
         for f in &fills {
             let size = t.size * f.fraction;
             let px = fill_price(
@@ -551,8 +1009,9 @@ impl PaperBroker {
             let pnl = size * (px - t.entry_fill) * sign(t.side)
                 - commission(&m.costs, size, px)
                 - self.funding(t, size, exit_at);
-            v.realized_eur += pnl / fx;
-            v.realized_events.push((exit_at, pnl / fx));
+            let pnl = eur(pnl, exit_at);
+            v.realized_eur += pnl;
+            v.realized_events.push((exit_at, pnl));
         }
         v.open_fraction = open;
         if let Some(last) = v.last {
@@ -563,27 +1022,91 @@ impl PaperBroker {
             } else {
                 Decimal::ZERO
             };
-            v.unrealized = (open * (last - t.entry_fill) * sign(t.side) - swap) / fx;
+            v.unrealized = eur(open * (last - t.entry_fill) * sign(t.side) - swap, now);
         }
         v
     }
 
     /// Capital en `now` (realizado + no realizado), y lo realizado antes de `day_start`.
     fn equity_at(&self, now: DateTime<Utc>) -> (Decimal, Decimal, Decimal) {
+        self.touch_sealed(now, false);
         let mut equity = self.cfg.initial_equity;
         let mut unrealized = Decimal::ZERO;
         let mut margin_used = Decimal::ZERO;
+        let mut sealed = self.sealed.realized.iter().peekable();
         for t in self.trades.iter().filter(|t| t.opened_at <= now) {
+            while let Some((_, r)) = sealed.next_if(|(seq, _)| *seq < t.seq) {
+                equity += *r;
+            }
             let v = self.valuate(t, now);
             equity += v.realized_eur + v.unrealized;
             unrealized += v.unrealized;
-            margin_used +=
-                v.open_fraction * t.margin / self.markets[&t.instrument].account_to_instrument;
+            margin_used += self.to_eur(&t.instrument, v.open_fraction * t.margin, now);
+        }
+        for (_, r) in sealed {
+            equity += *r;
         }
         (equity, unrealized, margin_used)
     }
 
-    fn day_start(&self, now: DateTime<Utc>) -> DateTime<Utc> {
+    /// El capital en `now` como `equity_at`, sumado en el mismo orden (da exactamente lo mismo).
+    /// `settled`: el valor de las operaciones ya cerradas del todo, que no cambia después (sin
+    /// repintado); evita volver a valuarlas en cada vela de [`Self::peak_until`].
+    fn equity_marked(&self, now: DateTime<Utc>, settled: &mut BTreeMap<usize, Decimal>) -> Decimal {
+        self.touch_sealed(now, false);
+        let mut equity = self.cfg.initial_equity;
+        let mut sealed = self.sealed.realized.iter().peekable();
+        for t in self.trades.iter().filter(|t| t.opened_at <= now) {
+            while let Some((_, r)) = sealed.next_if(|(seq, _)| *seq < t.seq) {
+                equity += *r;
+            }
+            equity += match settled.get(&t.seq) {
+                Some(v) => *v,
+                None => {
+                    let v = self.valuate(t, now);
+                    let value = v.realized_eur + v.unrealized;
+                    if v.open_fraction.is_zero() {
+                        settled.insert(t.seq, value);
+                    }
+                    value
+                }
+            };
+        }
+        for (_, r) in sealed {
+            equity += *r;
+        }
+        equity
+    }
+
+    /// El máximo del capital con el capital valuado a mercado al cierre de cada vela cerrada
+    /// (de cualquier instrumento) posterior a `peak_through` y hasta `until`, en orden, como el
+    /// backtest de cartera en cada vela (#691). Solo velas que ya cerraron en `until`: nada del
+    /// futuro. Devuelve el máximo y hasta dónde quedó incluido; no cambia el broker.
+    pub(crate) fn peak_until(&self, until: DateTime<Utc>) -> (Decimal, Option<DateTime<Utc>>) {
+        let through = self.peak_through;
+        if through.is_some_and(|p| until <= p) {
+            return (self.peak_equity, through);
+        }
+        let mut peak = self.peak_equity;
+        // Antes de la primera operación el capital no se mueve (lo sellado ya está en el máximo).
+        if let Some(first) = self.trades.iter().map(|t| t.opened_at).min() {
+            let mut times: Vec<DateTime<Utc>> = self
+                .markets
+                .values()
+                .flat_map(|m| m.candles.iter().map(Candle::end))
+                .filter(|t| *t >= first && *t <= until && through.is_none_or(|p| *t > p))
+                .collect();
+            times.sort_unstable();
+            times.dedup();
+            let mut settled = BTreeMap::new();
+            for t in times {
+                peak = mark_peak(peak, self.equity_marked(t, &mut settled));
+            }
+        }
+        (peak, Some(until))
+    }
+
+    pub(crate) fn day_start(&self, now: DateTime<Utc>) -> DateTime<Utc> {
         let local = now.with_timezone(&self.cfg.day_tz).date_naive();
         local
             .and_hms_opt(0, 0, 0)
@@ -592,12 +1115,53 @@ impl PaperBroker {
     }
 
     fn open_instruments(&self, now: DateTime<Utc>) -> Vec<InstrumentId> {
+        self.touch_sealed(now, true);
         self.trades
             .iter()
             // También las que esperan su fill (abren en la apertura siguiente).
             .filter(|t| t.opened_at > now || self.valuate(t, now).open_fraction > Decimal::ZERO)
             .map(|t| t.instrument.clone())
             .collect()
+    }
+
+    /// Las posiciones abiertas para el riesgo. Lo que arriesga cada una (en EUR, hasta su stop
+    /// original, con la fracción que sigue abierta: cota conservadora) solo lo usa el tope por
+    /// grupo correlacionado (#670). Sin grupos en `config/risk.toml` va 0 y no se pide ningún tipo
+    /// de cambio: el comportamiento de siempre. Con grupos, sin tipo no se inventa uno.
+    fn open_positions(&self, now: DateTime<Utc>) -> Result<Vec<OpenPosition>, OrderRejection> {
+        self.touch_sealed(now, true);
+        let need_risk = !self.cfg.risk.groups.is_empty();
+        let mut out = Vec::new();
+        for t in &self.trades {
+            let pending = t.opened_at > now;
+            let fraction = if pending {
+                Decimal::ONE
+            } else {
+                self.valuate(t, now).open_fraction
+            };
+            if !pending && fraction <= Decimal::ZERO {
+                continue;
+            }
+            let risk = if need_risk {
+                let adverse = match t.side {
+                    OrderSide::Long => t.entry_fill - t.stop,
+                    OrderSide::Short => t.stop - t.entry_fill,
+                }
+                .max(Decimal::ZERO);
+                let fx = self
+                    .fx_at(&t.instrument, now)
+                    .or_else(|| self.fx_at(&t.instrument, t.opened_at))
+                    .ok_or(OrderRejection::MissingFxRate)?;
+                t.size * fraction * adverse / fx
+            } else {
+                Decimal::ZERO
+            };
+            out.push(OpenPosition {
+                instrument: t.instrument.clone(),
+                risk,
+            });
+        }
+        Ok(out)
     }
 
     fn assess(&mut self, order: &Order) -> Assessment {
@@ -635,7 +1199,8 @@ impl PaperBroker {
         if wrong_side {
             return fail(OrderRejection::StopWrongSide);
         }
-        let atr = wilder_atr(&m.candles[..closed], self.cfg.atr_period)
+        let atr = self
+            .atr(&order.instrument_id, &m.candles[..closed])
             .last()
             .copied()
             .flatten();
@@ -643,27 +1208,40 @@ impl PaperBroker {
         let Some(atr) = atr else {
             return fail(OrderRejection::NoRecentCandles);
         };
+        // El riesgo, al tipo vigente a la hora de la señal (ADR 0013). Sin tipo, no se opera.
+        let Some(fx) = m.account_to_instrument.at(as_of) else {
+            return fail(OrderRejection::MissingFxRate);
+        };
         let req = Request {
             instrument: order.instrument_id.clone(),
             entry: reference,
             stop: order.stop,
             atr,
-            account_to_instrument: m.account_to_instrument,
+            account_to_instrument: fx,
         };
         let limits = m.limits;
         let (equity, _, margin_used) = self.equity_at(as_of);
-        self.peak_equity = self.peak_equity.max(equity);
+        // El máximo, al día hasta la vela de la señal: valuado en cada vela cerrada (#691).
+        let (peak, through) = self.peak_until(as_of);
+        self.peak_equity = mark_peak(peak, equity);
+        self.peak_through = through;
         let day_start = self.day_start(as_of);
         let (day_start_equity, _, _) = self.equity_at(day_start);
         // Un corte sin tasa de referencia es un error de datos: kill switch antes de decidir.
         self.flag_missing_rate();
+        let open_positions = match self.open_positions(as_of) {
+            Ok(p) => p,
+            Err(r) => return fail(r),
+        };
         let account = Account {
             equity,
             peak_equity: self.peak_equity,
             day_start_equity,
             free_margin: equity - margin_used,
             kill_switch: self.kill_switch.is_some(),
-            open_positions: self.open_instruments(as_of),
+            open_positions,
+            // Volatilidad objetivo apagada en la config (#671): se conecta cuando se apruebe.
+            realized_vol_pct: None,
         };
         match check(&req, &account, &limits, &self.cfg.risk) {
             Ok(sizing) => Assessment {
@@ -692,10 +1270,10 @@ impl crate::Broker for PaperBroker {
             ..order.clone()
         };
         let a = probe.assess(&order);
+        // Aceptada implica tipo vigente en `as_of` (si no, `assess` la rechazó).
         let fx = self
-            .markets
-            .get(&order.instrument_id)
-            .map_or(Decimal::ONE, |m| m.account_to_instrument);
+            .fx_at(&order.instrument_id, a.as_of)
+            .unwrap_or(Decimal::ONE);
         let (equity, _, _) = self.equity_at(a.as_of);
         match a.result {
             Ok(s) => {
@@ -738,79 +1316,35 @@ impl crate::Broker for PaperBroker {
             });
             return r;
         }
+        if self.pending.iter().any(|o| o.order_id == order.order_id) {
+            self.events.push(BrokerEvent::OrderDuplicate {
+                order_id: order.order_id.clone(),
+            });
+            return Self::pending_report(order);
+        }
         self.events.push(BrokerEvent::OrderReceived {
             order_id: order.order_id.clone(),
             instrument_id: order.instrument_id.clone(),
             side: order.side,
             created_at: order.created_at,
         });
-        let a = self.assess(order);
-        self.events.push(BrokerEvent::RiskDecision {
-            order_id: order.order_id.clone(),
-            accepted: a.result.is_ok(),
-            rejection: a.result.as_ref().err().copied(),
-            size: a.result.as_ref().ok().map(|s| s.size),
-            as_of: a.as_of,
-        });
-        let report = match (a.result, a.fill_index) {
-            (Ok(s), Some(i)) => {
-                let m = &self.markets[&order.instrument_id];
-                let bar = &m.candles[i];
-                let side = strategy_side(order.side);
-                let px = fill_price(side, Execution::Entry, bar.open, &m.costs, &self.cfg.costs);
-                let fee = commission(&m.costs, s.size, px);
-                let position_id: ClientId = format!("pos:{}", order.order_id)
-                    .chars()
-                    .take(200)
-                    .collect::<String>()
-                    .parse()
-                    .expect("prefijo y order_id válidos");
-                self.trades.push(OpenTrade {
-                    position_id: position_id.clone(),
-                    order_id: order.order_id.clone(),
-                    instrument: order.instrument_id.clone(),
-                    side: order.side,
-                    size: s.size,
-                    entry_mid: bar.open,
-                    entry_fill: px,
-                    entry_index: i,
-                    entry_commission: fee,
-                    stop: order.stop,
-                    tp1: order.tp1,
-                    margin: s.margin,
-                    opened_at: bar.start,
-                });
-                OrderReport {
-                    order_id: order.order_id.clone(),
-                    status: OrderStatus::Filled,
-                    rejection: None,
-                    position_id: Some(position_id),
-                    size: Some(s.size),
-                    fill_price: Some(px),
-                    commission: Some(fee),
-                    at: bar.start,
-                }
-            }
-            (result, _) => OrderReport {
+        // Sin la vela del fill todavía (#471): si el riesgo la acepta (sobre una copia, sin
+        // efectos), queda pendiente fuera del registro y se decide cuando llegue esa vela, igual
+        // que la reconstrucción. Si la rechaza, el rechazo no depende de la vela del fill: se
+        // decide y se registra ya, con el mismo resultado que en la reconstrucción.
+        if self.awaits_fill(order) && self.clone().assess(order).result.is_ok() {
+            self.pending.push(order.clone());
+            self.events.push(BrokerEvent::OrderPending {
                 order_id: order.order_id.clone(),
-                status: OrderStatus::Rejected,
-                rejection: Some(result.err().unwrap_or(OrderRejection::NoPrice)),
-                position_id: None,
-                size: None,
-                fill_price: None,
-                commission: None,
-                at: order.created_at,
-            },
-        };
-        self.reports.insert(order.order_id.clone(), report.clone());
-        self.journal.push((order.clone(), report.clone()));
-        self.events.push(BrokerEvent::OrderReport {
-            report: report.clone(),
-        });
-        report
+                created_at: order.created_at,
+            });
+            return Self::pending_report(order);
+        }
+        self.decide(order)
     }
 
     fn positions(&mut self, now: DateTime<Utc>) -> Vec<Position> {
+        self.touch_sealed(now, true);
         let mut out = Vec::new();
         for t in self.trades.iter().filter(|t| t.opened_at <= now) {
             let v = self.valuate(t, now);
@@ -820,7 +1354,10 @@ impl crate::Broker for PaperBroker {
             if v.open_fraction <= Decimal::ZERO {
                 continue;
             }
-            let fx = self.markets[&t.instrument].account_to_instrument;
+            // Lo no realizado vuelve a la moneda del instrumento con el mismo tipo de `now`.
+            let Some(fx) = self.fx_at(&t.instrument, now) else {
+                continue;
+            };
             let size = t.size * v.open_fraction;
             let r = (t.entry_fill - t.stop).abs();
             let pl_instr = v.unrealized * fx;
@@ -854,8 +1391,9 @@ impl crate::Broker for PaperBroker {
     }
 
     fn account(&mut self, now: DateTime<Utc>) -> PaperAccount {
+        // Es una lectura (la UI la pide cuando quiere): no mueve el máximo del capital. Solo lo
+        // pone al día la evaluación de una orden, que la reconstrucción repite igual (#464, #691).
         let (equity, unrealized, margin_used) = self.equity_at(now);
-        self.peak_equity = self.peak_equity.max(equity);
         let day_start = self.day_start(now);
         let realized_today: Decimal = self
             .trades
@@ -876,7 +1414,7 @@ impl crate::Broker for PaperBroker {
         let notional: Decimal = self
             .positions(now)
             .iter()
-            .map(|p| p.size * p.last / self.markets[&p.instrument_id].account_to_instrument)
+            .map(|p| self.to_eur(&p.instrument_id, p.size * p.last, now))
             .sum();
         let open = self.open_instruments(now).len();
         self.flag_missing_rate();

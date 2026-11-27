@@ -18,7 +18,7 @@ use rust_decimal::{Decimal, dec};
 
 const RISK: &str = include_str!("../../../../config/risk.toml");
 const BACKTEST: &str = include_str!("../../../../config/backtest.toml");
-const BROKER: &str = include_str!("../../../../config/broker.toml");
+const BROKER: &str = include_str!("fixtures/broker.toml");
 const CATALOG: &str = include_str!("../../../../config/instruments.toml");
 
 fn utc(s: &str) -> DateTime<Utc> {
@@ -94,7 +94,7 @@ fn broker(m15: Vec<Candle>, with_sessions: bool) -> PaperBroker {
             min_deal_size: Some(dec!(0.01)),
         },
         costs: costs(),
-        account_to_instrument: Decimal::ONE,
+        account_to_instrument: cfds_backtest::AccountFx::Same,
         candles: m15,
         funding: FundingSetup {
             cutoff: NaiveTime::from_hms_opt(23, 0, 0).unwrap(),

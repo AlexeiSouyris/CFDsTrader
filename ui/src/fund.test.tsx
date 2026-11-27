@@ -84,10 +84,14 @@ describe('fondo del motor (fase 6b, #312)', () => {
     expect(rows[0]).toHaveTextContent('110,00 €')
     expect(rows[0]).toHaveTextContent('+10,00 €')
     expect(rows[1]).toHaveTextContent('+5,00 €')
-    expect(rows[2]).toHaveTextContent('+0,00 €')
-    // Solo los pedidos pendientes siguen de ejemplo (el motor no los publica todavía).
-    const marked = screen.getAllByText('(ejemplo)').map((el) => el.closest('h2')?.textContent)
-    expect(marked).toEqual([expect.stringMatching(/^Movimientos pendientes/)])
+    // el cero va sin signo (#580)
+    expect(rows[2]).toHaveTextContent('0,00 €')
+    expect(rows[2]).not.toHaveTextContent('+0,00')
+    // Con gateway no queda nada de ejemplo: los pedidos pendientes (el motor no los publica
+    // todavía) no se muestran (#577).
+    expect(document.querySelector('[data-example-badge]')).toBeNull()
+    expect(screen.queryByText('(ejemplo)')).toBeNull()
+    expect(screen.getByText(/no publica los pedidos del lunes/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /^Cada miembro/ })).toHaveTextContent('del motor')
   })
 
@@ -118,10 +122,23 @@ describe('fondo del motor (fase 6b, #312)', () => {
     expect(await screen.findByText('999,99 €')).toBeInTheDocument()
   })
 
-  it('sin gateway muestra el ejemplo, marcado "(ejemplo)"', async () => {
+  it('es un resumen sin vidrio y dibuja la curva con el NAV de cada liquidación (#581)', async () => {
+    gateway()
+    const { container } = render(<FundView />)
+    const curve = await screen.findByRole('img', { name: /Valor de la unidad en 3 liquidaciones/ })
+    expect(curve).toHaveAccessibleName(/de 1,0000 el .* a 1,1000 el/)
+    const section = container.querySelector('[data-section="fund"]')
+    expect(section).not.toHaveAttribute('data-glass')
+    expect(screen.getByText(/Resultados del pasado, no promesas/)).toBeInTheDocument()
+  })
+
+  it('sin gateway muestra el ejemplo, con el sello EJEMPLO', async () => {
     gateway(false)
     const { container } = render(<FundView />)
-    await waitFor(() => expect(screen.getAllByText('(ejemplo)').length).toBeGreaterThanOrEqual(2))
+    // cada miembro, historial y pedidos pendientes llevan el sello (#577)
+    await waitFor(() =>
+      expect(container.querySelectorAll('[data-example-badge]').length).toBeGreaterThanOrEqual(3),
+    )
     expect(container.querySelector('[data-fund-source="example"]')).not.toBeNull()
     expect(screen.getByText('Datos de ejemplo')).toBeInTheDocument()
     expect(within(members()).getAllByRole('row')).toHaveLength(FUND_EXAMPLE.members.length + 1)

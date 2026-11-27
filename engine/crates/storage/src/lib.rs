@@ -8,6 +8,8 @@
 //!   `news_interpretations.v1`, sin perder ni repetir entradas entre reinicios (#197).
 //! - Calendario económico (`economic_event.v1`, #243): [`PgStore::economic_events`] y
 //!   [`PgStore::economic_event_sightings`], solo lectura (lo escribe Python).
+//! - Noticias para la UI (`news_item.v1` y sus interpretaciones, #600): [`PgStore::news_page`] y
+//!   [`PgStore::news_interpretations_of`], solo lectura (lo escribe Python).
 //! - Mapa de liquidez (`liquidity_level.v1`, #231): [`PgStore::insert_liquidity_levels`] y
 //!   [`PgStore::liquidity_levels`], de solo agregar y sin repintado.
 //! - Estadísticas de liquidez (#231): eventos de FVG, gaps de apertura, desequilibrio y
@@ -19,23 +21,37 @@ mod economic_events;
 mod emotional_states;
 mod futures_bars;
 mod futures_candles;
+mod ibkr_bars;
+mod lab_stream;
 mod liquidity_levels;
 mod liquidity_stats;
 mod market_context;
+mod news_items;
 mod news_stream;
+mod official_releases;
 mod ops_events;
+mod paper_checkpoints;
+mod paper_kill_switch;
 mod paper_orders;
+mod paper_pending;
 mod pg;
 mod stream;
+pub mod test_db;
 
-pub use futures_candles::CandleFeed;
+pub use futures_candles::{CandleFeed, IbkrFeed};
+pub use ibkr_bars::{IbkrBarCorrection, IbkrBarRow, IbkrSeries, IbkrSeriesKey};
+pub use lab_stream::{LabStream, lab_stream_key};
 pub use liquidity_levels::LevelsReport;
 pub use liquidity_stats::{StatsReport, StatsRunReport};
+pub use news_items::NewsItemRow;
 pub use news_stream::{
     Delivery, NEWS_INTERPRETATIONS_STREAM, NewsBatch, NewsInterpretationConsumer, Rejected, StartAt,
 };
+pub use official_releases::OfficialReleaseRow;
 pub use ops_events::OpsEventRecord;
-pub use pg::{AllowanceRecord, InsertReport, PgStore, migrator};
+pub use paper_checkpoints::CheckpointRow;
+pub use paper_kill_switch::KillSwitchRow;
+pub use pg::{AllowanceRecord, InsertReport, NULL_FILL_REASON, PgStore, migrator};
 pub use stream::{CandlePublisher, Published, stream_id, stream_key};
 
 use chrono::{DateTime, Utc};

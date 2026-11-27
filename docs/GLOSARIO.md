@@ -5,7 +5,7 @@ Los ejemplos usan el US Tech 100 (NASDAQ) cerca de 26.750 puntos, como en el gr�
 
 > Más adelante la UI (fase 10) va a mostrar estas mismas definiciones al pasar el mouse o tocar cada término. Este archivo es la **única fuente** de las definiciones: si cambia una, cambia acá.
 
-**Índice:** [Operar](#operar) · [Costos](#costos) · [Gestión de la operación](#gestion) · [Velas e indicadores](#velas) · [Patrones](#patrones) · [Liquidez (ICT/SMC)](#liquidez-ict) · [Medir resultados](#medir) · [Probar sin engañarse](#probar) · [Psicología del mercado](#psicologia) · [Fondo del grupo](#fondo)
+**Índice:** [Operar](#operar) · [Costos](#costos) · [Gestión de la operación](#gestion) · [Velas e indicadores](#velas) · [Patrones](#patrones) · [Liquidez (ICT/SMC)](#liquidez-ict) · [Medir resultados](#medir) · [Probar sin engañarse](#probar) · [Psicología del mercado](#psicologia) · [Fondo del grupo](#fondo) · [Empresas (no aplica a índices)](#empresas)
 
 ---
 
@@ -105,7 +105,7 @@ Orden que cierra la operación automáticamente al llegar a la ganancia objetivo
 
 <a id="trailing-stop"></a>
 ### Trailing stop
-Stop que se va moviendo a favor a medida que el precio avanza, para asegurar ganancia.
+Stop que se va moviendo a favor a medida que el precio avanza, para proteger parte de lo ganado. No lo garantiza: con un gap el precio puede saltarlo.
 *Ejemplo:* stop a 50 puntos del máximo alcanzado. Si el precio sube a 26.900, el stop pasa a 26.850.
 
 <a id="riesgo-por-operacion"></a>
@@ -152,6 +152,7 @@ Promedio de los últimos N cierres. La SMA50 promedia 50 velas. Si el precio est
 <a id="ema"></a>
 ### EMA (media móvil exponencial)
 Como la SMA, pero da más peso a las velas recientes, así que reacciona más rápido.
+El período se elige en la configuración. En el gráfico mostramos además una **EMA 365 sobre velas diarias** (`config/analysis.toml`): cada vela de 15m ve el valor del último día ya terminado, nunca el del día en curso. 365 velas diarias son unos **1,45 años** de sesiones (un año tiene unas 252); la media "larga" más usada en el mercado es la de **200** días. Es solo para mirar: no entra en la estrategia.
 
 <a id="rsi"></a>
 ### RSI
@@ -169,6 +170,16 @@ Precio promedio del día ponderado por el volumen. Muchos institucionales lo usa
 <a id="volumen"></a>
 ### Volumen
 Cuánto se operó en esa vela. Una ruptura con mucho volumen es más confiable.
+
+<a id="cruce-dorado"></a>
+### Cruce dorado / Cruce de la muerte
+**Cruce dorado:** la media móvil rápida (por convención, la [SMA](#sma) de 50 días) pasa por **encima** de la lenta (la de 200 días). Se lee como un cambio a tendencia alcista de largo plazo. **Cruce de la muerte:** lo contrario, la rápida pasa por debajo. Son señales lentas: llegan cuando el movimiento ya empezó, y fallan seguido en mercados de lado. Un simple toque que vuelve al mismo lado no cuenta como cruce.
+*Ejemplo:* la SMA50 diaria del NASDAQ estaba en 26.500 y la SMA200 en 26.550; al cierre de un día la SMA50 queda en 26.560 y la SMA200 en 26.552: cruce dorado ese día.
+
+<a id="puntos-pivote"></a>
+### Puntos pivote diarios (clásicos)
+Niveles del día que salen del máximo (H), mínimo (L) y cierre (C) del **día anterior**: el pivote P = (H + L + C) / 3, tres resistencias (R1, R2, R3) arriba y tres soportes (S1, S2, S3) abajo. Muchos traders intradía los miran porque son los mismos para todos. No confundir con el [pivote](#pivote) (máximo o mínimo local).
+*Ejemplo:* ayer H = 26.900, L = 26.600, C = 26.750 → P = 26.750, R1 = 26.900, S1 = 26.600.
 
 <a id="tendencia"></a>
 ### Tendencia
@@ -210,6 +221,32 @@ Después de una ruptura, el precio vuelve a tocar el nivel roto antes de seguir.
 ### Neckline (línea de cuello)
 El valle entre los dos techos (o el pico entre los dos suelos). Su ruptura confirma el patrón. **Nosotros entramos al cerrar la vela que rompe el neckline.**
 
+<a id="numero-de-oro"></a>
+### Número de oro (φ)
+El número φ = (1 + √5) / 2 ≈ **1,618**. Aparece en la naturaleza y en el arte, y es la base de los niveles de [Fibonacci](#fibonacci): 0,618 ≈ 1/φ, 0,382 ≈ 1/φ², 0,236 ≈ 1/φ³, 1,618 = φ y 2,618 ≈ φ². No es un indicador aparte: es de donde salen esos números. El motor lo guarda como decimal exacto (28 decimales), nunca como número aproximado.
+
+<a id="fibonacci"></a>
+### Fibonacci (retrocesos y extensiones)
+Niveles que se dibujan sobre un **tramo**: el movimiento entre dos [pivotes](#pivote) confirmados seguidos, uno bajo y uno alto. Los **retrocesos** (23,6 %, 38,2 %, 50 %, 61,8 % y 78,6 %) marcan hasta dónde podría volver el precio antes de seguir; las **extensiones** (127,2 %, 161,8 % y 261,8 %) marcan hasta dónde podría llegar si sigue más allá del tramo. Muchos traders los miran, y por eso a veces el precio reacciona ahí, pero **no garantizan nada**: son zonas para observar, no predicciones.
+*Ejemplo:* el NASDAQ sube de 26.600 a 26.800 (tramo de 200 puntos). El retroceso del 61,8 % está en 26.800 − 0,618 × 200 = **26.676,4**; la extensión de 161,8 % está en 26.600 + 1,618 × 200 = **26.923,6**.
+El tramo existe recién cuando se confirma su pivote final (N velas después). Si una vela cierra más allá del inicio del tramo, ese tramo deja de valer.
+
+<a id="golden-pocket"></a>
+### Golden pocket (bolsillo dorado)
+La zona entre los retrocesos de **61,8 % y 65 %** de un tramo de [Fibonacci](#fibonacci). Es la zona de retroceso más vigilada; marcamos las velas que la **tocan** y las que **cierran adentro**.
+*Ejemplo:* en el tramo de 26.600 a 26.800, el golden pocket va de 26.670 a 26.676,4. Una vela que baja hasta 26.672 la toca. Es contexto para mirar, no una señal de compra.
+
+<a id="spring"></a>
+### Spring y upthrust (Wyckoff)
+Ideas del método de Richard Wyckoff. Un **spring** ("resorte") es una **ruptura falsa por debajo** de un rango lateral: el precio perfora el [soporte](#soporte) del rango, no sigue cayendo y vuelve a cerrar adentro. Se interpreta como que los vendedores se agotaron (posible acumulación). El **upthrust** es lo mismo por encima de la [resistencia](#resistencia).
+*Cómo lo medimos:* un rango con soporte y resistencia de al menos 3 toques cada uno; una vela perfora el soporte más allá de la tolerancia, pero no más de 0,5 %; y dentro de las 3 velas siguientes una vela **cierra** de nuevo arriba del soporte. La señal va en esa vela de cierre (todo en `config/analysis.toml`).
+*Relación con el [sweep](#sweep):* un spring que vuelve en la misma vela es un sweep de un soporte de varios toques. Nuestro sweep mira solo el último mínimo de 1h y no pide rango; el spring pide un rango completo.
+
+<a id="precio-de-fondo"></a>
+### Precio de fondo
+**No es un término técnico estándar.** En el uso común, "fondo" o "suelo" es el **mínimo de una bajada**: el precio "tocó fondo". Nosotros lo medimos así: un [pivote](#pivote) bajo confirmado que llega después de una caída de al menos 1 % (o 3 [ATR](#atr)) desde el máximo de las 50 velas anteriores, y desde el que el precio rebota al menos 1 ATR antes de 10 velas. La señal va en la vela en que se cumple todo (pivote confirmado y rebote). Parámetros en `config/analysis.toml`.
+Solo se sabe que fue un fondo **después**: un fondo marcado no promete que el precio no vuelva a bajar. El [doble suelo](#doble-techo) son dos fondos parecidos, y el [spring](#spring) ocurre justamente en el fondo de un rango.
+
 ---
 
 <a id="liquidez-ict"></a>
@@ -232,6 +269,19 @@ La que está **dentro del rango**: [fair value gaps](#fvg) y swings menores. El 
 ### Sweep (barrido de liquidez)
 El precio pasa brevemente un máximo o mínimo (activando los stops) y **vuelve rápido al rango**. Suele anticipar un giro.
 *Ejemplo:* el precio pincha 26.905, por arriba del máximo de 26.900, y la vela cierra en 26.860: barrió la liquidez de arriba.
+
+<a id="volumen-de-la-barrida"></a>
+### Volumen de la barrida (volumen relativo)
+Cuánto se operó en la vela del [sweep](#sweep) comparado con lo normal: su [volumen](#volumen) dividido por la mediana del volumen de las 20 velas anteriores. Si una barrida activó muchos stops, se espera más volumen. Es solo contexto, no una señal. Si la vela no trae volumen (las de IG pueden no tenerlo), queda vacío: no se inventa.
+*Ejemplo:* la mediana de las 20 velas anteriores es 1.000 contratos y la vela del sweep tiene 3.500: volumen relativo 3,5.
+
+<a id="numero-redondo"></a>
+### Número redondo
+Un precio "redondo" como 5.000 o 5.050 en el US500. **Lo que se cree:** mucha gente pone ahí sus objetivos y sus stops un poco más allá, así que el precio frenaría en el número o aceleraría al cruzarlo.
+**Lo que se midió afuera:** en divisas, con datos de órdenes reales, las de tomar ganancia se juntan en los números redondos y las de stop justo después ([Osler, 2003](https://ideas.repec.org/a/bla/jfinan/v58y2003i5p1791-1819.html)); los soportes y resistencias que publicaban seis firmas ayudaban a predecir dónde se cortaba una tendencia dentro del día, con un poder que variaba por firma y moneda ([Osler, 2000](https://www.newyorkfed.org/research/epr/00v06n2/0007osle.html)). Es otro mercado y datos de hace más de 20 años.
+**Lo que dio nuestra prueba ([R020](analysis/2026-11-ronda3-volatilidad-y-numeros-redondos.md)):** en los futuros de US500, US100 y US30 (02-2013 a 10-2025), seguir el precio al cruzar un número redondo dio lo mismo que cruzar un nivel intermedio (+0,041 R frente a +0,047 R por operación antes de costos) y perdió después de costos (−0,62 % por mes, t −2,37). No vimos que el número redondo frene ni acelere el precio en estos índices. Eso no prueba que nunca pase, y los redondos medidos son los del futuro, no los del CFD.
+En el mapa de liquidez se marca el número redondo más cercano por encima y por debajo del cierre, con un paso por instrumento (US500 cada 50 y 100 puntos). Pasa por los mismos estados que los otros niveles: intacto, barrido, roto o vencido. Es informativo: no suma al puntaje.
+*Ejemplo:* el US500 cierra en 5.020: los números redondos son 5.050 y 5.100 arriba y 5.000 abajo. Si un día el precio frena justo en 5.000, eso solo no prueba nada: en R020, los niveles intermedios como 5.025 se comportaron igual.
 
 <a id="order-block"></a>
 ### Order block
@@ -325,6 +375,11 @@ Clasificar una noticia como positiva, negativa o neutral para un activo, con una
 
 Capa de contexto experimental ([spec §9.1](spec/fase-1-especificacion.md#psicologia-del-mercado)): se mide y se registra, pero no suma al puntaje hasta demostrar valor.
 
+<a id="vix"></a>
+### VIX (índice del miedo)
+Índice de Cboe que mide cuánta volatilidad **espera** el mercado para el S&P 500 en los próximos 30 días, sacado de los precios de las opciones. Sube cuando hay miedo y baja cuando hay calma. Lo usamos solo como **contexto**, con cuatro regímenes por convención (`config/analysis.toml`): **calma** debajo de 15, **normal** de 15 a 20, **elevado** de 20 a 30 y **estrés** desde 30. Cada vela ve el último valor ya publicado, nunca el del día en curso.
+*Ejemplo:* con el VIX en 32, el gráfico marca "estrés": movimientos grandes en ambos sentidos son más probables. No dice hacia dónde.
+
 <a id="indice-sentimiento"></a>
 ### Índice de sentimiento
 Un número de −1 (miedo extremo) a +1 (euforia extrema) que combina varias fuentes. Cada fuente se compara con sus propios últimos 3 años: importa si el dato de hoy es alto o bajo **para esa fuente**.
@@ -377,3 +432,27 @@ NAV = valor total del fondo ÷ unidades emitidas.
 - El fondo gana 10% y pasa a 165 €. La unidad vale 1,10 €.
 - Semana 2: Caro aporta 110 € y recibe 100 unidades (110 ÷ 1,10). No se lleva ganancia de la semana 1 porque no estaba.
 - Ahora el P&L de Ana = 100 × 1,10 − 100 = **+10 €**; el de Beto = **+5 €**; el de Caro = **0 €**.
+
+---
+
+<a id="empresas"></a>
+## Empresas (no aplica a índices)
+
+Estas medidas son de la contabilidad de **una empresa**. Un índice (NASDAQ, DAX) no tiene EBITDA propio, así que el sistema **no las calcula ni las ingiere**. Quedan acá para entenderlas.
+
+<a id="ebitda"></a>
+### EBITDA
+Ganancia de una empresa **antes** de intereses, impuestos, depreciación y amortización. Sirve para comparar cuánto genera el negocio en sí, sin mirar cómo se financia ni cuánto "gasta" en el desgaste contable de sus máquinas.
+*Cómo se arma:* resultado operativo + depreciación + amortización. **No es una partida oficial** de las normas contables de EE. UU. (GAAP): la empresa no está obligada a publicarla, así que hay que armarla con las partidas que sí publica.
+*Fuente oficial que haría falta:* los estados contables que cada empresa presenta ante la SEC (EDGAR, en formato XBRL), de donde se toman el resultado operativo y la depreciación y amortización.
+
+<a id="ebitda-ajustado"></a>
+### EBITDA ajustado
+El EBITDA al que **la propia empresa** le saca gastos que considera "extraordinarios" (reestructuraciones, juicios, pagos en acciones, etc.). Cada empresa elige qué saca, así que **no es comparable entre empresas** y suele mostrar un número más lindo. Lo publica la empresa en sus presentaciones de resultados, no en los estados contables.
+
+<a id="ebitda-normalizado"></a>
+### EBITDA normalizado
+El EBITDA corregido por **quien analiza** (no la empresa) para llevarlo a un año "típico": se sacan efectos que no se repiten y se ajustan los que dependen del ciclo. Lo usan sobre todo para valuar una empresa en una compra. No hay una fórmula única.
+
+**Diferencia en una línea:** el EBITDA sale de los números contables; el ajustado lo decide la empresa; el normalizado lo decide el analista.
+

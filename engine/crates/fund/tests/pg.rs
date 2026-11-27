@@ -7,11 +7,10 @@ use cfds_storage::PgStore;
 use chrono::{DateTime, Utc};
 use rust_decimal::dec;
 
-const NEEDS: &str = "necesita PostgreSQL: DATABASE_URL";
 const REAL: &str = include_str!("../../../../config/fund.toml");
 
 async fn store() -> PgFund {
-    let url = std::env::var("DATABASE_URL").expect(NEEDS);
+    let url = cfds_storage::test_db::test_database_url();
     let store = PgStore::connect(&url).await.unwrap();
     store.migrate().await.unwrap();
     PgFund::new(store.pool().clone())
@@ -40,13 +39,13 @@ fn movements(tag: &str, day: &str) -> Vec<Record> {
     s.records(at, &cfg)
 }
 
-/// Un día que no choca con corridas anteriores: según la hora actual, dentro de 3000 años.
+/// Un día que no choca con corridas anteriores ni con los otros tests: un número propio
+/// (`test_db::unique_number`) lo elige dentro de 3000 años.
 fn unique_day() -> (String, String) {
-    let n = Utc::now().timestamp_micros();
     let day = chrono::NaiveDate::from_ymd_opt(4000, 1, 1).unwrap()
-        + chrono::Days::new((n % 300_000) as u64);
+        + chrono::Days::new(cfds_storage::test_db::unique_number() % 300_000);
     (
-        format!("t{}", n % 1_000_000_000),
+        cfds_storage::test_db::unique_id("t"),
         day.format("%Y-%m-%d").to_string(),
     )
 }
@@ -95,7 +94,7 @@ async fn the_table_is_append_only() {
     let (tag, day) = unique_day();
     let recs = movements(&tag, &day);
     pg.record(&recs).await.unwrap();
-    let url = std::env::var("DATABASE_URL").expect(NEEDS);
+    let url = cfds_storage::test_db::test_database_url();
     let pool = PgStore::connect(&url).await.unwrap().pool().clone();
     let del = sqlx::query("DELETE FROM fund_movements WHERE id = $1")
         .bind(&recs[0].id)

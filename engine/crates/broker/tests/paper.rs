@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use cfds_backtest::{Commission, CostConfig, ExitConfig, FundingRates, InstrumentCosts};
 use cfds_broker::{
     Broker, BrokerConfig, BrokerEvent, FundingSetup, JournalStore, LiveBroker, MarketSetup,
-    PaperBroker, flush_journal, live_trading_status,
+    PaperBroker, RestorePending, flush_journal, live_trading_status,
 };
 use cfds_core::OrderReport;
 use cfds_core::{
@@ -20,9 +20,12 @@ use rust_decimal::{Decimal, dec};
 use serde_json::Value;
 use std::sync::Mutex;
 
-const RISK: &str = include_str!("../../../../config/risk.toml");
+// Riesgo neutral (#689): estos tests miden la mecánica del broker (ejecución, swap, tipos de
+// cambio); los tamaños salen del 1 % sin gaps, grupos ni caída gradual. Los que miden esas
+// reglas las prenden en el test.
+const RISK: &str = include_str!("../../risk/tests/neutral_risk.toml");
 const BACKTEST: &str = include_str!("../../../../config/backtest.toml");
-const BROKER: &str = include_str!("../../../../config/broker.toml");
+const BROKER: &str = include_str!("fixtures/broker.toml");
 
 fn t0() -> DateTime<Utc> {
     "2026-11-18T09:00:00Z".parse().unwrap()
@@ -85,7 +88,7 @@ fn market(candles: Vec<Candle>, limits: InstrumentLimits) -> MarketSetup {
     MarketSetup {
         limits,
         costs: costs(),
-        account_to_instrument: Decimal::ONE,
+        account_to_instrument: cfds_backtest::AccountFx::Same,
         candles,
         funding: funding(FundingRates::Constant(dec!(2))),
     }
@@ -199,11 +202,11 @@ fn stop_on_the_wrong_side_no_price_and_unknown_instrument_are_rejected() {
         rejected(&mut b, &order("c", "US100", OrderSide::Long, dec!(98), 0)),
         OrderRejection::NoPrice
     );
-    // después de la última vela: no hay apertura siguiente para ejecutar
-    assert_eq!(
-        rejected(&mut b, &order("d", "US100", OrderSide::Long, dec!(98), 40)),
-        OrderRejection::NoPrice
-    );
+    // después de la última vela: todavía no hay apertura siguiente para ejecutar, queda
+    // pendiente hasta esa vela (#471), fuera del registro
+    let d = b.submit(&order("d", "US100", OrderSide::Long, dec!(98), 40));
+    assert_eq!(d.status, OrderStatus::Pending, "{d:?}");
+    assert!(b.journal().iter().all(|(o, _)| o.order_id.as_str() != "d"));
     assert_eq!(
         rejected(&mut b, &order("e", "DE40", OrderSide::Long, dec!(98), 20)),
         OrderRejection::UnknownInstrument
@@ -501,6 +504,8 @@ fn every_decision_report_and_kill_switch_leaves_an_event() {
 #[derive(Default)]
 struct MemJournal {
     saved: Mutex<Vec<(Order, OrderReport)>>,
+    /// Las pendientes guardadas sin final (#479).
+    pending: Vec<String>,
     fail: Vec<String>,
 }
 
@@ -523,6 +528,9 @@ impl JournalStore for MemJournal {
             .iter()
             .map(|(o, _)| o.order_id.to_string())
             .collect())
+    }
+    async fn saved_pending_ids(&self) -> Result<Vec<String>, String> {
+        Ok(self.pending.clone())
     }
 }
 
@@ -552,6 +560,64 @@ async fn the_shutdown_flush_saves_what_was_missing_and_reports_orphans() {
     assert!(!flush.is_clean());
     assert_eq!(flush.saved_now, ["o1"]);
     assert_eq!(flush.orphans, ["o2"]);
+}
+
+/// #479: al apagar, una pendiente guardada no se pierde (se retoma al arrancar); solo la que no
+/// quedó guardada se informa como perdida.
+#[tokio::test]
+async fn the_shutdown_flush_tells_kept_pending_orders_from_lost_ones() {
+    let mut b = broker();
+    // Las velas llegan hasta la 29: una orden de la 30 todavía no tiene su vela del fill.
+    let kept = order("kept", "US100", OrderSide::Long, dec!(98), 30);
+    let lost = order("lost", "US100", OrderSide::Long, dec!(98), 31);
+    assert_eq!(b.submit(&kept).status, OrderStatus::Pending);
+    assert_eq!(b.submit(&lost).status, OrderStatus::Pending);
+    let store = MemJournal {
+        pending: vec!["kept".into()],
+        ..Default::default()
+    };
+    let flush = flush_journal(&b, &store).await.unwrap();
+    assert!(flush.is_clean());
+    assert_eq!(flush.pending_kept, ["kept"]);
+    assert_eq!(flush.pending_dropped, ["lost"]);
+}
+
+/// #479: una pendiente que no se pudo guardar se quita (se puede reenviar con el mismo id); una
+/// guardada vuelve tal cual, en orden, sin evaluarse otra vez.
+#[test]
+fn pending_orders_can_be_forgotten_and_restored_in_order() {
+    let mut b = broker();
+    let a = order("a", "US100", OrderSide::Long, dec!(98), 30);
+    let c = order("c", "US100", OrderSide::Long, dec!(98), 31);
+    b.submit(&a);
+    b.submit(&c);
+    assert_eq!(b.forget_pending(&a.order_id), Some(a.clone()));
+    assert_eq!(b.forget_pending(&a.order_id), None);
+    assert_eq!(b.pending(), std::slice::from_ref(&c));
+    // Reenviarla con el mismo id la vuelve a dejar pendiente.
+    assert_eq!(b.submit(&a).status, OrderStatus::Pending);
+
+    let mut fresh = broker();
+    fresh.restore_pending(c.clone()).unwrap();
+    fresh.restore_pending(a.clone()).unwrap();
+    assert_eq!(fresh.pending(), [c.clone(), a.clone()]);
+    assert_eq!(
+        fresh.restore_pending(a.clone()),
+        Err(RestorePending::AlreadyPending)
+    );
+    let other = order("x", "DE40", OrderSide::Long, dec!(98), 30);
+    assert_eq!(
+        fresh.restore_pending(other),
+        Err(RestorePending::UnknownInstrument)
+    );
+    let decided = order("d", "US100", OrderSide::Long, dec!(98), 20);
+    assert_eq!(fresh.submit(&decided).status, OrderStatus::Filled);
+    assert_eq!(
+        fresh.restore_pending(decided),
+        Err(RestorePending::AlreadyDecided)
+    );
+    // Retomarlas no las registra.
+    assert_eq!(fresh.journal().len(), 1);
 }
 
 /// #319, spec §12: si la apertura de la entrada ya saltó el stop, la operación sale entera a esa
@@ -600,4 +666,220 @@ fn tp1_is_measured_from_the_executed_entry() {
         "no tocó el TP1 ({from_fill}): {:?}",
         out[0].exits
     );
+}
+
+// ---------- Contrato en USD con la cuenta en EUR (ADR 0013 §4, #418) ----------
+
+/// Serie EUR/USD: (publicación, tipo).
+fn eurusd(points: &[(DateTime<Utc>, Decimal)]) -> cfds_backtest::AccountFx {
+    let rates = points
+        .iter()
+        .map(|&(at, rate)| cfds_core::FxRate {
+            pair: "EURUSD".into(),
+            ref_date: at.date_naive(),
+            published_at: at,
+            rate,
+        })
+        .collect();
+    cfds_backtest::AccountFx::Daily(cfds_backtest::FxRates::new(rates).unwrap())
+}
+
+fn usd_broker(fx: cfds_backtest::AccountFx, candles: Vec<Candle>) -> PaperBroker {
+    let mut m = market(candles, limits());
+    m.account_to_instrument = fx;
+    PaperBroker::new(
+        config(|_| {}),
+        [("XAUUSD".parse().unwrap(), m)].into_iter().collect(),
+    )
+}
+
+#[test]
+fn a_usd_contract_is_sized_and_valued_at_the_rate_in_force() {
+    let mut b = usd_broker(
+        eurusd(&[(at(0) - TimeDelta::days(1), dec!(1.25))]),
+        flat("XAUUSD"),
+    );
+    let r = b.submit(&order("g1", "XAUUSD", OrderSide::Long, dec!(98), 20));
+    assert_eq!(r.status, OrderStatus::Filled, "{r:?}");
+    // 1 % de 1.000 € = 10 € = 12,5 $; R = 2 → 6,25 $ por punto.
+    assert_eq!(r.size, Some(dec!(6.25)));
+    let p = b.positions(at(25));
+    // En dólares: (100 − 100,7) × 6,25 = −4,375.
+    assert_eq!(p[0].unrealized_pl, dec!(-4.38));
+    // En la cuenta, al tipo de ese momento: −4,375 / 1,25 = −3,5 €.
+    assert_eq!(b.account(at(25)).equity, dec!(996.50));
+}
+
+#[test]
+fn a_new_rate_changes_the_valuation_from_its_publication_on() {
+    let mut b = usd_broker(
+        eurusd(&[(at(0) - TimeDelta::days(1), dec!(1.25)), (at(24), dec!(2))]),
+        flat("XAUUSD"),
+    );
+    b.submit(&order("g1", "XAUUSD", OrderSide::Long, dec!(98), 20));
+    // Antes de la publicación vale 1,25; desde ahí, 2.
+    assert_eq!(b.account(at(23)).equity, dec!(996.50));
+    assert_eq!(b.account(at(25)).equity, dec!(997.81));
+    // En dólares no cambia: lo que cambia es la conversión.
+    assert_eq!(b.positions(at(25))[0].unrealized_pl, dec!(-4.38));
+}
+
+#[test]
+fn without_a_rate_at_the_signal_the_order_is_rejected() {
+    // Primer tipo publicado después de la señal: no se usa antes (sin look-ahead).
+    let mut b = usd_broker(eurusd(&[(at(25), dec!(1.25))]), flat("XAUUSD"));
+    let o = order("g1", "XAUUSD", OrderSide::Long, dec!(98), 20);
+    assert_eq!(
+        b.preview(&o, at(20)).rejection,
+        Some(OrderRejection::MissingFxRate)
+    );
+    assert_eq!(rejected(&mut b, &o), OrderRejection::MissingFxRate);
+    // Sin serie: nunca hay tipo.
+    let mut b = usd_broker(
+        cfds_backtest::AccountFx::Missing {
+            pair: "EURUSD".into(),
+        },
+        flat("XAUUSD"),
+    );
+    assert_eq!(rejected(&mut b, &o), OrderRejection::MissingFxRate);
+    assert_eq!(b.account(at(25)).equity, dec!(1000.00));
+}
+
+#[test]
+fn a_realized_loss_in_usd_uses_the_rate_of_its_exit() {
+    let mut c = flat("XAUUSD");
+    c[22] = bar("XAUUSD", 22, dec!(97), dec!(97.5), dec!(96), dec!(97));
+    let mut b = usd_broker(
+        eurusd(&[(at(0) - TimeDelta::days(1), dec!(1.25)), (at(22), dec!(2))]),
+        c,
+    );
+    b.submit(&order("g1", "XAUUSD", OrderSide::Long, dec!(98), 20));
+    let acc = b.account(at(29));
+    // Salida a 96,3: (96,3 − 100,7) × 6,25 = −27,5 $, al tipo de la vela de salida (2): −13,75 €.
+    assert_eq!(acc.equity, dec!(986.25));
+    assert_eq!(acc.kill_switch, KillSwitch::Inactive);
+}
+
+#[test]
+fn a_rate_published_after_the_start_is_used_once_read_again() {
+    // #439: al arrancar solo se conocía 1,25; a at(24) se publica 2.
+    let start = [(at(0) - TimeDelta::days(1), dec!(1.25))];
+    let later = [(at(0) - TimeDelta::days(1), dec!(1.25)), (at(24), dec!(2))];
+    let mut b = usd_broker(eurusd(&start), flat("XAUUSD"));
+    b.submit(&order("g1", "XAUUSD", OrderSide::Long, dec!(98), 20));
+    let before = b.account(at(23));
+    b.update_account_fx(&"XAUUSD".parse().unwrap(), eurusd(&later))
+        .unwrap();
+    // Lo valuado antes de la publicación no cambia; después, el tipo nuevo, como la
+    // reconstrucción con la serie completa.
+    assert_eq!(b.account(at(23)), before);
+    let mut rebuilt = usd_broker(eurusd(&later), flat("XAUUSD"));
+    rebuilt.submit(&order("g1", "XAUUSD", OrderSide::Long, dec!(98), 20));
+    assert_eq!(b.account(at(25)), rebuilt.account(at(25)));
+    assert_eq!(b.account(at(25)).equity, dec!(997.81));
+    assert!(
+        b.update_account_fx(&"DE40".parse().unwrap(), eurusd(&later))
+            .is_err()
+    );
+}
+
+/// US100 sube después de la entrada y vuelve: el capital pasa por un máximo entre dos órdenes.
+fn up_and_back() -> PaperBroker {
+    let mut c = flat("US100");
+    c[22] = bar("US100", 22, dec!(100), dec!(103), dec!(100), dec!(103));
+    c[23] = bar("US100", 23, dec!(103), dec!(103), dec!(100), dec!(100));
+    broker_with(
+        |r| r.max_drawdown_pct = dec!(0.5),
+        vec![("US100", c, limits()), ("DE40", flat("DE40"), limits())],
+    )
+}
+
+#[test]
+fn the_peak_follows_every_closed_candle_without_orders() {
+    // #691: entre las dos órdenes no hay ninguna otra, pero el capital pasa por un máximo no
+    // realizado (vela 22) y vuelve (vela 23). Como el backtest, el broker valúa el capital en
+    // cada vela cerrada: la caída desde ese máximo supera el 0,5 % y la orden siguiente activa el
+    // kill switch en la vela de su señal.
+    let first = order("up", "US100", OrderSide::Long, dec!(96), 20);
+    let second = order("next", "DE40", OrderSide::Long, dec!(96), 26);
+    let mut b = up_and_back();
+    assert_eq!(b.submit(&first).status, OrderStatus::Filled);
+    assert!(!b.kill_switch_active());
+    assert_eq!(rejected(&mut b, &second), OrderRejection::DrawdownLimit);
+    let (_, since) = b.kill_switch().unwrap();
+    assert_eq!(since, at(26));
+
+    // Solo velas cerradas a la hora de la señal: con la subida todavía sin cerrar (orden en la
+    // vela 22), el máximo no la incluye y la orden pasa.
+    let mut early = up_and_back();
+    early.submit(&first);
+    let r = early.submit(&order("early", "DE40", OrderSide::Long, dec!(96), 22));
+    assert_eq!(r.status, OrderStatus::Filled, "{r:?}");
+
+    // La reconstrucción desde el registro (reinicio) llega al mismo máximo y al mismo kill switch.
+    let positions = b.positions(at(28));
+    let (rebuilt, rec) = cfds_broker::restore_and_reconcile(
+        b.config().clone(),
+        up_and_back().markets().clone(),
+        b.journal(),
+        &positions,
+        at(28),
+    );
+    assert!(rec.is_clean(), "{rec:?}");
+    assert_eq!(rebuilt.journal(), b.journal());
+    assert_eq!(rebuilt.kill_switch().map(|(_, t)| t), Some(at(26)));
+}
+
+#[test]
+fn reading_the_account_does_not_change_the_peak_nor_later_decisions() {
+    // #464: `account()` es una lectura (la UI la llama cuando quiere). No mueve el máximo del
+    // capital: si lo moviera, una lectura en el pico cambiaría la decisión siguiente y la
+    // reconstrucción (que no repite lecturas) daría otro informe.
+    let first = order("up", "US100", OrderSide::Long, dec!(96), 20);
+    let second = order("next", "DE40", OrderSide::Long, dec!(96), 26);
+
+    let mut quiet = up_and_back();
+    quiet.submit(&first);
+    let quiet_report = quiet.submit(&second);
+
+    let mut read = up_and_back();
+    read.submit(&first);
+    let peak = read.account(at(23));
+    assert!(peak.equity > dec!(1005), "{peak:?}");
+    let read_report = read.submit(&second);
+
+    assert_eq!(read_report, quiet_report);
+    assert_eq!(read.kill_switch_active(), quiet.kill_switch_active());
+    assert_eq!(read.journal(), quiet.journal());
+
+    let positions = read.positions(at(28));
+    let (_, rec) = cfds_broker::restore_and_reconcile(
+        read.config().clone(),
+        up_and_back().markets().clone(),
+        read.journal(),
+        &positions,
+        at(28),
+    );
+    assert!(rec.is_clean(), "{rec:?}");
+}
+
+#[test]
+fn the_real_broker_config_is_valid() {
+    // Los demás tests usan el fixture con capital fijo; este valida el archivo real que arranca el
+    // gateway, sea cual sea el capital que elija el dueño.
+    let real = include_str!("../../../../config/broker.toml");
+    let exits = ExitConfig::from_toml(BACKTEST).unwrap();
+    let costs = CostConfig {
+        slippage_spread_fraction: dec!(0.1),
+        slippage_ticks: dec!(1),
+    };
+    let cfg = BrokerConfig::from_toml(
+        real,
+        RiskConfig::from_toml(RISK).unwrap(),
+        costs,
+        exits,
+        chrono_tz::Europe::Madrid,
+    )
+    .unwrap();
+    assert!(cfg.initial_equity > dec!(0));
 }

@@ -8,6 +8,7 @@
  *   sea siempre igual. Generar datos de ejemplo no es lógica de trading.
  */
 import type { FundMovement, FundSummary } from '@/lib/fund-api'
+import { trophyRule } from '@/lib/trophy-rules'
 
 import us100 from './us100-1h.json'
 
@@ -94,13 +95,13 @@ function withChange(row: Omit<SparkRow, 'changePct'>): SparkRow {
 export const INDEX_ROWS: SparkRow[] = [
   {
     id: 'US100',
-    label: 'US Tech 100',
+    label: 'EEUU Tech 100',
     sublabel: 'NASDAQ 100',
     points: dailySeries(1, 24800, 0.09),
   },
   { id: 'US500', label: 'US 500', sublabel: 'S&P 500', points: dailySeries(2, 6420, 0.05) },
   { id: 'US30', label: 'Wall Street', sublabel: 'Dow Jones', points: dailySeries(3, 46100, 0.02) },
-  { id: 'DE40', label: 'Germany 40', sublabel: 'DAX', points: dailySeries(4, 23900, -0.015) },
+  { id: 'DE40', label: 'Alemania 40', sublabel: 'DAX', points: dailySeries(4, 23900, -0.015) },
 ].map(withChange)
 
 export type HeatmapCompany = {
@@ -133,30 +134,6 @@ export const HEATMAP: HeatmapCompany[] = [
   ['QCOM', 'Qualcomm', '0.17', '1.05', '158.90'],
 ].map(([sym, name, cap, chg, price]) => ({ sym, name, cap, chg, price }))
 
-export type BookLevel = { price: string; size: string; total: string }
-export type OrderBook = { mid: string; spread: string; bids: BookLevel[]; asks: BookLevel[] }
-
-function book(): OrderBook {
-  const r = rng(77)
-  const mid = 28365.3
-  const make = (side: 1 | -1) => {
-    let total = 0
-    return Array.from({ length: 16 }, (_, i) => {
-      const size = 2 + r() * 9 + i * 0.6
-      total += size
-      return {
-        price: (mid + side * (0.6 + i * 1.4)).toFixed(1),
-        size: size.toFixed(2),
-        total: total.toFixed(2),
-      }
-    })
-  }
-  return { mid: mid.toFixed(1), spread: '1.2', bids: make(-1), asks: make(1) }
-}
-
-/** Profundidad de mercado de ejemplo. Los totales acumulados vienen dados, como del proveedor. */
-export const US100_BOOK = book()
-
 export type TradeRow = {
   id: string
   at: string
@@ -168,6 +145,10 @@ export type TradeRow = {
   netPnl: string | null
   status: 'Abierta' | 'Ganada' | 'Perdida'
   mode: 'simulación'
+  /** por qué la abrió la estrategia, tal como lo explica el motor (ejemplo) */
+  reason?: string
+  /** la nota que escribió el miembro en su diario (ejemplo) */
+  note?: string
 }
 
 /** Diario de operaciones en simulación (paper). */
@@ -182,6 +163,7 @@ export const TRADES: TradeRow[] = [
     netPnl: null,
     status: 'Abierta',
     mode: 'simulación',
+    reason: 'Ruptura del máximo de la sesión asiática con volumen sobre el promedio.',
   },
   {
     id: 'p-0118',
@@ -193,6 +175,8 @@ export const TRADES: TradeRow[] = [
     netPnl: '-18.40',
     status: 'Perdida',
     mode: 'simulación',
+    reason: 'Rechazo en un nivel de liquidez de 4 h.',
+    note: 'Entré tarde: la vela ya había corrido la mitad del rango. El stop se respetó.',
   },
   {
     id: 'p-0117',
@@ -204,6 +188,8 @@ export const TRADES: TradeRow[] = [
     netPnl: '41.25',
     status: 'Ganada',
     mode: 'simulación',
+    reason: 'Barrido del mínimo previo y vuelta dentro del rango.',
+    note: 'Seguí el plan; salida en el objetivo.',
   },
   {
     id: 'p-0116',
@@ -215,6 +201,7 @@ export const TRADES: TradeRow[] = [
     netPnl: '63.10',
     status: 'Ganada',
     mode: 'simulación',
+    reason: 'Hueco de valor (FVG) de 15 m rellenado en tendencia diaria alcista.',
   },
   {
     id: 'p-0115',
@@ -226,6 +213,8 @@ export const TRADES: TradeRow[] = [
     netPnl: '-22.75',
     status: 'Perdida',
     mode: 'simulación',
+    reason: 'Doble techo confirmado en 1 h.',
+    note: 'Noticia de la Fed 30 min después: revisar el calendario antes de entrar.',
   },
   {
     id: 'p-0114',
@@ -272,25 +261,134 @@ export const FOLDERS: MemberFolder[] = [
   },
 ]
 
-export type Trophy = {
-  period: 'día' | 'semana'
-  winner: Member
-  /** resultado de la competencia en simulación, ya calculado (en R, spec §8) */
-  result: string
-  date: string
-  serial: string
+/**
+ * Noticias de ejemplo para el lector (#581), con los campos de `contracts/news_item.v1`: la hora de
+ * publicación de la fuente y la hora en que el sistema la leyó, en UTC. El texto es de relleno: la
+ * UI todavía no lee las noticias que ingiere Python. `folders`: qué miembros la guardaron.
+ */
+export type NewsExample = {
+  source: 'fed' | 'ecb'
+  feed: string
+  item_id: string
+  title: string
+  published_at: string
+  retrieved_at: string
+  folders: string[]
+  body: string[]
 }
 
-/** Competencia interna en simulación: no es dinero real ni una promesa de ganancia. */
-export const TROPHIES: Trophy[] = [
-  { period: 'día', winner: MEMBERS[2], result: '+2.4 R', date: '2026-11-21', serial: 'D-0021' },
+const NEWS_BODY = [
+  'Texto de ejemplo para mostrar el formato de lectura. Acá va el texto de la noticia tal como lo publicó la fuente, sin resumir ni reinterpretar.',
+  'La interpretación (tema, sentimiento y relevancia por instrumento) la hace el módulo de noticias de Python y llega aparte, con su incertidumbre. Una noticia cuenta para el sistema recién desde su hora de publicación.',
+]
+
+export const NEWS_EXAMPLE: NewsExample[] = [
   {
-    period: 'semana',
-    winner: MEMBERS[0],
-    result: '+6.1 R',
-    date: '2026-11-17 / 21',
-    serial: 'S-0004',
+    source: 'ecb',
+    feed: 'press',
+    item_id: 'ej-ecb-0421',
+    title: 'BCE: estadísticas monetarias de la zona euro',
+    published_at: '2026-11-21T09:00:00Z',
+    retrieved_at: '2026-11-21T09:04:12Z',
+    folders: ['m3'],
+    body: NEWS_BODY,
   },
+  {
+    source: 'fed',
+    feed: 'speeches',
+    item_id: 'ej-fed-1120',
+    title: 'Fed: discurso de un miembro de la Junta sobre la inflación',
+    published_at: '2026-11-20T17:30:00Z',
+    retrieved_at: '2026-11-20T17:33:40Z',
+    folders: ['m2'],
+    body: NEWS_BODY,
+  },
+  {
+    source: 'fed',
+    feed: 'press_monetary',
+    item_id: 'ej-fed-1119',
+    title: 'FOMC: comunicado de la reunión',
+    published_at: '2026-11-19T19:00:00Z',
+    retrieved_at: '2026-11-19T19:01:05Z',
+    folders: ['alexei', 'm2'],
+    body: NEWS_BODY,
+  },
+  {
+    source: 'ecb',
+    feed: 'press_monetary',
+    item_id: 'ej-ecb-1030',
+    title: 'BCE: decisión de política monetaria',
+    published_at: '2026-10-30T13:15:00Z',
+    retrieved_at: '2026-10-30T13:17:51Z',
+    folders: ['alexei'],
+    body: NEWS_BODY,
+  },
+]
+
+/** Calendario de ejemplo con los campos de `contracts/economic_event.v1` (horas en UTC). */
+export type EventExample = {
+  event: string
+  country: string
+  impact: 'alto' | 'medio' | 'bajo'
+  scheduled_at: string
+  published_at: string
+}
+
+export const CALENDAR_EXAMPLE: EventExample[] = [
+  {
+    event: 'Decisión de tipos del BCE',
+    country: 'EU',
+    impact: 'alto',
+    scheduled_at: '2026-12-10T13:15:00Z',
+    published_at: '2026-11-01T00:00:00Z',
+  },
+  {
+    event: 'IPC de EE. UU.',
+    country: 'US',
+    impact: 'alto',
+    scheduled_at: '2026-12-11T13:30:00Z',
+    published_at: '2026-11-01T00:00:00Z',
+  },
+  {
+    event: 'Decisión de tipos del FOMC',
+    country: 'US',
+    impact: 'alto',
+    scheduled_at: '2026-12-16T19:00:00Z',
+    published_at: '2026-11-01T00:00:00Z',
+  },
+]
+
+/**
+ * Trofeos de proceso (#581): premian la disciplina y las reglas cumplidas, **nunca la ganancia**.
+ * Cada uno tiene una regla medible. El estado y el avance los calcularía el servidor; acá son de
+ * ejemplo y la UI solo los muestra.
+ */
+export type ProcessBadge = {
+  id: string
+  title: string
+  rule: string
+  period: 'día' | 'semana' | 'mes'
+  state: 'logrado' | 'en curso' | 'bloqueado'
+  /** avance tal como llega, por ejemplo "3 de 5 días" */
+  progress?: string
+  earned_at?: string
+}
+
+export const PROCESS_BADGES: ProcessBadge[] = [
+  { ...trophyRule('stop'), state: 'logrado', earned_at: '2026-11-21T21:00:00Z' },
+  { ...trophyRule('diario'), state: 'en curso', progress: '4 de 5 días' },
+  { ...trophyRule('limite'), state: 'en curso', progress: '15 de 20 días' },
+  { ...trophyRule('propuestas'), state: 'logrado', earned_at: '2026-11-20T21:00:00Z' },
+  { ...trophyRule('calendario'), state: 'bloqueado' },
+]
+
+/** Reglas cumplidas por miembro en la semana (ejemplo): proceso, no resultado. */
+export type ProcessRow = { member: Member; stops: string; journal: string; limits: string }
+
+export const PROCESS_TABLE: ProcessRow[] = [
+  { member: MEMBERS[0], stops: '6 de 6', journal: '5 de 6', limits: '5 de 5 días' },
+  { member: MEMBERS[1], stops: '4 de 4', journal: '4 de 4', limits: '5 de 5 días' },
+  { member: MEMBERS[2], stops: '7 de 8', journal: '6 de 8', limits: '4 de 5 días' },
 ]
 
 export type Notice = { id: string; title: string; detail: string }
@@ -336,24 +434,12 @@ export const KPIS: Kpi[] = [
   {
     id: 'dd',
     label: 'Drawdown máximo',
-    value: '-3.10',
+    // sin signo, como lo manda el motor (`max_drawdown`) y lo muestra Performance (#612)
+    value: '3.10',
     unit: '%',
-    detail: 'en la simulación',
-    tone: 'down',
+    detail: 'caída más grande desde un máximo, en la simulación',
   },
   { id: 'props', label: 'Propuestas', value: '2', unit: '', detail: 'esperando al responsable' },
-]
-
-export type RankingRow = { member: Member; result: string; trades: number }
-
-/** Tabla de la competencia de la semana (simulación; la regla la define el grupo). */
-export const RANKING: RankingRow[] = [
-  { member: MEMBERS[0], result: '6.1', trades: 9 },
-  { member: MEMBERS[2], result: '4.8', trades: 7 },
-  { member: MEMBERS[1], result: '2.2', trades: 11 },
-  { member: MEMBERS[4], result: '-0.6', trades: 5 },
-  { member: MEMBERS[3], result: '-1.4', trades: 8 },
-  { member: MEMBERS[5], result: '-2.9', trades: 6 },
 ]
 
 // --- Fase 10, adelanto (#171) ---
@@ -401,8 +487,8 @@ export type ProposalExtras = {
 }
 export type PendingProposal = { proposal: Proposal; extras: ProposalExtras }
 
-// Las horas de ejemplo se arman alrededor de "ahora" para que el vencimiento se vea correr.
-const quarter = Math.floor(Date.now() / 900_000) * 900_000
+// Horas fijas (#577): un ejemplo no se hace pasar por una señal de recién emitida.
+const quarter = Date.parse('2026-11-20T14:00:00Z')
 const iso = (ms: number) => new Date(ms).toISOString().replace('.000Z', 'Z')
 
 /** Propuestas pendientes de ejemplo (paper). Los números los arma el motor, no la UI. */
@@ -430,7 +516,7 @@ export const PROPOSALS: PendingProposal[] = [
       triggers: ['sweep'],
     },
     extras: {
-      expiresAt: iso(Date.now() + 8 * 60_000),
+      expiresAt: iso(quarter + 10 * 60_000),
       probability: { status: 'ok', pct: '58', lowPct: '49', highPct: '66', cases: 84 },
     },
   },
@@ -457,7 +543,7 @@ export const PROPOSALS: PendingProposal[] = [
       triggers: ['candle_pattern', 'level_rejection'],
     },
     extras: {
-      expiresAt: iso(Date.now() + 4 * 60_000),
+      expiresAt: iso(quarter + 10 * 60_000),
       probability: { status: 'insufficient', cases: 21, needed: 30 },
     },
   },

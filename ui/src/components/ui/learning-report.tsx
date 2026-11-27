@@ -7,6 +7,7 @@
  * cada propuesta se muestra con su estado. Cuando el gateway exponga los votos (#330), llegan por
  * `voteStatus`; votar sigue fuera de la UI (cuentas y 2FA, decisión aparte).
  */
+import { ScrollRegion } from '@/components/ui/scroll-region'
 import { dateTimeUtc } from '@/lib/format'
 import type { LearningReport, Signal, VoteStatus } from '@/lib/learning-api'
 import { numOrDash, pctOrDash } from '@/lib/run-format'
@@ -74,7 +75,7 @@ export function LearningReportView({
         <h4 className="mb-2 text-[12.5px] font-bold">
           Calibración: probabilidad mostrada contra la frecuencia real (TP1 antes que el stop)
         </h4>
-        <div className="overflow-x-auto">
+        <ScrollRegion label="Tabla de confiabilidad">
           <table className="w-full min-w-[560px] text-[12px]" aria-label="Tabla de confiabilidad">
             <thead>
               <tr className="border-b border-border">
@@ -116,12 +117,12 @@ export function LearningReportView({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       </section>
 
       <section>
         <h4 className="mb-2 text-[12.5px] font-bold">Aporte de cada señal (en R)</h4>
-        <div className="overflow-x-auto">
+        <ScrollRegion label="Aporte de cada señal">
           <table className="w-full min-w-[560px] text-[12px]" aria-label="Aporte de cada señal">
             <thead>
               <tr className="border-b border-border">
@@ -155,26 +156,26 @@ export function LearningReportView({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       </section>
 
       <section>
         <h4 className="mb-1 text-[12.5px] font-bold">Propuestas de cambio</h4>
         <p className="mb-2 text-[11px] text-muted-foreground">
-          El sistema nunca se cambia solo: cada propuesta pasa por la votación del grupo (spec
-          §1.2). Desde acá no se vota.
+          El sistema nunca se cambia solo: cada propuesta pasa por la votación del grupo. Desde acá
+          no se vota.
         </p>
         {r.change_proposals.length === 0 ? (
           <p className="text-[12px] text-muted-foreground">El informe no propone cambios.</p>
         ) : (
-          <ul className="grid gap-2" aria-label="Propuestas de cambio">
+          <ul className="grid" aria-label="Propuestas de cambio">
             {r.change_proposals.map((p) => {
               const vote = voteStatus?.(p.change_id) ?? PENDING
               return (
                 <li
                   key={p.change_id}
                   data-change={p.change_id}
-                  className="grid gap-1 rounded-xl border border-border px-3 py-2 text-[12px]"
+                  className="grid gap-1 border-b border-border px-1 py-2 text-[12px] first:border-t"
                 >
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="font-bold">{KIND_LABEL[p.kind]}</span>

@@ -23,6 +23,21 @@ reference = "https://www.ig.com/es/nuestros-costes"
 consulted = "2026-11-20"
 note = "Spreads de CFD al contado, comisiones de acciones y fórmula de financiación nocturna."
 
+[sources.ig-es-costes-indices]
+reference = "https://www.ig.com/es/nuestros-costes (Costes de financiación nocturna, pestaña CFD > Índices)"
+consulted = "2026-11-24"
+note = "Tasa administrativa de los CFD de índices: 'Nuestra tasa administrativa es de un 3 %. Tanto para los contratos mini como para los estándar.' El 2,5 % que usaba el catálogo es el de la pestaña de productos con barrera, no el de los CFD (#379)."
+
+[sources.ig-es-costes-materias-primas]
+reference = "https://www.ig.com/es/nuestros-costes (tabla de materias primas de CFD y 'Fórmula del ajuste del coste de financiación nocturna para materias primas')"
+consulted = "2026-11-24"
+note = "Oro al contado: valor de un contrato 100 $, spread mínimo 0,9. Financiación: noches × tamaño × (base ± costes de IG); 'Fórmula para el coste de IG = Precio medio sin vencimiento x 3 % / 365' (ADR 0013)."
+
+[sources.ig-es-margenes-materias-primas]
+reference = "https://www.ig.com/es/margenes (tabla 'Materias primas (CFD)')"
+consulted = "2026-11-24"
+note = "Clientes minoristas: oro 5 % (1:20). Coincide con el máximo regulatorio de la CNMV para el oro (ADR 0013)."
+
 [sources.ig-demo-api]
 reference = "API REST de IG, cuenta demo: GET /markets/{epic} v3 (https://labs.ig.com/reference/markets-epic.html)"
 consulted = "2026-11-20"
@@ -37,6 +52,16 @@ note = "Mediana de ask − bid al cierre de las velas de 1h enteras dentro de la
 reference = "BCE, serie EST.B.EU000A2X2A25.WT 'Euro short-term rate' (https://data-api.ecb.europa.eu/service/data/EST/B.EU000A2X2A25.WT)"
 consulted = "2026-11-20"
 note = "Valor de referencia 19-11-2026, publicado el 20-11-2026 a las 08:00 CET. 'The ECB does not charge for the €STR or license its use' (https://www.ecb.europa.eu/stats/financial_markets_and_interest_rates/euro_short-term_rate/html/index.en.html)."
+
+[sources.ig-chat-sofr]
+reference = "Chat de atención al cliente de ig.com (IG España), respuesta del agente a una consulta del dueño (#655)"
+consulted = "2026-11-24"
+note = "Pregunta: qué tipo de referencia usa IG para la financiación nocturna de los CFD al contado IX.D.SPTRD.IFE.IP (US 500), IX.D.NASDAQ.IFE.IP (US Tech 100) e IX.D.DOW.IFE.IP (Wall Street). Respuesta textual: 'Aplicamos SOFR y el margen depende del tipo de instrumento.' El margen es la tasa administrativa (fuente ig-es-costes-indices, 3 %). La base de días es la de la fórmula publicada: 360 para todos los índices salvo el FTSE 100 (ig-es-costes, nota al pie, revisada el 2026-11-25)."
+
+[sources.nyfed-sofr]
+reference = "Federal Reserve Bank of New York, SOFR (https://markets.newyorkfed.org/api/rates/secured/sofr/last/3.json; página https://www.newyorkfed.org/markets/reference-rates/sofr)"
+consulted = "2026-11-25"
+note = "Valor de la fecha efectiva 24-11-2026: 3,94 % (revisionIndicator vacío), publicado el 25-11-2026 hacia las 8:00 ET ('published one business day following its value date'; revisión posible hacia las 2:30 p.m. ET). Content from the New York Fed subject to the Terms of Use at newyorkfed.org (https://www.newyorkfed.org/privacy/termsofuse): permite copiar y distribuir con ese aviso; las tasas de referencia llevan además sus avisos y descargos."
 
 [sources.esma-2018-796]
 reference = "Decisión (UE) 2018/796 de ESMA (medidas sobre CFD para clientes minoristas)"
@@ -55,10 +80,13 @@ margin_closeout_pct = { value = "50", source = "esma-2018-796" }
 
 # ---------------------------------------------------------------- tipos de referencia
 # Valor anual en % de cada tipo de referencia de la financiación nocturna (campo
-# funding_benchmark de los instrumentos). El backtest lo usa constante en un recorrido: sirve para
-# períodos cortos; un período largo necesita la serie diaria (pendiente).
+# funding_benchmark de los instrumentos). Respaldo documentado: el backtest y el paper usan la
+# serie diaria guardada (config/reference_rates.toml, #79) cuando existe; la constante solo sirve
+# para períodos cortos.
 [funding_benchmarks]
 ESTR = { value = "2.441", source = "ecb-estr" }
+# Índices de EE. UU. (#655): IG confirmó SOFR aunque el contrato sea de 1 € por punto.
+SOFR = { value = "3.94", source = "nyfed-sofr" }
 
 # ---------------------------------------------------------------- índices
 # Fórmula de financiación de IG para índices (fuente ig-es-costes):
@@ -84,9 +112,9 @@ spread_typical_points = { value = "1.6", source = "ig-es-indices" }
 value_per_point = { value = "1", source = "ig-demo-api" }
 min_deal_size = { value = "0.5", source = "ig-demo-api" }
 tick = { value = "0.1", source = "ig-demo-api" }
-funding_admin_fee_pct = { value = "2.5", source = "ig-es-costes" }
+funding_admin_fee_pct = { value = "3", source = "ig-es-costes-indices" }
 funding_day_count = { value = "360", source = "ig-es-costes" }
-funding_benchmark = { pending = "Contrato en EUR (#67): probablemente ESTR como el DE40, pero ni la API ni ig.com/es lo confirman para este índice. Confirmar con IG." }
+funding_benchmark = { value = "SOFR", source = "ig-chat-sofr" }
 
 [instruments.US500]
 name = "US 500"
@@ -102,9 +130,9 @@ spread_typical_points = { value = "0.9", source = "ig-demo-spread" }
 value_per_point = { value = "1", source = "ig-demo-api" }
 min_deal_size = { value = "1", source = "ig-demo-api" }
 tick = { value = "0.01", source = "ig-demo-api" }
-funding_admin_fee_pct = { value = "2.5", source = "ig-es-costes" }
+funding_admin_fee_pct = { value = "3", source = "ig-es-costes-indices" }
 funding_day_count = { value = "360", source = "ig-es-costes" }
-funding_benchmark = { pending = "Contrato en EUR (#67): probablemente ESTR como el DE40, pero ni la API ni ig.com/es lo confirman para este índice. Confirmar con IG." }
+funding_benchmark = { value = "SOFR", source = "ig-chat-sofr" }
 
 [instruments.US30]
 name = "Wall Street"
@@ -120,9 +148,9 @@ spread_typical_points = { value = "3.7", source = "ig-demo-spread" }
 value_per_point = { value = "1", source = "ig-demo-api" }
 min_deal_size = { value = "0.2", source = "ig-demo-api" }
 tick = { value = "0.1", source = "ig-demo-api" }
-funding_admin_fee_pct = { value = "2.5", source = "ig-es-costes" }
+funding_admin_fee_pct = { value = "3", source = "ig-es-costes-indices" }
 funding_day_count = { value = "360", source = "ig-es-costes" }
-funding_benchmark = { pending = "Contrato en EUR (#67): probablemente ESTR como el DE40, pero ni la API ni ig.com/es lo confirman para este índice. Confirmar con IG." }
+funding_benchmark = { value = "SOFR", source = "ig-chat-sofr" }
 
 [instruments.DE40]
 name = "Alemania 40"
@@ -138,7 +166,7 @@ spread_typical_points = { value = "1.8", source = "ig-es-indices" }
 value_per_point = { value = "1", source = "ig-demo-api" }
 min_deal_size = { value = "0.5", source = "ig-demo-api" }
 tick = { value = "0.1", source = "ig-demo-api" }
-funding_admin_fee_pct = { value = "2.5", source = "ig-es-costes" }
+funding_admin_fee_pct = { value = "3", source = "ig-es-costes-indices" }
 funding_day_count = { value = "360", source = "ig-es-costes" }
 funding_benchmark = { value = "ESTR", source = "ig-es-costes" }
 
@@ -161,9 +189,41 @@ spread_typical_points = { pending = "Sin dato publicado ni medido (2026-11-24). 
 value_per_point = { pending = "Confirmar con GET /markets/{epic} (valueOfOnePip) cuando haya cupo." }
 min_deal_size = { pending = "Confirmar con GET /markets/{epic} (dealingRules.minDealSize) cuando haya cupo." }
 tick = { pending = "Confirmar con GET /markets/{epic} (decimalPlacesFactor) cuando haya cupo." }
-funding_admin_fee_pct = { pending = "ig.com/es/nuestros-costes, consultado el 2026-11-24, dice 3 % para los CFD de índices; el catálogo usa 2,5 % (consultado el 2026-11-20) para los demás. Resolver la diferencia antes de fijarlo (#371)." }
+funding_admin_fee_pct = { pending = "IG España no lista este índice (2026-11-24). Si lo ofrece como CFD de índice, la tasa publicada para los CFD de índices es 3 % (fuente ig-es-costes-indices, #379). Confirmar que lo ofrece antes de fijarlo (#371)." }
 funding_day_count = { value = "360", source = "ig-es-costes" }
-funding_benchmark = { pending = "Contrato en EUR: probablemente ESTR, como el DE40, pero ni la API ni ig.com/es lo confirman para este índice. Confirmar con IG." }
+funding_benchmark = { pending = "IG España no lista este índice (2026-11-24). Si lo ofrece, probablemente SOFR como US500, US100 y US30 (fuente ig-chat-sofr, #655), pero IG no lo confirmó para este índice. Confirmar con IG." }
+
+# ---------------------------------------------------------------- materias primas
+# ADR 0013 (aceptado el 24-11-2026), #418. Solo paper y estudio; nada con dinero real.
+# Financiación de IG para materias primas (fuente ig-es-costes-materias-primas):
+#   noches × tamaño × (base ± costo de IG), base = (P3 − P2) / (T2 − T1),
+#   costo de IG = precio medio sin vencimiento × 3 % / 365
+# No hay comisión: el costo es el spread. El contrato es en USD y la cuenta en EUR: se convierte
+# con el EUR/USD del BCE (config/fx_rates.toml).
+#
+# El oro NO opera, ni en paper, mientras quede un pendiente: el backtest validado se frena (spec
+# §11), el broker simulado saltea un instrumento con costos pendientes, sin epic `ig_live` no lo
+# pide. Su ventana de entradas ya está fijada (07:00–16:00 UTC, config/trading_window.toml).
+
+# Oro al contado. Sesión de CME Globex como aproximación de la de IG (config/sessions.toml).
+[instruments.XAUUSD]
+name = "Oro al contado"
+asset_class = "commodity"
+currency = "USD"   # ninguna materia prima de la tabla de CFD de IG está en EUR (ADR 0013)
+exchange = "CMEGLOBEX_METALS"
+exchange_timezone = "America/Chicago"   # la de CME, la misma de config/sessions.toml
+max_leverage = "10"   # tope propio del oro, la mitad del regulatorio 20:1 (spec §8, ADR 0013 §5)
+funding_model = "commodity_basis"
+epic = { pending = "La web de IG no lo publica. Confirmar con GET /markets/{epic} cuando haya cupo (#360)." }
+margin_retail_pct = { value = "5", source = "ig-es-margenes-materias-primas" }
+spread_min_points = { value = "0.9", source = "ig-es-costes-materias-primas" }
+spread_typical_points = { pending = "Solo está el mínimo publicado. Medir en la demo como en #67 cuando haya cupo." }
+value_per_point = { pending = "La tabla dice 'valor de un contrato 100 $', pero no el valor por punto. Confirmar con GET /markets/{epic} (valueOfOnePip)." }
+min_deal_size = { pending = "Sin fuente pública (el 0,05 de #378 no tiene fuente). Confirmar con GET /markets/{epic} (dealingRules.minDealSize)." }
+tick = { pending = "Confirmar con GET /markets/{epic} (decimalPlacesFactor) cuando haya cupo." }
+funding_admin_fee_pct = { value = "3", source = "ig-es-costes-materias-primas" }
+funding_day_count = { value = "365", source = "ig-es-costes-materias-primas" }
+funding_benchmark = { pending = "Las materias primas no usan tipo de referencia sino la base de la curva de futuros. Falta qué futuros usa IG como P2 y P3 y qué lado paga la base (ADR 0013)." }
 
 # ---------------------------------------------------------------- acciones (CFD)
 # Las acciones no tienen spread de IG: pagan comisión al abrir y al cerrar (fuente ig-es-costes).

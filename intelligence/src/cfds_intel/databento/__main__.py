@@ -1,4 +1,5 @@
-"""Importador del histórico de 1 minuto de futuros desde Databento (ADR 0011, #247).
+"""Importador del histórico de futuros desde Databento: 1 minuto (ADR 0011, #247) y velas
+diarias (`--daily`, #522).
 
 ```text
 uv run python -m cfds_intel.databento --estimate              # gratis: costo por símbolo y total
@@ -6,7 +7,12 @@ uv run python -m cfds_intel.databento --sample [AAAA-MM-DD]    # baja un día po
 CFDS_DATA_MACHINE=1 DATABASE_URL=... uv run python -m cfds_intel.databento --run
 uv run python -m cfds_intel.databento --check-month AAAA-MM   # baja un mes, cuenta y no guarda
 uv run python -m cfds_intel.databento --run --only FDAX.c.0   # cualquier modo, un solo símbolo
+uv run python -m cfds_intel.databento --daily --estimate      # diarias: databento_daily.toml
+CFDS_DATA_MACHINE=1 DATABASE_URL=... uv run python -m cfds_intel.databento --daily --run
 ```
+- `--daily` usa `config/databento_daily.toml` (esquema `ohlcv-1d`, tope de USD 1 por corrida) y
+  guarda en `futures_bars_1d`. La vela diaria de Databento va de medianoche a medianoche UTC, no
+  de la hora de liquidación de la bolsa. `--sample` no existe para las diarias.
 - La key sale de `DATABENTO_API_KEY` (la lee el SDK oficial) y nunca se imprime.
 - `--estimate` solo usa metadata (gratis). Si el total pasa `budget.max_usd`
   (`config/databento.toml`), frena con código 2.
@@ -14,13 +20,16 @@ uv run python -m cfds_intel.databento --run --only FDAX.c.0   # cualquier modo, 
 - `--run` solo corre en la máquina de datos (`CFDS_DATA_MACHINE=1`): los datos quedan en su base
   local, nunca en el repo. Baja lo que falta antes del primer tramo guardado (si `start` de la
   config es anterior, del mes más nuevo al más viejo) y después del último, mes por mes, así que
-  repetirlo no vuelve a pagar lo ya bajado. El tope de gasto es para todos los tramos juntos.
+  repetirlo no vuelve a pagar lo ya bajado. El tope de gasto es para todos los tramos juntos y
+  es duro: además de la estimación inicial, antes de cada pedido se suma su `get_cost` a lo ya
+  pedido en la corrida y, si pasa el tope, se frena todo (código 2) sin hacer ese pedido.
 """
 
 import os
 import sys
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import cast
 
@@ -32,6 +41,7 @@ from cfds_intel.databento.bars import (
     Fetched,
     Stored,
     check_budget,
+    check_spend,
     chunk_cost,
     chunks,
     estimate,
@@ -39,13 +49,14 @@ from cfds_intel.databento.bars import (
     months,
     validate_day,
 )
-from cfds_intel.databento.config import DatabentoConfig, SymbolConfig, load_config
+from cfds_intel.databento.config import MINUTE, DatabentoConfig, SymbolConfig, load_config
 
 CONFIG = Path(__file__).resolve().parents[4] / "config" / "databento.toml"
+CONFIG_DAILY = CONFIG.with_name("databento_daily.toml")
 KEY_ENV = "DATABENTO_API_KEY"
 USAGE = (
     "uso: python -m cfds_intel.databento (--estimate | --sample [AAAA-MM-DD] | --run"
-    " | --check-month AAAA-MM) [--only SÍMBOLO]"
+    " | --check-month AAAA-MM) [--only SÍMBOLO] [--daily]"
 )
 MODES = {"--estimate", "--sample", "--run", "--check-month"}
 
@@ -105,10 +116,11 @@ def check_month(c: Client, cfg: DatabentoConfig, month: str) -> int:
     """Baja un mes (con el mismo tope de gasto), cuenta los duplicados y no guarda nada."""
     first = date.fromisoformat(f"{month}-01")
     end = months(first, first + timedelta(days=32))[0][1]
-    guarded_estimate(c, replace(cfg, start=first), end, {})
-    for sym in cfg.symbols:
-        f = fetch_bars(c, cfg, sym, first, end)
-        print(f"{sym.symbol} {month}: {len(f.bars)} barras; {describe_dropped(f, sym)}")
+    est = guarded_estimate(c, replace(cfg, start=first), end, {})
+    # Solo lo estimado: un símbolo que todavía no existía ese mes (su `start` propio) se saltea.
+    for e in (e for e in est if not e.skipped):
+        f = fetch_bars(c, cfg, e.symbol, e.start, e.end)
+        print(f"{e.symbol.symbol} {month}: {len(f.bars)} barras; {describe_dropped(f, e.symbol)}")
     return 0
 
 
@@ -120,6 +132,8 @@ def last_weekday_before(d: date) -> date:
 
 
 def sample(c: Client, cfg: DatabentoConfig, day: date) -> int:
+    if cfg.max_gap_minutes is None:
+        raise DatabentoError(f"--sample es solo para {MINUTE}")
     end = day + timedelta(days=1)
     sample_cfg = replace(cfg, start=day)
     est = guarded_estimate(c, sample_cfg, end, {})
@@ -148,24 +162,47 @@ def run(c: Client, cfg: DatabentoConfig) -> int:
     from cfds_intel.databento.store import insert_chunk, loaded_spans
 
     end = today_utc()
+    failed: list[str] = []
+    spent = Decimal(0)
     with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as conn:
-        loaded = loaded_spans(conn)
+        loaded = loaded_spans(conn, cfg.schema)
         for e in guarded_estimate(c, cfg, end, loaded):
             if e.skipped:
                 continue
-            for a, b in chunks(e):
-                req_cost = chunk_cost(c, cfg, e.symbol, a, b)
-                f = fetch_bars(c, cfg, e.symbol, a, b)
-                r = insert_chunk(conn, e.symbol, a, b, f.bars, req_cost)
+            try:
+                for a, b in chunks(e, cfg.schema):
+                    req_cost = chunk_cost(c, cfg, e.symbol, a, b)
+                    # Tope duro: si este pedido lleva la corrida más allá del tope, no se hace.
+                    spent = check_spend(spent, req_cost, cfg.max_usd)
+                    f = fetch_bars(c, cfg, e.symbol, a, b)
+                    r = insert_chunk(conn, e.symbol, a, b, f.bars, req_cost, cfg.schema)
+                    print(
+                        f"{e.symbol.symbol} {a} → {b}: {r.inserted} nuevas, {r.unchanged} ya "
+                        f"estaban (USD {req_cost:.2f}); {describe_dropped(f, e.symbol)}"
+                    )
+            except BudgetError:
+                # El tope corta la corrida entera, no solo este símbolo. Lo guardado queda.
+                raise
+            except (
+                Exception
+            ) as ex:  # errores del SDK o de los datos: sin la key, que nunca se imprime
+                # Un símbolo que falla no corta los demás (#396). Lo ya guardado queda, y la
+                # próxima corrida retoma desde ahí.
+                failed.append(e.symbol.symbol)
                 print(
-                    f"{e.symbol.symbol} {a} → {b}: {r.inserted} nuevas, {r.unchanged} ya estaban "
-                    f"(USD {req_cost:.2f}); {describe_dropped(f, e.symbol)}"
+                    f"⚠️  {e.symbol.symbol}: {type(ex).__name__}: {ex}; sigo con los demás",
+                    file=sys.stderr,
                 )
+    if failed:
+        print(f"⚠️  tramos con error: {', '.join(failed)}", file=sys.stderr)
+        return 1
     return 0
 
 
 def main(argv: list[str]) -> int:
     args = argv[1:]
+    daily = "--daily" in args
+    args = [a for a in args if a != "--daily"]
     only = None
     if "--only" in args:
         i = args.index("--only")
@@ -177,11 +214,15 @@ def main(argv: list[str]) -> int:
     if not args or args[0] not in MODES or (args[0] == "--check-month" and len(args) < 2):
         print(USAGE, file=sys.stderr)
         return 2
-    cfg = load_config(CONFIG.read_text())
+    cfg = load_config((CONFIG_DAILY if daily else CONFIG).read_text())
+    if cfg.schema != MINUTE and args[0] == "--sample":
+        print(f"⚠️  --sample es solo para {MINUTE}", file=sys.stderr)
+        return 2
     if only is not None:
         symbols = tuple(s for s in cfg.symbols if s.symbol == only)
         if not symbols:
-            print(f"⚠️  {only} no está en config/databento.toml", file=sys.stderr)
+            name = (CONFIG_DAILY if daily else CONFIG).name
+            print(f"⚠️  {only} no está en config/{name}", file=sys.stderr)
             return 2
         cfg = replace(cfg, symbols=symbols)
     try:
@@ -194,7 +235,7 @@ def main(argv: list[str]) -> int:
                 from cfds_intel.databento.store import loaded_spans
 
                 with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as conn:
-                    loaded = loaded_spans(conn)
+                    loaded = loaded_spans(conn, cfg.schema)
             guarded_estimate(c, cfg, today_utc(), loaded)
             return 0
         if args[0] == "--sample":

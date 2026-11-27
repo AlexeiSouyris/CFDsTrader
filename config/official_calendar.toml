@@ -1,0 +1,184 @@
+# Calendario histórico oficial (ADR 0016): comunicados del FOMC de federalreserve.gov (#520) y
+# CPI y empleo del BLS (#608), en la misma tabla `official_releases`.
+#
+# Fuentes: Board of Governors of the Federal Reserve System (dominio público; piden citarla:
+# https://www.federalreserve.gov/disclaimer.htm) y U.S. Bureau of Labor Statistics (dominio
+# público; piden citarla: https://www.bls.gov/opub/copyright-information.htm). La carga se corre
+# UNA sola vez.
+
+[client]
+# Cliente automático honesto, sin datos personales (como config/news.toml).
+user_agent = "cfds-intel/0.1 (automated official calendar reader)"
+timeout_secs = 30
+# Un pedido por vez, con al menos 1 s entre pedidos (ADR 0016 §1.2).
+pause_secs = 1.5
+
+[fed]
+first_year = 2011
+last_year = 2025
+# Una página por año hasta `historical_last_year`; después, la página de calendarios vigente.
+historical_url = "https://www.federalreserve.gov/monetarypolicy/fomchistorical{year}.htm"
+historical_last_year = 2020
+calendars_url = "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+# Solo se siguen links a comunicados con esta forma (ADR 0016: monetary{AAAAMMDD}a.htm y los
+# comunicados del calendario tentativo).
+release_url_prefix = "https://www.federalreserve.gov/newsevents/pressreleases/monetary"
+# Reuniones programadas por año (las celebradas más las canceladas). Si la página de un año da
+# otra cosa, la carga falla (ADR 0016 §6).
+scheduled_meetings_per_year = 8
+# Una reunión no programada publica su comunicado ese día o después: la del 2-3-2020 el 3, la
+# conferencia del 4-10-2019 el 11-10. Es un control (la hora sale siempre de la página): un
+# comunicado más lejano que esto no se asocia a la reunión y la carga falla.
+max_unscheduled_lag_days = 14
+timezone = "America/New_York"
+
+# Hora del comunicado de una reunión PROGRAMADA cuando su página no la trae (ADR 0016 §3.2).
+# Va por la fecha del comunicado: `from` incluido, `to` excluido. `press_conference` limita la
+# regla a reuniones con (true) o sin (false) conferencia de prensa; sin él vale para las dos.
+# Tiene que valer exactamente una regla. Si la página trae "For release at ..." y no coincide
+# con la regla, la carga falla.
+[[fed.time_rules]]
+name = "fomc_1415_until_2011_03"
+from = "2011-01-01"
+to = "2011-04-01"
+time = "14:15"
+source = "FEDS 2026-029 (Byun, Fees, Jacobson y Walker): 2:15 PM ET de 1999 a 2010, con pocas excepciones"
+
+[[fed.time_rules]]
+name = "fomc_1230_press_conference_2011_2013"
+from = "2011-04-01"
+to = "2013-03-01"
+press_conference = true
+time = "12:30"
+source = "Comunicado del 24-3-2011 (monetary20110324a): 'at around 12:30 p.m.'; FEDS 2026-029"
+
+[[fed.time_rules]]
+name = "fomc_1415_no_press_conference_2011_2013"
+from = "2011-04-01"
+to = "2013-03-01"
+press_conference = false
+time = "14:15"
+source = "FEDS 2026-029 y FEDS 2025-048: 'at or around 2:15 p.m.' sin conferencia"
+
+[[fed.time_rules]]
+name = "fomc_1400_from_2013_03"
+from = "2013-03-01"
+to = "2100-01-01"
+time = "14:00"
+source = "Comunicado del 13-3-2013 (monetary20130313a): 'will now be released at 2 p.m. Eastern Time'"
+
+# Comunicados que anunciaron el calendario tentativo (o su revisión): de ahí sale `published_at`
+# de cada reunión programada (ADR 0016 §4). `years` = años cuyo calendario completo trae; el
+# título de la página tiene que nombrarlos. La entrada suelta de enero del año siguiente
+# ("January 28-29, 2014") se reconoce sola por su año explícito.
+# Ubicados el 24-11-2026 en federalreserve.gov (índices de comunicados por año y búsqueda). La
+# carga verifica cada uno: si una reunión no figura con sus fechas exactas en el último anuncio
+# anterior a ella, queda marcada y fuera (ADR 0016 §6: se marca y se pregunta).
+[[fed.schedule_announcements]]
+url = "https://www.federalreserve.gov/newsevents/pressreleases/monetary20100528b.htm"
+years = [2011]
+
+[[fed.schedule_announcements]]
+url = "https://www.federalreserve.gov/newsevents/pressreleases/monetary20110325a.htm"
+years = [2012]
+
+[[fed.schedule_announcements]]
+url = "https://www.federalreserve.gov/newsevents/pressreleases/monetary20120516b.htm"
+years = [2012, 2013]
+
+[[fed.schedule_announcements]]
+url = "https://www.federalreserve.gov/newsevents/pressreleases/monetary20130405a.htm"
+years = [2014]
+
+[[fed.schedule_announcements]]
+url = "https://www.federalreserve.gov/newsevents/pressreleases/monetary20140605b.htm"
+years = [2015]
+
+[[fed.schedule_announcements]]
+url = "https://www.federalreserve.gov/newsevents/pressreleases/monetary20150511a.htm"
+years = [2016]
+
+[[fed.schedule_announcements]]
+url = "https://www.federalreserve.gov/newsevents/pressreleases/monetary20160628a.htm"
+years = [2017]
+
+[[fed.schedule_announcements]]
+url = "https://www.federalreserve.gov/newsevents/pressreleases/monetary20170511b.htm"
+years = [2018]
+
+[[fed.schedule_announcements]]
+url = "https://www.federalreserve.gov/newsevents/pressreleases/monetary20180525a.htm"
+years = [2019]
+
+[[fed.schedule_announcements]]
+url = "https://www.federalreserve.gov/newsevents/pressreleases/monetary20190517a.htm"
+years = [2020]
+
+[[fed.schedule_announcements]]
+url = "https://www.federalreserve.gov/newsevents/pressreleases/monetary20200702a.htm"
+years = [2021]
+
+[[fed.schedule_announcements]]
+url = "https://www.federalreserve.gov/newsevents/pressreleases/monetary20210604a.htm"
+years = [2022]
+
+[[fed.schedule_announcements]]
+url = "https://www.federalreserve.gov/newsevents/pressreleases/monetary20220624a.htm"
+years = [2023]
+
+[[fed.schedule_announcements]]
+url = "https://www.federalreserve.gov/newsevents/pressreleases/monetary20230623a.htm"
+years = [2024]
+
+[[fed.schedule_announcements]]
+url = "https://www.federalreserve.gov/newsevents/pressreleases/monetary20240809a.htm"
+years = [2025, 2026]
+
+# CPI y empleo (Employment Situation) del BLS (ADR 0016, #608). SIN ROBOT (§1.3, elección del
+# dueño): el dueño guardó a mano desde su navegador, el 25-11-2026, las páginas por año y los
+# avisos de los cortes de fondos ("Webpage, HTML Only"). El código NUNCA pide bls.gov: solo lee
+# esos HTML locales. Están fuera de git (`data/raw/` en .gitignore).
+[bls]
+# Carpeta de los HTML guardados: relativa a la raíz del repo o absoluta (`--bls-dir` la cambia).
+# Cada página se reconoce por su contenido (título y link canónico), no por el nombre del archivo.
+raw_dir = "data/raw/bls"
+first_year = 2011
+last_year = 2026
+# URL oficial de cada página por año ("Prior Years", https://www.bls.gov/bls/archived_sched.htm).
+# Va como `source_url` de cada fila; la página guardada tiene que nombrarla.
+year_url = "https://www.bls.gov/schedule/{year}/home.htm"
+# "All times on calendar are Eastern Time." CPI y empleo a las 08:30 AM: si la página dice otra
+# hora para alguna fila, la carga falla.
+release_time = "08:30"
+timezone = "America/New_York"
+# `time_rule` de las filas con hora del calendario por año o del aviso de cierre.
+time_rule = "bls_calendar_0830_et"
+# `time_rule` de las cancelaciones y de las fechas revisadas cuyo `published_at` sale de la
+# fecha de última modificación del aviso ("Last modified date"), al final de ese día en ET.
+notice_time_rule = "bls_notice_last_modified"
+
+# Avisos de fechas revisadas por cortes de fondos (ADR 0016, tabla del BLS). Se reconocen por su
+# link canónico. Tienen que estar todos en la carpeta.
+[[bls.notices]]
+url = "https://www.bls.gov/bls/updated_release_schedule.htm"
+
+[[bls.notices]]
+url = "https://www.bls.gov/bls/2025-lapse-revised-release-dates.htm"
+
+# Cortes de fondos (días sin publicaciones del BLS). Sirven para saber si el informe anterior de
+# la serie anunció la fecha original o la revisada (ADR 0016 §4) y para detectar una fecha movida
+# por un corte que los avisos no documentan (esa fila queda fuera).
+[[bls.lapses]]
+start = "2013-10-01"
+end = "2013-10-16"
+source = "Aviso del BLS (updated_release_schedule.htm): 'suspended from Oct. 1 through Oct. 16'; ADR 0016"
+
+[[bls.lapses]]
+start = "2025-10-01"
+end = "2025-11-12"
+source = "ADR 0016 (cierre del 1-10 al 12-11-2025; 2025-lapse-revised-release-dates.htm)"
+
+[[bls.lapses]]
+start = "2026-01-31"
+end = "2026-02-03"
+source = "Prensa (CBS News, Bloomberg Government, 2 a 4-2-2026): el corte empezó el 31-1-2026 y terminó con el voto de la Cámara del 3-2-2026; el BLS reprogramó el 4-2. Solo ordena los avisos de 2026 (ningún resultado depende del día exacto entre el 14-1 y el 3-2)"

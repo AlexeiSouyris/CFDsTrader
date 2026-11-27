@@ -1,0 +1,39 @@
+[
+  {
+    "id": "generica",
+    "name": "Plantilla genérica (completá los valores)",
+    "source": null,
+    "account_size": null,
+    "currency": null,
+    "day": null,
+    "phases": [
+      {
+        "name": "Evaluación",
+        "profit_target_pct": null,
+        "min_trading_days": null,
+        "max_trading_days": null,
+        "consistency_pct": null
+      }
+    ],
+    "daily_loss": {
+      "limit_pct": null,
+      "base": "day_start"
+    },
+    "max_drawdown": {
+      "limit_pct": null,
+      "mode": "static",
+      "lock_at_initial": false
+    },
+    "funded": {
+      "payout_min_trading_days": null,
+      "payout_min_profit_pct": null,
+      "profit_split_pct": null,
+      "consistency_pct": null
+    },
+    "fees": {
+      "evaluation": null,
+      "activation": null,
+      "refund_with_first_payout": false
+    }
+  }
+]

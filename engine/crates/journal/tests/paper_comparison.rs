@@ -4,7 +4,6 @@
 use cfds_core::{AssetClass, Currency, Instrument};
 use cfds_journal::pg::{JournalError, PgJournal, Recorded};
 use cfds_storage::PgStore;
-use chrono::Utc;
 use serde_json::{Value, json};
 
 fn sample(id: &str) -> Value {
@@ -41,7 +40,7 @@ fn the_sample_follows_the_contract() {
 #[tokio::test]
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn a_comparison_is_stored_once_and_never_rewritten() {
-    let url = std::env::var("DATABASE_URL").expect("necesita PostgreSQL: DATABASE_URL");
+    let url = cfds_storage::test_db::test_database_url();
     let store = PgStore::connect(&url).await.unwrap();
     store.migrate().await.unwrap();
     store
@@ -58,7 +57,7 @@ async fn a_comparison_is_stored_once_and_never_rewritten() {
     // Solo agregar: un id propio por corrida del test.
     let id = format!(
         "paper-vs-backtest:US100:{}",
-        Utc::now().timestamp_nanos_opt().unwrap()
+        cfds_storage::test_db::unique_id("t")
     );
     let doc = sample(&id);
     assert!(j.paper_comparison(&id).await.unwrap().is_none());

@@ -3,19 +3,73 @@ import {
   BarChart3,
   BookOpen,
   ClipboardCheck,
+  FlaskConical,
+  FlaskRound,
   CandlestickChart,
   Droplets,
   FolderOpen,
   Gauge,
+  GraduationCap,
+  History,
+  House,
   LayoutDashboard,
-  ListChecks,
+  LayoutGrid,
+  NotebookPen,
   Trophy,
   Wallet,
 } from 'lucide-react'
 
-import type { ShellView } from '@/components/ui/glass-shell'
+import type { ShellView } from '@/components/ui/app-shell'
 
 export const VIEWS: ShellView[] = [
+  {
+    id: 'inicio',
+    label: 'Inicio',
+    short: 'Inicio',
+    icon: House,
+    description:
+      'Elegí a dónde ir y mirá los resúmenes de la simulación. Resultados del pasado, no promesas.',
+  },
+  {
+    id: 'terminal',
+    label: 'Terminal',
+    short: 'Terminal',
+    icon: CandlestickChart,
+    description:
+      'Mercados, gráfico, ticket, posiciones, órdenes y actividad. Solo simulación: no se envía ninguna orden real.',
+  },
+  {
+    id: 'graficos',
+    label: 'Gráficos',
+    short: 'Gráficos',
+    icon: BarChart3,
+    description:
+      'Un gráfico a pantalla completa con las velas del motor. Solo para mirar: sin órdenes.',
+  },
+  {
+    id: 'multigrafico',
+    label: 'Multigráfico',
+    short: 'Multigráfico',
+    icon: LayoutGrid,
+    description:
+      'Hasta cuatro gráficos a la vez, cada uno con su instrumento y timeframe. Solo para mirar: sin órdenes.',
+  },
+  {
+    id: 'investigacion',
+    label: 'Investigación',
+    short: 'Investigación',
+    icon: FlaskConical,
+    description:
+      'Corridas, modelo, propuestas, liquidez y glosario en un solo informe. Resultados del pasado, no promesas.',
+  },
+  {
+    id: 'laboratorio',
+    label: 'Laboratorio',
+    short: 'Laboratorio',
+    icon: FlaskRound,
+    description:
+      'Armá una estrategia con bloques y corrila sobre el pasado. Exploratorio, no vota: resultados del pasado en simulación, no promesas.',
+  },
   {
     id: 'performance',
     label: 'Performance',
@@ -25,32 +79,11 @@ export const VIEWS: ShellView[] = [
       'Resumen de la simulación: corridas de backtest, el fondo y sus estadísticas. Resultados del pasado, no promesas.',
   },
   {
-    id: 'panel',
-    label: 'Panel',
-    short: 'Panel',
-    icon: LayoutDashboard,
-    description: 'Cómo va el fondo, los índices, lo último de la simulación y la liquidez.',
-  },
-  {
-    id: 'terminal',
-    label: 'Terminal',
-    short: 'Terminal',
-    icon: CandlestickChart,
-    description: 'Gráfico, propuestas, ticket y posiciones. Solo simulación, con datos de ejemplo.',
-  },
-  {
     id: 'propuestas',
     label: 'Propuestas',
     short: 'Propuestas',
     icon: ClipboardCheck,
     description: 'Las propuestas del motor que esperan al responsable.',
-  },
-  {
-    id: 'graficos',
-    label: 'Gráficos',
-    short: 'Gráficos',
-    icon: BarChart3,
-    description: 'Precio con volumen, RSI y MACD, y la profundidad del mercado.',
   },
   {
     id: 'liquidez',
@@ -61,18 +94,19 @@ export const VIEWS: ShellView[] = [
       'Niveles de liquidez, FVG, sus estadísticas y el desequilibrio, como los manda el motor.',
   },
   {
+    id: 'glosario',
+    label: 'Glosario',
+    short: 'Glosario',
+    icon: BookOpen,
+    description: 'Cada término técnico con su explicación y un ejemplo.',
+  },
+  {
     id: 'noticias',
     label: 'Noticias',
     short: 'Noticias',
     icon: FolderOpen,
-    description: 'Las carpetas de noticias de cada miembro.',
-  },
-  {
-    id: 'operaciones',
-    label: 'Operaciones',
-    short: 'Diario',
-    icon: ListChecks,
-    description: 'El diario de operaciones en simulación.',
+    description:
+      'Las noticias con su hora de publicación, las carpetas de cada miembro y el contexto de mercado.',
   },
   {
     id: 'fondo',
@@ -82,26 +116,114 @@ export const VIEWS: ShellView[] = [
     description: 'El valor de la unidad y lo que tiene cada miembro.',
   },
   {
-    id: 'competencia',
-    label: 'Competencia',
-    short: 'Trofeos',
-    icon: Trophy,
-    description: 'Los trofeos del día y de la semana, y la tabla del grupo.',
+    id: 'operaciones',
+    label: 'Diario',
+    short: 'Diario',
+    icon: NotebookPen,
+    description:
+      'El diario de las operaciones en simulación: cada una con su motivo, el resultado del motor y la nota.',
   },
   {
-    id: 'glosario',
-    label: 'Glosario',
-    short: 'Glosario',
-    icon: BookOpen,
-    description: 'Cada término técnico con su explicación y un ejemplo.',
+    id: 'competencia',
+    label: 'Trofeos',
+    short: 'Trofeos',
+    icon: Trophy,
+    description:
+      'Logros del proceso: respetar el stop, anotar cada operación y cumplir las reglas. Nunca premian la ganancia.',
+  },
+  {
+    id: 'academia',
+    label: 'Academia',
+    short: 'Academia',
+    icon: GraduationCap,
+    description:
+      'El curso por niveles, sus exámenes y qué herramienta abre cada lección. Lo califica el motor; todo en simulación.',
+  },
+  {
+    id: 'replay',
+    label: 'Replay',
+    short: 'Replay',
+    icon: History,
+    description:
+      'Práctica vela a vela con velas del pasado y la fecha oculta. El cursor vive en el motor: nunca se ve una vela futura.',
+  },
+  {
+    id: 'panel',
+    label: 'Panel',
+    short: 'Panel',
+    icon: LayoutDashboard,
+    description: 'Cómo va el fondo, los índices, lo último de la simulación y la liquidez.',
   },
 ]
 
-/** La vista de inicio (sin hash). */
-export const HOME_VIEW = 'panel'
+/** La vista de inicio (sin hash). `#panel` sigue existiendo y abre el panel de siempre (#581). */
+export const HOME_VIEW = 'inicio'
 
 /**
- * Las tres pestañas principales (#286), en orden: el gesto del trackpad y los atajos de teclado
- * pasan de una a la siguiente. Cada una tiene su hash y entra en el historial del navegador.
+ * Las secciones del mapa (#581): las que van en la barra lateral y en la del celular. Las demás
+ * vistas siguen abriéndose con su hash y desde la paleta, y marcan la sección a la que pertenecen.
  */
-export const MAIN_TABS = ['performance', 'panel', 'terminal'] as const
+export const NAV_SECTIONS = [
+  'inicio',
+  'terminal',
+  'graficos',
+  'investigacion',
+  'laboratorio',
+  'noticias',
+  'fondo',
+  'operaciones',
+  'competencia',
+  'academia',
+] as const
+
+/** La sección de cada vista que vive dentro de otra (los hashes viejos siguen funcionando). */
+const PARENT: Record<string, string> = {
+  panel: 'inicio',
+  multigrafico: 'graficos',
+  performance: 'investigacion',
+  propuestas: 'investigacion',
+  liquidez: 'investigacion',
+  glosario: 'investigacion',
+  replay: 'academia',
+}
+export const sectionOf = (id: string) => PARENT[id] ?? id
+
+/**
+ * "Todas las vistas" (#618): cada sección del mapa con las vistas que viven adentro, en el orden de
+ * `VIEWS`. Lo abre "Más": con la barra (lateral o la de abajo) cualquier vista queda a dos toques.
+ */
+export const MENU_GROUPS = NAV_SECTIONS.map((id) => ({
+  id,
+  children: VIEWS.filter((v) => PARENT[v.id] === id).map((v) => v.id),
+}))
+
+/**
+ * Las pestañas principales (#286, #581), en orden: Inicio · Terminal · Gráficos · Investigación.
+ * El gesto del trackpad y los atajos de teclado pasan de una a la siguiente (desde una vista de
+ * adentro, como `#performance`, cuenta la de su sección). Cada una tiene su hash y entra en el
+ * historial del navegador.
+ */
+export const MAIN_TABS = ['inicio', 'terminal', 'graficos', 'investigacion'] as const
+
+/**
+ * La barra de abajo del celular (#618): las cuatro pestañas principales y "Más". Entran sin
+ * desplazarse en 320 px; el resto de las secciones y las vistas de adentro están en "Más".
+ */
+export const BAR_VIEWS = MAIN_TABS
+
+/**
+ * Atajos de función (#708), como en una terminal: F1 a F4 las pestañas principales y F6 a F10 las
+ * demás secciones (F10, la Academia, #769). F5 queda libre (recarga la página en el navegador); F11
+ * y F12 son del navegador (pantalla completa y herramientas).
+ */
+export const FKEYS: Readonly<Record<string, string>> = {
+  inicio: 'F1',
+  terminal: 'F2',
+  graficos: 'F3',
+  investigacion: 'F4',
+  noticias: 'F6',
+  fondo: 'F7',
+  operaciones: 'F8',
+  competencia: 'F9',
+  academia: 'F10',
+}

@@ -2,15 +2,19 @@
  * Lectura de la vista de liquidez desde el gateway del motor (#231):
  * - `GET /api/v1/instruments` (`contracts/gateway_instruments.v1`): instrumentos del catálogo,
  *   timeframes y lo que se abre primero;
- * - `GET /api/v1/liquidity?instrument=<id>&timeframe=<tf>[&source=futures]`
- *   (`contracts/liquidity_view.v1`). Sin `source`, las velas del CFD de IG.
+ * - `GET /api/v1/liquidity?instrument=<id>&timeframe=<tf>[&source=futures][&before=<UTC>]`
+ *   (`contracts/liquidity_view.v1`). Sin `source`, las velas del CFD de IG; con `auto` (#628), IG
+ *   o, si IG no tiene velas, la fuente de reemplazo que diga el motor.
  * La UI solo pide y muestra; no calcula nada. En desarrollo, Vite manda `/api` al gateway.
  */
 import { useEffect, useState } from 'react'
 
+import type { ChartAnalysis } from '@/lib/analysis-contracts'
+import { chartBars, type ChartBar } from '@/lib/liquidity-bars'
 import type {
   GatewayInstruments,
   LiquidityViewData,
+  SourceChoice,
   ViewSource,
   ViewTimeframe,
 } from '@/lib/liquidity-contracts'
@@ -31,13 +35,34 @@ export const fetchLiquidityView = (
   instrument: string,
   timeframe: ViewTimeframe,
   signal?: AbortSignal,
-  source: ViewSource['id'] = 'ig',
+  source: SourceChoice = 'ig',
+  /** la vista tal como se conocía en ese momento (UTC): velas más viejas (#401) */
+  before?: string,
 ) =>
   getJson<LiquidityViewData>(
     `/api/v1/liquidity?instrument=${encodeURIComponent(instrument)}&timeframe=${timeframe}` +
-      (source === 'ig' ? '' : `&source=${source}`),
+      (source === 'ig' ? '' : `&source=${source}`) +
+      (before ? `&before=${encodeURIComponent(before)}` : ''),
     signal,
   )
+
+/** Una página de velas más viejas con su bloque `analysis` (índices de `bars`), si lo trae. */
+export type OlderPage = { bars: ChartBar[]; analysis?: ChartAnalysis }
+
+/**
+ * Velas cerradas antes de `before` (#401), para el gráfico que se desplaza al pasado, con las
+ * herramientas de análisis del motor para esas velas (#511).
+ */
+export const fetchOlderBars = (
+  instrument: string,
+  timeframe: ViewTimeframe,
+  before: string,
+  source: ViewSource['id'] = 'ig',
+): Promise<OlderPage> =>
+  fetchLiquidityView(instrument, timeframe, undefined, source, before).then((data) => ({
+    bars: chartBars(data),
+    analysis: data.analysis,
+  }))
 
 export type Remote<T> =
   { status: 'loading' } | { status: 'error'; message: string } | { status: 'ok'; data: T }
@@ -92,7 +117,7 @@ export const useInstruments = () => useRemote('instruments', fetchInstruments)
 
 /** La vista de un instrumento, timeframe y fuente; `null` mientras no se sepa cuál. */
 export function useLiquidityView(
-  sel: { instrument: string; timeframe: ViewTimeframe; source?: ViewSource['id'] } | null,
+  sel: { instrument: string; timeframe: ViewTimeframe; source?: SourceChoice } | null,
 ): Remote<LiquidityViewData> {
   return useRemote(
     sel && `${sel.instrument}|${sel.timeframe}|${sel.source ?? 'ig'}`,

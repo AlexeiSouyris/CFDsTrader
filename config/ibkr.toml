@@ -1,0 +1,152 @@
+# IBKR, cuenta paper, solo lectura (ADR 0017 etapa 1, #534). Lo lee engine/crates/ibkr y se valida al
+# arrancar: si algo no cumple, el adaptador no se conecta.
+#
+# El login lo hace el dueño a mano en IB Gateway, eligiendo "Paper Trading". El proyecto nunca guarda
+# ni pide el usuario o la contraseña de IBKR. El ID de la cuenta paper va solo en .env (ver
+# [account].paper_account_env y .env.example).
+
+[gateway]
+# Solo esta máquina: se rechaza cualquier host que no sea de loopback.
+host = "127.0.0.1"
+# IB Gateway en modo paper (verificado por el dueño el 25-11-2026, #533).
+port = 4002
+# Identificador de esta conexión ante IB Gateway (otro programa conectado no puede usar el mismo).
+client_id = 17
+connect_timeout_secs = 15
+request_timeout_secs = 30
+# Cada cuánto se mira si la conexión sigue viva con --watch.
+watch_interval_secs = 5
+# Puertos de sesión real: el adaptador se niega a conectarse a ellos. Tiene que incluir, como mínimo,
+# 7496 (TWS real) y 4001 (IB Gateway real, a confirmar en la documentación oficial, ADR 0017).
+# 7497 (TWS paper) y 4002 (IB Gateway paper) NO van acá.
+forbidden_ports = [7496, 4001]
+
+[account]
+# Variable de .env con el ID de la cuenta paper. Sin ella, el adaptador no se conecta. Si alguna
+# cuenta de la sesión es otra, se desconecta y activa el kill switch.
+paper_account_env = "IBKR_PAPER_ACCOUNT_ID"
+
+[history]
+# Velas que se piden: "15m" o "1h". Solo se devuelven velas cerradas.
+timeframe = "1h"
+# Ventana del comando de prueba, hacia atrás desde ahora.
+lookback_hours = 24
+# Qué precio: "TRADES" (operaciones) o "MIDPOINT" (medio entre compra y venta).
+what_to_show = "TRADES"
+# false: incluye el horario extendido de la sesión (los futuros de CME operan casi 23 h).
+regular_hours_only = false
+# Fuente que acompaña a cada vela.
+source = "ibkr_paper"
+
+[load]
+# Carga incremental a PostgreSQL (`ibkr_bars`, #536) con el ejemplo ibkr_load. Límites de IBKR en
+# docs/analysis/2026-11-ibkr-medicion-historia.md.
+# Fuente que se guarda con cada vela (los datos son los mismos en paper y en real).
+source = "ibkr"
+# Pausa entre pedidos de velas: con 11 s nunca se llega a 60 pedidos en 10 minutos.
+pause_secs = 11
+# Tope de pedidos de velas por corrida; lo que falte sigue en la corrida siguiente.
+max_requests = 30
+# Sin nada guardado de una serie y sin --from: desde cuántos días atrás.
+backfill_days = 7
+# Ventana de cada pedido, dentro de la tabla de duraciones de IBKR (1 min: hasta 1 día; 15 min:
+# hasta 1 semana; 1 h: hasta 1 mes).
+window_1m_hours = 24
+window_15m_hours = 168
+window_1h_hours = 720
+# Atraso de los datos de IBKR sin suscripción (unos 10 minutos, #541). La última vela que devuelve
+# IBKR se guarda solo si cerró hace al menos esto; las anteriores, porque ya hay una vela después
+# (#563). Entre 60 y 7200.
+data_delay_secs = 900
+
+[load_health]
+# Aviso de carga trabada (#607). Cuenta solo los pedidos que FALLAN porque IBKR no responde (tiempo
+# agotado, conexión cortada, IB Gateway apagado). Una respuesta sin velas (mercado cerrado, pausa
+# diaria de CME, fin de semana) es una respuesta: no suma. Por serie (instrumento + tamaño).
+# Se avisa una vez cuando una serie lleva al menos min_failures corridas fallidas seguidas Y
+# stall_minutes desde el primer fallo, y una vez cuando IBKR vuelve a responder. Con el cron cada
+# 5 minutos: aviso entre 30 y 35 minutos después del primer fallo.
+min_failures = 6
+stall_minutes = 30
+# Una racha sin corridas nuevas durante esto se olvida (una serie que se sacó del cron no deja el
+# aviso prendido). Más que stall_minutes y como mucho 168.
+forget_after_hours = 6
+# Notificación de macOS (osascript) al empezar y al terminar un corte. Fuera de macOS no hace nada.
+notify_macos = true
+# Dónde se guarda la racha entre corridas, relativo a la raíz del repo (logs/ no se commitea).
+state_file = "logs/ibkr_load_health.json"
+
+[live]
+# Precios por streaming para la vela en formación de la terminal de la app (#558). SOLO VISUAL: ningún
+# indicador, patrón, señal ni estrategia usa esa vela. La conexión la abre el gateway solo con
+# [ibkr] live = true en config/gateway.toml.
+# Identificador propio de esta conexión: distinto del de [gateway] (17, que usan ibkr_load y el cron),
+# de ibkr_probe (18) y de la terminal bolsa (19, config/terminal.toml).
+client_id = 21
+# Instrumentos con precios por streaming (futuros o acciones: EURUSD de IDEALPRO no tiene último
+# operado y además no hay permiso de datos).
+instruments = ["MNQ", "MES", "QQQ"]
+# Velas en formación que se arman: "1m", "5m", "15m" o "1h".
+timeframes = ["1m", "5m", "15m", "1h"]
+# Qué se pide primero: "live" (si IBKR dice que no hay permiso, pasa a "delayed" solo) o "delayed".
+# Sin suscripción de datos, CME llega con unos 10 minutos de atraso (#541). El tipo y el atraso se
+# informan siempre en cada mensaje.
+first_try = "live"
+# Cuánto espera un precio a su hora (IBKR la manda aparte, en segundos) antes de usar la hora de
+# llegada menos el atraso medido.
+pending_wait_ms = 1000
+# Si se corta IB Gateway (por ejemplo, su reinicio diario), se vuelve a abrir el socket a esta máquina
+# con espera creciente, pasando otra vez por todas las guardas (puerto, cuenta paper). Nunca se usan
+# credenciales: el login de IB Gateway lo hace el dueño. Una cuenta que no es la paper o un dato
+# inválido detienen el streaming hasta reiniciar el gateway.
+reconnect_min_secs = 5
+reconnect_max_secs = 300
+
+# Futuros micro (ADR 0017). La bolsa y la moneda son a confirmar con la respuesta de IBKR
+# (contract_details): si no encuentra el contrato, el comando lo dice y no inventa nada. Se usa el
+# vencimiento vigente más cercano que informe IBKR.
+[[instruments]]
+id = "MNQ"
+symbol = "MNQ"
+exchange = "CME"
+currency = "USD"
+
+[[instruments]]
+id = "MES"
+symbol = "MES"
+exchange = "CME"
+currency = "USD"
+
+# Para medir la historia que da IBKR como fuente de datos (#536). Sin el permiso de futuros, solo
+# historia: nada de esto se opera.
+# Futuro continuo de IBKR (CONTFUT): una serie que empalma los vencimientos.
+[[instruments]]
+id = "MNQ.C"
+kind = "continuous_future"
+symbol = "MNQ"
+exchange = "CME"
+currency = "USD"
+
+[[instruments]]
+id = "MES.C"
+kind = "continuous_future"
+symbol = "MES"
+exchange = "CME"
+currency = "USD"
+
+# ETF del Nasdaq 100, como referencia de contado.
+[[instruments]]
+id = "QQQ"
+kind = "stock"
+symbol = "QQQ"
+exchange = "SMART"
+currency = "USD"
+
+# EUR/USD en IDEALPRO: no tiene operaciones (TRADES), solo el medio entre compra y venta.
+[[instruments]]
+id = "EURUSD"
+kind = "forex"
+symbol = "EUR"
+exchange = "IDEALPRO"
+currency = "USD"
+what_to_show = "MIDPOINT"

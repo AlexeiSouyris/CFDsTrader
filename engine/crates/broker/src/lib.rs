@@ -8,6 +8,7 @@
 //! un tamaño. Los costos (spread, slippage, comisión) y las salidas (stop, TP1, trailing, tiempo)
 //! son los de `cfds-backtest`: no se duplican.
 
+pub mod checkpoint;
 pub mod live;
 pub mod paper;
 pub mod persist;
@@ -16,15 +17,25 @@ pub mod reconcile;
 use cfds_core::{Order, OrderReport, PaperAccount, Position, TicketVerdict};
 use chrono::{DateTime, Utc};
 
+pub use checkpoint::{
+    BrokerCheckpoint, CHECKPOINT_VERSION, MarketCut, SealedCheckpoint, journal_hash, seal,
+    setup_hash, verified_chain,
+};
 pub use live::{LiveAuthorization, LiveBroker, live_trading_status};
 pub use paper::{
     BrokerConfig, BrokerEvent, FundingSetup, MarketSetup, PaperBroker, PaperExit, PaperTrade,
+    RestorePending, rejection_code,
 };
 pub use persist::{
-    Flush, JournalStore, ReconcileSchedule, flush_journal, reconcile_periodically,
-    restore_from_store, submit_and_record,
+    Flush, JournalStore, ReconcileSchedule, RestoredPending, flush_journal, kill_switch_marks,
+    kill_switch_stored_active, reconcile_periodically, restore_best, restore_from_store,
+    restore_pending_from_store, save_checkpoint, save_kill_switch, settle_and_record,
+    stored_checkpoints, submit_and_record,
 };
-pub use reconcile::{Drift, Mismatch, Reconciliation, reconcile, restore_and_reconcile};
+pub use reconcile::{
+    Drift, KillSwitchChange, KillSwitchMark, Mismatch, Reconciliation, reconcile,
+    restore_and_reconcile, restore_from_checkpoint, restore_with_kill_switch,
+};
 
 /// Lo que cualquier broker hace. Las órdenes son idempotentes por `order_id`.
 pub trait Broker {

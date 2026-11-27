@@ -4,11 +4,12 @@
  * barra de pérdida usa el porcentaje del motor como ancho, recortado por CSS) y no tiene ningún
  * control para reiniciar el kill switch.
  */
-import { OctagonAlert } from 'lucide-react'
+import { Lock, OctagonAlert } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 
 import { Term } from '@/components/ui/term'
-import { dateTimeUtc, decimal } from '@/lib/format'
+import { focusLesson, useToolLock } from '@/lib/academy-locks'
+import { dateTimeUtc, decimal, leverageText } from '@/lib/format'
 import type { Gate, OpsEvent, OpsStatus } from '@/lib/ops-api'
 import { cn } from '@/lib/utils'
 
@@ -49,7 +50,7 @@ export function OpsKillSwitchBanner({ status }: { status: OpsStatus }) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.25 }}
-          className="flex flex-wrap items-start gap-3 rounded-[20px] bg-down p-4 text-white shadow-lg"
+          className="flex flex-wrap items-start gap-3 rounded-section bg-down p-4 text-white shadow-lg"
         >
           <OctagonAlert className="mt-0.5 size-6 shrink-0" aria-hidden="true" />
           <div className="min-w-0 flex-1">
@@ -73,14 +74,28 @@ export function OpsKillSwitchBanner({ status }: { status: OpsStatus }) {
  * Fluye en bloques que bajan de línea enteros (#356): los chips juntos, la pérdida del día con su
  * barra (se estira, nunca baja de ~15rem), el apalancamiento sin cortar, y la reconciliación en
  * su propia franja abajo. Así ningún texto se encima con otro en ningún ancho.
+ *
+ * Candado de la Academia (`tool.trading_status_bar`, lección 7.4, #836), solo donde se pide con
+ * `academyLock` (la Terminal): bloqueada, la barra muestra solo la compuerta y el kill switch, y
+ * en lugar de la pérdida del día, el apalancamiento y la reconciliación, la lección que los abre.
+ * **Un candado nunca esconde un aviso:** con el kill switch activo, el broker sin aceptar órdenes,
+ * la cuenta sin datos o una reconciliación con diferencias, la barra se muestra entera igual.
  */
-export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
+export function OpsStatusBar({
+  status,
+  academyLock = false,
+}: {
+  status: OpsStatus | null
+  /** si se aplica el candado de la Academia (la Terminal; el Panel la muestra siempre entera) */
+  academyLock?: boolean
+}) {
+  const lock = useToolLock('tool.trading_status_bar')
   if (!status) {
     return (
       <section
         aria-label="Estado de la operación"
         data-ops-status="offline"
-        className="glass flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[20px] px-4 py-3 text-[12px] text-muted-foreground"
+        className="panel flex flex-wrap items-center gap-x-3 gap-y-2 rounded-section px-4 py-3 text-[12px] text-muted-foreground"
       >
         <Chip className="border-border">Sin conexión con el gateway</Chip>
         <span className="min-w-0">
@@ -92,27 +107,60 @@ export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
   const a = status.account
   const gate = GATE[status.gate]
   const rec = status.last_reconcile
+  const chips = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Chip className={gate.tone}>
+        <span className="size-2 shrink-0 rounded-full bg-current" aria-hidden="true" />
+        {gate.label}
+      </Chip>
+      {a && (
+        <Chip className={a.kill_switch.active ? 'border-down bg-down text-white' : 'border-border'}>
+          <Term id="kill-switch">Kill switch</Term> {a.kill_switch.active ? 'ACTIVO' : 'inactivo'}
+        </Chip>
+      )}
+    </div>
+  )
+  const quiet =
+    status.gate === 'ready' && a !== null && !a.kill_switch.active && (rec === null || rec.clean)
+  if (academyLock && lock.locked && quiet) {
+    const lesson = `lección ${lock.lessonId}${lock.lessonTitle ? ` · ${lock.lessonTitle}` : ''}`
+    return (
+      <section
+        aria-label="Estado de la operación"
+        data-ops-status={status.gate}
+        data-tool-lock="tool.trading_status_bar"
+        className="panel flex flex-wrap items-center gap-x-6 gap-y-2 rounded-section px-4 py-3 sm:px-5"
+      >
+        {chips}
+        {lock.visible && (
+          <p className="flex min-w-0 flex-[1_1_18rem] items-start gap-1.5 text-[12px] leading-snug">
+            <Lock aria-hidden="true" className="mt-px size-3.5 shrink-0" />
+            <span className="min-w-0">
+              <span className="text-muted-foreground">
+                El resto de la barra (pérdida del día contra el máximo, apalancamiento y
+                reconciliación) se desbloquea en la {lesson}. Con un aviso, se muestra entera.
+              </span>{' '}
+              <a
+                href="#academia"
+                onClick={() => focusLesson(lock.lessonId)}
+                className="font-semibold whitespace-nowrap text-foreground underline underline-offset-2"
+              >
+                Ir a la lección
+              </a>
+            </span>
+          </p>
+        )}
+      </section>
+    )
+  }
   return (
     <section
       aria-label="Estado de la operación"
       data-ops-status={status.gate}
-      className="glass relative grid gap-3 rounded-[20px] px-4 py-3 has-[[role=dialog]]:z-30 sm:px-5"
+      className="panel relative grid gap-3 rounded-section px-4 py-3 sm:px-5"
     >
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Chip className={gate.tone}>
-            <span className="size-2 shrink-0 rounded-full bg-current" aria-hidden="true" />
-            {gate.label}
-          </Chip>
-          {a && (
-            <Chip
-              className={a.kill_switch.active ? 'border-down bg-down text-white' : 'border-border'}
-            >
-              <Term id="kill-switch">Kill switch</Term>{' '}
-              {a.kill_switch.active ? 'ACTIVO' : 'apagado'}
-            </Chip>
-          )}
-        </div>
+        {chips}
         {a ? (
           <>
             <div className="grid min-w-[min(100%,15rem)] flex-[1_1_15rem] gap-1.5 text-[11.5px]">
@@ -151,7 +199,7 @@ export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
             </div>
             <p className="text-[11.5px] text-muted-foreground tabular-nums sm:whitespace-nowrap">
               <Term id="apalancamiento">Apalancamiento</Term>{' '}
-              <strong className="font-bold text-foreground">{decimal(a.leverage)}:1</strong> ·{' '}
+              <strong className="font-bold text-foreground">{leverageText(a.leverage)}</strong> ·{' '}
               {a.open_positions} de {a.max_positions} posiciones
             </p>
           </>
@@ -169,7 +217,9 @@ export function OpsStatusBar({ status }: { status: OpsStatus | null }) {
         >
           Reconciliación {rec.kind === 'startup' ? 'al arrancar' : 'periódica'}:{' '}
           {rec.clean
-            ? `limpia (${rec.matched} coinciden)`
+            ? rec.matched === 0
+              ? 'limpia, sin posiciones que comparar'
+              : `limpia (${rec.matched} coinciden)`
             : `${rec.mismatches} posiciones distintas y ${rec.drifts} órdenes que no se reconstruyen igual`}{' '}
           <span className="whitespace-nowrap tabular-nums">· {dateTimeUtc(rec.at)}</span>
         </p>
@@ -187,6 +237,41 @@ const EVENT_LABEL: Record<string, string> = {
   alert: 'Alerta',
   startup_reconcile: 'Reconciliación al arrancar',
   shutdown: 'Parada',
+  instrument_skipped: 'Instrumento omitido',
+  connection_error: 'Error de conexión',
+  ibkr_stalled: 'IBKR sin respuesta',
+  ibkr_recovered: 'IBKR responde de nuevo',
+}
+
+/**
+ * Marcas de una nota técnica para desarrolladores (#580): pedidos a la API, ADR, secciones de la
+ * spec, números de Issue, rutas de docs o contratos. Ese texto va plegado en "Detalle técnico".
+ */
+const TECHNICAL = /GET \/|POST \/|\bADR\b|§|#\d+|docs\/|\.md\b|\.toml\b|\w+\.v\d\b|\{\w+\}/
+
+/**
+ * Lo que se muestra de un evento: un texto para el usuario y, si el motor mandó una nota técnica,
+ * el texto original aparte. `instrument_skipped` llega como "XAUUSD: <motivo técnico>".
+ */
+function describe(e: OpsEvent): { text: string; technical: string | null } {
+  const raw = summary(e)
+  if (e.event === 'instrument_skipped') {
+    const id = /^([\w.]+):/.exec(raw)?.[1]
+    return {
+      text: id
+        ? `Se omite ${id} en el broker simulado: faltan datos del instrumento.`
+        : 'Se omite un instrumento en el broker simulado: faltan datos del instrumento.',
+      technical: raw,
+    }
+  }
+  if (!TECHNICAL.test(raw)) return { text: raw, technical: null }
+  // se quedan las frases sin marcas técnicas; el texto entero, plegado
+  const plain = raw
+    .split(/(?<=[.;])\s+/)
+    .filter((part) => !TECHNICAL.test(part))
+    .join(' ')
+    .trim()
+  return { text: plain || 'Aviso del motor con detalle técnico.', technical: raw }
 }
 
 const str = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v) : null)
@@ -213,7 +298,10 @@ const LEVEL: Record<OpsEvent['level'], string> = {
   error: 'border-down/50 text-down',
 }
 
-/** Los últimos eventos del broker y alertas, el más nuevo primero. */
+/**
+ * Los últimos eventos del broker y alertas, el más nuevo primero. Los repetidos llegan agrupados
+ * del motor (#576): se muestra la última vez, cuántas veces y desde cuándo, tal cual.
+ */
 export function OpsEventFeed({ events }: { events: OpsEvent[] }) {
   if (events.length === 0) return <p className="text-[12.5px]">Todavía no hay eventos guardados.</p>
   return (
@@ -235,7 +323,9 @@ export function OpsEventFeed({ events }: { events: OpsEvent[] }) {
                 : 'border-border',
             )}
           >
-            <span className="text-muted-foreground tabular-nums">{dateTimeUtc(e.ts)}</span>
+            <span className="text-muted-foreground tabular-nums">
+              {dateTimeUtc(e.last_seen ?? e.ts)}
+            </span>
             <span
               className={cn(
                 'rounded-full border px-2 text-[10px] font-bold uppercase',
@@ -246,10 +336,39 @@ export function OpsEventFeed({ events }: { events: OpsEvent[] }) {
             </span>
             <span className="font-semibold">{EVENT_LABEL[e.event] ?? e.event}</span>
             <span className="text-muted-foreground">{e.target}</span>
-            <span className="min-w-0 basis-full break-words sm:basis-auto">{summary(e)}</span>
+            {(e.count ?? 1) > 1 && (
+              <span
+                className="rounded-full border border-border px-2 text-[10px] font-bold tabular-nums"
+                title={`Primera vez: ${dateTimeUtc(e.ts)}`}
+              >
+                ×{e.count} · desde {dateTimeUtc(e.ts)}
+              </span>
+            )}
+            <EventText event={e} />
           </motion.li>
         ))}
       </AnimatePresence>
     </ol>
+  )
+}
+
+/** El texto de un evento, con el detalle técnico plegado si lo hay (#580). */
+function EventText({ event }: { event: OpsEvent }) {
+  const { text, technical } = describe(event)
+  if (!technical)
+    return <span className="min-w-0 basis-full break-words sm:basis-auto">{text}</span>
+  return (
+    <span className="min-w-0 basis-full break-words sm:basis-auto">
+      {text}{' '}
+      <details className="inline text-muted-foreground [&[open]]:block">
+        <summary
+          data-inline-hit
+          className="inline cursor-pointer text-[11px] underline decoration-dotted"
+        >
+          Detalle técnico
+        </summary>
+        <span className="mt-1 block text-[11px] [overflow-wrap:anywhere]">{technical}</span>
+      </details>
+    </span>
   )
 }

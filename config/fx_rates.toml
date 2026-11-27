@@ -1,0 +1,23 @@
+# Tipos de cambio diarios de referencia (ADR 0013 §4, #418). Convierten P/L, margen,
+# financiación y riesgo de un contrato en USD (el oro de IG) a la moneda de la cuenta (EUR).
+#
+# Fuente: API de datos del BCE, la misma que el €STR (config/reference_rates.toml).
+# "The reference rates are usually updated at around 16:00 CET every working day" y son
+# "published for information purposes only": el error contra el tipo real de IG se acepta en el
+# backtest y se mide en paper (ADR 0013).
+
+[api]
+base_url = "https://data-api.ecb.europa.eu/service/data"
+user_agent = "cfds-intel/0.1 (automated data reader)"
+timeout_secs = 60
+
+# Una tabla por par, con el nombre del contrato fx_rate.v1 (BASE+COTIZADA).
+[series.EURUSD]
+# Serie EXR.D.USD.EUR.SP00.A: dólares por 1 euro, tipo de referencia diario.
+flow = "EXR"
+key = "D.USD.EUR.SP00.A"
+start = "2011-01-01"
+# El BCE dice "alrededor de las 16:00 CET". Se toma las 17:00, una hora después, para no usar
+# nunca un valor antes de publicado (CLAUDE.md §5b). Vale desde esa hora del mismo día.
+publication_time = "17:00"
+publication_timezone = "Europe/Berlin"

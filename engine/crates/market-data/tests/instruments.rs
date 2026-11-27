@@ -17,7 +17,7 @@ fn catalog() -> Catalog {
 fn the_repository_catalog_loads_with_its_sources() {
     let c = catalog();
     let ids: Vec<&str> = c.instruments.keys().map(|i| i.as_str()).collect();
-    assert_eq!(ids, ["DE40", "US100", "US2000", "US30", "US500"]);
+    assert_eq!(ids, ["DE40", "US100", "US2000", "US30", "US500", "XAUUSD"]);
 
     let us100 = &c.instruments[&"US100".parse().unwrap()];
     assert_eq!(us100.instrument.asset_class, AssetClass::Index);
@@ -54,12 +54,11 @@ fn own_leverage_cap_is_below_the_regulatory_one() {
 fn backtests_are_blocked_while_costs_are_pending() {
     let missing = catalog().ready_for_backtest().unwrap_err();
     let fields: Vec<_> = missing.iter().map(|p| (p.item.as_str(), p.field)).collect();
-    // Falta el tipo de referencia de la financiación de los índices de EE. UU., y los términos
-    // de IG del Russell 2000, que solo está para el estudio (#371).
+    // Faltan los términos de IG del Russell 2000, que solo está para el estudio (#371), y los
+    // del oro (#418). Los índices de EE. UU. ya tienen tipo de referencia (SOFR, #655).
     assert_eq!(
         fields,
         [
-            ("US100", "funding_benchmark"),
             ("US2000", "funding_benchmark"),
             ("US2000", "margin_retail_pct"),
             ("US2000", "spread_min_points"),
@@ -68,8 +67,12 @@ fn backtests_are_blocked_while_costs_are_pending() {
             ("US2000", "min_deal_size"),
             ("US2000", "tick"),
             ("US2000", "funding_admin_fee_pct"),
-            ("US30", "funding_benchmark"),
-            ("US500", "funding_benchmark"),
+            // El oro (ADR 0013, #418): lo que IG no publica y la base de su financiación.
+            ("XAUUSD", "funding_benchmark"),
+            ("XAUUSD", "spread_typical_points"),
+            ("XAUUSD", "value_per_point"),
+            ("XAUUSD", "min_deal_size"),
+            ("XAUUSD", "tick"),
         ]
     );
     assert!(missing.iter().all(|p| !p.reason.is_empty()));
@@ -108,7 +111,8 @@ fn feeds_the_session_calendar() {
     let c = catalog();
     let cal = ExchangeCalendar::load(&config, c.exchange_map()).unwrap();
     let day: DateTime<Utc> = "2026-11-25T00:00:00Z".parse().unwrap();
-    for (id, expected) in [("US100", 26), ("DE40", 34)] {
+    // El oro (ADR 0013): dos tramos de la sesión de casi 23 h que cruzan ese día UTC.
+    for (id, expected) in [("US100", 26), ("DE40", 34), ("XAUUSD", 92)] {
         let n = cal
             .expected_starts(
                 &id.parse().unwrap(),
@@ -163,7 +167,7 @@ fn rejects_invalid_numbers_and_unknown_fields() {
     let typo = REAL.replacen("spread_min_points", "spread_minimo", 1);
     assert!(Catalog::from_toml(&typo).is_err());
     let empty_reason = REAL.replacen(
-        r#"{ pending = "Contrato en EUR (#67): probablemente ESTR como el DE40, pero ni la API ni ig.com/es lo confirman para este índice. Confirmar con IG." }"#,
+        r#"{ pending = "No figura en ig.com/es/indices ni /nuestros-costes (2026-11-24). Confirmar con IG." }"#,
         r#"{ pending = "" }"#,
         1,
     );
@@ -187,19 +191,53 @@ fn account_and_funding_benchmarks_come_with_their_source() {
             source: "ecb-estr".into()
         }
     );
+    assert_eq!(
+        c.funding_benchmarks["SOFR"],
+        Sourced::Known {
+            value: dec!(3.94),
+            source: "nyfed-sofr".into()
+        }
+    );
+}
+
+#[test]
+fn us_indices_fund_with_sofr_as_ig_confirmed() {
+    // #655: IG respondió por el chat de ig.com (24-11-2026) «Aplicamos SOFR…» para los tres
+    // epics. La tasa administrativa (3 %) y la base de 360 días no cambian; el DE40 sigue con €STR.
+    let c = catalog();
+    for id in ["US100", "US500", "US30"] {
+        let t = &c.instruments[&id.parse().unwrap()].terms;
+        assert_eq!(
+            t.funding_benchmark,
+            Sourced::Known {
+                value: "SOFR".into(),
+                source: "ig-chat-sofr".into()
+            },
+            "{id}"
+        );
+        assert_eq!(t.funding_admin_fee_pct.value(), Some(&dec!(3)), "{id}");
+        assert_eq!(t.funding_day_count.value(), Some(&dec!(360)), "{id}");
+    }
+    let de40 = &c.instruments[&"DE40".parse().unwrap()].terms;
+    assert_eq!(
+        de40.funding_benchmark.value().map(String::as_str),
+        Some("ESTR")
+    );
+    // Las dos fuentes nuevas existen en [sources] (el catálogo lo valida al leer).
+    assert!(REAL.contains("[sources.ig-chat-sofr]") && REAL.contains("[sources.nyfed-sofr]"));
 }
 
 #[test]
 fn an_instrument_cannot_use_a_benchmark_without_a_rate_entry() {
     let bad = REAL.replacen(
         r#"funding_benchmark = { value = "ESTR", source = "ig-es-costes" }"#,
-        r#"funding_benchmark = { value = "SOFR", source = "ig-es-costes" }"#,
+        r#"funding_benchmark = { value = "SONIA", source = "ig-es-costes" }"#,
         1,
     );
     assert_ne!(bad, REAL);
     let err = Catalog::from_toml(&bad).unwrap_err().to_string();
     assert!(
-        err.contains("SOFR") && err.contains("funding_benchmarks"),
+        err.contains("SONIA") && err.contains("funding_benchmarks"),
         "{err}"
     );
     // Un tipo de referencia puede ser negativo (el €STR lo fue hasta 2022).
@@ -212,4 +250,73 @@ fn an_instrument_cannot_use_a_benchmark_without_a_rate_entry() {
         Catalog::from_toml(&negative).unwrap().funding_benchmarks["ESTR"].value(),
         Some(&dec!(-0.5))
     );
+}
+
+#[test]
+fn the_commodity_funding_model_is_only_for_commodities() {
+    use cfds_market_data::FundingModel;
+    let us100 = "US100".parse().unwrap();
+    // Por omisión, índices y acciones usan el tipo de referencia.
+    assert_eq!(
+        catalog().instruments[&us100].funding_model,
+        FundingModel::Benchmark
+    );
+    let commodity = REAL.replacen(
+        r#"asset_class = "index""#,
+        "asset_class = \"commodity\"\nfunding_model = \"commodity_basis\"",
+        1,
+    );
+    assert_eq!(
+        Catalog::from_toml(&commodity).unwrap().instruments[&us100].funding_model,
+        FundingModel::CommodityBasis
+    );
+    // Una materia prima sin su fórmula, o un índice con la de materias primas: error.
+    let without = REAL.replacen(
+        r#"asset_class = "index""#,
+        r#"asset_class = "commodity""#,
+        1,
+    );
+    let index_with = REAL.replacen(
+        r#"asset_class = "index""#,
+        "asset_class = \"index\"\nfunding_model = \"commodity_basis\"",
+        1,
+    );
+    let unknown = REAL.replacen(
+        r#"asset_class = "index""#,
+        "asset_class = \"index\"\nfunding_model = \"swap\"",
+        1,
+    );
+    for bad in [without, index_with, unknown] {
+        let err = Catalog::from_toml(&bad).unwrap_err().to_string();
+        assert!(err.contains("funding_model"), "{err}");
+    }
+}
+
+#[test]
+fn gold_is_in_the_catalog_but_cannot_be_simulated_yet() {
+    use cfds_market_data::FundingModel;
+    let c = catalog();
+    let gold = &c.instruments[&"XAUUSD".parse().unwrap()];
+    assert_eq!(gold.instrument.asset_class, AssetClass::Commodity);
+    assert_eq!(gold.instrument.currency, Currency::USD);
+    assert_eq!(gold.exchange, "CMEGLOBEX_METALS");
+    assert_eq!(gold.funding_model, FundingModel::CommodityBasis);
+    // Tope propio 10:1, la mitad del regulatorio (margen 5 % → 20:1).
+    assert_eq!(gold.max_leverage, dec!(10));
+    assert_eq!(gold.terms.margin_retail_pct.value(), Some(&dec!(5)));
+    assert_eq!(gold.terms.spread_min_points.value(), Some(&dec!(0.9)));
+    // Lo que IG no publica queda pendiente, nunca inventado.
+    let pending: Vec<_> = gold.pending().into_iter().map(|p| p.field).collect();
+    assert_eq!(
+        pending,
+        [
+            "epic",
+            "funding_benchmark",
+            "spread_typical_points",
+            "value_per_point",
+            "min_deal_size",
+            "tick"
+        ]
+    );
+    assert!(!gold.missing_costs().is_empty());
 }

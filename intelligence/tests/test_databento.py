@@ -16,11 +16,13 @@ from jsonschema import Draft202012Validator
 from cfds_intel.databento import __main__ as cli
 from cfds_intel.databento.bars import (
     BACKWARD,
+    BAR_NS,
     FORWARD,
     BudgetError,
     DatabentoError,
     Stored,
     check_budget,
+    check_spend,
     chunks,
     estimate,
     fetch_bars,
@@ -138,6 +140,10 @@ def test_the_repository_config_maps_the_futures() -> None:
         ('schema = "ohlcv-1m"', 'schema = "trades"'),
         ("min_session_hours = 18", "min_session_hours = 25"),
         ("max_gap_minutes = 5", "max_gap_minutes = 0"),
+        # El inicio propio de un símbolo (#410) es una fecha y solo puede ser posterior al global.
+        ('start = "2017-07-09"', 'start = "9/7/2017"'),
+        ('start = "2017-07-09"', 'start = "2010-01-01"'),
+        ('start = "2017-07-09"', 'start = "2011-01-01"'),
     ],
 )
 def test_bad_config_is_rejected(old: str, new: str) -> None:
@@ -179,9 +185,16 @@ def test_estimate_uses_only_free_metadata_and_respects_dataset_starts() -> None:
 
 def test_the_dataset_start_comes_from_metadata_not_from_the_code() -> None:
     c = FakeClient()
-    c.metadata.ranges = {**c.metadata.ranges, "XEUR.EOBI": {"start": "2025-06-02T00:00:00Z"}}
+    c.metadata.ranges = {
+        **c.metadata.ranges,
+        "XEUR.EOBI": {"start": "2025-06-02T00:00:00Z", "end": "2026-11-23T00:00:00Z"},
+    }
     est = estimate(c, CFG, date(2026, 11, 23), {})
     assert est[3].start == date(2025, 6, 2)
+    # Sin el fin publicado, tampoco se adivina (#396).
+    c.metadata.ranges = {**c.metadata.ranges, "XEUR.EOBI": {"start": "2025-06-02T00:00:00Z"}}
+    with pytest.raises(DatabentoError, match="sin end"):
+        estimate(c, CFG, date(2026, 11, 23), {})
     # Sin el esquema en el dataset, no se adivina.
     c.metadata.ranges = {**c.metadata.ranges, "XEUR.EOBI": {"schema": {"trades": {}}}}
     with pytest.raises(DatabentoError):
@@ -220,7 +233,8 @@ def test_estimate_also_fills_the_part_before_what_is_stored() -> None:
         ("YM.c.0", None, date(2011, 1, 1), date(2026, 11, 23), None),
         # Eurex empieza el 2025-03-10: no hay nada anterior que pedir.
         ("FDAX.c.0", None, date(2026, 11, 23), date(2026, 11, 23), "ya está todo guardado"),
-        ("RTY.c.0", None, date(2011, 1, 1), date(2026, 11, 23), None),
+        # Inicio propio del símbolo (#410): RTY está en CME desde julio de 2017.
+        ("RTY.c.0", None, date(2017, 7, 9), date(2026, 11, 23), None),
         ("GC.v.0", None, date(2011, 1, 1), date(2026, 11, 23), None),
     ]
     assert c.timeseries.calls == [], "estimar nunca baja datos"
@@ -346,7 +360,7 @@ def day_of_cme(skip: set[str] = frozenset()) -> list[SimpleNamespace]:  # type: 
 
 def test_a_full_cme_day_passes_the_sample_validation() -> None:
     bars = fetch_bars(FakeClient(records=day_of_cme()), CFG, ES, DAY, date(2026, 11, 19)).bars
-    r = validate_day(bars, ES, DAY, CFG.max_gap_minutes)
+    r = validate_day(bars, ES, DAY, 5)
     assert r.problems == []
     assert (r.bars, r.hours, r.longest_gap_minutes, r.contracts) == (1380, Decimal(23), 60, [42])
 
@@ -354,7 +368,7 @@ def test_a_full_cme_day_passes_the_sample_validation() -> None:
 def test_the_sample_validation_reports_gaps_and_short_sessions() -> None:
     hole = {f"2026-11-18T10:{m:02d}:00" for m in range(10)}  # 10 min sin barras
     bars = fetch_bars(FakeClient(records=day_of_cme(hole)), CFG, ES, DAY, date(2026, 11, 19)).bars
-    r = validate_day(bars, ES, DAY, CFG.max_gap_minutes)
+    r = validate_day(bars, ES, DAY, 5)
     assert r.gaps == [(datetime(2026, 11, 18, 9, 59, tzinfo=UTC), 10)]
     assert any("huecos" in p for p in r.problems)
     short = validate_day(bars[:600], replace(ES, min_session_hours=22), DAY, 5)
@@ -463,7 +477,8 @@ def test_check_month_counts_duplicates_without_storing_and_only_filters_symbols(
     assert "publisher 103: 1; 1 minutos" in out
     assert "ES.c.0" not in out
     req = c.timeseries.calls[0]
-    assert (req["symbols"], req["start"], req["end"]) == (["FDAX.c.0"], "2026-11-01", "2026-12-01")
+    # Hasta el fin publicado del dataset (2026-11-23 en el cliente falso), no hasta fin de mes.
+    assert (req["symbols"], req["start"], req["end"]) == (["FDAX.c.0"], "2026-11-01", "2026-11-23")
     assert cli.main(["x", "--run", "--only", "XX.c.0"]) == 2
     assert cli.main(["x", "--check-month"]) == 2
 
@@ -486,7 +501,9 @@ def test_cli_run_fills_before_and_after_what_is_stored(
     monkeypatch.setattr(cli, "client", lambda: c)
     monkeypatch.setattr(psycopg, "connect", lambda *a, **k: contextlib.nullcontext(object()))
     stored_es = Stored(date(2021, 11, 1), date(2026, 11, 1))
-    monkeypatch.setattr(store, "loaded_spans", lambda conn: {("GLBX.MDP3", "ES.c.0"): stored_es})
+    monkeypatch.setattr(
+        store, "loaded_spans", lambda conn, *_: {("GLBX.MDP3", "ES.c.0"): stored_es}
+    )
     saved: list[tuple[date, date]] = []
 
     def insert(conn: object, sym: object, a: date, b: date, *_: object) -> store.ChunkReport:
@@ -504,3 +521,289 @@ def test_cli_run_fills_before_and_after_what_is_stored(
     assert "ES.c.0 (GLBX.MDP3 → US500) [antes de lo guardado]: 2011-01-01 → 2021-11-01" in out
     assert "[después de lo guardado]: 2026-11-01 → 2026-11-23" in out
     assert "total estimado: USD 1.00" in out
+
+
+def test_nothing_is_requested_past_the_published_end_of_the_dataset() -> None:
+    # Forma real del 24-11-2026: el fin publicado es un instante a media tarde del día anterior.
+    c = FakeClient()
+    ranges = dict(c.metadata.ranges)
+    ranges["GLBX.MDP3"] = {
+        "start": "2010-06-06T00:00:00.000000000Z",
+        "end": "2026-11-23T18:10:06.760366000Z",
+        "schema": {
+            "ohlcv-1m": {
+                "start": "2010-06-06T00:00:00.000000000Z",
+                "end": "2026-11-23T18:10:06.760366000Z",
+            }
+        },
+    }
+    c.metadata.ranges = ranges
+    loaded = {
+        ("GLBX.MDP3", "ES.c.0"): Stored(date(2011, 1, 1), date(2026, 11, 23)),
+        ("GLBX.MDP3", "NQ.c.0"): Stored(date(2011, 1, 1), date(2026, 11, 20)),
+    }
+    est = estimate(c, CFG, date(2026, 11, 24), loaded)
+    # ES ya tiene todo lo publicado (el 23 está a medias): no se pide nada, ni el 23.
+    assert (est[0].symbol.symbol, est[0].skipped) == ("ES.c.0", "ya está todo guardado")
+    # NQ: solo hasta la medianoche del 23, nunca hasta hoy.
+    assert (est[1].start, est[1].end) == (date(2026, 11, 20), date(2026, 11, 23))
+    for _, kw in c.metadata.calls:
+        if "end" in kw and kw.get("dataset") == "GLBX.MDP3":
+            assert kw["end"] <= "2026-11-23"
+
+
+def test_cli_run_reports_a_failing_symbol_and_goes_on_with_the_others(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import contextlib
+
+    import psycopg
+
+    from cfds_intel.databento import store
+
+    key = "db-" + "k" * 29
+    monkeypatch.setenv("DATABENTO_API_KEY", key)
+    monkeypatch.setenv("CFDS_DATA_MACHINE", "1")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://falsa")
+    monkeypatch.setattr(cli, "today_utc", lambda: date(2026, 11, 23))
+    c = FakeClient(cost=0.01)
+    calls: list[str] = []
+
+    def get_range(**kw: Any) -> Iterable[Any]:
+        calls.append(kw["symbols"][0])
+        if kw["symbols"] == ["ES.c.0"]:
+            raise RuntimeError("422 dataset_unavailable_range")
+        return iter(())
+
+    monkeypatch.setattr(c.timeseries, "get_range", get_range)
+    monkeypatch.setattr(cli, "client", lambda: c)
+    monkeypatch.setattr(psycopg, "connect", lambda *a, **k: contextlib.nullcontext(object()))
+    every = {
+        (s.dataset, s.symbol): Stored(date(2011, 1, 1), date(2026, 11, 20)) for s in CFG.symbols
+    }
+    monkeypatch.setattr(store, "loaded_spans", lambda conn, *_: every)
+    saved: list[str] = []
+
+    def insert(conn: object, sym: Any, a: date, b: date, *_: object) -> store.ChunkReport:
+        saved.append(sym.symbol)
+        return store.ChunkReport(0, 0)
+
+    monkeypatch.setattr(store, "insert_chunk", insert)
+    assert cli.main(["x", "--run"]) == 1
+    names = [s.symbol for s in CFG.symbols]
+    assert names[0] == "ES.c.0" and len(names) > 1
+    assert calls == names
+    assert saved == names[1:]
+    err = capsys.readouterr().err
+    assert "ES.c.0: RuntimeError: 422 dataset_unavailable_range" in err
+    assert "tramos con error: ES.c.0" in err
+    assert key not in err
+
+
+def test_a_symbol_start_wins_over_the_global_one() -> None:
+    rty = next(s for s in CFG.symbols if s.symbol == "RTY.c.0")
+    assert rty.start == date(2017, 7, 9)
+    assert all(s.start is None for s in CFG.symbols if s is not rty)
+    c = FakeClient()
+    est = estimate(c, replace(CFG, symbols=(rty,)), date(2026, 11, 23), {})
+    assert (est[0].start, est[0].from_dataset_start) == (date(2017, 7, 9), False)
+    # Nunca se pide nada anterior a su inicio (en CME daría 422 symbology_invalid_request).
+    assert all(k["start"] >= "2017-07-09" for n, k in c.metadata.calls if "start" in k)
+    # Con lo guardado desde su inicio, no hay tramo anterior que pedir.
+    stored = {("GLBX.MDP3", "RTY.c.0"): Stored(date(2017, 7, 9), date(2026, 11, 23))}
+    est = estimate(c, replace(CFG, symbols=(rty,)), date(2026, 11, 23), stored)
+    assert est[0].skipped == "ya está todo guardado"
+    # Un período anterior a su inicio (--sample, --check-month) no pide nada.
+    est = estimate(c, replace(CFG, start=date(2015, 3, 1), symbols=(rty,)), date(2015, 4, 1), {})
+    assert est[0].skipped == "no hay datos en el período pedido"
+
+
+def test_check_month_skips_a_symbol_before_its_own_start(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("DATABENTO_API_KEY", "db-" + "k" * 29)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    c = FakeClient(cost=0.01)
+    monkeypatch.setattr(cli, "client", lambda: c)
+    assert cli.main(["x", "--check-month", "2015-03", "--only", "RTY.c.0"]) == 0
+    assert c.timeseries.calls == []
+    assert "no hay datos en el período pedido" in capsys.readouterr().out
+    # El mes en que empieza: solo desde su inicio.
+    assert cli.main(["x", "--check-month", "2017-07", "--only", "RTY.c.0"]) == 0
+    assert (c.timeseries.calls[0]["start"], c.timeseries.calls[0]["end"]) == (
+        "2017-07-09",
+        "2017-08-01",
+    )
+
+
+# --- Velas diarias (`--daily`, `config/databento_daily.toml`, #522) ---
+
+DAILY_TEXT = (ROOT / "config" / "databento_daily.toml").read_text()
+DAILY_CFG = load_config(DAILY_TEXT)
+NKD = DAILY_CFG.symbols[0]
+ROOTS = ["NKD", "ZN", "ZB", "6E", "6J", "6B", "6A", "SI", "CL", "HG"]
+
+
+def test_the_daily_config_has_the_ten_research_futures_and_a_one_dollar_cap() -> None:
+    assert [(s.dataset, s.symbol, s.instrument_id) for s in DAILY_CFG.symbols] == [
+        ("GLBX.MDP3", f"{r}.v.0", r) for r in ROOTS
+    ]
+    assert (DAILY_CFG.schema, DAILY_CFG.stype_in) == ("ohlcv-1d", "continuous")
+    assert (DAILY_CFG.start, DAILY_CFG.max_usd) == (date(2011, 1, 1), Decimal(1))
+    assert DAILY_CFG.max_gap_minutes is None
+    assert all(s.min_session_hours is None and s.publisher_id == 1 for s in DAILY_CFG.symbols)
+    # Datos de investigación: ninguno es un instrumento operable del catálogo.
+    import tomllib
+
+    catalog = tomllib.loads((ROOT / "config" / "instruments.toml").read_text())
+    ids = set(catalog["instruments"])
+    assert ids and not ids & set(ROOTS)
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ('max_usd = "1"', "max_usd = 1"),
+        ('schema = "ohlcv-1d"', 'schema = "ohlcv-1h"'),
+        # `[sample]` y `min_session_hours` son solo de 1 minuto.
+        ('max_usd = "1"', 'max_usd = "1"\n\n[sample]\nmax_gap_minutes = 5'),
+        ('instrument_id = "NKD"', 'instrument_id = "NKD"\nmin_session_hours = 22'),
+        ('instrument_id = "ZB"', 'instrument_id = "NKD"'),
+    ],
+)
+def test_bad_daily_config_is_rejected(old: str, new: str) -> None:
+    assert old in DAILY_TEXT
+    with pytest.raises(ConfigError):
+        load_config(DAILY_TEXT.replace(old, new, 1))
+
+
+def test_daily_records_start_at_utc_midnight_and_follow_their_contract() -> None:
+    b = to_bar(rec("2026-11-18T00:00:00"), NKD, BAR_NS["ohlcv-1d"])
+    assert b.start == datetime(2026, 11, 18, tzinfo=UTC)
+    doc = json.loads((ROOT / "contracts" / "futures_bar_1d.v1.schema.json").read_text())
+    d = b.to_contract()
+    assert not list(Draft202012Validator(doc).iter_errors(d)), d
+    assert d["start"] == "2026-11-18T00:00:00Z" and d["instrument_id"] == "NKD"
+    # Una barra de 1 minuto no es una diaria, ni para la función ni para el contrato.
+    with pytest.raises(DatabentoError, match="medianoche"):
+        to_bar(rec("2026-11-18T14:31:00"), NKD, BAR_NS["ohlcv-1d"])
+    minute = to_bar(rec("2026-11-18T14:31:00"), NKD).to_contract()
+    assert list(Draft202012Validator(doc).iter_errors(minute))
+
+
+def test_daily_fetch_asks_for_ohlcv_1d_and_checks_the_period() -> None:
+    recs = [rec("2026-11-18T00:00:00"), rec("2026-11-19T00:00:00")]
+    c = FakeClient(records=recs)
+    f = fetch_bars(c, DAILY_CFG, NKD, date(2026, 11, 18), date(2026, 11, 20))
+    assert [b.start.day for b in f.bars] == [18, 19]
+    assert c.timeseries.calls[0]["schema"] == "ohlcv-1d"
+    assert c.timeseries.calls[0]["symbols"] == ["NKD.v.0"]
+    with pytest.raises(DatabentoError, match="fuera del período"):
+        fetch_bars(FakeClient(records=recs), DAILY_CFG, NKD, date(2026, 11, 18), DAY)
+
+
+def test_daily_requests_go_year_by_year() -> None:
+    e = estimate(FakeClient(cost=0.0489), DAILY_CFG, date(2026, 11, 23), {})[0]
+    assert (e.start, e.end) == (date(2011, 1, 1), date(2026, 11, 23))
+    got = chunks(e, "ohlcv-1d")
+    assert got[0] == (date(2011, 1, 1), date(2012, 1, 1))
+    assert got[-1] == (date(2026, 1, 1), date(2026, 11, 23)) and len(got) == 16
+    back = replace(e, part=BACKWARD)
+    assert chunks(back, "ohlcv-1d")[0] == (date(2026, 1, 1), date(2026, 11, 23))
+
+
+def test_the_approved_daily_estimate_fits_and_a_bigger_one_is_refused(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("DATABENTO_API_KEY", "db-" + "k" * 29)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setattr(cli, "today_utc", lambda: date(2026, 11, 23))
+    ok = FakeClient(cost=0.0489)
+    monkeypatch.setattr(cli, "client", lambda: ok)
+    assert cli.main(["x", "--daily", "--estimate"]) == 0
+    out = capsys.readouterr().out
+    assert "NKD.v.0 (GLBX.MDP3 → NKD): 2011-01-01 → 2026-11-23" in out
+    assert "total estimado: USD 0.49 (tope USD 1)" in out
+    assert {k for k, _ in ok.metadata.calls} <= {
+        "get_cost",
+        "get_record_count",
+        "get_dataset_range",
+    }
+    # USD 0,11 por mercado = USD 1,10 > 1: ni --estimate ni --run siguen, y no se baja nada.
+    big = FakeClient(cost=0.11)
+    monkeypatch.setattr(cli, "client", lambda: big)
+    monkeypatch.setenv("CFDS_DATA_MACHINE", "1")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://falsa")
+    import contextlib
+
+    import psycopg
+
+    from cfds_intel.databento import store
+
+    monkeypatch.setattr(psycopg, "connect", lambda *a, **k: contextlib.nullcontext(object()))
+    monkeypatch.setattr(store, "loaded_spans", lambda conn, *_: {})
+    assert cli.main(["x", "--daily", "--estimate"]) == 2
+    assert cli.main(["x", "--daily", "--run"]) == 2
+    assert "pasa el tope de USD 1" in capsys.readouterr().err
+    assert big.timeseries.calls == []
+
+
+def test_daily_run_stops_hard_when_the_requests_reach_the_cap(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import contextlib
+
+    import psycopg
+
+    from cfds_intel.databento import store
+
+    monkeypatch.setenv("DATABENTO_API_KEY", "db-" + "k" * 29)
+    monkeypatch.setenv("CFDS_DATA_MACHINE", "1")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://falsa")
+    monkeypatch.setattr(cli, "today_utc", lambda: date(2026, 11, 23))
+    # La estimación total da USD 0,50 (10 por 0,05), pero cada pedido de un año también da 0,05
+    # según get_cost: a los 20 pedidos la corrida llega a USD 1 y el 21 ya no se hace.
+    c = FakeClient(cost=0.05)
+    monkeypatch.setattr(cli, "client", lambda: c)
+    monkeypatch.setattr(psycopg, "connect", lambda *a, **k: contextlib.nullcontext(object()))
+    schemas: list[str] = []
+
+    def spans(conn: object, schema: str) -> dict[tuple[str, str], Stored]:
+        schemas.append(schema)
+        return {}
+
+    monkeypatch.setattr(store, "loaded_spans", spans)
+    saved: list[tuple[str, date, str]] = []
+
+    def insert(
+        conn: object, sym: Any, a: date, b: date, bars: object, cost: object, schema: str
+    ) -> store.ChunkReport:
+        saved.append((sym.symbol, a, schema))
+        return store.ChunkReport(0, 0)
+
+    monkeypatch.setattr(store, "insert_chunk", insert)
+    assert cli.main(["x", "--daily", "--run"]) == 2
+    assert schemas == ["ohlcv-1d"]
+    assert len(c.timeseries.calls) == 20 and len(saved) == 20
+    assert all(s == "ohlcv-1d" for *_, s in saved)
+    assert saved[16] == ("ZN.v.0", date(2011, 1, 1), "ohlcv-1d")
+    assert "más que el tope de USD 1" in capsys.readouterr().err
+
+
+def test_check_spend_is_a_hard_cap() -> None:
+    assert check_spend(Decimal("0.5"), Decimal("0.5"), Decimal(1)) == Decimal(1)
+    with pytest.raises(BudgetError):
+        check_spend(Decimal("0.5"), Decimal("0.51"), Decimal(1))
+
+
+def test_there_is_no_daily_sample(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("DATABENTO_API_KEY", "db-" + "k" * 29)
+    c = FakeClient()
+    monkeypatch.setattr(cli, "client", lambda: c)
+    assert cli.main(["x", "--daily", "--sample"]) == 2
+    assert "--sample es solo para ohlcv-1m" in capsys.readouterr().err
+    assert c.metadata.calls == [] and c.timeseries.calls == []
+    with pytest.raises(DatabentoError):
+        validate_day([], NKD, DAY, 5)

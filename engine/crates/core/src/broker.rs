@@ -108,11 +108,17 @@ pub enum OrderRejection {
     /// Hay vela de referencia, pero no alcanzan las velas cerradas recientes para el ATR del
     /// riesgo (calentamiento), por ejemplo porque el modo en vivo está en pausa sin cupo (#361).
     NoRecentCandles,
+    /// El contrato está en otra moneda que la cuenta (el oro, en USD) y no hay tipo de cambio
+    /// publicado a la hora de la señal (ADR 0013, #418): no se inventa uno.
+    MissingFxRate,
+    /// Un grupo correlacionado del instrumento (por ejemplo, los índices de EE. UU.) ya llegó a su
+    /// tope de riesgo abierto (`config/risk.toml`, #670).
+    GroupRiskLimit,
 }
 
 impl OrderRejection {
     /// Todos, en el orden del contrato.
-    pub const ALL: [OrderRejection; 15] = [
+    pub const ALL: [OrderRejection; 17] = [
         Self::InvalidInput,
         Self::KillSwitchActive,
         Self::DrawdownLimit,
@@ -128,6 +134,8 @@ impl OrderRejection {
         Self::UnknownInstrument,
         Self::StopWrongSide,
         Self::NoRecentCandles,
+        Self::MissingFxRate,
+        Self::GroupRiskLimit,
     ];
 }
 
@@ -136,6 +144,9 @@ impl OrderRejection {
 pub enum OrderStatus {
     Rejected,
     Filled,
+    /// Aceptable por el riesgo, esperando la vela del fill (#471). Solo en la respuesta de
+    /// `submit`: nunca entra al registro guardado.
+    Pending,
 }
 
 /// `order_report.v1`: qué pasó con una orden.

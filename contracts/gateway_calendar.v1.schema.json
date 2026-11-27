@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/gateway_calendar.v1.schema.json",
+  "title": "Gateway calendar v1",
+  "description": "Respuesta de GET /api/v1/calendar[?from=<UTC>][&to=<UTC>] del gateway (#600): los eventos del calendario económico (economic_events, economic_event.v1) y las publicaciones oficiales (official_releases, official_release.v1) con hora en [from, to], en orden de hora. Solo lectura: no agrega cálculos. Una fila aparece recién desde su published_at (CLAUDE.md §5b); las publicaciones canceladas (sin hora) no entran.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["from", "to", "as_of", "generated_at", "economic_events", "official_releases"],
+  "properties": {
+    "from": { "description": "Inicio del rango (incluido), en UTC.", "$ref": "#/$defs/utc" },
+    "to": { "description": "Fin del rango (incluido), en UTC.", "$ref": "#/$defs/utc" },
+    "as_of": { "description": "Instante en UTC al que se leyó (ahora). Nada publicado después sale en la respuesta.", "$ref": "#/$defs/utc" },
+    "generated_at": { "description": "Cuándo se armó la respuesta, en UTC.", "$ref": "#/$defs/utc" },
+    "economic_events": {
+      "description": "Eventos con scheduled_at en [from, to] y published_at ≤ as_of, por scheduled_at.",
+      "type": "array",
+      "items": { "$ref": "economic_event.v1.schema.json" }
+    },
+    "official_releases": {
+      "description": "Publicaciones oficiales con scheduled_at en [from, to] y published_at ≤ as_of, por scheduled_at.",
+      "type": "array",
+      "items": { "$ref": "official_release.v1.schema.json" }
+    }
+  },
+  "$defs": {
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" }
+  }
+}

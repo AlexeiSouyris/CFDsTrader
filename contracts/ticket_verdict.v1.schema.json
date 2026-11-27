@@ -36,7 +36,7 @@
         "invalid_input", "kill_switch_active", "drawdown_limit", "daily_loss_limit", "max_open_positions",
         "instrument_already_open", "stop_too_close", "stop_too_far", "insufficient_margin",
         "below_min_deal_size", "min_deal_size_unknown", "no_price", "unknown_instrument", "stop_wrong_side",
-        "no_recent_candles"
+        "no_recent_candles", "missing_fx_rate", "group_risk_limit"
       ]
     }
   }

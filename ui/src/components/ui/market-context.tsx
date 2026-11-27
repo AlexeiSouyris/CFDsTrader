@@ -4,6 +4,7 @@
  * números que mandó el motor; `Number()` se usa solo para ubicar cada cosa en pantalla. Los
  * análogos son resultados pasados, nunca un pronóstico.
  */
+import { StaleNote } from '@/components/ui/data-honesty'
 import { AlertTriangle } from 'lucide-react'
 
 import { roundedText } from '@/components/ui/rounded-text'
@@ -24,7 +25,7 @@ export function SentimentGauge({ index }: { index: SentimentIndex }) {
           {signed(roundedText(index.value))}
         </strong>
         <span className="text-[11px] text-muted-foreground">
-          al {dateTimeUtc(index.published_at)}
+          al {dateTimeUtc(index.published_at)} <StaleNote at={index.published_at} />
         </span>
       </div>
       <div
@@ -100,11 +101,12 @@ function HorizonRows({ group }: { group: AnalogGroup }) {
     <table className="w-full text-[12.5px]">
       <thead>
         <tr className="border-b border-border text-left text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
+          {/* sin aire entre columnas los porcentajes se pegaban (#605) */}
           <th className="py-1.5 font-bold">Sesiones después</th>
-          <th className="py-1.5 text-right font-bold">p10</th>
-          <th className="py-1.5 text-right font-bold">p50</th>
-          <th className="py-1.5 text-right font-bold">p90</th>
-          <th className="py-1.5 text-right font-bold">Positivos</th>
+          <th className="py-1.5 pl-2.5 text-right font-bold">p10</th>
+          <th className="py-1.5 pl-2.5 text-right font-bold">p50</th>
+          <th className="py-1.5 pl-2.5 text-right font-bold">p90</th>
+          <th className="py-1.5 pl-2.5 text-right font-bold">Positivos</th>
         </tr>
       </thead>
       <tbody>
@@ -113,19 +115,24 @@ function HorizonRows({ group }: { group: AnalogGroup }) {
             <td className="py-1.5">{h.horizon}</td>
             {[10, 50, 90].map((p) => {
               const v = pick(h, p)
+              const text = v === null ? null : signedPercent(v)
               return (
                 <td
                   key={p}
                   className={cn(
-                    'py-1.5 text-right tabular-nums',
-                    v && (v.startsWith('-') ? 'text-down' : 'text-up'),
+                    'py-1.5 pl-2.5 text-right whitespace-nowrap tabular-nums',
+                    // el color sigue al signo que se ve: "0,0 %" va sin color (#612)
+                    text?.startsWith('−') && 'text-down',
+                    text?.startsWith('+') && 'text-up',
                   )}
                 >
-                  {v === null ? '—' : `${signedPercent(v)} %`}
+                  {text === null ? '—' : `${text} %`}
                 </td>
               )
             })}
-            <td className="py-1.5 text-right tabular-nums">{decimal(h.positive_pct, 0)} %</td>
+            <td className="py-1.5 pl-2.5 text-right whitespace-nowrap tabular-nums">
+              {decimal(h.positive_pct, 0)} %
+            </td>
           </tr>
         ))}
       </tbody>
@@ -144,7 +151,8 @@ export function AnalogDistribution({ report }: { report: AnalogReport }) {
     <div className="grid gap-3">
       <p className="text-[11.5px] text-muted-foreground">
         Ventana de {report.window} sesiones al {dateUtc(report.as_of)} ·{' '}
-        {report.source === 'futures' ? 'diarias de futuros' : 'diarias de IG'}
+        {report.source === 'futures' ? 'diarias de futuros' : 'diarias de IG'}{' '}
+        <StaleNote at={report.as_of} />
       </p>
       {!all || all.count === 0 ? (
         <p className="text-[12.5px]">No hay vecinos para esta ventana.</p>

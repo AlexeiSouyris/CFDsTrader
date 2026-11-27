@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/fx_rate.v1.schema.json",
+  "title": "FX rate v1",
+  "description": "Un tipo de cambio diario de referencia, tal como lo publicó la fuente (ADR 0013 §4: EUR/USD del BCE para convertir P/L, margen, financiación y riesgo de un contrato en USD a la cuenta en EUR). Solo se agrega, nunca se modifica: una corrección es otro registro con otra published_at. Lo escribe Python (cfds_intel.rates.fx); lo lee el motor.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["pair", "ref_date", "published_at", "rate"],
+  "properties": {
+    "pair": {
+      "description": "Par BASE+COTIZADA en códigos ISO 4217, por ejemplo EURUSD: cuántas unidades de la cotizada vale 1 de la base.",
+      "type": "string",
+      "pattern": "^[A-Z]{6}$"
+    },
+    "ref_date": {
+      "description": "Día al que corresponde el valor (fecha de referencia de la fuente), AAAA-MM-DD.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "published_at": {
+      "description": "Desde cuándo el valor estuvo disponible, en UTC. Nunca antes de la hora de publicación de la fuente ese día. Nada lo puede usar antes de esta hora (CLAUDE.md §5b).",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "rate": {
+      "description": "Unidades de la moneda cotizada por 1 de la base, string decimal exacto y positivo, nunca número JSON.",
+      "type": "string",
+      "pattern": "^\\d+(\\.\\d+)?$"
+    }
+  }
+}

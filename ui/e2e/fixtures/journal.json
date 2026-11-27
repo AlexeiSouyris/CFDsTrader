@@ -1,0 +1,205 @@
+{
+ "entries": [
+  {
+   "proposal": {
+    "id": "ejemplo-2026-11-21-indices-1h:US100:2024-01-15T14:00:00Z:short",
+    "source": "backtest",
+    "run_id": "ejemplo-2026-11-21-indices-1h",
+    "instrument_id": "US100",
+    "side": "short",
+    "signal_at": "2024-01-15T14:00:00Z",
+    "reference": "1000.0",
+    "stop": "1012.0",
+    "tp1": "976.0",
+    "size": "1.0",
+    "leverage": "0.3",
+    "score": 5,
+    "breakdown": [
+     {
+      "component": "trend",
+      "points": 2
+     },
+     {
+      "component": "sweep",
+      "points": 2
+     }
+    ],
+    "triggers": [
+     "sweep"
+    ]
+   },
+   "outcome": {
+    "proposal_id": "ejemplo-2026-11-21-indices-1h:US100:2024-01-15T14:00:00Z:short",
+    "kind": "simulated",
+    "entry_at": "2024-01-15T15:00:00Z",
+    "entry_price": "999.6",
+    "exits": [
+     {
+      "at": "2024-01-15T19:00:00Z",
+      "price": "976.0",
+      "fraction": "1",
+      "reason": "tp1"
+     }
+    ],
+    "commission": "0",
+    "funding": "-0.10",
+    "gross_pnl": "23.60",
+    "net_pnl": "23.70",
+    "hit_tp1": true,
+    "hit_stop": false,
+    "exit_reason": "tp1"
+   }
+  },
+  {
+   "proposal": {
+    "id": "ejemplo-2026-11-21-indices-1h:US500:2024-03-13T14:00:00Z:long",
+    "source": "backtest",
+    "run_id": "ejemplo-2026-11-21-indices-1h",
+    "instrument_id": "US500",
+    "side": "long",
+    "signal_at": "2024-03-13T14:00:00Z",
+    "reference": "1037.0",
+    "stop": "1025.0",
+    "tp1": "1061.0",
+    "size": "1.0",
+    "leverage": "0.3",
+    "score": 6,
+    "breakdown": [
+     {
+      "component": "trend",
+      "points": 2
+     },
+     {
+      "component": "sweep",
+      "points": 2
+     }
+    ],
+    "triggers": [
+     "sweep"
+    ]
+   },
+   "outcome": {
+    "proposal_id": "ejemplo-2026-11-21-indices-1h:US500:2024-03-13T14:00:00Z:long",
+    "kind": "simulated",
+    "entry_at": "2024-03-13T15:00:00Z",
+    "entry_price": "1037.4",
+    "exits": [
+     {
+      "at": "2024-03-13T22:00:00Z",
+      "price": "1025.0",
+      "fraction": "1",
+      "reason": "stop"
+     }
+    ],
+    "commission": "0",
+    "funding": "0.35",
+    "gross_pnl": "-12.40",
+    "net_pnl": "-12.75",
+    "hit_tp1": false,
+    "hit_stop": true,
+    "exit_reason": "stop"
+   }
+  },
+  {
+   "proposal": {
+    "id": "ejemplo-2026-11-21-indices-1h:US30:2024-05-10T14:00:00Z:long",
+    "source": "backtest",
+    "run_id": "ejemplo-2026-11-21-indices-1h",
+    "instrument_id": "US30",
+    "side": "long",
+    "signal_at": "2024-05-10T14:00:00Z",
+    "reference": "1074.0",
+    "stop": "1062.0",
+    "tp1": "1098.0",
+    "size": "1.0",
+    "leverage": "0.3",
+    "score": 7,
+    "breakdown": [
+     {
+      "component": "trend",
+      "points": 2
+     },
+     {
+      "component": "sweep",
+      "points": 2
+     }
+    ],
+    "triggers": [
+     "sweep"
+    ]
+   },
+   "outcome": {
+    "proposal_id": "ejemplo-2026-11-21-indices-1h:US30:2024-05-10T14:00:00Z:long",
+    "kind": "simulated",
+    "entry_at": "2024-05-10T15:00:00Z",
+    "entry_price": "1074.4",
+    "exits": [
+     {
+      "at": "2024-05-11T01:00:00Z",
+      "price": "1104.0",
+      "fraction": "1",
+      "reason": "trailing"
+     }
+    ],
+    "commission": "0",
+    "funding": "-0.10",
+    "gross_pnl": "29.60",
+    "net_pnl": "29.70",
+    "hit_tp1": true,
+    "hit_stop": false,
+    "exit_reason": "trailing"
+   }
+  },
+  {
+   "proposal": {
+    "id": "ejemplo-2026-11-21-indices-1h:DE40:2024-07-08T14:00:00Z:short",
+    "source": "backtest",
+    "run_id": "ejemplo-2026-11-21-indices-1h",
+    "instrument_id": "DE40",
+    "side": "short",
+    "signal_at": "2024-07-08T14:00:00Z",
+    "reference": "1111.0",
+    "stop": "1123.0",
+    "tp1": "1087.0",
+    "size": "1.0",
+    "leverage": "0.3",
+    "score": 5,
+    "breakdown": [
+     {
+      "component": "trend",
+      "points": 2
+     },
+     {
+      "component": "sweep",
+      "points": 2
+     }
+    ],
+    "triggers": [
+     "sweep"
+    ]
+   },
+   "outcome": {
+    "proposal_id": "ejemplo-2026-11-21-indices-1h:DE40:2024-07-08T14:00:00Z:short",
+    "kind": "simulated",
+    "entry_at": "2024-07-08T15:00:00Z",
+    "entry_price": "1110.6",
+    "exits": [
+     {
+      "at": "2024-07-09T04:00:00Z",
+      "price": "1106.0",
+      "fraction": "1",
+      "reason": "time"
+     }
+    ],
+    "commission": "0",
+    "funding": "0.35",
+    "gross_pnl": "4.60",
+    "net_pnl": "4.25",
+    "hit_tp1": false,
+    "hit_stop": false,
+    "exit_reason": "time"
+   }
+  }
+ ],
+ "limit": 100
+}

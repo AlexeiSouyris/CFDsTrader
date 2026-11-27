@@ -19,3 +19,17 @@ timezone = "Europe/Berlin"
 open = "09:00"
 close = "17:30"
 holidays = "holidays/XETR.toml"
+
+# Oro de CME Globex (futuro GC, ADR 0013). Sesión de casi 23 h que cruza la medianoche: como
+# `open` es posterior a `close`, la sesión del día hábil D abre el día ANTERIOR a las 17:00 y
+# cierra D a las 16:00 (hora de Chicago; 18:00–17:00 en Nueva York, los dos cambian de horario
+# juntos). Entre sesiones queda la pausa diaria de 60 minutos. La del lunes abre el domingo.
+# Es el horario de CME, usado como aproximación del de IG hasta confirmarlo (ADR 0013, pendiente).
+# Ojo: es el horario del MERCADO (velas, validación, stops). La ventana de entradas propia del
+# oro (07:00–16:00 UTC, #418) está en config/trading_window.toml.
+[sessions.CMEGLOBEX_METALS]
+name = "CME Globex, metales (oro)"
+timezone = "America/Chicago"
+open = "17:00"
+close = "16:00"
+holidays = "holidays/CMEGLOBEX_METALS.toml"

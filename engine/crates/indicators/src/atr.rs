@@ -81,6 +81,42 @@ pub fn wilder_atr<T: Hlc>(candles: &[T], period: usize) -> Vec<Option<Decimal>> 
     out
 }
 
+/// Estado del ATR de Wilder **después** de una vela: su cierre y su ATR ya calculado. Con esto
+/// la serie sigue igual sin las velas anteriores (puntos de control del broker, #463).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct AtrSeed {
+    pub prev_close: Decimal,
+    pub prev_atr: Decimal,
+}
+
+/// El ATR de Wilder de `candles` como continuación de una serie ya calentada: `seed` es el
+/// estado después de la vela anterior a `candles[0]`. Da exactamente los mismos valores que
+/// [`wilder_atr`] sobre la serie completa (misma fórmula; sin calentamiento porque ya pasó).
+///
+/// # Panics
+/// Si `period` es 0 (error de configuración, como en [`wilder_atr`]).
+pub fn wilder_atr_after<T: Hlc>(
+    seed: AtrSeed,
+    candles: &[T],
+    period: usize,
+) -> Vec<Option<Decimal>> {
+    assert!(period > 0, "el período del ATR tiene que ser mayor que 0");
+    let n = Decimal::from(period);
+    let mut prev_close = seed.prev_close;
+    let mut atr = seed.prev_atr;
+    candles
+        .iter()
+        .map(|c| {
+            let tr = (c.high() - c.low())
+                .max((c.high() - prev_close).abs())
+                .max((c.low() - prev_close).abs());
+            atr = (atr * (n - Decimal::ONE) + tr) / n;
+            prev_close = c.close();
+            Some(atr)
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,6 +195,29 @@ mod tests {
         let full = wilder_atr(&all, 2);
         for len in 1..all.len() {
             assert_eq!(wilder_atr(&all[..len], 2), full[..len]);
+        }
+    }
+
+    #[test]
+    fn continuing_from_a_seed_gives_the_same_values() {
+        // #463: cortar la serie en cualquier punto ya calentado y seguir desde el estado de la
+        // vela anterior da exactamente los mismos valores (sin redondeos distintos).
+        let all = series(&[
+            (dec!(105), dec!(100), dec!(102)),
+            (dec!(104), dec!(101), dec!(103)),
+            (dec!(112), dec!(110), dec!(111)),
+            (dec!(108), dec!(106), dec!(107)),
+            (dec!(120), dec!(100), dec!(101)),
+            (dec!(103), dec!(99), dec!(100)),
+            (dec!(101), dec!(97), dec!(98)),
+        ]);
+        let full = wilder_atr(&all, 3);
+        for cut in 3..all.len() {
+            let seed = AtrSeed {
+                prev_close: all[cut - 1].close,
+                prev_atr: full[cut - 1].unwrap(),
+            };
+            assert_eq!(wilder_atr_after(seed, &all[cut..], 3), full[cut..]);
         }
     }
 

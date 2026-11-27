@@ -162,7 +162,7 @@ fn the_contract_rejects_what_rust_never_writes() {
 #[tokio::test]
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn a_report_is_stored_once_and_never_rewritten() {
-    let url = std::env::var("DATABASE_URL").expect("necesita PostgreSQL: DATABASE_URL");
+    let url = cfds_storage::test_db::test_database_url();
     let store = PgStore::connect(&url).await.unwrap();
     store.migrate().await.unwrap();
     store
@@ -177,7 +177,7 @@ async fn a_report_is_stored_once_and_never_rewritten() {
         .unwrap();
     let j = PgJournal::new(store.pool().clone());
     // Solo agregar: un id propio por corrida del test.
-    let id = format!("wf-{}", Utc::now().timestamp_nanos_opt().unwrap());
+    let id = cfds_storage::test_db::unique_id("wf");
     let r = sample(&id);
     assert!(j.walk_forward(&id).await.unwrap().is_none());
     assert_eq!(j.record_walk_forward(&r).await.unwrap(), Recorded::Inserted);

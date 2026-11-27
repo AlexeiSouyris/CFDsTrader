@@ -23,7 +23,7 @@ const box = (height: number) =>
 
 /** Mantener apretado en (x0, y0), arrastrar hasta (x1, y1) y soltar. */
 function drag(el: Element, x0: number, y0: number, x1: number, y1: number) {
-  fireEvent.pointerDown(el, { clientX: x0, clientY: y0, button: 0, pointerId: 1 })
+  fireEvent.pointerDown(el, { clientX: x0, clientY: y0, button: 0, pointerId: 1, shiftKey: true })
   fireEvent.pointerMove(el, { clientX: (x0 + x1) / 2, clientY: (y0 + y1) / 2, pointerId: 1 })
   fireEvent.pointerMove(el, { clientX: x1, clientY: y1, pointerId: 1 })
   fireEvent.pointerUp(el, { clientX: x1, clientY: y1, pointerId: 1 })
@@ -104,7 +104,13 @@ describe('herramienta de medición de los gráficos (#281, #355)', () => {
     const { svg, measure, xOf, view } = chart()
     const [i, j] = pair(view, 'up')
     expect(measure()).toBeNull()
-    fireEvent.pointerDown(svg, { clientX: xOf(i), clientY: 300, button: 0, pointerId: 1 })
+    fireEvent.pointerDown(svg, {
+      clientX: xOf(i),
+      clientY: 300,
+      button: 0,
+      pointerId: 1,
+      shiftKey: true,
+    })
     fireEvent.pointerMove(svg, { clientX: xOf(j), clientY: 100, pointerId: 1 })
     // mientras se arrastra ya se ve
     expect(measure()).toHaveAttribute('data-measure', 'up')
@@ -113,12 +119,17 @@ describe('herramienta de medición de los gráficos (#281, #355)', () => {
     const g = measure()!
     expect(g).toHaveAttribute('data-measure', 'up')
     expect(g.querySelector('[data-measure-box]')).toHaveAttribute('fill', 'var(--chart-up)')
-    const [head, foot] = g.querySelectorAll('[data-measure-line]')
-    expect(head.textContent).toMatch(/^\+[\d.]+,\d+ \(\+\d+,\d{2} %\)$/)
-    expect(head.textContent).toContain(`(${expectedPct(g)})`)
+    // una sola línea en la pestaña (#394): precio · % · velas · lapso
+    const lines = g.querySelectorAll('[data-measure-line]')
+    expect(lines).toHaveLength(1)
+    const head = lines[0].textContent!
+    expect(head).toMatch(/^\+[\d.]+,\d+ · \+\d+,\d{2} % · \d+ velas · .+$/)
+    expect(head).toContain(` · ${expectedPct(g)} · `)
     expect(Number(g.getAttribute('data-to'))).toBeGreaterThan(Number(g.getAttribute('data-from')))
-    expect(foot.textContent).toBe(
-      `${j - i} velas · ${span(Date.parse(view[j].start) - Date.parse(view[i].start))}`,
+    expect(head).toMatch(
+      new RegExp(
+        ` · ${j - i} velas · ${span(Date.parse(view[j].start) - Date.parse(view[i].start))}$`,
+      ),
     )
   })
 
@@ -130,8 +141,8 @@ describe('herramienta de medición de los gráficos (#281, #355)', () => {
     expect(g).toHaveAttribute('data-measure', 'down')
     expect(g.querySelector('[data-measure-box]')).toHaveAttribute('fill', 'var(--chart-down)')
     const head = g.querySelector('[data-measure-line="0"]')!.textContent!
-    expect(head).toMatch(/^−[\d.]+,\d+ \(−\d+,\d{2} %\)$/)
-    expect(head).toContain(`(${expectedPct(g)})`)
+    expect(head).toMatch(/^−[\d.]+,\d+ · −\d+,\d{2} % · \d+ velas · .+$/)
+    expect(head).toContain(` · ${expectedPct(g)} · `)
   })
 
   it('los dos puntos se pegan al cierre de su vela, no a la altura del cursor (#355)', () => {
@@ -145,7 +156,7 @@ describe('herramienta de medición de los gráficos (#281, #355)', () => {
     expect(Number(a.getAttribute('data-to'))).toBeCloseTo(Number(view[down].close), 6)
     const pts = () =>
       ['from', 'to'].map((k) =>
-        container.querySelector(`[data-measure-point="${k}"]`)!.getAttribute('cy'),
+        container.querySelector(`[data-measure-point="${k}"]`)!.getAttribute('data-y'),
       )
     const first = pts()
     drag(svg, xOf(up), 400, xOf(down), 20)
@@ -171,7 +182,13 @@ describe('herramienta de medición de los gráficos (#281, #355)', () => {
     expect(document.querySelectorAll('[data-measure]')).toHaveLength(1)
 
     // un clic (apretar y soltar sin moverse) la borra
-    fireEvent.pointerDown(svg, { clientX: 200, clientY: 200, button: 0, pointerId: 1 })
+    fireEvent.pointerDown(svg, {
+      clientX: 200,
+      clientY: 200,
+      button: 0,
+      pointerId: 1,
+      shiftKey: true,
+    })
     fireEvent.pointerUp(svg, { clientX: 200, clientY: 200, pointerId: 1 })
     expect(measure()).toBeNull()
   })
@@ -179,7 +196,8 @@ describe('herramienta de medición de los gráficos (#281, #355)', () => {
   it('el punto sigue al cierre de la vela bajo el cursor, esté arriba o abajo de las velas (#355)', () => {
     const { svg, xOf, view, container } = chart()
     const dot = () => container.querySelector('[data-hover-dot]')
-    const cy = () => Number(dot()!.querySelector('circle')!.getAttribute('cy'))
+    // adónde va el punto (el dibujo se desliza hasta ahí, #377)
+    const cy = () => Number(dot()!.getAttribute('data-y'))
     expect(dot()).toBeNull()
 
     const up = bodyOf(view, 'up')
@@ -225,7 +243,9 @@ describe('herramienta de medición de los gráficos (#281, #355)', () => {
     drag(svg, xOf(i), 200, xOf(j), 60)
     const g = container.querySelector('[data-measure]')!
     expect(g).toHaveAttribute('data-measure', 'up')
-    expect(g.querySelector('[data-measure-line="0"]')!.textContent).toContain(`(${expectedPct(g)})`)
+    expect(g.querySelector('[data-measure-line="0"]')!.textContent).toContain(
+      ` · ${expectedPct(g)} · `,
+    )
     // la cruz de lectura (hover) se sigue dibujando
     expect(container.querySelector('line[opacity="0.3"]')).not.toBeNull()
     fireEvent.keyDown(window, { key: 'Escape' })
@@ -239,21 +259,29 @@ describe('herramienta de medición de los gráficos (#281, #355)', () => {
     const svg = screen.getByRole('img', { name: /US100, \d+ velas de 1 hora/ })
     const { xOf, view } = geometry(svg, US100_1H.candles, 62)
     const dot = () => container.querySelector('[data-hover-dot]')
-    const cy = () => Number(dot()!.querySelector('circle')!.getAttribute('cy'))
+    // adónde va el punto (el dibujo se desliza hasta ahí, #377)
+    const cy = () => Number(dot()!.getAttribute('data-y'))
 
     const down = bodyOf(view, 'down')
     fireEvent.pointerMove(svg, { clientX: xOf(down), clientY: 10 })
     expect(dot()).toHaveAttribute('data-hover-dot', view[down].start)
     expect(cy()).toBeCloseTo(bodyEdges(container, view[down].start).bottom, 6)
-    // la cruz de lectura ya trae su línea vertical: el punto no agrega otra
-    expect(dot()!.querySelector('line')).toBeNull()
+    // la cruz de lectura reemplaza la línea vertical tenue: una sola guía
+    expect(dot()!.querySelectorAll('[data-crosshair]')).toHaveLength(1)
+    expect(dot()!.querySelectorAll(':scope > line')).toHaveLength(0)
 
     // en el gráfico de línea el punto va sobre la línea, que pasa por el cierre
     fireEvent.click(screen.getByRole('button', { name: 'Línea' }))
     const up = bodyOf(view, 'up')
     fireEvent.pointerMove(svg, { clientX: xOf(up), clientY: 220 })
-    const d = container.querySelector('path[stroke="var(--chart-line)"]')!.getAttribute('d')!
-    const pt = d.split(/[ML]/).filter(Boolean)[up].split(',').map(Number)
+    const d = container.querySelector('[data-close-line]')!.getAttribute('d')!
+    // la línea se dibuja también fuera de la vista (#401): se saltean los puntos de la izquierda
+    const pts = d
+      .split(/[ML]/)
+      .filter(Boolean)
+      .map((p) => p.split(',').map(Number))
+      .filter(([px]) => px > 0)
+    const pt = pts[up]
     expect(cy()).toBeCloseTo(pt[1], 1)
     fireEvent.pointerLeave(svg)
     expect(dot()).toBeNull()

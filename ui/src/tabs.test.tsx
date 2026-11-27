@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { exampleChart } from '@/test/example-chart'
 import App from '@/App'
 import { AnimatedNumber } from '@/components/ui/animated-number'
 import { decimal } from '@/lib/format'
@@ -22,37 +23,55 @@ describe('pestañas principales (#286)', () => {
     localStorage.clear()
   })
 
-  it('Performance, Panel y Terminal, con su hash y en el historial', async () => {
+  it('Inicio, Terminal, Gráficos e Investigación, con su hash y en el historial', async () => {
     render(<App initialStage="app" />)
     const links = within(tabs()).getAllByRole('link')
-    expect(links.map((a) => a.textContent)).toEqual(['Performance', 'Panel', 'Terminal'])
-    expect(heading()).toHaveTextContent('Panel')
-    expect(within(tabs()).getByRole('link', { name: 'Panel' })).toHaveAttribute(
+    expect(links.map((a) => a.textContent)).toEqual([
+      'Inicio',
+      'Terminal',
+      'Gráficos',
+      'Investigación',
+    ])
+    expect(heading()).toHaveTextContent('Inicio')
+    expect(within(tabs()).getByRole('link', { name: 'Inicio' })).toHaveAttribute(
       'aria-current',
       'page',
     )
 
     const before = history.length
-    fireEvent.click(within(tabs()).getByRole('link', { name: 'Performance' }))
-    expect(location.hash).toBe('#performance')
-    expect(heading()).toHaveTextContent('Performance')
+    fireEvent.click(within(tabs()).getByRole('link', { name: 'Investigación' }))
+    expect(location.hash).toBe('#investigacion')
+    expect(heading()).toHaveTextContent('Investigación')
     expect(history.length).toBe(before + 1)
 
     fireEvent.click(within(tabs()).getByRole('link', { name: 'Terminal' }))
     expect(location.hash).toBe('#terminal')
     // atrás del navegador (o el gesto de macOS) vuelve a la pestaña anterior
     act(() => history.back())
-    await waitFor(() => expect(heading()).toHaveTextContent('Performance'))
+    await waitFor(() => expect(heading()).toHaveTextContent('Investigación'))
   })
 
-  it('el Panel reúne el panel de siempre y la liquidez; las demás vistas siguen', () => {
+  it('los hashes viejos siguen andando y marcan la pestaña de su sección', () => {
+    history.replaceState(null, '', '/#performance')
+    render(<App initialStage="app" />)
+    expect(heading()).toHaveTextContent('Performance')
+    const research = within(tabs()).getByRole('link', { name: 'Investigación' })
+    expect(research).toHaveAttribute('aria-current', 'true')
+    // el gesto sigue desde la sección: de Investigación hacia atrás, Gráficos
+    fireEvent.keyDown(window, { key: 'ArrowLeft', ctrlKey: true })
+    expect(heading()).toHaveTextContent('Gráficos')
+  })
+
+  it('el Panel reúne el panel de siempre y la liquidez, con trofeos de proceso y sin ranking', () => {
+    history.replaceState(null, '', '/#panel')
     render(<App initialStage="app" />)
     expect(screen.getByRole('heading', { level: 2, name: 'Liquidez' })).toBeInTheDocument()
-    expect(screen.getByText('Competencia de la semana')).toBeInTheDocument()
+    expect(screen.getByText('Trofeos de proceso')).toBeInTheDocument()
+    expect(screen.queryByText('Competencia de la semana')).not.toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent(/\d R\b/)
+    // el Panel vive en el Inicio: la barra marca el Inicio
     const nav = screen.getByRole('navigation', { name: 'Vistas' })
-    fireEvent.click(within(nav).getByText('Liquidez'))
-    expect(location.hash).toBe('#liquidez')
-    expect(heading()).toHaveTextContent('Liquidez')
+    expect(within(nav).getByText('Inicio').closest('a')).toHaveAttribute('aria-current', 'true')
   })
 
   it('Performance muestra las corridas de backtest tal como llegan, sin prometer nada', () => {
@@ -76,25 +95,26 @@ describe('pestañas principales (#286)', () => {
 
     // poco movimiento: no alcanza el umbral
     fireEvent.wheel(main, { deltaX: 40, deltaY: 0 })
-    expect(heading()).toHaveTextContent('Panel')
+    expect(heading()).toHaveTextContent('Inicio')
     // vertical dominante: es scroll de la página
     fireEvent.wheel(main, { deltaX: 200, deltaY: 400 })
-    expect(heading()).toHaveTextContent('Panel')
+    expect(heading()).toHaveTextContent('Inicio')
 
     vi.advanceTimersByTime(1000)
     swipe(main, 180)
     expect(heading()).toHaveTextContent('Terminal')
     expect(location.hash).toBe('#terminal')
-    // la inercia del mismo gesto no salta otra (y Terminal es la última)
-    swipe(main, -180)
+    // la inercia del mismo gesto no salta otra
+    swipe(main, 180)
     expect(heading()).toHaveTextContent('Terminal')
 
     vi.advanceTimersByTime(1000)
     swipe(main, -180)
-    expect(heading()).toHaveTextContent('Panel')
+    expect(heading()).toHaveTextContent('Inicio')
+    // el Inicio es la primera: hacia atrás no hay otra
     vi.advanceTimersByTime(1000)
     swipe(main, -180)
-    expect(heading()).toHaveTextContent('Performance')
+    expect(heading()).toHaveTextContent('Inicio')
   })
 
   it('no se dispara dentro de algo con scroll horizontal propio ni con Ctrl (zoom)', () => {
@@ -125,19 +145,17 @@ describe('pestañas principales (#286)', () => {
     fireEvent.keyDown(window, { key: 'ArrowRight', ctrlKey: true })
     expect(heading()).toHaveTextContent('Terminal')
     fireEvent.keyDown(window, { key: '[', metaKey: true })
-    expect(heading()).toHaveTextContent('Panel')
-    fireEvent.keyDown(window, { key: '[', metaKey: true })
-    expect(heading()).toHaveTextContent('Performance')
+    expect(heading()).toHaveTextContent('Inicio')
     // sin pestaña anterior: no hace nada
     fireEvent.keyDown(window, { key: 'ArrowLeft', ctrlKey: true })
-    expect(heading()).toHaveTextContent('Performance')
+    expect(heading()).toHaveTextContent('Inicio')
 
     fireEvent.keyDown(window, { key: ']', metaKey: true })
-    expect(heading()).toHaveTextContent('Panel')
+    expect(heading()).toHaveTextContent('Terminal')
     const input = document.createElement('input')
     document.body.append(input)
     fireEvent.keyDown(input, { key: 'ArrowRight', ctrlKey: true })
-    expect(heading()).toHaveTextContent('Panel')
+    expect(heading()).toHaveTextContent('Terminal')
     input.remove()
   })
 
@@ -159,8 +177,9 @@ describe('terminal con 1, 2 o 4 gráficos (#286)', () => {
   const charts = () => screen.queryAllByRole('img', { name: /velas de/ })
   const layout = () => screen.getByRole('group', { name: 'Gráficos en pantalla' })
 
-  it('arranca con uno y pasa a 4, cada uno con su instrumento y timeframe', () => {
+  it('arranca con uno y pasa a 4, cada uno con su instrumento y timeframe', async () => {
     render(<TerminalView member={CURRENT_MEMBER} />)
+    await exampleChart()
     expect(charts()).toHaveLength(1)
     fireEvent.click(within(layout()).getByRole('button', { name: '4' }))
     expect(document.querySelector('[data-chart-layout="4"]')).not.toBeNull()
@@ -183,10 +202,10 @@ describe('terminal con 1, 2 o 4 gráficos (#286)', () => {
         name: 'US100',
       }),
     )
-    expect(charts()).toHaveLength(2)
+    await waitFor(() => expect(charts()).toHaveLength(2))
   })
 
-  it('la herramienta de medición (#281) anda en cada gráfico de la grilla, por separado', () => {
+  it('la herramienta de medición (#281) anda en cada gráfico de la grilla, por separado', async () => {
     const us100 = { instrument: 'US100', timeframe: '15m' }
     localStorage.setItem(
       'cfdstrader.terminal.charts',
@@ -205,6 +224,7 @@ describe('terminal con 1, 2 o 4 gráficos (#286)', () => {
       toJSON: () => ({}),
     } as DOMRect)
     render(<TerminalView member={CURRENT_MEMBER} />)
+    await exampleChart()
     const svgs = charts()
     expect(svgs).toHaveLength(4)
     const measureOf = (svg: Element) => svg.querySelector('[data-measure]')
@@ -213,7 +233,13 @@ describe('terminal con 1, 2 o 4 gráficos (#286)', () => {
     // así que de izquierda a derecha es subida y al revés es bajada
     svgs.forEach((svg, i) => {
       const [x0, x1] = i % 2 === 0 ? [200, 400] : [400, 200]
-      fireEvent.pointerDown(svg, { clientX: x0, clientY: 150, button: 0, pointerId: i + 1 })
+      fireEvent.pointerDown(svg, {
+        clientX: x0,
+        clientY: 150,
+        button: 0,
+        pointerId: i + 1,
+        shiftKey: true,
+      })
       fireEvent.pointerMove(svg, { clientX: x1, clientY: 150, pointerId: i + 1 })
       fireEvent.pointerUp(svg, { clientX: x1, clientY: 150, pointerId: i + 1 })
     })
@@ -232,11 +258,17 @@ describe('terminal con 1, 2 o 4 gráficos (#286)', () => {
       'fill',
       'var(--chart-down)',
     )
-    expect(measureOf(svgs[0])!.textContent).toMatch(/\(\+\d+,\d{2} %\)/)
-    expect(measureOf(svgs[1])!.textContent).toMatch(/\(−\d+,\d{2} %\)/)
+    expect(measureOf(svgs[0])!.textContent).toMatch(/ · \+\d+,\d{2} % · /)
+    expect(measureOf(svgs[1])!.textContent).toMatch(/ · −\d+,\d{2} % · /)
 
     // un clic en el gráfico 2 borra solo la suya
-    fireEvent.pointerDown(svgs[1], { clientX: 300, clientY: 150, button: 0, pointerId: 9 })
+    fireEvent.pointerDown(svgs[1], {
+      clientX: 300,
+      clientY: 150,
+      button: 0,
+      pointerId: 9,
+      shiftKey: true,
+    })
     fireEvent.pointerUp(svgs[1], { clientX: 300, clientY: 150, pointerId: 9 })
     expect(svgs.map((s) => measureOf(s) !== null)).toEqual([true, false, true, true])
 
@@ -257,12 +289,13 @@ describe('terminal con 1, 2 o 4 gráficos (#286)', () => {
     expect(document.querySelector('[data-chart-layout="2"]')).not.toBeNull()
   })
 
-  it('si el almacenamiento falla o está roto, la grilla anda igual', () => {
+  it('si el almacenamiento falla o está roto, la grilla anda igual', async () => {
     localStorage.setItem('cfdstrader.terminal.charts', '{roto')
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('bloqueado')
     })
     render(<TerminalView member={CURRENT_MEMBER} />)
+    await exampleChart()
     expect(charts()).toHaveLength(1)
     fireEvent.click(within(layout()).getByRole('button', { name: '4' }))
     expect(document.querySelector('[data-chart-layout="4"]')).not.toBeNull()

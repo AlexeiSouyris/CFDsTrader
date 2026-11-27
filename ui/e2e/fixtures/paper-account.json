@@ -1,0 +1,17 @@
+{
+ "mode": "paper",
+ "currency": "EUR",
+ "as_of": "2026-11-25T16:00:00Z",
+ "equity": "10000",
+ "unrealized_pl": "0",
+ "realized_pl_today": "0",
+ "margin_used": "0",
+ "margin_free": "10000",
+ "leverage": "0",
+ "daily_loss_used_pct": "0",
+ "open_positions": 0,
+ "max_positions": 5,
+ "kill_switch": {
+  "active": false
+ }
+}

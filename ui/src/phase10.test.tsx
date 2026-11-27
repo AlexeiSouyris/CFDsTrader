@@ -89,14 +89,40 @@ describe('propuestas', () => {
   })
 
   it('solo el responsable aprueba, y es una maqueta', () => {
-    const { unmount } = render(<ProposalsView member={MEMBERS[1]} />)
+    const fresh = {
+      ...PROPOSALS[0],
+      extras: { ...PROPOSALS[0].extras, expiresAt: new Date(Date.now() + 600_000).toISOString() },
+    }
+    const { unmount } = render(<ProposalCard item={fresh} canApprove={false} />)
     expect(screen.queryByRole('button', { name: /Aprobar/ })).not.toBeInTheDocument()
-    expect(screen.getAllByText(/Solo el responsable/).length).toBe(PROPOSALS.length)
+    expect(screen.getByText(/Solo el responsable/)).toBeInTheDocument()
     unmount()
+    render(<ProposalCard item={fresh} canApprove />)
+    const card = screen.getByRole('article', { name: 'Propuesta US100 largo' })
+    fireEvent.click(within(card).getByRole('button', { name: /Aprobar/ }))
+    expect(within(card).getByRole('status')).toHaveTextContent('no se envió nada')
+  })
+
+  it('las de ejemplo llevan el sello EJEMPLO, sin vencimiento ni botones (#577)', () => {
     render(<ProposalsView member={MEMBERS[0]} />)
-    const first = screen.getByRole('article', { name: 'Propuesta US100 largo' })
-    fireEvent.click(within(first).getByRole('button', { name: /Aprobar/ }))
-    expect(within(first).getByRole('status')).toHaveTextContent('no se envió nada')
+    const cards = screen.getAllByRole('article')
+    expect(cards).toHaveLength(PROPOSALS.length)
+    for (const card of cards) {
+      expect(within(card).getByText('EJEMPLO')).toBeInTheDocument()
+      expect(within(card).queryByText(/vence en/)).toBeNull()
+      expect(within(card).getByText(/no se puede aprobar ni rechazar/)).toBeInTheDocument()
+    }
+    expect(screen.queryByRole('button', { name: /Aprobar|Rechazar/ })).toBeNull()
+  })
+
+  it('los títulos no saltan de nivel: un h2 antes de los h3 de cada tarjeta (#612)', () => {
+    render(<ProposalsView member={MEMBERS[0]} />)
+    expect(screen.getByRole('heading', { level: 2, name: /En espera/ })).toBeInTheDocument()
+    const levels = screen.getAllByRole('heading').map((h) => Number(h.tagName.slice(1)))
+    levels.reduce((prev, l) => {
+      expect(l - prev).toBeLessThanOrEqual(1)
+      return l
+    }, 1)
   })
 
   it('una propuesta vencida no se puede aprobar', () => {
@@ -140,5 +166,18 @@ describe('fondo', () => {
     const members = screen.getAllByRole('table')[0]
     expect(within(members).getAllByRole('row')).toHaveLength(FUND.members.length + 1)
     expect(within(members).getByRole('row', { name: /Alexei/ })).toHaveTextContent('+12,36 €')
+  })
+})
+
+describe('Investigación como informe (#641)', () => {
+  it('el glosario es un diccionario con líneas finas, no una grilla de tarjetas', () => {
+    const { container } = render(<GlossaryView />)
+    const terms = container.querySelectorAll('article[id^="termino-"]')
+    expect(terms.length).toBe(GLOSSARY.length)
+    for (const t of terms) {
+      expect(t.className).not.toMatch(/\bpanel\b|rounded/)
+      expect(t.className).toMatch(/border-b/)
+    }
+    expect(screen.getByRole('searchbox', { name: 'Buscar en el glosario' })).toBeInTheDocument()
   })
 })

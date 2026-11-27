@@ -1,0 +1,76 @@
+# Sorpresa del calendario (ADR 0018, #697 y #698): de dónde sale el dato real oficial y con qué
+# evento de Forex Factory se compara. Lo leen Python ([bls], `python -m cfds_intel.calendar.actuals`)
+# y Rust ([[surprise]], la sorpresa). Nada de esto va en el código.
+
+[bls]
+# API pública v1 del BLS, sin registro ("open for public use"): 25 consultas por día, 25 series
+# por consulta (https://www.bls.gov/developers/api_faqs.htm). Endpoint de la firma v1:
+# https://www.bls.gov/developers/api_signature.htm. Dominio público; se cita
+# "U.S. Bureau of Labor Statistics" con la fecha de la lectura (términos de la API).
+api_url = "https://api.bls.gov/publicAPI/v1/timeseries/data/"
+# Identificación honesta como cliente automático, SIN datos personales (como config/news.toml).
+# Comprobado el 25-11-2026: la API v1 responde 200 con este User-Agent, sin pedir contacto.
+user_agent = "cfds-intel/0.1 (automated official statistics reader)"
+timeout_secs = 30
+# Solo se buscan publicaciones de los últimos N días: no se rellena el pasado (ADR 0018 §4).
+lookback_days = 10
+# Si la publicación siguiente de la serie todavía no está en official_releases, un valor leído a
+# más de N días de su publicación se guarda como 'revised' (no se puede probar que sea el primero).
+# CPI y empleo salen una vez por mes, con unas 4 semanas entre una y otra.
+first_max_age_days = 20
+
+# Series de cada publicación de official_releases (`release` = official_releases.series). Una
+# consulta por publicación con todas sus series. `unit` = unidad del valor tal como lo da el BLS.
+[[bls.series]]
+series_id = "CUSR0000SA0"
+release = "cpi"
+unit = "level"
+name = "CPI-U, todos los ítems, ciudad promedio de EE. UU., desestacionalizado (índice 1982-84=100)"
+
+[[bls.series]]
+series_id = "CUSR0000SA0L1E"
+release = "cpi"
+unit = "level"
+name = "CPI-U, todos los ítems menos alimentos y energía, desestacionalizado (índice 1982-84=100)"
+
+[[bls.series]]
+series_id = "CES0000000001"
+release = "employment_situation"
+unit = "thousands"
+name = "Empleo total no agrícola, desestacionalizado (miles de personas)"
+
+[[bls.series]]
+series_id = "LNS14000000"
+release = "employment_situation"
+unit = "percent"
+name = "Tasa de desempleo, desestacionalizada (%)"
+
+# Con qué evento de Forex Factory se compara cada serie (lo usa Rust, #698).
+# transform: 'level' = el valor del mes; 'change' = mes − mes anterior; 'pct_change' =
+# (mes / mes anterior − 1) × 100. El mes anterior, tal como se conocía al leer el primer dato.
+# OJO: los títulos (`event`) todavía no se vieron en nuestro feed (la única lectura guardada, del
+# 23-11-2026, no tenía CPI ni empleo). Confirmarlos con la primera lectura que los traiga; si no
+# coinciden, la sorpresa de ese evento simplemente no existe (no se adivina).
+[[surprise]]
+event = "CPI m/m"
+country = "US"
+series_id = "CUSR0000SA0"
+transform = "pct_change"
+
+[[surprise]]
+event = "Core CPI m/m"
+country = "US"
+series_id = "CUSR0000SA0L1E"
+transform = "pct_change"
+
+[[surprise]]
+event = "Non-Farm Employment Change"
+country = "US"
+series_id = "CES0000000001"
+transform = "change"
+
+[[surprise]]
+event = "Unemployment Rate"
+country = "US"
+series_id = "LNS14000000"
+transform = "level"

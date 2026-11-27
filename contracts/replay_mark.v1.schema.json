@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/replay_mark.v1.schema.json",
+  "title": "Replay mark v1",
+  "description": "Un nivel o un pivote que marca el estudiante en el replay de la Academia (#720), con el cursor del momento: respuesta de POST /api/v1/academy/replay/{session_id}/marks (el pedido es $defs/request; el cursor lo pone el motor). Un pivote solo se puede marcar en una vela ya visible.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mark_id", "kind", "price", "bar_index", "cursor"],
+  "properties": {
+    "mark_id": { "description": "Número de la marca dentro de la sesión (1, 2, ...).", "type": "integer", "minimum": 1 },
+    "kind": { "$ref": "#/$defs/kind" },
+    "price": { "$ref": "replay_session.v1.schema.json#/$defs/price" },
+    "bar_index": { "description": "La vela del pivote, o null en un nivel.", "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }] },
+    "cursor": { "description": "La última vela visible cuando se marcó.", "type": "integer", "minimum": 0 }
+  },
+  "$defs": {
+    "kind": { "description": "level: soporte o resistencia (línea horizontal con precio); pivot_high / pivot_low: máximo o mínimo local en una vela.", "enum": ["level", "pivot_high", "pivot_low"] },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "price"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/kind" },
+        "price": { "$ref": "replay_session.v1.schema.json#/$defs/price" },
+        "bar_index": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

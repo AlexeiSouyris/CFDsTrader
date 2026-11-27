@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/variance_sim_report.v1.schema.json",
+  "title": "Variance simulation report v1",
+  "description": "Informe del simulador de varianza (docs/design/2026-11-laboratorio.md §4.2, #801): con la misma esperanza, cuánto puede variar el capital por pura suerte. Bandas del capital (1 = el inicial) p5/p25/p50/p75/p95, capital final, caída máxima (resumen e histograma), racha perdedora más larga y probabilidad de k pérdidas seguidas, riesgo de ruina con su intervalo de Wilson y, con incertidumbre del win rate, la comparación con el win rate tomado como cierto. Lo calcula el motor (research::variance, SplitMix64, f64 porque son estadísticos y no dinero); la UI solo lo dibuja. Educativo: nada de esto predice resultados ni es consejo de inversión. Números como texto decimal.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source", "risk_pct", "trades", "paths", "seed", "ruin_threshold_pct", "expectancy_r",
+    "bands", "final_equity", "max_drawdown", "longest_losing_streak", "losing_streak_at_least",
+    "risk_of_ruin", "win_rate_draws", "fixed_win_rate", "notes"
+  ],
+  "properties": {
+    "source": {
+      "description": "La fuente usada (eco normalizado del pedido).",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "win_rate", "avg_win_r", "avg_loss_r", "observed_trades"],
+          "properties": {
+            "kind": { "const": "model" },
+            "win_rate": { "$ref": "#/$defs/decimal" },
+            "avg_win_r": { "$ref": "#/$defs/decimal" },
+            "avg_loss_r": { "$ref": "#/$defs/decimal" },
+            "observed_trades": { "oneOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }] }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "count", "block_len", "report_id"],
+          "properties": {
+            "kind": { "enum": ["r_values", "report"] },
+            "count": { "description": "Cantidad de R de la lista.", "type": "integer", "minimum": 1 },
+            "block_len": { "type": "integer", "minimum": 1 },
+            "report_id": { "description": "El informe del que salieron los R (kind = report), o null.", "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] }
+          }
+        }
+      ]
+    },
+    "risk_pct": { "$ref": "#/$defs/decimal" },
+    "trades": { "type": "integer", "minimum": 1 },
+    "paths": { "type": "integer", "minimum": 1 },
+    "seed": { "type": "integer", "minimum": 0 },
+    "ruin_threshold_pct": { "$ref": "#/$defs/decimal" },
+    "expectancy_r": { "description": "Esperanza por operación en R: la del modelo con el win rate pedido, o la media de los R reales.", "$ref": "#/$defs/signed" },
+    "bands": {
+      "description": "Capital (1 = el inicial) después de `trade` operaciones, en hasta ~100 puntos, desde 0 hasta la última.",
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["trade", "p5", "p25", "p50", "p75", "p95"],
+        "properties": {
+          "trade": { "type": "integer", "minimum": 0 },
+          "p5": { "$ref": "#/$defs/decimal" },
+          "p25": { "$ref": "#/$defs/decimal" },
+          "p50": { "$ref": "#/$defs/decimal" },
+          "p75": { "$ref": "#/$defs/decimal" },
+          "p95": { "$ref": "#/$defs/decimal" }
+        }
+      }
+    },
+    "final_equity": {
+      "description": "Capital final (1 = el inicial): media y cuantiles.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mean", "p5", "p25", "p50", "p75", "p95"],
+      "properties": {
+        "mean": { "$ref": "#/$defs/decimal" },
+        "p5": { "$ref": "#/$defs/decimal" },
+        "p25": { "$ref": "#/$defs/decimal" },
+        "p50": { "$ref": "#/$defs/decimal" },
+        "p75": { "$ref": "#/$defs/decimal" },
+        "p95": { "$ref": "#/$defs/decimal" }
+      }
+    },
+    "max_drawdown": {
+      "description": "Caída máxima desde el pico de cada camino (fracción: 0.25 = −25 %).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "histogram"],
+      "properties": {
+        "summary": { "$ref": "#/$defs/summary" },
+        "histogram": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["from", "to", "share"],
+            "properties": {
+              "from": { "description": "Inclusive.", "$ref": "#/$defs/decimal" },
+              "to": { "description": "Exclusive (el último tramo la incluye).", "$ref": "#/$defs/decimal" },
+              "share": { "description": "Fracción de los caminos.", "$ref": "#/$defs/decimal" }
+            }
+          }
+        }
+      }
+    },
+    "longest_losing_streak": { "description": "Racha perdedora más larga de cada camino, en operaciones.", "$ref": "#/$defs/summary" },
+    "losing_streak_at_least": {
+      "description": "P(racha perdedora más larga ≥ k), k = 1..streak_max_k de config.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["k", "probability"],
+        "properties": {
+          "k": { "type": "integer", "minimum": 1 },
+          "probability": { "$ref": "#/$defs/decimal" }
+        }
+      }
+    },
+    "risk_of_ruin": {
+      "description": "Fracción de caminos que tocaron la ruina, con el intervalo de Wilson (nivel de [report] confidence). El intervalo mide el error de la simulación, no el de la estimación del win rate.",
+      "$ref": "#/$defs/probability"
+    },
+    "win_rate_draws": {
+      "description": "Win rate sorteado de cada camino (incertidumbre del win rate), o null sin ella.",
+      "oneOf": [{ "$ref": "#/$defs/summary" }, { "type": "null" }]
+    },
+    "fixed_win_rate": {
+      "description": "Con incertidumbre: lo mismo con el win rate tomado como cierto (misma semilla), para ver cuánto cambia. null sin incertidumbre.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["risk_of_ruin", "final_equity_p5", "final_equity_p50", "max_drawdown_p50"],
+          "properties": {
+            "risk_of_ruin": { "$ref": "#/$defs/decimal" },
+            "final_equity_p5": { "$ref": "#/$defs/decimal" },
+            "final_equity_p50": { "$ref": "#/$defs/decimal" },
+            "max_drawdown_p50": { "$ref": "#/$defs/decimal" }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "notes": { "description": "Avisos en español (simulación, supuestos, riesgo por encima del tope del proyecto).", "type": "array", "items": { "type": "string", "minLength": 1 } }
+  },
+  "$defs": {
+    "decimal": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "signed": { "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "summary": {
+      "description": "Media y cuantiles 5, 50 y 95 % sobre los caminos.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mean", "p5", "p50", "p95"],
+      "properties": {
+        "mean": { "$ref": "#/$defs/decimal" },
+        "p5": { "$ref": "#/$defs/decimal" },
+        "p50": { "$ref": "#/$defs/decimal" },
+        "p95": { "$ref": "#/$defs/decimal" }
+      }
+    },
+    "probability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["probability", "low", "high"],
+      "properties": {
+        "probability": { "$ref": "#/$defs/decimal" },
+        "low": { "$ref": "#/$defs/decimal" },
+        "high": { "$ref": "#/$defs/decimal" }
+      }
+    }
+  }
+}

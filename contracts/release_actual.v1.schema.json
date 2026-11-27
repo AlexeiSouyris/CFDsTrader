@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/release_actual.v1.schema.json",
+  "title": "Release actual v1",
+  "description": "El dato real de una serie oficial para un mes de referencia, tal como lo daba la fuente oficial al leerlo (ADR 0018 §2). Hoy solo el BLS (CPI y empleo de EE. UU.) por su API pública v1. 'first' es el primer dato publicado, leído antes de la publicación siguiente de la serie; 'revised' es un valor leído después (puede estar revisado) y no entra en la sorpresa. Cita: U.S. Bureau of Labor Statistics, con la fecha de 'retrieved_at'.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source",
+    "series_id",
+    "reference_period",
+    "value",
+    "unit",
+    "vintage",
+    "released_at",
+    "retrieved_at",
+    "source_url"
+  ],
+  "properties": {
+    "source": {
+      "description": "Organismo que publica el dato. Hoy solo 'bls'.",
+      "enum": ["bls"]
+    },
+    "series_id": {
+      "description": "ID oficial de la serie en la fuente (por ejemplo 'CUSR0000SA0'); la lista está en config/calendar_surprise.toml.",
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9_#-]{0,39}$"
+    },
+    "reference_period": {
+      "description": "Mes de referencia del dato (AAAA-MM), igual que en official_release.v1.",
+      "type": "string",
+      "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+    },
+    "value": {
+      "description": "El valor como string decimal exacto, tal como lo da la fuente (nunca número flotante).",
+      "type": "string",
+      "pattern": "^-?\\d+(\\.\\d+)?$"
+    },
+    "unit": {
+      "description": "Unidad del valor: 'level' (por ejemplo un índice), 'percent', 'thousands', 'millions', 'billions' o 'trillions'.",
+      "enum": ["percent", "thousands", "millions", "billions", "trillions", "level"]
+    },
+    "vintage": {
+      "description": "'first': leído antes de la publicación siguiente de la misma serie. 'revised': leído después; no cuenta como primer dato.",
+      "enum": ["first", "revised"]
+    },
+    "released_at": {
+      "description": "Hora oficial de publicación (embargo) en UTC, ISO 8601 terminado en Z: el 'scheduled_at' de la publicación en official_release.v1. Desde esta hora el dato existe para un estudio que simula operar en tiempo real.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "retrieved_at": {
+      "description": "Cuándo lo leímos, en UTC, ISO 8601 terminado en Z. Nunca anterior a 'released_at'. Desde esta hora el dato existe para una decisión en vivo.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "source_url": {
+      "description": "Endpoint oficial consultado.",
+      "type": "string",
+      "pattern": "^https://",
+      "maxLength": 500
+    }
+  }
+}

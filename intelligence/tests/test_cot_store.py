@@ -4,7 +4,7 @@ Necesitan `DATABASE_URL` con las migraciones aplicadas. En CI corren en el job d
 """
 
 import os
-import random
+import uuid
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -15,9 +15,8 @@ import pytest
 from cfds_intel.sentiment.cot import Observation
 from cfds_intel.sentiment.store import insert_observations
 
-pytestmark = pytest.mark.skipif(
-    "DATABASE_URL" not in os.environ, reason="necesita PostgreSQL con migraciones (DATABASE_URL)"
-)
+# Escribe en PostgreSQL: solo contra una base cfds_test* (guardia en conftest.py, #376).
+pytestmark = pytest.mark.pg
 
 
 @pytest.fixture
@@ -34,15 +33,21 @@ def conn() -> psycopg.Connection:
     return c
 
 
-def fresh_tuesday() -> datetime:
-    # La tabla es de solo agregar: cada corrida usa una fecha distinta.
-    days = random.randrange(10_000, 40_000)  # noqa: S311 (no es criptografía)
-    return datetime(1900, 1, 2, tzinfo=UTC) + timedelta(weeks=days)
+# Martes fijo: la serie es la que cambia en cada test (#488).
+TUESDAY = datetime(2024, 1, 2, tzinfo=UTC)
 
 
-def obs(observed: datetime, value: str) -> Observation:
+@pytest.fixture
+def series() -> str:
+    # La tabla es de solo agregar y no se puede limpiar: cada test usa una serie propia, que
+    # nunca tiene filas previas (#488). Antes se elegía una fecha al azar, que a veces repetía
+    # una fila de otra corrida. Cumple `^[a-z][a-z0-9_]{0,31}$` (32 caracteres).
+    return "t" + uuid.uuid4().hex[:31]
+
+
+def obs(series: str, observed: datetime, value: str) -> Observation:
     return Observation(
-        series="tff_open_interest",
+        series=series,
         instrument_id="US100",
         observed_for=observed,
         published_at=observed + timedelta(days=7, hours=20),
@@ -50,39 +55,47 @@ def obs(observed: datetime, value: str) -> Observation:
     )
 
 
-def rows(conn: psycopg.Connection, observed: datetime) -> list[tuple[datetime, Decimal]]:
+def rows(
+    conn: psycopg.Connection, series: str, observed: datetime
+) -> list[tuple[datetime, Decimal]]:
     return [
         (r[0], r[1])
         for r in conn.execute(
             """
             SELECT published_at, value FROM sentiment_observations
-            WHERE source = 'cftc_cot' AND observed_for = %s ORDER BY published_at
+            WHERE source = 'cftc_cot' AND series = %s AND instrument_id = 'US100'
+                AND observed_for = %s
+            ORDER BY published_at
             """,
-            (observed,),
+            (series, observed),
         ).fetchall()
     ]
 
 
 def test_a_repeated_value_is_not_duplicated_even_with_another_publication_time(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection, series: str
 ) -> None:
-    t = fresh_tuesday()
-    first = obs(t, "314318")
+    t = TUESDAY
+    assert rows(conn, series, t) == []
+    first = obs(series, t, "314318")
     assert insert_observations(conn, [first], t + timedelta(days=30)).inserted == 1
     # Leído de nuevo en vivo, antes: otra published_at calculada, mismo valor → no se repite.
     again = replace(first, published_at=t + timedelta(days=3))
     r = insert_observations(conn, [again], t + timedelta(days=3))
     assert (r.inserted, r.unchanged, r.corrections) == (0, 1, 0)
-    assert rows(conn, t) == [(first.published_at, Decimal("314318"))]
+    assert rows(conn, series, t) == [(first.published_at, Decimal("314318"))]
 
 
-def test_a_correction_is_a_new_row_published_when_it_was_read(conn: psycopg.Connection) -> None:
-    t = fresh_tuesday()
-    insert_observations(conn, [obs(t, "100")], t + timedelta(days=30))
+def test_a_correction_is_a_new_row_published_when_it_was_read(
+    conn: psycopg.Connection, series: str
+) -> None:
+    t = TUESDAY
+    assert rows(conn, series, t) == []
+    insert_observations(conn, [obs(series, t, "100")], t + timedelta(days=30))
     read_at = t + timedelta(days=40)
-    r = insert_observations(conn, [obs(t, "101")], read_at)
+    r = insert_observations(conn, [obs(series, t, "101")], read_at)
     assert r.corrections == 1
-    assert rows(conn, t) == [
+    assert rows(conn, series, t) == [
         (t + timedelta(days=7, hours=20), Decimal("100")),
         (read_at, Decimal("101")),
     ]

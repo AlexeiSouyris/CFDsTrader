@@ -1,0 +1,167 @@
+{
+  "monte_carlo": {
+    "beats_zero_edge": true,
+    "block_len_days": null,
+    "confidence": "0.95",
+    "economics": {
+      "expected_attempts": "2.021297",
+      "expected_fees": "413.15",
+      "expected_payout": "973.42",
+      "expected_refund": "0",
+      "expected_value": "521.45",
+      "max_attempts": 5,
+      "success_within_attempts": "0.960116"
+    },
+    "horizon_days": 250,
+    "paths": 2000,
+    "per_attempt": {
+      "failed": {
+        "high": "0.546817",
+        "low": "0.503087",
+        "probability": "0.525"
+      },
+      "pass_evaluation": {
+        "high": "0.565723",
+        "low": "0.522108",
+        "probability": "0.544"
+      },
+      "payout": {
+        "high": "0.496913",
+        "low": "0.453183",
+        "probability": "0.475"
+      },
+      "timeout": {
+        "high": "0.001917",
+        "low": "0",
+        "probability": "0"
+      },
+      "unfinished": {
+        "high": "0.001917",
+        "low": "0",
+        "probability": "0"
+      }
+    },
+    "phases": [
+      {
+        "days_to_fail": {
+          "mean": "19.539474",
+          "p5": "6",
+          "p50": "16",
+          "p95": "45"
+        },
+        "days_to_pass": {
+          "mean": "22.857537",
+          "p5": "8",
+          "p50": "19",
+          "p95": "49"
+        },
+        "failed_daily_loss": "0",
+        "failed_max_drawdown": "0.456",
+        "name": "Evaluación",
+        "passed": {
+          "high": "0.565723",
+          "low": "0.522108",
+          "probability": "0.544"
+        },
+        "reached": "1",
+        "timeout": "0"
+      },
+      {
+        "days_to_fail": {
+          "mean": "11.942029",
+          "p5": "5",
+          "p50": "10",
+          "p95": "27.3"
+        },
+        "days_to_pass": {
+          "mean": "7.215789",
+          "p5": "5",
+          "p50": "5",
+          "p95": "16"
+        },
+        "failed_daily_loss": "0",
+        "failed_max_drawdown": "0.069",
+        "name": "Cuenta fondeada (primer cobro)",
+        "passed": {
+          "high": "0.496913",
+          "low": "0.453183",
+          "probability": "0.475"
+        },
+        "reached": "0.544",
+        "timeout": "0"
+      }
+    ],
+    "seed": 20261126,
+    "zero_edge": {
+      "expected_value": "-165.94",
+      "pass_evaluation": {
+        "high": "0.272002",
+        "low": "0.233947",
+        "probability": "0.2525"
+      },
+      "payout": {
+        "high": "0.181388",
+        "low": "0.148898",
+        "probability": "0.1645"
+      }
+    }
+  },
+  "notes": [
+    "Simulación educativa con operaciones pasadas o sorteadas: no predice resultados ni es consejo de inversión.",
+    "Las reglas se miran con el saldo al cierre de cada operación: una pérdida flotante dentro de una operación no se ve. Si la firma mide el capital flotante, el resultado real puede ser peor.",
+    "Las firmas cambian sus reglas, sus cuotas y sus pagos: lo que vale es su reglamento vigente. Pagar una evaluación real es dinero real y queda fuera de la app.",
+    "Con el modelo no hay lista real: no hay recorrido determinista, solo caminos sorteados."
+  ],
+  "observed": null,
+  "risk_per_trade_amount": "250",
+  "risk_per_trade_pct": "0.5",
+  "rules": {
+    "account_size": "50000",
+    "currency": "USD",
+    "daily_loss": {
+      "base": "day_start",
+      "limit_pct": "2"
+    },
+    "day": {
+      "cutoff": "17:00",
+      "timezone": "America/New_York"
+    },
+    "fees": {
+      "activation": "100",
+      "evaluation": "150",
+      "refund_with_first_payout": false
+    },
+    "funded": {
+      "consistency_pct": null,
+      "payout_min_profit_pct": "1",
+      "payout_min_trading_days": 5,
+      "profit_split_pct": "90"
+    },
+    "id": "generica",
+    "max_drawdown": {
+      "limit_pct": "4",
+      "lock_at_initial": true,
+      "mode": "trailing_eod"
+    },
+    "name": "Plantilla genérica (completá los valores)",
+    "phases": [
+      {
+        "consistency_pct": "50",
+        "max_trading_days": null,
+        "min_trading_days": 2,
+        "name": "Evaluación",
+        "profit_target_pct": "6"
+      }
+    ],
+    "source": null
+  },
+  "source": {
+    "days": null,
+    "kind": "model",
+    "report_id": null,
+    "trades": null,
+    "trades_per_day": 2
+  },
+  "unsimulable": [],
+  "upper_bound": false
+}

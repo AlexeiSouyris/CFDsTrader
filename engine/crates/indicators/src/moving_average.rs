@@ -14,18 +14,7 @@ use rust_decimal::Decimal;
 /// # Panics
 /// Si `period` es 0 (error de configuración que se rechaza al cargar `config/`).
 pub fn sma(candles: &[Candle], period: usize) -> Vec<Option<Decimal>> {
-    assert!(period > 0, "el período de la SMA tiene que ser mayor que 0");
-    let n = Decimal::from(period);
-    let mut out = Vec::with_capacity(candles.len());
-    let mut sum = Decimal::ZERO;
-    for (i, c) in candles.iter().enumerate() {
-        sum += c.close;
-        if i >= period {
-            sum -= candles[i - period].close;
-        }
-        out.push((i + 1 >= period).then(|| sum / n));
-    }
-    out
+    sma_values(&closes_of(candles), period)
 }
 
 /// EMA(`period`) de los cierres, alineada por índice.
@@ -33,14 +22,45 @@ pub fn sma(candles: &[Candle], period: usize) -> Vec<Option<Decimal>> {
 /// # Panics
 /// Si `period` es 0.
 pub fn ema(candles: &[Candle], period: usize) -> Vec<Option<Decimal>> {
+    ema_values(&closes_of(candles), period)
+}
+
+fn closes_of(candles: &[Candle]) -> Vec<Decimal> {
+    candles.iter().map(|c| c.close).collect()
+}
+
+/// SMA(`period`) de una serie de valores (por ejemplo, los cierres de las velas diarias).
+///
+/// # Panics
+/// Si `period` es 0.
+pub fn sma_values(values: &[Decimal], period: usize) -> Vec<Option<Decimal>> {
+    assert!(period > 0, "el período de la SMA tiene que ser mayor que 0");
+    let n = Decimal::from(period);
+    let mut out = Vec::with_capacity(values.len());
+    let mut sum = Decimal::ZERO;
+    for (i, v) in values.iter().enumerate() {
+        sum += *v;
+        if i >= period {
+            sum -= values[i - period];
+        }
+        out.push((i + 1 >= period).then(|| sum / n));
+    }
+    out
+}
+
+/// EMA(`period`) de una serie de valores, con la misma semilla y el mismo α que [`ema`].
+///
+/// # Panics
+/// Si `period` es 0.
+pub fn ema_values(values: &[Decimal], period: usize) -> Vec<Option<Decimal>> {
     assert!(period > 0, "el período de la EMA tiene que ser mayor que 0");
     let alpha = Decimal::TWO / Decimal::from(period + 1);
-    let seed = sma(candles, period);
-    let mut out = Vec::with_capacity(candles.len());
+    let seed = sma_values(values, period);
+    let mut out = Vec::with_capacity(values.len());
     let mut prev: Option<Decimal> = None;
-    for (i, c) in candles.iter().enumerate() {
+    for (i, v) in values.iter().enumerate() {
         prev = match prev {
-            Some(p) => Some(p + alpha * (c.close - p)),
+            Some(p) => Some(p + alpha * (*v - p)),
             None => seed[i],
         };
         out.push(prev);

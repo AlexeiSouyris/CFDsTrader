@@ -57,7 +57,7 @@ fn de40_setup_comes_only_from_the_configuration() {
             spread: dec!(1.8),
             tick: dec!(0.1),
             commission: Commission::None,
-            funding_admin_fee_pct: dec!(2.5),
+            funding_admin_fee_pct: dec!(3),
             funding_day_count: dec!(360),
         }
     );
@@ -68,7 +68,11 @@ fn de40_setup_comes_only_from_the_configuration() {
     );
     assert_eq!(s.limits.margin_pct, dec!(5));
     assert_eq!(s.limits.min_deal_size, Some(dec!(0.5)));
-    assert_eq!(s.account_to_instrument, dec!(1), "contrato y cuenta en EUR");
+    assert_eq!(
+        s.account_to_instrument,
+        cfds_backtest::AccountFx::Same,
+        "contrato y cuenta en EUR"
+    );
     assert_eq!(s.funding_cutoff.to_string(), "23:00:00");
     assert_eq!(s.funding_tz, chrono_tz::Europe::Madrid);
     assert_eq!(s.day_tz, chrono_tz::Europe::Madrid);
@@ -77,8 +81,13 @@ fn de40_setup_comes_only_from_the_configuration() {
 
 #[test]
 fn pending_broker_terms_block_the_run_and_say_what_is_missing() {
-    let Err(SetupError::Pending(p)) = build(CATALOG, "US100", dec!(10000)) else {
-        panic!("US100 no tiene confirmado el tipo de referencia");
+    let pending = in_section(
+        "US100",
+        r#"funding_benchmark = { value = "SOFR", source = "ig-chat-sofr" }"#,
+        r#"funding_benchmark = { pending = "sin confirmar" }"#,
+    );
+    let Err(SetupError::Pending(p)) = build(&pending, "US100", dec!(10000)) else {
+        panic!("sin tipo de referencia confirmado no se simula");
     };
     let fields: Vec<_> = p.iter().map(|f| (f.item.as_str(), f.field)).collect();
     assert_eq!(fields, [("US100", "funding_benchmark")]);
@@ -107,12 +116,43 @@ fn pending_broker_terms_block_the_run_and_say_what_is_missing() {
 }
 
 #[test]
+fn us_indices_simulate_with_the_documented_sofr() {
+    // #655: con SOFR confirmado, los tres índices de EE. UU. ya no quedan bloqueados. Sin la
+    // serie diaria guardada, el respaldo es la constante documentada (nyfed-sofr).
+    for id in ["US100", "US500", "US30"] {
+        let s = build(CATALOG, id, dec!(10000)).unwrap();
+        assert_eq!(
+            s.funding_rates.at(chrono::Utc::now()),
+            Some(dec!(3.94)),
+            "{id}"
+        );
+        assert_eq!(s.costs.funding_admin_fee_pct, dec!(3), "{id}");
+        assert_eq!(s.costs.funding_day_count, dec!(360), "{id}");
+        assert_eq!(
+            s.account_to_instrument,
+            cfds_backtest::AccountFx::Same,
+            "{id}"
+        );
+    }
+}
+
+#[test]
 fn a_contract_in_another_currency_needs_an_exchange_rate() {
     let usd = in_section("DE40", r#"currency = "EUR""#, r#"currency = "USD""#);
-    assert!(matches!(
-        build(&usd, "DE40", dec!(10000)),
-        Err(SetupError::CurrencyConversion { .. })
-    ));
+    // ADR 0013 §4: el recorrido convierte con la serie del par CUENTA+INSTRUMENTO. Sin
+    // cargarla, falta el tipo en todo momento (nunca uno inventado).
+    let setup = build(&usd, "DE40", dec!(10000)).unwrap();
+    assert_eq!(
+        setup.account_to_instrument,
+        cfds_backtest::AccountFx::Missing {
+            pair: "EURUSD".into()
+        }
+    );
+    let at = "2026-11-24T12:00:00Z".parse().unwrap();
+    assert_eq!(
+        setup.to_account(dec!(100), at),
+        Err(cfds_backtest::RunError::MissingFxRate(at))
+    );
 }
 
 #[test]
@@ -169,8 +209,30 @@ fn buy_and_hold_on_real_de40_matches_the_hand_calculation() {
     assert_eq!(bh.gross_pnl, dec!(-1057.46));
     // Cortes de las 23:00 de Madrid (22:00 UTC) del 9 al 20 de noviembre: 12 noches.
     assert_eq!(bh.nights, 12);
-    // 12 × 25669,3 × 1 × (2,441 + 2,5) % / 360 = 42,277337 1.
-    assert_eq!(bh.funding, dec!(42.2773371));
+    // 12 × 25669,3 × 1 × (2,441 + 3) % / 360 = 46,555553 766 666…
+    assert_eq!(bh.funding, dec!(46.555553766666666666666666667));
     assert_eq!(bh.commission, dec!(0));
-    assert_eq!(bh.net_pnl, dec!(-1099.7373371));
+    assert_eq!(bh.net_pnl, dec!(-1104.0155537666666666666666667));
+}
+
+#[test]
+fn gold_is_blocked_by_its_pending_terms() {
+    // ADR 0013 (#418): el oro está en el catálogo, pero con datos de IG pendientes no se simula.
+    let catalog =
+        cfds_market_data::Catalog::from_toml(include_str!("../../../../config/instruments.toml"))
+            .unwrap();
+    let err =
+        cfds_backtest::market_terms_from_catalog(&catalog, &"XAUUSD".parse().unwrap()).unwrap_err();
+    let cfds_backtest::SetupError::Pending(p) = err else {
+        panic!("esperaba pendientes, no {err:?}");
+    };
+    let fields: Vec<_> = p.iter().map(|f| f.field).collect();
+    for f in [
+        "funding_basis",
+        "spread_typical_points",
+        "tick",
+        "min_deal_size",
+    ] {
+        assert!(fields.contains(&f), "{f}: {fields:?}");
+    }
 }

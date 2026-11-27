@@ -16,7 +16,7 @@ use cfds_core::{
 use cfds_liquidity::Side;
 use cfds_market_data::{SessionCalendar, ValidationConfig};
 use cfds_risk::{InstrumentLimits, RiskConfig};
-use cfds_runner::compare::{Causes, Comparison, Inputs, compare};
+use cfds_runner::compare::{Causes, Comparison, Inputs, compare, entries_from};
 use cfds_runner::{Feed, Runner, RunnerConfig, strategy_from_toml};
 use chrono::{DateTime, NaiveTime, TimeDelta, Utc};
 use rust_decimal::{Decimal, dec};
@@ -99,6 +99,12 @@ fn costs() -> InstrumentCosts {
     }
 }
 
+/// `config/risk.toml` completa, con la reducción gradual por caída: el broker y el backtest
+/// llevan el máximo del capital igual, valuado en cada vela cerrada (#691).
+fn risk_cfg() -> RiskConfig {
+    RiskConfig::from_toml(cfg!("risk.toml")).unwrap()
+}
+
 fn backtest_cfg() -> BacktestConfig {
     let mut b = BacktestConfig::from_toml(cfg!("backtest.toml")).unwrap();
     // Como en vivo: el kill switch no se reactiva.
@@ -107,18 +113,19 @@ fn backtest_cfg() -> BacktestConfig {
 }
 
 fn broker_cfg() -> BrokerConfig {
+    broker_cfg_with(risk_cfg())
+}
+
+fn broker_cfg_with(risk: RiskConfig) -> BrokerConfig {
     let b = backtest_cfg();
-    BrokerConfig::from_toml(
-        cfg!("broker.toml"),
-        RiskConfig::from_toml(cfg!("risk.toml")).unwrap(),
-        b.costs,
-        b.exits,
-        b.day_tz,
-    )
-    .unwrap()
+    BrokerConfig::from_toml(cfg!("broker.toml"), risk, b.costs, b.exits, b.day_tz).unwrap()
 }
 
 fn setup(rate: Decimal) -> Setup {
+    setup_with(rate, risk_cfg())
+}
+
+fn setup_with(rate: Decimal, risk: RiskConfig) -> Setup {
     let b = backtest_cfg();
     Setup {
         instrument: id(),
@@ -129,24 +136,29 @@ fn setup(rate: Decimal) -> Setup {
             cfg!("strategy.toml"),
         )
         .unwrap(),
-        risk: RiskConfig::from_toml(cfg!("risk.toml")).unwrap(),
+        initial_equity: broker_cfg_with(risk.clone()).initial_equity,
+        risk,
         limits: limits(),
         costs: costs(),
         day_tz: b.day_tz,
         backtest: b,
-        initial_equity: broker_cfg().initial_equity,
-        account_to_instrument: Decimal::ONE,
+        account_to_instrument: cfds_backtest::AccountFx::Same,
         funding_rates: FundingRates::Constant(rate),
         funding_cutoff: NaiveTime::from_hms_opt(23, 0, 0).unwrap(),
         funding_tz: chrono_tz::Europe::Madrid,
+        futures_basis: None,
     }
 }
 
 fn broker(candles: &[Candle], rate: Decimal) -> PaperBroker {
+    broker_with(candles, rate, risk_cfg())
+}
+
+fn broker_with(candles: &[Candle], rate: Decimal, risk: RiskConfig) -> PaperBroker {
     let m = MarketSetup {
         limits: limits(),
         costs: costs(),
-        account_to_instrument: Decimal::ONE,
+        account_to_instrument: cfds_backtest::AccountFx::Same,
         candles: candles.to_vec(),
         funding: FundingSetup {
             cutoff: NaiveTime::from_hms_opt(23, 0, 0).unwrap(),
@@ -154,7 +166,7 @@ fn broker(candles: &[Candle], rate: Decimal) -> PaperBroker {
             rates: FundingRates::Constant(rate),
         },
     };
-    PaperBroker::new(broker_cfg(), [(id(), m)].into_iter().collect())
+    PaperBroker::new(broker_cfg_with(risk), [(id(), m)].into_iter().collect())
 }
 
 fn side(s: Side) -> OrderSide {
@@ -493,6 +505,67 @@ fn a_synthetic_paper_journal_from_the_runner_is_explained() {
 }
 
 /// Cada comparación cumple `contracts/paper_comparison.v1`.
+#[test]
+fn entries_before_from_are_only_warmup() {
+    let (m15, _) = walk();
+    let from = m15[10].end();
+    // Sin marca cuenta como permitida (como en el backtest); la marca `false` se respeta.
+    let mut given = vec![true; 20];
+    given[15] = false;
+    let e = entries_from(&m15, &given, from);
+    assert_eq!(e.len(), m15.len());
+    for (i, ok) in e.iter().enumerate() {
+        assert_eq!(*ok, i >= 10 && i != 15, "vela {i}");
+    }
+    // Sin look-ahead: el resultado de una vela no cambia al llegar velas nuevas.
+    let shorter = entries_from(&m15[..100], &given, from);
+    assert_eq!(shorter[..], e[..100]);
+}
+
+/// #440: paper decide desde `from` con el capital de la cuenta en `from`. Si el backtest opera
+/// en el calentamiento, llega a `from` con otro capital y las mismas decisiones salen con otro
+/// tamaño; sin entradas antes de `from`, la misma corrida da diferencia cero.
+#[test]
+fn the_backtest_does_not_trade_during_the_paper_warmup() {
+    let (m15, h1) = walk();
+    let full = run_checked(&m15, &h1, &[], &[], &[], &setup(dec!(2))).unwrap();
+    assert!(full.trades.len() > 4, "{} operaciones", full.trades.len());
+    let from = full.trades[full.trades.len() / 2].signal_at;
+    assert!(full.trades.iter().any(|t| t.signal_at < from));
+
+    let entries = entries_from(&m15, &[], from);
+    let report = run_checked(&m15, &h1, &entries, &[], &[], &setup(dec!(2))).unwrap();
+    assert!(!report.trades.is_empty());
+    assert!(report.trades.iter().all(|t| t.signal_at >= from));
+
+    // Paper: las mismas decisiones desde `from`, con el capital inicial.
+    let (journal, paper) = synthetic(&report, None, Decimal::ZERO);
+    let now = m15.last().unwrap().end();
+    let with = |backtest: &Report| {
+        compare(&Inputs {
+            instrument: &id(),
+            from,
+            to: now,
+            journal: &journal,
+            paper: &paper,
+            backtest,
+            m15: &m15,
+            created_at: now,
+        })
+    };
+    let c = with(&report);
+    assert_explained(&c);
+    assert_eq!(c.matched.len(), report.trades.len());
+    assert!(c.missing.is_empty() && c.extra.is_empty());
+    assert_eq!(c.difference, Decimal::ZERO);
+    assert_eq!(c.causes, Causes::default());
+
+    // Lo que pasaba antes: el backtest que operó en el calentamiento fabrica «tamaño».
+    let before = with(&full);
+    assert_explained(&before);
+    assert_ne!(before.causes.size, Decimal::ZERO);
+}
+
 fn assert_contract(c: &Comparison) {
     let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../../contracts/paper_comparison.v1.schema.json");
@@ -554,4 +627,71 @@ fn the_real_paper_broker_closes_on_weekends_like_the_backtest() {
         assert_eq!(m.paper.exit_time, m.backtest.exit_time);
         assert_eq!(m.difference.net_pnl, Decimal::ZERO);
     }
+}
+
+/// #691: el kill switch del 15 % (acá más bajo, 3 %, para que la serie lo alcance, con los
+/// puntos de la caída gradual a la misma proporción) se activa en la misma vela en paper que en
+/// el backtest: los dos miden la caída desde el máximo del capital valuado en cada vela cerrada.
+#[test]
+fn the_kill_switch_triggers_on_the_same_candle_in_paper_and_backtest() {
+    let (m15, h1) = walk();
+    let mut risk = risk_cfg();
+    let max = dec!(3);
+    for p in &mut risk.drawdown_scaling.points {
+        p.drawdown_pct = p.drawdown_pct * max / dec!(15);
+    }
+    risk.max_drawdown_pct = max;
+    let report = run_checked(&m15, &h1, &[], &[], &[], &setup_with(dec!(2), risk.clone())).unwrap();
+    let kill = report
+        .kill_switch_at
+        .expect("la serie llega al límite de caída");
+    assert!(report.trades.len() >= 5, "{}", report.trades.len());
+    let signal = report
+        .rejected
+        .iter()
+        .find(|r| r.index == kill)
+        .expect("la señal rechazada por la caída");
+    assert_eq!(signal.reason, cfds_risk::Rejection::DrawdownLimit);
+
+    let mut b = broker_with(&m15, dec!(2), risk);
+    for (k, t) in report.trades.iter().enumerate() {
+        let r = b.submit(&Order {
+            order_id: format!("bt:{k}").parse().unwrap(),
+            mode: PaperMode::Paper,
+            instrument_id: id(),
+            side: side(t.side),
+            stop: t.stop,
+            tp1: None,
+            proposal_id: None,
+            created_at: t.signal_at,
+        });
+        assert_eq!(r.status, OrderStatus::Filled, "{r:?}");
+        assert!(!b.kill_switch_active(), "antes que el backtest: {k}");
+    }
+    // La señal que el backtest rechazó por la caída, como orden: paper la rechaza igual y activa
+    // el kill switch en esa misma vela.
+    let close = m15[kill].close;
+    let stop = match signal.side {
+        Side::Long => close - dec!(10),
+        Side::Short => close + dec!(10),
+    };
+    let r = b.submit(&Order {
+        order_id: "bt:kill".parse().unwrap(),
+        mode: PaperMode::Paper,
+        instrument_id: id(),
+        side: side(signal.side),
+        stop,
+        tp1: None,
+        proposal_id: None,
+        created_at: m15[kill].end(),
+    });
+    assert_eq!(r.rejection, Some(OrderRejection::DrawdownLimit), "{r:?}");
+    let (_, since) = b.kill_switch().expect("kill switch activo");
+    assert_eq!(since, m15[kill].end());
+    // Y todo lo anterior dio lo mismo (mismos tamaños con la caída gradual).
+    let now = m15.last().unwrap().end();
+    let c = compare_with(&m15, &report, b.journal(), &b.trade_outcomes(now));
+    assert_eq!(c.matched.len(), report.trades.len());
+    assert_eq!(c.causes.size, Decimal::ZERO, "{:#?}", c.causes);
+    assert_eq!(c.difference, Decimal::ZERO);
 }

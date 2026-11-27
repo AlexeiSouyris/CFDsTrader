@@ -2,10 +2,14 @@
  * Una propuesta del motor para que la apruebe el responsable (spec §6, fase 10, #171).
  * Muestra lo que trae `proposal.v1` y lo que todavía no trae (vencimiento y probabilidad de §13).
  * No calcula nada: ni el riesgo, ni el tamaño, ni la probabilidad. Aprobar es una maqueta.
+ *
+ * Con `example` (#577) es una propuesta de ejemplo: lleva el sello "EJEMPLO", no corre el
+ * vencimiento y no se puede aprobar ni rechazar.
  */
 import { Check, Clock, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { ExampleBadge } from '@/components/ui/data-honesty'
 import { Term } from '@/components/ui/term'
 import { dateTimeUtc, decimal } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -38,9 +42,12 @@ export function ProposalCard({
   item,
   canApprove,
   locked,
+  example = false,
 }: {
   item: PendingProposal
   canApprove: boolean
+  /** propuesta de ejemplo: sello "EJEMPLO", sin vencimiento ni botones */
+  example?: boolean
   /** motivo por el que no se puede aprobar (por ejemplo, kill switch activo) */
   locked?: string
 }) {
@@ -54,7 +61,8 @@ export function ProposalCard({
   return (
     <article
       aria-label={`Propuesta ${p.instrument_id} ${long ? 'largo' : 'corto'}`}
-      className="glass relative @container min-w-0 rounded-[20px] p-4 has-[[role=dialog]]:z-30 sm:p-5"
+      data-example={example || undefined}
+      className="panel relative @container min-w-0 rounded-section p-4 sm:p-5"
     >
       <header className="flex flex-wrap items-center gap-2">
         <h3 className="text-[18px] leading-none font-extrabold tracking-tight">
@@ -71,21 +79,26 @@ export function ProposalCard({
         <span className="text-[11px] text-muted-foreground tabular-nums">
           señal {dateTimeUtc(p.signal_at)} · {p.source === 'paper' ? 'simulación' : p.source}
         </span>
-        <span
-          className={cn(
-            'ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold whitespace-nowrap tabular-nums',
-            expired ? 'bg-down/10 text-down' : 'glass-strong',
-          )}
-          aria-live="off"
-        >
-          <Clock className="size-3.5" aria-hidden="true" />
-          {expired
-            ? 'Vencida'
-            : `vence en ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`}
-        </span>
+        {example ? (
+          <ExampleBadge className="ml-auto" />
+        ) : (
+          <span
+            className={cn(
+              'ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold whitespace-nowrap tabular-nums',
+              expired ? 'bg-down/10 text-down' : 'panel',
+            )}
+            aria-live="off"
+          >
+            <Clock className="size-3.5" aria-hidden="true" />
+            {expired
+              ? 'Vencida'
+              : `vence en ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`}
+          </span>
+        )}
       </header>
 
-      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl border border-border p-3 @md:grid-cols-3 @2xl:grid-cols-5">
+      {/* los niveles como franja de ticket (#643): líneas punteadas arriba y abajo, cifras en mono */}
+      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-y border-dashed border-border py-3 font-mono @md:grid-cols-3 @2xl:grid-cols-5">
         {[
           ['Entrada', decimal(p.reference), undefined],
           ['Stop', decimal(p.stop), 'stop-loss'],
@@ -105,7 +118,9 @@ export function ProposalCard({
       </dl>
 
       <div className="mt-4 grid gap-4 @xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <section aria-label="Desglose del puntaje">
+        <section
+          aria-label={`Desglose del puntaje, ${p.instrument_id} ${long ? 'largo' : 'corto'}`}
+        >
           <h4 className="mb-2 flex items-baseline justify-between text-[12px] font-bold">
             Puntaje <span className="text-[20px] font-extrabold tabular-nums">{p.score}</span>
           </h4>
@@ -137,7 +152,10 @@ export function ProposalCard({
           </ul>
         </section>
 
-        <section aria-label="Probabilidad" className="rounded-2xl border border-border p-3">
+        <section
+          aria-label={`Probabilidad, ${p.instrument_id} ${long ? 'largo' : 'corto'}`}
+          className="border-t border-border pt-3"
+        >
           <h4 className="text-[12px] font-bold">
             <Term id="probabilidad">Probabilidad</Term> de tocar TP1 antes que el stop
           </h4>
@@ -171,6 +189,11 @@ export function ProposalCard({
           </p>
         ) : locked ? (
           <p className="text-[12px] font-semibold text-down">{locked}</p>
+        ) : example ? (
+          <p className="text-[12px] text-muted-foreground">
+            Propuesta de ejemplo: no se puede aprobar ni rechazar. El motor todavía no publica
+            propuestas acá.
+          </p>
         ) : canApprove ? (
           <>
             <button
@@ -185,7 +208,7 @@ export function ProposalCard({
               type="button"
               disabled={expired}
               onClick={() => setDecision('rejected')}
-              className="glass-strong flex min-h-10 items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold disabled:cursor-not-allowed disabled:opacity-40"
+              className="panel flex min-h-10 items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold disabled:cursor-not-allowed disabled:opacity-40"
             >
               <X className="size-4" aria-hidden="true" /> Rechazar
             </button>

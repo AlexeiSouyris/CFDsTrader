@@ -5,10 +5,12 @@
 //! DATABASE_URL=... cargo run -p cfds-gateway
 //! ```
 //! Escucha en `[server] bind` de `config/gateway.toml` (por defecto solo 127.0.0.1). No corre
-//! migraciones. La sesión de PostgreSQL es de solo lectura; la única escritura es el registro del
-//! broker simulado, en una transacción que se declara de escritura (`insert_paper_order`). La
-//! escritura exige el token local de `[paper] token_env`; sin él queda apagada. La UI llega con el
-//! proxy de Vite (`/api` → este servidor).
+//! migraciones. La sesión de PostgreSQL es de solo lectura; las únicas escrituras son el registro
+//! del broker simulado, los eventos de la Academia (`academy_events`, #719) y la cola del
+//! laboratorio (encolar y cancelar en `lab_jobs` y `lab_job_events`, #776), cada una en una
+//! transacción que se declara de escritura. La escritura exige el token local de
+//! `[paper] token_env`; sin él queda apagada. La UI llega con el proxy de Vite (`/api` → este
+//! servidor).
 //!
 //! Fase 9 (#297): logs en líneas JSON por la salida de errores (sin secretos: el token y la
 //! contraseña de la base se registran para taparlos), alertas de `config/alerts.toml` y parada
@@ -21,16 +23,33 @@ use std::convert::Infallible;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use cfds_academy::pg::PgAcademy;
+use cfds_academy::{AcademyConfig, LessonDocs};
 use cfds_backtest::BacktestConfig;
 use cfds_broker::BrokerConfig;
 use cfds_core::Instrument;
 use cfds_fund::FundConfig;
 use cfds_fund::pg::PgFund;
+use cfds_gateway::academy::{AcademyRoutes, is_academy_route, respond_academy};
+use cfds_gateway::academy_replay::{
+    PgBars, ReplayDeps, ReplaySessions, is_replay_route, respond_replay,
+};
 use cfds_gateway::context::{ContextConfig, is_context_route, respond_context};
 use cfds_gateway::emotions::{is_emotions_route, respond_emotions};
 use cfds_gateway::fund::{is_fund_route, respond_fund};
+use cfds_gateway::ibkr::{IbkrViewConfig, is_ibkr_route, respond_ibkr};
+use cfds_gateway::ibkr_live::{
+    HubEvent, LiveHub, LiveReply, is_ibkr_live_route, respond_ibkr_live,
+};
+use cfds_gateway::journal::{is_journal_route, respond_journal};
+use cfds_gateway::lab::{
+    LabDeps, LabEventsReply, LabSseClients, PgLabStore, is_lab_route, lab_events_job, respond_lab,
+    respond_lab_events,
+};
 use cfds_gateway::learning::{PgLearning, is_learning_route, respond_learning};
-use cfds_gateway::ops::url_password;
+use cfds_gateway::ml::{is_ml_route, respond_ml};
+use cfds_gateway::news::{NewsConfig, is_news_route, respond_news};
+use cfds_gateway::ops::{connection_end, url_password};
 use cfds_gateway::ops_store::{persistence, run_persister};
 use cfds_gateway::paper::{HttpIn, Ops, PaperConfig, PgPaper, is_paper_route, respond_paper};
 use cfds_gateway::paper_runner::RunnerDeps;
@@ -38,7 +57,9 @@ use cfds_gateway::status::{
     Feed, FeedWriter, StatusConfig, StatusDeps, is_status_route, respond_status,
 };
 use cfds_gateway::walk_forward::{is_walk_forward_route, respond_walk_forward};
-use cfds_gateway::{GatewayConfig, PgSource, Reply, read_only_url, respond};
+use cfds_gateway::{GatewayConfig, PgSource, Reply, ViewAnalysis, read_only_url, respond};
+use cfds_ibkr::IbkrConfig;
+use cfds_ibkr::live_feed::FeedStatus;
 use cfds_journal::votes::VoteRules;
 use cfds_liquidity::StatsConfig;
 use cfds_market_data::{CandleSources, Catalog};
@@ -46,6 +67,7 @@ use cfds_obs::{AlertConfig, AlertKind, Alerter, Level, Logger, ReqwestPost, Tele
 use cfds_risk::RiskConfig;
 use cfds_runner::RunnerConfig;
 use cfds_storage::PgStore;
+use http_body_util::combinators::BoxBody;
 use http_body_util::{BodyExt, Full, Limited};
 use hyper::body::{Bytes, Incoming};
 use hyper::header::{CACHE_CONTROL, CONTENT_TYPE};
@@ -66,10 +88,23 @@ const ALERTS: &str = include_str!("../../../../config/alerts.toml");
 const FUND: &str = include_str!("../../../../config/fund.toml");
 const VOTES: &str = include_str!("../../../../config/votes.toml");
 const RUNNER: &str = include_str!("../../../../config/runner.toml");
+const ANALYSIS: &str = include_str!("../../../../config/analysis.toml");
+const PATTERNS: &str = include_str!("../../../../config/patterns.toml");
+const TERMINAL: &str = include_str!("../../../../config/terminal.toml");
+const IBKR: &str = include_str!("../../../../config/ibkr.toml");
+const ACADEMY: &str = include_str!("../../../../config/academy.toml");
+const DATA_SPLIT: &str = include_str!("../../../../config/data_split.toml");
+const LAB: &str = include_str!("../../../../config/lab.toml");
+const PROPSIM: &str = include_str!("../../../../config/propsim.toml");
 
 /// `config/` del repo (sesiones y feriados del calendario se leen de ahí).
 fn config_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../config")
+}
+
+/// La raíz del repo (el texto de las lecciones de la Academia está en `docs/academia/`).
+fn repo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..")
 }
 
 struct State {
@@ -80,43 +115,149 @@ struct State {
     /// Token local de escritura; `None`: escritura apagada.
     token: Option<String>,
     context_cfg: ContextConfig,
+    /// Noticias y calendario de la vista Noticias (#600), solo lectura.
+    news_cfg: NewsConfig,
     /// Fondo del grupo (#312): solo lectura.
     fund: PgFund,
     fund_cfg: FundConfig,
     /// Estado de la operación (#314): eventos en memoria, límite de pérdida diaria y el
     /// `Logger` (para tapar secretos). Solo lectura.
     feed: Arc<Feed>,
+    /// `[ops] events_limit` y `group_scan` (#576).
+    ops_events_limit: usize,
+    ops_group_scan: usize,
     daily_loss_limit_pct: rust_decimal::Decimal,
     log: Arc<Logger>,
-    /// Reportes de walk-forward (#316): solo lectura del diario.
+    /// Reportes de walk-forward (#316), experimentos de ML (#426) y diario de paper (#615): solo
+    /// lectura del diario.
     walk_forward: cfds_journal::pg::PgJournal,
     /// Informe de aprendizaje y estado de sus propuestas (#331), solo lectura.
     learning: PgLearning,
+    /// Velas de IBKR para la terminal de la app (#551), solo lectura.
+    ibkr_cfg: IbkrViewConfig,
+    /// Vela en formación de IBKR (#558), solo visual.
+    live_hub: Arc<LiveHub>,
+    /// Academia (#719): catálogo validado al arrancar y sus eventos de solo agregar.
+    academy: PgAcademy,
+    academy_cfg: AcademyConfig,
+    /// El texto de cada lección (#798), leído y validado al arrancar.
+    lesson_docs: LessonDocs,
+    academy_routes: AcademyRoutes,
+    /// Replay de exámenes (#723): sesiones en memoria y su config.
+    replay_sessions: ReplaySessions,
+    replay_deps: ReplayDeps,
+    /// Laboratorio (#776): catálogo, separación y la cola en PostgreSQL; el progreso por SSE.
+    lab: LabDeps,
+    lab_store: PgLabStore,
+    lab_clients: Arc<LabSseClients>,
 }
 
 fn header<'a>(req: &'a Request<Incoming>, name: &str) -> Option<&'a str> {
     req.headers().get(name).and_then(|v| v.to_str().ok())
 }
 
-async fn paper_reply(state: &State, req: Request<Incoming>) -> Reply {
+/// Método, ruta, token, tipo de contenido y body de un pedido de escritura. El body se lee con
+/// límite: uno más grande se corta sin leerlo entero (`Err` con la respuesta 413).
+async fn read_request(
+    req: Request<Incoming>,
+    max_body: usize,
+) -> Result<(String, String, Option<String>, Option<String>, Bytes), Reply> {
     let method = req.method().as_str().to_owned();
     let path = req.uri().path().to_owned();
     let token = header(&req, "x-cfds-token").map(str::to_owned);
     let content_type = header(&req, "content-type").map(str::to_owned);
-    // El body se lee con límite: uno más grande se corta sin leerlo entero.
-    let body = match Limited::new(req.into_body(), state.paper_cfg.max_body_bytes)
-        .collect()
-        .await
-    {
-        Ok(b) => b.to_bytes(),
-        Err(_) => {
-            return Reply {
-                status: 413,
-                content_type: "text/plain; charset=utf-8",
-                body: "body demasiado grande".into(),
-            };
-        }
+    match Limited::new(req.into_body(), max_body).collect().await {
+        Ok(b) => Ok((method, path, token, content_type, b.to_bytes())),
+        Err(_) => Err(Reply {
+            status: 413,
+            content_type: "text/plain; charset=utf-8",
+            body: "body demasiado grande".into(),
+        }),
+    }
+}
+
+async fn academy_reply(state: &State, req: Request<Incoming>) -> Reply {
+    let max = state.academy_routes.max_body_bytes;
+    let (method, path, token, content_type, body) = match read_request(req, max).await {
+        Ok(r) => r,
+        Err(reply) => return reply,
     };
+    respond_academy(
+        &state.academy,
+        &state.academy_cfg,
+        &state.lesson_docs,
+        &state.academy_routes,
+        state.token.as_deref(),
+        HttpIn {
+            method: &method,
+            path: &path,
+            token: token.as_deref(),
+            content_type: content_type.as_deref(),
+            body: &body,
+        },
+        chrono::Utc::now(),
+    )
+    .await
+}
+
+async fn replay_reply(state: &State, req: Request<Incoming>) -> Reply {
+    let max = state.academy_routes.max_body_bytes;
+    let (method, path, token, content_type, body) = match read_request(req, max).await {
+        Ok(r) => r,
+        Err(reply) => return reply,
+    };
+    let bars = PgBars {
+        store: &state.source.store,
+        source: &state.academy_cfg.replay.futures_source,
+    };
+    respond_replay(
+        &bars,
+        &state.academy,
+        &state.replay_sessions,
+        &state.replay_deps,
+        &state.academy_cfg,
+        &state.academy_routes,
+        state.token.as_deref(),
+        HttpIn {
+            method: &method,
+            path: &path,
+            token: token.as_deref(),
+            content_type: content_type.as_deref(),
+            body: &body,
+        },
+        chrono::Utc::now(),
+    )
+    .await
+}
+
+async fn lab_reply(state: &State, req: Request<Incoming>) -> Reply {
+    let max = state.lab.routes.body_cap(req.uri().path());
+    let (method, path, token, content_type, body) = match read_request(req, max).await {
+        Ok(r) => r,
+        Err(reply) => return reply,
+    };
+    respond_lab(
+        &state.lab_store,
+        &state.lab,
+        state.token.as_deref(),
+        HttpIn {
+            method: &method,
+            path: &path,
+            token: token.as_deref(),
+            content_type: content_type.as_deref(),
+            body: &body,
+        },
+        chrono::Utc::now(),
+    )
+    .await
+}
+
+async fn paper_reply(state: &State, req: Request<Incoming>) -> Reply {
+    let (method, path, token, content_type, body) =
+        match read_request(req, state.paper_cfg.max_body_bytes).await {
+            Ok(r) => r,
+            Err(reply) => return reply,
+        };
     respond_paper(
         state.paper.as_ref(),
         &state.paper_cfg,
@@ -133,17 +274,94 @@ async fn paper_reply(state: &State, req: Request<Incoming>) -> Reply {
     .await
 }
 
-async fn handle(
-    state: Arc<State>,
-    req: Request<Incoming>,
-) -> Result<Response<Full<Bytes>>, Infallible> {
-    let reply = if is_paper_route(req.uri().path()) {
+type Body = BoxBody<Bytes, Infallible>;
+
+fn no_store(res: &mut Response<Body>, content_type: &'static str) {
+    res.headers_mut().insert(
+        CONTENT_TYPE,
+        hyper::header::HeaderValue::from_static(content_type),
+    );
+    res.headers_mut().insert(
+        CACHE_CONTROL,
+        hyper::header::HeaderValue::from_static("no-store"),
+    );
+}
+
+async fn handle(state: Arc<State>, req: Request<Incoming>) -> Result<Response<Body>, Infallible> {
+    if is_ibkr_live_route(req.uri().path()) {
+        // Vela en formación (#558): SSE, un mensaje por segundo como mucho.
+        let mut res = match respond_ibkr_live(
+            &state.live_hub,
+            req.method().as_str(),
+            req.uri().query(),
+            state.ibkr_cfg.live_max_clients,
+            state.ibkr_cfg.live_heartbeat,
+        ) {
+            LiveReply::Stream(body) => {
+                let mut res = Response::new(body.boxed());
+                no_store(&mut res, "text/event-stream");
+                res
+            }
+            LiveReply::Error { status, body } => {
+                let mut res = Response::new(Full::new(Bytes::from(body)).boxed());
+                *res.status_mut() = hyper::StatusCode::from_u16(status)
+                    .unwrap_or(hyper::StatusCode::INTERNAL_SERVER_ERROR);
+                no_store(&mut res, "text/plain; charset=utf-8");
+                res
+            }
+        };
+        res.headers_mut().insert(
+            "x-accel-buffering",
+            hyper::header::HeaderValue::from_static("no"),
+        );
+        return Ok(res);
+    }
+    if lab_events_job(req.uri().path()).is_some() {
+        // Progreso de un trabajo del laboratorio (#776): SSE hasta su final.
+        let reply = respond_lab_events(
+            &state.lab_store,
+            &state.lab,
+            &state.lab_clients,
+            req.method().as_str(),
+            req.uri().path(),
+            header(&req, "last-event-id"),
+        )
+        .await;
+        let mut res = match reply {
+            LabEventsReply::Stream(body) => {
+                let mut res = Response::new(body.boxed());
+                no_store(&mut res, "text/event-stream");
+                res
+            }
+            LabEventsReply::Error { status, body } => {
+                let mut res = Response::new(Full::new(Bytes::from(body)).boxed());
+                *res.status_mut() = hyper::StatusCode::from_u16(status)
+                    .unwrap_or(hyper::StatusCode::INTERNAL_SERVER_ERROR);
+                no_store(&mut res, "text/plain; charset=utf-8");
+                res
+            }
+        };
+        res.headers_mut().insert(
+            "x-accel-buffering",
+            hyper::header::HeaderValue::from_static("no"),
+        );
+        return Ok(res);
+    }
+    let reply = if is_lab_route(req.uri().path()) {
+        lab_reply(&state, req).await
+    } else if is_paper_route(req.uri().path()) {
         paper_reply(&state, req).await
+    } else if is_replay_route(req.uri().path()) {
+        replay_reply(&state, req).await
+    } else if is_academy_route(req.uri().path()) {
+        academy_reply(&state, req).await
     } else if is_status_route(req.uri().path()) {
         let scrub = |t: &str| state.log.scrub(t);
         let deps = StatusDeps {
             feed: &state.feed,
             events: Some(&state.source.store),
+            events_limit: state.ops_events_limit,
+            group_scan: state.ops_group_scan,
             daily_loss_limit_pct: state.daily_loss_limit_pct,
             scrub: &scrub,
         };
@@ -152,6 +370,7 @@ async fn handle(
             &deps,
             req.method().as_str(),
             req.uri().path(),
+            req.uri().query(),
             chrono::Utc::now(),
         )
         .await
@@ -173,6 +392,24 @@ async fn handle(
             chrono::Utc::now(),
         )
         .await
+    } else if is_journal_route(req.uri().path()) {
+        // Diario de paper para la vista Diario (#615): solo lectura.
+        respond_journal(
+            &state.walk_forward,
+            req.method().as_str(),
+            req.uri().path(),
+            req.uri().query(),
+        )
+        .await
+    } else if is_ml_route(req.uri().path()) {
+        // Experimentos de ML (#426): solo lectura, el modelo es informativo.
+        respond_ml(
+            &state.walk_forward,
+            req.method().as_str(),
+            req.uri().path(),
+            req.uri().query(),
+        )
+        .await
     } else if is_walk_forward_route(req.uri().path()) {
         respond_walk_forward(
             &state.walk_forward,
@@ -184,6 +421,26 @@ async fn handle(
     } else if is_emotions_route(req.uri().path()) {
         respond_emotions(
             &state.source.store,
+            req.method().as_str(),
+            req.uri().path(),
+            req.uri().query(),
+            chrono::Utc::now(),
+        )
+        .await
+    } else if is_ibkr_route(req.uri().path()) {
+        respond_ibkr(
+            &state.source.store,
+            &state.ibkr_cfg,
+            req.method().as_str(),
+            req.uri().path(),
+            req.uri().query(),
+            chrono::Utc::now(),
+        )
+        .await
+    } else if is_news_route(req.uri().path()) {
+        respond_news(
+            &state.source.store,
+            &state.news_cfg,
             req.method().as_str(),
             req.uri().path(),
             req.uri().query(),
@@ -203,17 +460,10 @@ async fn handle(
     } else {
         liquidity_reply(&state, &req).await
     };
-    let mut res = Response::new(Full::new(Bytes::from(reply.body)));
+    let mut res = Response::new(Full::new(Bytes::from(reply.body)).boxed());
     *res.status_mut() = hyper::StatusCode::from_u16(reply.status)
         .unwrap_or(hyper::StatusCode::INTERNAL_SERVER_ERROR);
-    res.headers_mut().insert(
-        CONTENT_TYPE,
-        hyper::header::HeaderValue::from_static(reply.content_type),
-    );
-    res.headers_mut().insert(
-        CACHE_CONTROL,
-        hyper::header::HeaderValue::from_static("no-store"),
-    );
+    no_store(&mut res, reply.content_type);
     Ok(res)
 }
 
@@ -255,6 +505,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let catalog = Catalog::from_toml(CATALOG)?;
     let stats = StatsConfig::from_toml(LIQUIDITY)?;
     let paper_cfg = PaperConfig::from_toml(GATEWAY)?;
+    let ibkr_cfg = IbkrViewConfig::from_toml(GATEWAY, TERMINAL, IBKR)?;
+    let ibkr_conn = IbkrConfig::from_toml(IBKR)?;
+    if ibkr_cfg.live && ibkr_conn.live.is_none() {
+        return Err(
+            "[ibkr] live = true en config/gateway.toml pero config/ibkr.toml no tiene [live]"
+                .into(),
+        );
+    }
     let alert_cfg = AlertConfig::from_toml(ALERTS)?;
     let runner_cfg = RunnerConfig::from_toml(RUNNER)?;
     // Si el runner está prendido, toda su config se valida antes de abrir nada.
@@ -264,6 +522,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
     let risk = RiskConfig::from_toml(RISK)?;
+    let academy_cfg = AcademyConfig::from_toml(ACADEMY)?;
+    let lesson_docs = LessonDocs::load(&academy_cfg, &repo_root())?;
+    let academy_routes = AcademyRoutes::from_toml(GATEWAY)?;
+    let replay_deps = ReplayDeps::from_config(
+        &academy_cfg,
+        &catalog,
+        &risk,
+        &BacktestConfig::from_toml(BACKTEST)?,
+        DATA_SPLIT,
+        PATTERNS,
+    )?;
     // Logs sin secretos: el token local y la base se registran antes del primer log. Las líneas
     // ya redactadas del broker y de las alertas quedan además en memoria para la UI (#314) y se
     // guardan en `ops_events` en segundo plano (#337): la cola existe desde ya y la tarea que la
@@ -280,6 +549,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log.register_secret(&database_url);
     if let Some(pass) = url_password(&database_url) {
         log.register_secret(pass);
+    }
+    // Redis de los streams de progreso del laboratorio (#776); sin él, el SSE lee PostgreSQL.
+    let redis_url = std::env::var("REDIS_URL").ok();
+    if let Some(u) = &redis_url {
+        log.register_secret(u);
+        if let Some(pass) = url_password(u) {
+            log.register_secret(pass);
+        }
     }
     let token = std::env::var(&paper_cfg.token_env)
         .ok()
@@ -341,7 +618,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let calendar = cfds_market_data::ExchangeCalendar::load(&config_dir(), catalog.exchange_map())?;
     let broker_cfg = BrokerConfig::from_toml(
         BROKER,
-        risk,
+        risk.clone(),
         backtest.costs,
         backtest.exits,
         backtest.day_tz,
@@ -388,10 +665,85 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             json!({ "missing_env": paper_cfg.token_env }),
         );
     }
+    // Vela en formación (#558): la conexión de streaming solo con [ibkr] live = true. Si IB Gateway
+    // está cerrado, el gateway sigue y la ruta informa "disconnected" (reintenta solo).
+    let live_hub = {
+        let (instruments, timeframes) = ibkr_conn
+            .live
+            .as_ref()
+            .map(|l| (l.instruments.clone(), l.timeframes.clone()))
+            .unwrap_or_default();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let status = if ibkr_cfg.live {
+            FeedStatus::Connecting
+        } else {
+            FeedStatus::Disabled
+        };
+        let hub = Arc::new(LiveHub::new(
+            &ibkr_cfg.source,
+            instruments,
+            timeframes,
+            status,
+            Some(tx),
+        ));
+        let (log, ops) = (log.clone(), ops.clone());
+        tokio::spawn(async move {
+            while let Some(ev) = rx.recv().await {
+                match ev {
+                    HubEvent::Status(s) => log.log(
+                        if s.reason().is_some() {
+                            Level::Warn
+                        } else {
+                            Level::Info
+                        },
+                        "ibkr_live",
+                        s.as_str(),
+                        json!({ "reason": s.reason() }),
+                    ),
+                    HubEvent::Trip(t) => {
+                        ops.alerts
+                            .raise(
+                                t.kind,
+                                &format!("IBKR vela en formación: {}", t.reason),
+                                t.at,
+                            )
+                            .await;
+                    }
+                }
+            }
+        });
+        if ibkr_cfg.live {
+            tokio::spawn(cfds_ibkr::live_feed::run(
+                ibkr_conn,
+                |k| std::env::var(k).ok(),
+                hub.clone(),
+            ));
+        }
+        hub
+    };
+    let sources = CandleSources::from_toml(SOURCES)?;
+    let lab = LabDeps::from_config(
+        GATEWAY,
+        LAB,
+        &risk,
+        &sources,
+        DATA_SPLIT,
+        redis_url,
+        &catalog,
+        backtest.costs,
+        PROPSIM,
+    )?;
+    let lab_store = PgLabStore {
+        lab: cfds_journal::lab::PgLab::new(store.pool().clone()),
+        store: store.clone(),
+        futures_source: sources.futures_source.clone(),
+    };
     let fund_cfg = FundConfig::from_toml(FUND)?;
     let fund = PgFund::new(store.pool().clone());
     let state = Arc::new(State {
         feed,
+        ops_events_limit: status_cfg.events_limit,
+        ops_group_scan: status_cfg.group_scan,
         daily_loss_limit_pct: risk.max_daily_loss_pct,
         log: log.clone(),
         walk_forward: cfds_journal::pg::PgJournal::new(store.pool().clone()),
@@ -405,11 +757,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         paper_cfg,
         token,
         context_cfg: ContextConfig::from_toml(GATEWAY)?,
+        news_cfg: NewsConfig::from_toml(GATEWAY)?,
+        ibkr_cfg,
+        live_hub,
+        academy: PgAcademy::new(store.pool().clone()),
+        academy_cfg,
+        lesson_docs,
+        academy_routes,
+        replay_sessions: ReplaySessions::default(),
+        replay_deps,
+        lab,
+        lab_store,
+        lab_clients: Arc::default(),
         source: PgSource {
             store,
             config: cfg.clone(),
             reaction_bars: stats.reaction_bars,
-            sources: CandleSources::from_toml(SOURCES)?,
+            sources,
+            analysis: Some(ViewAnalysis::from_toml(ANALYSIS, PATTERNS)?),
+            cache: Default::default(),
         },
         catalog: catalog
             .instruments
@@ -499,12 +865,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .serve_connection(TokioIo::new(stream), service)
                 .await
             {
-                log.log(
-                    Level::Warn,
-                    "gateway",
-                    "connection_error",
-                    json!({ "error": e.to_string() }),
-                );
+                // Que el cliente cierre (recarga, cambio de vista, fin de un SSE) es lo
+                // esperable: `info`, fuera del feed y de la base (#576).
+                let (level, event) = connection_end(&e);
+                log.log(level, "gateway", event, json!({ "error": e.to_string() }));
             }
         });
     }

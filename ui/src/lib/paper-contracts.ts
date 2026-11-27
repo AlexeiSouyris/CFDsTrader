@@ -27,6 +27,8 @@ export type Rejection =
   | 'unknown_instrument'
   | 'stop_wrong_side'
   | 'no_recent_candles'
+  | 'missing_fx_rate'
+  | 'group_risk_limit'
 
 /** `order.v1`: una orden de mercado. El tamaño no va: lo decide el módulo de riesgo. */
 export type Order = {
@@ -58,7 +60,8 @@ export type TicketVerdict = {
 /** `order_report.v1`: qué pasó con una orden enviada. */
 export type OrderReport = {
   order_id: string
-  status: 'rejected' | 'filled'
+  /** `pending` (#471): la vela del fill todavía no llegó; el motor la decide con esa vela */
+  status: 'rejected' | 'filled' | 'pending'
   rejection: Rejection | null
   position_id: string | null
   size: Decimal | null
@@ -120,4 +123,8 @@ export const REJECTION_LABEL: Record<Rejection, string> = {
   stop_wrong_side: 'El stop está del lado equivocado del precio.',
   no_recent_candles:
     'Sin velas en vivo suficientes para calcular el ATR (puede faltar cupo de IG). No se opera hasta que lleguen.',
+  missing_fx_rate:
+    'Falta el tipo de cambio EUR/USD de este momento para un contrato en dólares. No se opera sin él.',
+  group_risk_limit:
+    'Los instrumentos que se mueven juntos con este (por ejemplo, los índices de EE. UU.) ya usan todo su riesgo permitido.',
 }

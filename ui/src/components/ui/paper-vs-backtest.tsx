@@ -7,6 +7,7 @@
  * causas la garantiza él. Lo único que se hace acá es dibujar: el largo de cada barra es su monto
  * relativo al mayor, solo para verlo.
  */
+import { ScrollRegion } from '@/components/ui/scroll-region'
 import { useState } from 'react'
 
 import { Price } from '@/components/ui/run-detail'
@@ -116,7 +117,7 @@ function Comparison({ c }: { c: PaperComparison }) {
         {c.matched.length === 0 ? (
           <p className="text-[12px] text-muted-foreground">Ninguna.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <ScrollRegion label="Operaciones emparejadas">
             <table
               className="w-full min-w-[560px] text-[12px]"
               aria-label="Operaciones emparejadas"
@@ -157,7 +158,7 @@ function Comparison({ c }: { c: PaperComparison }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollRegion>
         )}
       </section>
 
@@ -167,12 +168,12 @@ function Comparison({ c }: { c: PaperComparison }) {
           {c.missing.length === 0 ? (
             <p className="text-[12px] text-muted-foreground">Ninguna.</p>
           ) : (
-            <ul className="grid gap-1.5 text-[12px]" aria-label="Operaciones que faltan en paper">
+            <ul
+              className="grid border-t border-border text-[12px]"
+              aria-label="Operaciones que faltan en paper"
+            >
               {c.missing.map((m) => (
-                <li
-                  key={m.decision_at + m.side}
-                  className="rounded-xl border border-border px-3 py-2"
-                >
+                <li key={m.decision_at + m.side} className="border-b border-border px-1 py-2">
                   {dateTimeUtc(m.decision_at)} · {SIDE[m.side]} · backtest{' '}
                   <span className={cn('font-bold tabular-nums', tone(m.backtest_net_pnl))}>
                     {signed(m.backtest_net_pnl)}
@@ -188,9 +189,12 @@ function Comparison({ c }: { c: PaperComparison }) {
           {c.extra.length === 0 ? (
             <p className="text-[12px] text-muted-foreground">Ninguna.</p>
           ) : (
-            <ul className="grid gap-1.5 text-[12px]" aria-label="Operaciones que sobran en paper">
+            <ul
+              className="grid border-t border-border text-[12px]"
+              aria-label="Operaciones que sobran en paper"
+            >
               {c.extra.map((e) => (
-                <li key={e.order_id} className="rounded-xl border border-border px-3 py-2">
+                <li key={e.order_id} className="border-b border-border px-1 py-2">
                   {dateTimeUtc(e.decision_at)} · {SIDE[e.side]} · paper{' '}
                   <span className={cn('font-bold tabular-nums', tone(e.paper_net_pnl))}>
                     {signed(e.paper_net_pnl)}

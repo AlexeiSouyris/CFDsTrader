@@ -18,9 +18,8 @@ from cfds_intel.databento.bars import Bar, Stored
 from cfds_intel.databento.config import SymbolConfig
 from cfds_intel.databento.store import BarsConflictError, insert_chunk, loaded_spans
 
-pytestmark = pytest.mark.skipif(
-    "DATABASE_URL" not in os.environ, reason="necesita PostgreSQL con migraciones (DATABASE_URL)"
-)
+# Escribe en PostgreSQL: solo contra una base cfds_test* (guardia en conftest.py, #376).
+pytestmark = pytest.mark.pg
 
 DAY = date(2026, 11, 18)
 
@@ -137,3 +136,52 @@ def test_two_chunks_in_a_row_on_a_connection_with_an_open_transaction() -> None:
             c, s, second_day, second_day + timedelta(days=1), later, Decimal("0.01")
         )
         assert (first.inserted, second.inserted) == (2, 2)
+
+
+def daily_bars(s: SymbolConfig, n: int) -> list[Bar]:
+    """Velas diarias (#522): empiezan a la medianoche UTC."""
+    return [
+        replace(b, start=datetime(2026, 11, 18, tzinfo=UTC) + timedelta(days=i))
+        for i, b in enumerate(bars(s, n))
+    ]
+
+
+def test_daily_bars_go_to_their_own_table_and_loads(conn: psycopg.Connection) -> None:
+    s = replace(sym(), symbol="NKD.v.0", instrument_id="NKD", min_session_hours=None)
+    end = DAY + timedelta(days=2)
+    r = insert_chunk(conn, s, DAY, end, daily_bars(s, 2), Decimal("0.05"), "ohlcv-1d")
+    again = insert_chunk(conn, s, DAY, end, daily_bars(s, 2), Decimal("0.05"), "ohlcv-1d")
+    assert (r.inserted, again.inserted, again.unchanged) == (2, 0, 2)
+    row = conn.execute(
+        "SELECT count(*), min(start_at) FROM futures_bars_1d WHERE dataset = %s", (s.dataset,)
+    ).fetchone()
+    assert row == (2, datetime(2026, 11, 18, tzinfo=UTC))
+    # No toca las de 1 minuto, y cada esquema tiene sus propios tramos.
+    assert stored(conn, s) == 0
+    assert loaded_spans(conn, "ohlcv-1d")[(s.dataset, s.symbol)] == Stored(DAY, end)
+    assert (s.dataset, s.symbol) not in loaded_spans(conn)
+    load = conn.execute(
+        "SELECT schema, cost_usd FROM futures_bar_loads WHERE dataset = %s", (s.dataset,)
+    ).fetchall()
+    assert load == [("ohlcv-1d", Decimal("0.05"))]
+    # Una barra que no empieza a la medianoche UTC no entra, y la tabla es de solo agregar.
+    off = [replace(daily_bars(s, 1)[0], start=datetime(2026, 11, 25, 14, 30, tzinfo=UTC))]
+    with pytest.raises(psycopg.Error):
+        insert_chunk(
+            conn, s, DAY + timedelta(days=7), DAY + timedelta(days=8), off, Decimal(0), "ohlcv-1d"
+        )
+    for q in [
+        "UPDATE futures_bars_1d SET volume = 0 WHERE dataset = %s",
+        "DELETE FROM futures_bars_1d WHERE dataset = %s",
+    ]:
+        with pytest.raises(psycopg.Error):
+            conn.execute(q, (s.dataset,))
+
+
+def test_the_same_symbol_can_have_minute_and_daily_loads(conn: psycopg.Connection) -> None:
+    s = sym()
+    insert_chunk(conn, s, DAY, DAY + timedelta(days=1), bars(s, 1), Decimal(0))
+    insert_chunk(conn, s, DAY, DAY + timedelta(days=1), daily_bars(s, 1), Decimal(0), "ohlcv-1d")
+    key = (s.dataset, s.symbol)
+    assert loaded_spans(conn)[key] == loaded_spans(conn, "ohlcv-1d")[key]
+    assert stored(conn, s) == 1

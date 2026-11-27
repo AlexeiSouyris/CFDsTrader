@@ -6,8 +6,10 @@
  * mantener los calcula el motor. `Number` se usa solo para ubicar los puntos en el dibujo.
  * Es simulación con datos del pasado: no anticipa resultados.
  */
+import { ScrollRegion } from '@/components/ui/scroll-region'
+import { ToolLock } from '@/components/ui/tool-lock'
 import { X } from 'lucide-react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 
 import type { ExitReason, RunDetail as Detail } from '@/lib/backtest-contracts'
 import { dateTimeUtc, decimal, signed } from '@/lib/format'
@@ -57,7 +59,8 @@ function Block({
   className?: string
 }) {
   return (
-    <section className={cn('glass relative min-w-0 rounded-[20px] p-4', className)}>
+    // una sección del informe (#641): regla fina arriba, sin caja ni esquinas
+    <section className={cn('relative min-w-0 border-t border-foreground/70 pt-3', className)}>
       <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-[14px] font-bold">{title}</h3>
         {aside && <span className="text-[11px] text-muted-foreground">{aside}</span>}
@@ -79,7 +82,7 @@ function Curves({ detail }: { detail: Detail }) {
   if (points.length === 0)
     return (
       <p className="text-[12.5px] text-muted-foreground">
-        Esta corrida no guardó su curva (es anterior a #299).
+        Esta corrida no guardó su curva: es de una versión anterior del motor.
       </p>
     )
   const axis = 64
@@ -286,7 +289,7 @@ function Trades({ detail }: { detail: Detail }) {
   const rest = total - shown
   return (
     <>
-      <div className="overflow-x-auto max-md:overflow-visible">
+      <ScrollRegion label="Operaciones de la corrida" className="max-md:overflow-visible">
         <table
           aria-label="Operaciones de la corrida"
           className="w-full text-[12.5px] md:min-w-[600px] max-md:block"
@@ -361,7 +364,7 @@ function Trades({ detail }: { detail: Detail }) {
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] text-muted-foreground">
           P/L neto en la moneda de cada instrumento, con spread, slippage, comisión y financiación.
@@ -409,8 +412,10 @@ export function RunDetailView({
   const bh = detail.curve?.buy_and_hold ?? []
   // Al abrir, el foco va al título del detalle y la página lo trae a la vista: sin esto, con
   // teclado o lector de pantalla el detalle aparece más abajo sin aviso.
+  // En `useLayoutEffect`: el foco queda puesto en el mismo commit que muestra el detalle (antes de
+  // pintar), no en un efecto que corre después y que un test podía no esperar (#415).
   const title = useRef<HTMLHeadingElement>(null)
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = title.current
     if (!el) return
     el.focus({ preventScroll: true })
@@ -526,21 +531,22 @@ export function RunDetailView({
       {/*
         Walk-forward y fuera de muestra (fase 5, #298 y #316): el último `walk_forward_report.v1`
         de cada instrumento de la corrida, tal cual lo manda el motor. Con los datos de ejemplo no
-        se inventa ninguno.
+        se inventa ninguno. Con el candado de su lección (#846, 9.4).
       */}
-      <Block title="Walk-forward / fuera de muestra" aside="fase 5">
-        {example ? (
-          <p data-walk-forward="pending" className="text-[12.5px] text-muted-foreground">
-            Los datos de ejemplo no tienen walk-forward: llega del motor con la fase 5, desde su
-            propio contrato.
-          </p>
-        ) : (
-          <div className="grid gap-4">
-            {r.instruments.map((id) => (
-              <WalkForwardLive key={id} instrument={id} />
-            ))}
-          </div>
-        )}
+      <Block title="Walk-forward / fuera de muestra">
+        <ToolLock tool="tool.walk_forward">
+          {example ? (
+            <p data-walk-forward="pending" className="text-[12.5px] text-muted-foreground">
+              Los datos de ejemplo no tienen walk-forward: solo las corridas del motor lo traen.
+            </p>
+          ) : (
+            <div className="grid gap-4">
+              {r.instruments.map((id) => (
+                <WalkForwardLive key={id} instrument={id} />
+              ))}
+            </div>
+          )}
+        </ToolLock>
       </Block>
     </section>
   )

@@ -16,7 +16,7 @@ import psycopg
 from cfds_intel.models.compare import Comparison
 from cfds_intel.models.config import MlConfig
 from cfds_intel.models.dataset import Example
-from cfds_intel.models.metrics import auc, brier, log_loss
+from cfds_intel.models.metrics import auc, brier, calibration, log_loss
 from cfds_intel.models.train import MODELS, Evaluation, Scores
 
 
@@ -42,6 +42,33 @@ def _scores(s: Scores) -> dict[str, Any]:
     return {"log_loss": s.log_loss, "brier": s.brier, "auc": s.auc}
 
 
+def _calibration(evaluation: Evaluation, bins: int) -> dict[str, Any]:
+    """Calibración por grupos de la predicción sobre las validaciones juntas (spec §6, #433): lo
+    mismo que la sección «Calibración» del informe, para guardarlo con el experimento."""
+    trained = [r for r in evaluation.windows if r.skipped is None]
+    y = [e.y for r in trained for e in r.validation]
+    pooled = {}
+    for name in MODELS:
+        p = [q for r in trained for q in r.predictions[name]]
+        pooled[name] = [
+            {
+                "p_min": b.p_min,
+                "p_max": b.p_max,
+                "n": b.n,
+                "mean_predicted": b.mean_predicted,
+                "observed": b.observed,
+                "low": b.low,
+                "high": b.high,
+            }
+            for b in calibration(y, p, bins)
+        ]
+    return {"bins": bins, "interval": "wilson_95", "pooled": pooled}
+
+
+# De qué tabla puede ser la corrida de un experimento (`label_source` de ml_experiment.v1, #409).
+LABEL_SOURCES = ("backtest_runs", "ml_label_runs")
+
+
 def document(
     *,
     created_at: datetime,
@@ -49,6 +76,7 @@ def document(
     backtest_run_id: str,
     config_sha256: str,
     examples: Sequence[Example],
+    label_source: str = "backtest_runs",
     feature_names: Sequence[str],
     cfg: MlConfig,
     evaluation: Evaluation,
@@ -93,14 +121,29 @@ def document(
             "high": comparison.high,
             "blocks": comparison.blocks,
         }
+    if label_source not in LABEL_SOURCES:
+        raise ValueError(f"label_source {label_source!r}: tiene que ser una de {LABEL_SOURCES}")
     t = cfg.training
+    # La tabla de la corrida entra en el id solo si no es la de siempre: los experimentos ya
+    # guardados (de `backtest_runs`) conservan su id (#409).
+    run_ref = (
+        backtest_run_id if label_source == "backtest_runs" else f"{label_source}:{backtest_run_id}"
+    )
+    source_field = {} if label_source == "backtest_runs" else {"label_source": label_source}
+    # Opcional (#433): sin ventanas entrenadas no hay predicciones que calibrar.
+    calibration_field = (
+        {}
+        if evaluation.suspended
+        else {"calibration": _calibration(evaluation, cfg.evaluation.calibration_bins)}
+    )
     return {
         "experiment_id": sha256_hex(
-            code_version, backtest_run_id, config_sha256, dataset_fingerprint(examples)
+            code_version, run_ref, config_sha256, dataset_fingerprint(examples)
         ),
         "created_at": _utc(created_at),
         "code_version": code_version,
         "backtest_run_id": backtest_run_id,
+        **source_field,
         "config_sha256": config_sha256,
         "features": list(feature_names),
         "hyperparameters": {
@@ -116,6 +159,7 @@ def document(
         "windows": windows,
         "pooled": {name: _scores(s) for name, s in evaluation.pooled.items()},
         "result": result,
+        **calibration_field,
     }
 
 
@@ -124,14 +168,15 @@ def record(conn: psycopg.Connection, doc: dict[str, Any]) -> bool:
     with conn.transaction(), conn.cursor() as cur:
         cur.execute(
             """INSERT INTO ml_experiments (experiment_id, created_at, code_version,
-                 backtest_run_id, config_sha256, status, document)
-               VALUES (%s, %s, %s, %s, %s, %s, %s)
+                 backtest_run_id, label_source, config_sha256, status, document)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                ON CONFLICT (experiment_id) DO NOTHING""",
             (
                 doc["experiment_id"],
                 datetime.fromisoformat(doc["created_at"].replace("Z", "+00:00")),
                 doc["code_version"],
                 doc["backtest_run_id"],
+                doc.get("label_source", "backtest_runs"),
                 doc["config_sha256"],
                 doc["result"]["status"],
                 json.dumps(doc),

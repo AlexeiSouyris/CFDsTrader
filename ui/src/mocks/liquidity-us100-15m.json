@@ -1,5 +1,5 @@
 {
-  "note": "DATOS DE EJEMPLO generados para el prototipo (#231). No son precios reales. Cada elemento sigue su contrato (candle.v1, liquidity_level.v1, fvg_event.v1, liquidity_stats.v1 e imbalance.v1), precalculado fuera de la UI como lo enviaría el motor.",
+  "note": "DATOS DE EJEMPLO generados para el prototipo (#231). No son precios reales. Cada elemento sigue su contrato (candle.v1, liquidity_level.v1, fvg_event.v1, liquidity_stats.v1 e imbalance.v1), precalculado fuera de la UI como lo enviaría el motor. El bloque analysis (#501) es el que arma el motor (cfds_backtest::analysis) sobre estas velas, sin velas diarias ni VIX: por eso la EMA diaria, las medias, los pivotes diarios y el VIX quedan vacíos (lo verifica un test del gateway).",
   "instrument_id": "US100",
   "generated_at": "2026-11-21T00:00:00Z",
   "as_of": "2026-11-21T00:00:00Z",
@@ -7515,5 +7515,3714 @@
       ],
       "as_of": "2026-11-20T23:00:00Z"
     }
-  ]
+  ],
+  "analysis": {
+    "bottoms": [
+      {
+        "confirmed_index": 57,
+        "index": 54,
+        "price": "19922.2",
+        "prior_high": "20004.3",
+        "rebound_index": 55
+      },
+      {
+        "confirmed_index": 71,
+        "index": 68,
+        "price": "19915.5",
+        "prior_high": "19974.9",
+        "rebound_index": 71
+      },
+      {
+        "confirmed_index": 90,
+        "index": 87,
+        "price": "19879.1",
+        "prior_high": "19960.4",
+        "rebound_index": 88
+      },
+      {
+        "confirmed_index": 105,
+        "index": 102,
+        "price": "19832.8",
+        "prior_high": "19942.4",
+        "rebound_index": 103
+      },
+      {
+        "confirmed_index": 116,
+        "index": 113,
+        "price": "19847.2",
+        "prior_high": "19937.9",
+        "rebound_index": 114
+      },
+      {
+        "confirmed_index": 126,
+        "index": 123,
+        "price": "19852.4",
+        "prior_high": "19933.1",
+        "rebound_index": 124
+      },
+      {
+        "confirmed_index": 131,
+        "index": 128,
+        "price": "19852.3",
+        "prior_high": "19911.7",
+        "rebound_index": 129
+      },
+      {
+        "confirmed_index": 136,
+        "index": 133,
+        "price": "19856.3",
+        "prior_high": "19901.0",
+        "rebound_index": 135
+      },
+      {
+        "confirmed_index": 152,
+        "index": 149,
+        "price": "19816.7",
+        "prior_high": "19886.7",
+        "rebound_index": 150
+      },
+      {
+        "confirmed_index": 204,
+        "index": 201,
+        "price": "19874.0",
+        "prior_high": "19930.9",
+        "rebound_index": 202
+      },
+      {
+        "confirmed_index": 216,
+        "index": 213,
+        "price": "19856.3",
+        "prior_high": "19930.9",
+        "rebound_index": 214
+      },
+      {
+        "confirmed_index": 222,
+        "index": 219,
+        "price": "19863.0",
+        "prior_high": "19930.9",
+        "rebound_index": 220
+      },
+      {
+        "confirmed_index": 228,
+        "index": 225,
+        "price": "19873.9",
+        "prior_high": "19930.9",
+        "rebound_index": 227
+      }
+    ],
+    "ema_daily": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "ema_daily_period": 365,
+    "fibonacci": [
+      {
+        "confirmed_index": 10,
+        "direction": "down",
+        "end_index": 7,
+        "end_price": "19989.0",
+        "extensions": [
+          {
+            "price": "19984.7296",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19979.2974",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19963.5974",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19999.205",
+        "golden_pocket_low": "19998.7026",
+        "retracements": [
+          {
+            "price": "19992.7052",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19994.9974",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19996.85",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19998.7026",
+            "ratio": "0.618"
+          },
+          {
+            "price": "20001.3402",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 3,
+        "start_price": "20004.7"
+      },
+      {
+        "confirmed_index": 12,
+        "direction": "up",
+        "end_index": 9,
+        "end_price": "20004.3",
+        "extensions": [
+          {
+            "price": "20008.4616",
+            "ratio": "1.272"
+          },
+          {
+            "price": "20013.7554",
+            "ratio": "1.618"
+          },
+          {
+            "price": "20029.0554",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19994.8446",
+        "golden_pocket_low": "19994.355",
+        "retracements": [
+          {
+            "price": "20000.6892",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19998.4554",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19996.65",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19994.8446",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19992.2742",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 7,
+        "start_price": "19989.0"
+      },
+      {
+        "confirmed_index": 24,
+        "direction": "down",
+        "end_index": 21,
+        "end_price": "19957.3",
+        "extensions": [
+          {
+            "price": "19944.5160",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19928.2540",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19881.2540",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19987.850",
+        "golden_pocket_low": "19986.3460",
+        "retracements": [
+          {
+            "price": "19968.3920",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19975.2540",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19980.80",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19986.3460",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19994.2420",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 9,
+        "start_price": "20004.3"
+      },
+      {
+        "confirmed_index": 28,
+        "direction": "up",
+        "end_index": 25,
+        "end_price": "19972.3",
+        "extensions": [
+          {
+            "price": "19976.3800",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19981.5700",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19996.5700",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19963.0300",
+        "golden_pocket_low": "19962.550",
+        "retracements": [
+          {
+            "price": "19968.7600",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19966.5700",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19964.80",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19963.0300",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19960.5100",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 21,
+        "start_price": "19957.3"
+      },
+      {
+        "confirmed_index": 42,
+        "direction": "down",
+        "end_index": 39,
+        "end_price": "19914.7",
+        "extensions": [
+          {
+            "price": "19899.0328",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19879.1032",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19821.5032",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19952.140",
+        "golden_pocket_low": "19950.2968",
+        "retracements": [
+          {
+            "price": "19928.2936",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19936.7032",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19943.50",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19950.2968",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19959.9736",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 25,
+        "start_price": "19972.3"
+      },
+      {
+        "confirmed_index": 44,
+        "direction": "up",
+        "end_index": 41,
+        "end_price": "19960.4",
+        "extensions": [
+          {
+            "price": "19972.8304",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19988.6426",
+            "ratio": "1.618"
+          },
+          {
+            "price": "20034.3426",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19932.1574",
+        "golden_pocket_low": "19930.695",
+        "retracements": [
+          {
+            "price": "19949.6148",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19942.9426",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19937.55",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19932.1574",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19924.4798",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 39,
+        "start_price": "19914.7"
+      },
+      {
+        "confirmed_index": 50,
+        "direction": "up",
+        "end_index": 47,
+        "end_price": "19952.6",
+        "extensions": [
+          {
+            "price": "19962.9088",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19976.0222",
+            "ratio": "1.618"
+          },
+          {
+            "price": "20013.9222",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19929.1778",
+        "golden_pocket_low": "19927.965",
+        "retracements": [
+          {
+            "price": "19943.6556",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19938.1222",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19933.65",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19929.1778",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19922.8106",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 39,
+        "start_price": "19914.7"
+      },
+      {
+        "confirmed_index": 57,
+        "direction": "down",
+        "end_index": 54,
+        "end_price": "19922.2",
+        "extensions": [
+          {
+            "price": "19913.9312",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19903.4128",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19873.0128",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19941.960",
+        "golden_pocket_low": "19940.9872",
+        "retracements": [
+          {
+            "price": "19929.3744",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19933.8128",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19937.40",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19940.9872",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19946.0944",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 47,
+        "start_price": "19952.6"
+      },
+      {
+        "confirmed_index": 58,
+        "direction": "up",
+        "end_index": 55,
+        "end_price": "19942.1",
+        "extensions": [
+          {
+            "price": "19947.5128",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19954.3982",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19974.2982",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19929.8018",
+        "golden_pocket_low": "19929.165",
+        "retracements": [
+          {
+            "price": "19937.4036",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19934.4982",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19932.15",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19929.8018",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19926.4586",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 54,
+        "start_price": "19922.2"
+      },
+      {
+        "confirmed_index": 65,
+        "direction": "up",
+        "end_index": 62,
+        "end_price": "19942.4",
+        "extensions": [
+          {
+            "price": "19947.8944",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19954.8836",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19975.0836",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19929.9164",
+        "golden_pocket_low": "19929.270",
+        "retracements": [
+          {
+            "price": "19937.6328",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19934.6836",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19932.30",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19929.9164",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19926.5228",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 54,
+        "start_price": "19922.2"
+      },
+      {
+        "confirmed_index": 71,
+        "direction": "down",
+        "end_index": 68,
+        "end_price": "19915.5",
+        "extensions": [
+          {
+            "price": "19908.1832",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19898.8758",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19871.9758",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19932.985",
+        "golden_pocket_low": "19932.1242",
+        "retracements": [
+          {
+            "price": "19921.8484",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19925.7758",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19928.95",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19932.1242",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19936.6434",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 62,
+        "start_price": "19942.4"
+      },
+      {
+        "confirmed_index": 75,
+        "direction": "up",
+        "end_index": 72,
+        "end_price": "19934.3",
+        "extensions": [
+          {
+            "price": "19939.4136",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19945.9184",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19964.7184",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19922.6816",
+        "golden_pocket_low": "19922.080",
+        "retracements": [
+          {
+            "price": "19929.8632",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19927.1184",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19924.90",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19922.6816",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19919.5232",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 68,
+        "start_price": "19915.5"
+      },
+      {
+        "confirmed_index": 85,
+        "direction": "down",
+        "end_index": 82,
+        "end_price": "19889.4",
+        "extensions": [
+          {
+            "price": "19883.3344",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19875.6186",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19853.3186",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19903.895",
+        "golden_pocket_low": "19903.1814",
+        "retracements": [
+          {
+            "price": "19894.6628",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19897.9186",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19900.55",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19903.1814",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19906.9278",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 81,
+        "start_price": "19911.7"
+      },
+      {
+        "confirmed_index": 90,
+        "direction": "down",
+        "end_index": 87,
+        "end_price": "19879.1",
+        "extensions": [
+          {
+            "price": "19870.2328",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19858.9532",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19826.3532",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19900.290",
+        "golden_pocket_low": "19899.2468",
+        "retracements": [
+          {
+            "price": "19886.7936",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19891.5532",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19895.40",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19899.2468",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19904.7236",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 81,
+        "start_price": "19911.7"
+      },
+      {
+        "confirmed_index": 97,
+        "direction": "down",
+        "end_index": 94,
+        "end_price": "19874.9",
+        "extensions": [
+          {
+            "price": "19864.8904",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19852.1576",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19815.3576",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19898.820",
+        "golden_pocket_low": "19897.6424",
+        "retracements": [
+          {
+            "price": "19883.5848",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19888.9576",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19893.30",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19897.6424",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19903.8248",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 81,
+        "start_price": "19911.7"
+      },
+      {
+        "confirmed_index": 105,
+        "direction": "down",
+        "end_index": 102,
+        "end_price": "19832.8",
+        "extensions": [
+          {
+            "price": "19811.3392",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19784.0398",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19705.1398",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19884.085",
+        "golden_pocket_low": "19881.5602",
+        "retracements": [
+          {
+            "price": "19851.4204",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19862.9398",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19872.25",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19881.5602",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19894.8154",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 81,
+        "start_price": "19911.7"
+      },
+      {
+        "confirmed_index": 110,
+        "direction": "up",
+        "end_index": 107,
+        "end_price": "19861.4",
+        "extensions": [
+          {
+            "price": "19869.1792",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19879.0748",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19907.6748",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19843.7252",
+        "golden_pocket_low": "19842.810",
+        "retracements": [
+          {
+            "price": "19854.6504",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19850.4748",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19847.10",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19843.7252",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19838.9204",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 102,
+        "start_price": "19832.8"
+      },
+      {
+        "confirmed_index": 116,
+        "direction": "down",
+        "end_index": 113,
+        "end_price": "19847.2",
+        "extensions": [
+          {
+            "price": "19843.3376",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19838.4244",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19824.2244",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19856.430",
+        "golden_pocket_low": "19855.9756",
+        "retracements": [
+          {
+            "price": "19850.5512",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19852.6244",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19854.30",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19855.9756",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19858.3612",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 107,
+        "start_price": "19861.4"
+      },
+      {
+        "confirmed_index": 119,
+        "direction": "up",
+        "end_index": 116,
+        "end_price": "19868.6",
+        "extensions": [
+          {
+            "price": "19874.4208",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19881.8252",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19903.2252",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19855.3748",
+        "golden_pocket_low": "19854.690",
+        "retracements": [
+          {
+            "price": "19863.5496",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19860.4252",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19857.90",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19855.3748",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19851.7796",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 113,
+        "start_price": "19847.2"
+      },
+      {
+        "confirmed_index": 124,
+        "direction": "up",
+        "end_index": 121,
+        "end_price": "19870.5",
+        "extensions": [
+          {
+            "price": "19876.8376",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19884.8994",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19908.1994",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19856.1006",
+        "golden_pocket_low": "19855.355",
+        "retracements": [
+          {
+            "price": "19865.0012",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19861.5994",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19858.85",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19856.1006",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19852.1862",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 113,
+        "start_price": "19847.2"
+      },
+      {
+        "confirmed_index": 126,
+        "direction": "down",
+        "end_index": 123,
+        "end_price": "19852.4",
+        "extensions": [
+          {
+            "price": "19847.4768",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19841.2142",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19823.1142",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19864.165",
+        "golden_pocket_low": "19863.5858",
+        "retracements": [
+          {
+            "price": "19856.6716",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19859.3142",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19861.45",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19863.5858",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19866.6266",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 121,
+        "start_price": "19870.5"
+      },
+      {
+        "confirmed_index": 128,
+        "direction": "up",
+        "end_index": 125,
+        "end_price": "19874.7",
+        "extensions": [
+          {
+            "price": "19880.7656",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19888.4814",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19910.7814",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19860.9186",
+        "golden_pocket_low": "19860.205",
+        "retracements": [
+          {
+            "price": "19869.4372",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19866.1814",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19863.55",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19860.9186",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19857.1722",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 123,
+        "start_price": "19852.4"
+      },
+      {
+        "confirmed_index": 131,
+        "direction": "down",
+        "end_index": 128,
+        "end_price": "19852.3",
+        "extensions": [
+          {
+            "price": "19846.2072",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19838.4568",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19816.0568",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19866.860",
+        "golden_pocket_low": "19866.1432",
+        "retracements": [
+          {
+            "price": "19857.5864",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19860.8568",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19863.50",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19866.1432",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19869.9064",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 125,
+        "start_price": "19874.7"
+      },
+      {
+        "confirmed_index": 136,
+        "direction": "down",
+        "end_index": 133,
+        "end_price": "19856.3",
+        "extensions": [
+          {
+            "price": "19851.2952",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19844.9288",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19826.5288",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19868.260",
+        "golden_pocket_low": "19867.6712",
+        "retracements": [
+          {
+            "price": "19860.6424",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19863.3288",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19865.50",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19867.6712",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19870.7624",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 125,
+        "start_price": "19874.7"
+      },
+      {
+        "confirmed_index": 138,
+        "direction": "up",
+        "end_index": 135,
+        "end_price": "19873.3",
+        "extensions": [
+          {
+            "price": "19877.9240",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19883.8060",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19900.8060",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19862.7940",
+        "golden_pocket_low": "19862.250",
+        "retracements": [
+          {
+            "price": "19869.2880",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19866.8060",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19864.80",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19862.7940",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19859.9380",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 133,
+        "start_price": "19856.3"
+      },
+      {
+        "confirmed_index": 152,
+        "direction": "down",
+        "end_index": 149,
+        "end_price": "19816.7",
+        "extensions": [
+          {
+            "price": "19811.3144",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19804.4636",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19784.6636",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19829.570",
+        "golden_pocket_low": "19828.9364",
+        "retracements": [
+          {
+            "price": "19821.3728",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19824.2636",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19826.60",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19828.9364",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19832.2628",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 146,
+        "start_price": "19836.5"
+      },
+      {
+        "confirmed_index": 154,
+        "direction": "up",
+        "end_index": 151,
+        "end_price": "19868.7",
+        "extensions": [
+          {
+            "price": "19882.8440",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19900.8360",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19952.8360",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19836.5640",
+        "golden_pocket_low": "19834.900",
+        "retracements": [
+          {
+            "price": "19856.4280",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19848.8360",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19842.70",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19836.5640",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19827.8280",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 149,
+        "start_price": "19816.7"
+      },
+      {
+        "confirmed_index": 162,
+        "direction": "down",
+        "end_index": 159,
+        "end_price": "19853.6",
+        "extensions": [
+          {
+            "price": "19849.4928",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19844.2682",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19829.1682",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19863.415",
+        "golden_pocket_low": "19862.9318",
+        "retracements": [
+          {
+            "price": "19857.1636",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19859.3682",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19861.15",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19862.9318",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19865.4686",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 151,
+        "start_price": "19868.7"
+      },
+      {
+        "confirmed_index": 166,
+        "direction": "up",
+        "end_index": 163,
+        "end_price": "19889.0",
+        "extensions": [
+          {
+            "price": "19898.6288",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19910.8772",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19946.2772",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19867.1228",
+        "golden_pocket_low": "19865.990",
+        "retracements": [
+          {
+            "price": "19880.6456",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19875.4772",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19871.30",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19867.1228",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19861.1756",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 159,
+        "start_price": "19853.6"
+      },
+      {
+        "confirmed_index": 170,
+        "direction": "down",
+        "end_index": 167,
+        "end_price": "19864.9",
+        "extensions": [
+          {
+            "price": "19858.3448",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19850.0062",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19825.9062",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19880.565",
+        "golden_pocket_low": "19879.7938",
+        "retracements": [
+          {
+            "price": "19870.5876",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19874.1062",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19876.95",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19879.7938",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19883.8426",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 163,
+        "start_price": "19889.0"
+      },
+      {
+        "confirmed_index": 180,
+        "direction": "up",
+        "end_index": 177,
+        "end_price": "19916.4",
+        "extensions": [
+          {
+            "price": "19930.4080",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19948.2270",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19999.7270",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19884.5730",
+        "golden_pocket_low": "19882.925",
+        "retracements": [
+          {
+            "price": "19904.2460",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19896.7270",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19890.65",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19884.5730",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19875.9210",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 167,
+        "start_price": "19864.9"
+      },
+      {
+        "confirmed_index": 184,
+        "direction": "down",
+        "end_index": 181,
+        "end_price": "19896.1",
+        "extensions": [
+          {
+            "price": "19890.5784",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19883.5546",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19863.2546",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19909.295",
+        "golden_pocket_low": "19908.6454",
+        "retracements": [
+          {
+            "price": "19900.8908",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19903.8546",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19906.25",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19908.6454",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19912.0558",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 177,
+        "start_price": "19916.4"
+      },
+      {
+        "confirmed_index": 191,
+        "direction": "up",
+        "end_index": 188,
+        "end_price": "19930.9",
+        "extensions": [
+          {
+            "price": "19940.3656",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19952.4064",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19987.2064",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19909.3936",
+        "golden_pocket_low": "19908.280",
+        "retracements": [
+          {
+            "price": "19922.6872",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19917.6064",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19913.50",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19909.3936",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19903.5472",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 181,
+        "start_price": "19896.1"
+      },
+      {
+        "confirmed_index": 193,
+        "direction": "down",
+        "end_index": 190,
+        "end_price": "19910.5",
+        "extensions": [
+          {
+            "price": "19904.9512",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19897.8928",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19877.4928",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19923.760",
+        "golden_pocket_low": "19923.1072",
+        "retracements": [
+          {
+            "price": "19915.3144",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19918.2928",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19920.70",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19923.1072",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19926.5344",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 188,
+        "start_price": "19930.9"
+      },
+      {
+        "confirmed_index": 197,
+        "direction": "up",
+        "end_index": 194,
+        "end_price": "19927.6",
+        "extensions": [
+          {
+            "price": "19932.2512",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19938.1678",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19955.2678",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19917.0322",
+        "golden_pocket_low": "19916.485",
+        "retracements": [
+          {
+            "price": "19923.5644",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19921.0678",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19919.05",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19917.0322",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19914.1594",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 190,
+        "start_price": "19910.5"
+      },
+      {
+        "confirmed_index": 204,
+        "direction": "down",
+        "end_index": 201,
+        "end_price": "19874.0",
+        "extensions": [
+          {
+            "price": "19859.4208",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19840.8752",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19787.2752",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19908.840",
+        "golden_pocket_low": "19907.1248",
+        "retracements": [
+          {
+            "price": "19886.6496",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19894.4752",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19900.80",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19907.1248",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19916.1296",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 194,
+        "start_price": "19927.6"
+      },
+      {
+        "confirmed_index": 205,
+        "direction": "up",
+        "end_index": 202,
+        "end_price": "19897.1",
+        "extensions": [
+          {
+            "price": "19903.3832",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19911.3758",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19934.4758",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19882.8242",
+        "golden_pocket_low": "19882.085",
+        "retracements": [
+          {
+            "price": "19891.6484",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19888.2758",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19885.55",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19882.8242",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19878.9434",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 201,
+        "start_price": "19874.0"
+      },
+      {
+        "confirmed_index": 216,
+        "direction": "down",
+        "end_index": 213,
+        "end_price": "19856.3",
+        "extensions": [
+          {
+            "price": "19845.2024",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19831.0856",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19790.2856",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19882.820",
+        "golden_pocket_low": "19881.5144",
+        "retracements": [
+          {
+            "price": "19865.9288",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19871.8856",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19876.70",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19881.5144",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19888.3688",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 202,
+        "start_price": "19897.1"
+      },
+      {
+        "confirmed_index": 219,
+        "direction": "up",
+        "end_index": 216,
+        "end_price": "19878.5",
+        "extensions": [
+          {
+            "price": "19884.5384",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19892.2196",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19914.4196",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19864.7804",
+        "golden_pocket_low": "19864.070",
+        "retracements": [
+          {
+            "price": "19873.2608",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19870.0196",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19867.40",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19864.7804",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19861.0508",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 213,
+        "start_price": "19856.3"
+      },
+      {
+        "confirmed_index": 222,
+        "direction": "down",
+        "end_index": 219,
+        "end_price": "19863.0",
+        "extensions": [
+          {
+            "price": "19858.7840",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19853.4210",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19837.9210",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19873.075",
+        "golden_pocket_low": "19872.5790",
+        "retracements": [
+          {
+            "price": "19866.6580",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19868.9210",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19870.75",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19872.5790",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19875.1830",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 216,
+        "start_price": "19878.5"
+      },
+      {
+        "confirmed_index": 228,
+        "direction": "down",
+        "end_index": 225,
+        "end_price": "19873.9",
+        "extensions": [
+          {
+            "price": "19872.6488",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19871.0572",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19866.4572",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19876.890",
+        "golden_pocket_low": "19876.7428",
+        "retracements": [
+          {
+            "price": "19874.9856",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19875.6572",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19876.20",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19876.7428",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19877.5156",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 216,
+        "start_price": "19878.5"
+      },
+      {
+        "confirmed_index": 254,
+        "direction": "up",
+        "end_index": 251,
+        "end_price": "20006.7",
+        "extensions": [
+          {
+            "price": "20042.8216",
+            "ratio": "1.272"
+          },
+          {
+            "price": "20088.7704",
+            "ratio": "1.618"
+          },
+          {
+            "price": "20221.5704",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19924.6296",
+        "golden_pocket_low": "19920.380",
+        "retracements": [
+          {
+            "price": "19975.3592",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19955.9704",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19940.30",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19924.6296",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19902.3192",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 225,
+        "start_price": "19873.9"
+      },
+      {
+        "confirmed_index": 257,
+        "direction": "down",
+        "end_index": 254,
+        "end_price": "19991.5",
+        "extensions": [
+          {
+            "price": "19987.3656",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19982.1064",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19966.9064",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "20001.380",
+        "golden_pocket_low": "20000.8936",
+        "retracements": [
+          {
+            "price": "19995.0872",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19997.3064",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19999.10",
+            "ratio": "0.5"
+          },
+          {
+            "price": "20000.8936",
+            "ratio": "0.618"
+          },
+          {
+            "price": "20003.4472",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 251,
+        "start_price": "20006.7"
+      },
+      {
+        "confirmed_index": 258,
+        "direction": "up",
+        "end_index": 255,
+        "end_price": "20005.8",
+        "extensions": [
+          {
+            "price": "20009.6896",
+            "ratio": "1.272"
+          },
+          {
+            "price": "20014.6374",
+            "ratio": "1.618"
+          },
+          {
+            "price": "20028.9374",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19996.9626",
+        "golden_pocket_low": "19996.505",
+        "retracements": [
+          {
+            "price": "20002.4252",
+            "ratio": "0.236"
+          },
+          {
+            "price": "20000.3374",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19998.65",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19996.9626",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19994.5602",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 254,
+        "start_price": "19991.5"
+      },
+      {
+        "confirmed_index": 261,
+        "direction": "down",
+        "end_index": 258,
+        "end_price": "19996.3",
+        "extensions": [
+          {
+            "price": "19993.7160",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19990.4290",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19980.9290",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "20002.475",
+        "golden_pocket_low": "20002.1710",
+        "retracements": [
+          {
+            "price": "19998.5420",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19999.9290",
+            "ratio": "0.382"
+          },
+          {
+            "price": "20001.05",
+            "ratio": "0.5"
+          },
+          {
+            "price": "20002.1710",
+            "ratio": "0.618"
+          },
+          {
+            "price": "20003.7670",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 255,
+        "start_price": "20005.8"
+      },
+      {
+        "confirmed_index": 267,
+        "direction": "up",
+        "end_index": 264,
+        "end_price": "20016.1",
+        "extensions": [
+          {
+            "price": "20021.4856",
+            "ratio": "1.272"
+          },
+          {
+            "price": "20028.3364",
+            "ratio": "1.618"
+          },
+          {
+            "price": "20048.1364",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "20003.8636",
+        "golden_pocket_low": "20003.230",
+        "retracements": [
+          {
+            "price": "20011.4272",
+            "ratio": "0.236"
+          },
+          {
+            "price": "20008.5364",
+            "ratio": "0.382"
+          },
+          {
+            "price": "20006.20",
+            "ratio": "0.5"
+          },
+          {
+            "price": "20003.8636",
+            "ratio": "0.618"
+          },
+          {
+            "price": "20000.5372",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 258,
+        "start_price": "19996.3"
+      },
+      {
+        "confirmed_index": 273,
+        "direction": "down",
+        "end_index": 270,
+        "end_price": "19985.8",
+        "extensions": [
+          {
+            "price": "19977.5584",
+            "ratio": "1.272"
+          },
+          {
+            "price": "19967.0746",
+            "ratio": "1.618"
+          },
+          {
+            "price": "19936.7746",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "20005.495",
+        "golden_pocket_low": "20004.5254",
+        "retracements": [
+          {
+            "price": "19992.9508",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19997.3746",
+            "ratio": "0.382"
+          },
+          {
+            "price": "20000.95",
+            "ratio": "0.5"
+          },
+          {
+            "price": "20004.5254",
+            "ratio": "0.618"
+          },
+          {
+            "price": "20009.6158",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 264,
+        "start_price": "20016.1"
+      },
+      {
+        "confirmed_index": 278,
+        "direction": "up",
+        "end_index": 275,
+        "end_price": "20000.0",
+        "extensions": [
+          {
+            "price": "20003.8624",
+            "ratio": "1.272"
+          },
+          {
+            "price": "20008.7756",
+            "ratio": "1.618"
+          },
+          {
+            "price": "20022.9756",
+            "ratio": "2.618"
+          }
+        ],
+        "golden_pocket_high": "19991.2244",
+        "golden_pocket_low": "19990.770",
+        "retracements": [
+          {
+            "price": "19996.6488",
+            "ratio": "0.236"
+          },
+          {
+            "price": "19994.5756",
+            "ratio": "0.382"
+          },
+          {
+            "price": "19992.90",
+            "ratio": "0.5"
+          },
+          {
+            "price": "19991.2244",
+            "ratio": "0.618"
+          },
+          {
+            "price": "19988.8388",
+            "ratio": "0.786"
+          }
+        ],
+        "start_index": 270,
+        "start_price": "19985.8"
+      }
+    ],
+    "floor_pivots": [],
+    "golden_pocket": [
+      {
+        "closes_inside": false,
+        "index": 11,
+        "leg": 0,
+        "touches": true
+      },
+      {
+        "closes_inside": true,
+        "index": 53,
+        "leg": 6,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 54,
+        "leg": 6,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 55,
+        "leg": 6,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 56,
+        "leg": 6,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 59,
+        "leg": 8,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 60,
+        "leg": 8,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 61,
+        "leg": 8,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 63,
+        "leg": 8,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 64,
+        "leg": 8,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 65,
+        "leg": 8,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 66,
+        "leg": 9,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 67,
+        "leg": 9,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 72,
+        "leg": 10,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 73,
+        "leg": 10,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 74,
+        "leg": 10,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 76,
+        "leg": 11,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 120,
+        "leg": 18,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 121,
+        "leg": 18,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 123,
+        "leg": 18,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 126,
+        "leg": 19,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 129,
+        "leg": 21,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 132,
+        "leg": 22,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 133,
+        "leg": 22,
+        "touches": true
+      },
+      {
+        "closes_inside": true,
+        "index": 134,
+        "leg": 22,
+        "touches": true
+      },
+      {
+        "closes_inside": true,
+        "index": 135,
+        "leg": 22,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 136,
+        "leg": 22,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 167,
+        "leg": 28,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 171,
+        "leg": 29,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 172,
+        "leg": 29,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 194,
+        "leg": 33,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 195,
+        "leg": 33,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 196,
+        "leg": 33,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 206,
+        "leg": 36,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 220,
+        "leg": 38,
+        "touches": true
+      },
+      {
+        "closes_inside": false,
+        "index": 260,
+        "leg": 43,
+        "touches": true
+      }
+    ],
+    "ma_cross": {
+      "crosses": [],
+      "fast": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "fast_period": 50,
+      "kind": "sma",
+      "slow": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "slow_period": 200
+    },
+    "vix": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "wyckoff": [
+      {
+        "break_index": 147,
+        "confirmed_index": 150,
+        "extreme": "19816.7",
+        "kind": "spring",
+        "level": "19860.550",
+        "touches": 8
+      },
+      {
+        "break_index": 228,
+        "confirmed_index": 230,
+        "extreme": "19885.2",
+        "kind": "spring",
+        "level": "19915.725",
+        "touches": 4
+      }
+    ]
+  }
 }

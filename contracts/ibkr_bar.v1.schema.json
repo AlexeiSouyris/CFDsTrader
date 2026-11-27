@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/ibkr_bar.v1.schema.json",
+  "title": "IBKR bar v1",
+  "description": "Una vela CERRADA tal como la da IBKR como fuente de datos (#536): de un contrato concreto (un futuro por mes, nunca el continuo, que está ajustado y repinta), una acción o ETF o una divisa. 'start' es el inicio en UTC, alineado a su tamaño; está cerrada (y recién ahí se puede usar) en start + tamaño. Precios sin ajustar. La escribe Rust (cfds-ibkr, ejemplo ibkr_load); no se mezcla con candle.v1 (IG) ni con futures_bar.v1 (Databento).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source", "instrument_id", "kind", "contract", "bar_size", "what_to_show", "start", "open", "high", "low", "close", "volume"],
+  "properties": {
+    "source": { "description": "Fuente (hoy 'ibkr').", "type": "string", "pattern": "^[a-z][a-z0-9_]{0,31}$" },
+    "instrument_id": { "description": "Id del instrumento en config/ibkr.toml (por ejemplo MNQ, QQQ, EURUSD).", "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" },
+    "kind": { "description": "Tipo de contrato. El futuro continuo no se guarda.", "enum": ["future", "stock", "forex"] },
+    "contract": { "description": "Contrato del que sale la vela, como lo nombra IBKR (por ejemplo MNQZ6, QQQ, EUR.USD). Ninguna vela mezcla contratos.", "type": "string", "pattern": "^[A-Z0-9][A-Z0-9. ]{0,31}$" },
+    "bar_size": { "description": "Tamaño de la vela. Las diarias de IBKR (fechadas por sesión, sin hora) no se guardan.", "enum": ["1m", "15m", "1h"] },
+    "what_to_show": { "description": "Qué precio: operaciones o medio entre compra y venta.", "enum": ["TRADES", "MIDPOINT"] },
+    "start": { "description": "Inicio de la vela en UTC, alineado a su tamaño, ISO 8601 terminado en Z.", "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:00Z$" },
+    "open": { "$ref": "#/$defs/price" },
+    "high": { "$ref": "#/$defs/price" },
+    "low": { "$ref": "#/$defs/price" },
+    "close": { "$ref": "#/$defs/price" },
+    "volume": { "description": "Volumen de la vela como decimal en string; null si IBKR no lo da (por ejemplo MIDPOINT).", "type": ["string", "null"], "pattern": "^\\d+(\\.\\d+)?$" }
+  },
+  "$defs": {
+    "price": { "description": "Decimal exacto como string, nunca número JSON.", "type": "string", "pattern": "^\\d+(\\.\\d+)?$" }
+  }
+}

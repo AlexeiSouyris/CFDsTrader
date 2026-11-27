@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/fomc_statement_novelty.v1.schema.json",
+  "title": "FOMC statement novelty v1",
+  "description": "Cuánto cambió el texto de un comunicado del FOMC respecto del comunicado anterior (#668), con un método. Es descriptivo: no le pide opinión a ningún modelo ni mira precios. Los comunicados son los de 'official_releases' (ADR 0016) y el texto sale de su página oficial en federalreserve.gov, sin el párrafo de la votación. El valor solo existe desde 'available_at', la hora del comunicado (CLAUDE.md §5b).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reference_period",
+    "status",
+    "statement_url",
+    "available_at",
+    "previous_reference_period",
+    "previous_statement_url",
+    "method",
+    "method_version",
+    "model",
+    "model_digest",
+    "value",
+    "text_sha256",
+    "previous_text_sha256",
+    "word_count",
+    "previous_word_count",
+    "computed_at"
+  ],
+  "properties": {
+    "reference_period": {
+      "description": "Último día de la reunión del comunicado (AAAA-MM-DD), como en official_release.v1.",
+      "type": "string",
+      "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+    },
+    "status": {
+      "description": "Estado del comunicado en official_release.v1: 'scheduled' o 'unscheduled'. Un estudio de lo que pasa antes del anuncio no usa los 'unscheduled' (ADR 0016, Riesgos).",
+      "enum": ["scheduled", "unscheduled"]
+    },
+    "statement_url": {
+      "description": "Página oficial del comunicado (la 'source_url' de official_releases).",
+      "type": "string",
+      "pattern": "^https://www\\.federalreserve\\.gov/",
+      "maxLength": 500
+    },
+    "available_at": {
+      "description": "Desde cuándo se puede conocer el valor: la hora del comunicado ('scheduled_at' de official_releases), en UTC terminado en Z. Antes de las 2020 esa hora sale de una regla con ±15 min (ADR 0016, Riesgos).",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "previous_reference_period": {
+      "description": "Reunión del comunicado anterior con el que se compara (el inmediatamente anterior en hora).",
+      "type": "string",
+      "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+    },
+    "previous_statement_url": {
+      "description": "Página oficial del comunicado anterior.",
+      "type": "string",
+      "pattern": "^https://www\\.federalreserve\\.gov/",
+      "maxLength": 500
+    },
+    "method": {
+      "description": "'word_diff': proporción de palabras que no coinciden entre los dos textos (1 − 2·M/(n₁+n₂), M = palabras de los bloques iguales de difflib), entre 0 y 1. 'embedding_cosine': distancia coseno (1 − coseno) entre los embeddings locales de los dos textos, entre 0 y 2.",
+      "enum": ["word_diff", "embedding_cosine"]
+    },
+    "method_version": {
+      "description": "Versión del método (config/fomc_novelty.toml). Cambiar la tokenización, el recorte del texto, el prefijo o el contexto del modelo es otra versión: una fila nueva, nunca se pisa la anterior.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.]{0,63}$"
+    },
+    "model": {
+      "description": "Modelo de embeddings de Ollama (por ejemplo 'nomic-embed-text'). null en 'word_diff'.",
+      "oneOf": [{ "type": "string", "minLength": 1, "maxLength": 200 }, { "type": "null" }]
+    },
+    "model_digest": {
+      "description": "Digest del modelo instalado según GET /api/tags de Ollama. null en 'word_diff'.",
+      "oneOf": [{ "type": "string", "pattern": "^[a-z0-9:]{8,100}$" }, { "type": "null" }]
+    },
+    "value": {
+      "description": "La novedad según el método, redondeada a 6 decimales. Más alto = más cambio.",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 2
+    },
+    "text_sha256": {
+      "description": "SHA-256 del texto del comunicado tal como se midió (sin la votación).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "previous_text_sha256": {
+      "description": "SHA-256 del texto del comunicado anterior tal como se midió.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "word_count": {
+      "description": "Palabras del comunicado según la tokenización del método.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "previous_word_count": {
+      "description": "Palabras del comunicado anterior.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "computed_at": {
+      "description": "Cuándo se calculó, en UTC terminado en Z.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "method": { "const": "word_diff" } } },
+      "then": { "properties": { "model": { "type": "null" }, "model_digest": { "type": "null" }, "value": { "maximum": 1 } } },
+      "else": { "properties": { "model": { "type": "string" }, "model_digest": { "type": "string" } } }
+    }
+  ]
+}

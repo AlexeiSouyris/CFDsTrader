@@ -25,3 +25,38 @@ start = "2019-10-01"
 # valor todavía no se conoce, así que vale desde que el sistema lo leyó.
 publication_time = "09:00"
 publication_timezone = "Europe/Berlin"
+
+# ---------------------------------------------------------------- Reserva Federal de Nueva York
+# Tasas en USD de la base de los futuros de índices de CME (#467, ADR 0015): las usa el backtest
+# con velas de futuros para no contar la tasa dos veces (config/candle_sources.toml
+# [futures.basis]). API pública: https://markets.newyorkfed.org/api/rates/<ruta>/search.json
+# "Use of the Reference Rates are subject to important disclaimers, limitations and
+# indemnification obligations" (https://www.newyorkfed.org/markets/reference-rates/sofr y sus
+# términos de uso, /privacy/termsofuse).
+#
+# Publicación (página "Additional Information about Reference Rates", consultada el 24-11-2026):
+# la SOFR "is published one business day following its value date", hacia las 8:00 ET; la EFFR,
+# "at approximately 9:00 a.m. ET each business day". Las dos se pueden revisar "at approximately
+# 2:30 p.m. ET" del mismo día, solo si el cambio supera un punto básico. Se toma las 15:00 ET, la
+# hora más conservadora. Como en el BCE, el "día hábil siguiente" es la fecha del valor siguiente
+# de la misma serie; el último valor vale desde que se leyó.
+[nyfed]
+base_url = "https://markets.newyorkfed.org/api/rates"
+user_agent = "cfds-intel/0.1 (automated data reader)"
+timeout_secs = 60
+
+[nyfed.series.EFFR]
+path = "unsecured/effr"
+type = "EFFR"
+# Desde antes de las primeras velas de los futuros (2011-01-02), con margen de calentamiento.
+start = "2010-11-01"
+publication_time = "15:00"
+publication_timezone = "America/New_York"
+
+[nyfed.series.SOFR]
+path = "secured/sofr"
+type = "SOFR"
+# Primer valor publicado de la SOFR: el del 2-4-2018 (publicado el 3-4-2018).
+start = "2018-04-02"
+publication_time = "15:00"
+publication_timezone = "America/New_York"

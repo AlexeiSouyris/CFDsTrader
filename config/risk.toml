@@ -16,3 +16,45 @@ max_positions_per_instrument = 1
 # La distancia al stop tiene que estar entre estos múltiplos del ATR (spec §7.7).
 min_atr = "0.5"
 max_atr = "3"
+
+[gap]
+# Colchón por gaps (#670), en múltiplos del ATR: el tamaño se calcula con la distancia al stop
+# más este colchón, así `risk` cuenta el salto por encima del stop (fin de semana, noticias).
+# "0" = apagado. Valor aprobado por el dueño el 25-11-2026 (#689, provisional: ajustarlo con el
+# deslizamiento real más allá del stop que mida el paper). Ver docs/analysis/2026-11-riesgo-propuesta.md.
+gap_atr = "0.25"
+
+[correlation]
+# Grupos correlacionados (#670): el riesgo abierto del grupo (posiciones abiertas + la nueva)
+# no puede superar `max_risk_pct` del capital. Si hay lugar parcial, el tamaño se achica (como el
+# tope de apalancamiento); sin lugar, se rechaza con `group_risk_limit`.
+# Sin grupos = apagado. Grupo y tope aprobados por el dueño el 25-11-2026 (#689); DE40 y XAUUSD
+# no tienen pareja en el catálogo y quedan sin grupo. Ver docs/analysis/2026-11-riesgo-propuesta.md.
+[[correlation.groups]]
+name = "us_equity_index"
+max_risk_pct = "1.5"
+instruments = ["US100", "US500", "US30", "US2000"]
+
+[drawdown_scaling]
+mode = "linear"
+# Reducción gradual del riesgo por caída (#671): desde `drawdown_pct` de caída desde el máximo,
+# el riesgo por operación se multiplica por `scale`. "linear" interpola entre puntos (desde 0 %
+# con factor 1); "step" usa escalones. Los puntos van con caída creciente, factor que no sube y
+# antes de max_drawdown_pct (el kill switch sigue igual). Sin puntos = apagada. Puntos aprobados
+# por el dueño el 25-11-2026 (#689): hasta 5 % no se toca; de 5 a 10 % baja del 1 al 0,5; al
+# 12,5 % llega a 0,25. Ver docs/analysis/2026-11-riesgo-propuesta.md.
+points = [
+  { drawdown_pct = "5", scale = "1" },
+  { drawdown_pct = "10", scale = "0.5" },
+  { drawdown_pct = "12.5", scale = "0.25" },
+]
+
+[vol_target]
+# Volatilidad objetivo de la cuenta (#671, estilo Carver): el riesgo por operación se escala por
+# objetivo / volatilidad anual realizada del capital, acotado a [min_scale, max_scale].
+# target_annual_pct = "0" = apagada (y entonces min_scale = max_scale = "1"). Sigue apagada: nadie
+# calcula todavía la volatilidad realizada de la cuenta (#692). Ver
+# docs/analysis/2026-11-riesgo-propuesta.md.
+target_annual_pct = "0"
+min_scale = "1"
+max_scale = "1"

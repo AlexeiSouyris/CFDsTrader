@@ -32,8 +32,81 @@ expiry_months = [3, 6, 9, 12]
 # - "after_expiry_day": el día del vencimiento todavía es del contrato viejo (CME: ES, NQ, YM);
 # - "on_expiry_day": el día del vencimiento ya es del nuevo (Eurex: el viejo deja de operar a
 #   media mañana).
+# - "contract_change": sin calendario; el contrato cambia donde cambia el contrato (`contract_id`)
+#   de las velas de 15m (#449). Solo para continuos que no vencen en una fecha fija, como el
+#   continuo por volumen `v.0`. Un cambio sale solo de las velas hasta ese momento: no mira el
+#   futuro ni repinta.
 [futures.roll]
 US500 = "after_expiry_day"
 US100 = "after_expiry_day"
 US30 = "after_expiry_day"
 DE40 = "on_expiry_day"
+# RTY.c.0 (#449), medido en futures_bars_1m el 24-11-2026 (2017-07-09 a 2026-11-22): 38
+# contratos, 37 cambios, todos en vencimientos trimestrales. El contrato viejo opera el día del
+# vencimiento hasta las 13:29 UTC (apertura de la bolsa de NY) y el nuevo empieza en la sesión
+# siguiente (domingo 22:00/23:00 UTC; con el feriado del 19-06-2026, el viernes 19 a las 00:00).
+# Igual que ES.
+US2000 = "after_expiry_day"
+# GC.v.0 (#449): el continuo por volumen no vence el tercer viernes (meses activos 2, 4, 6, 8, 10
+# y 12). Medido en futures_bars_1m el 24-11-2026 (2011-01-02 a 2026-11-22): 80 contratos y 79
+# cambios, cinco por año (en los últimos días de enero, marzo, mayo, julio y noviembre), todos a las
+# 00:00 UTC o en la primera barra después de una pausa del mercado (domingo 22:00/23:00 UTC),
+# nunca a mitad de una ventana de 15 minutos, y sin volver nunca a un contrato anterior.
+XAUUSD = "contract_change"
+
+# Base de los futuros en la financiación (#467, ADR 0015). Dentro de un contrato, el precio del
+# futuro converge al contado: su deriva ya descuenta la tasa menos los dividendos (`r − q`). El
+# backtest con velas de futuros le suma la financiación del CFD (referencia ± tasa
+# administrativa), así que en cada noche se resta lo que la base ya descontó, con el signo del lado
+# (el largo paga de menos, el corto recibe de menos). Con velas de IG no se toca nada. Estudio:
+# docs/analysis/2026-11-doble-conteo-financiacion.md.
+#
+# - "rate": se resta `r`. IG ajusta los dividendos en los CFD de índices al contado: abona a los
+#   largos y carga a los cortos los puntos que el dividendo le quita al índice ("we'll ensure that
+#   there is no material impact on you by either crediting or debiting your ledger", ayuda de IG,
+#   https://www.ig.com/en/help-and-support/cfds/market-details/how-do-dividend-adjustments-affect-my-cfd-position,
+#   leída el 24-11-2026). Así, los dividendos que trae la base son los mismos que recibe el CFD.
+#   PENDIENTE: ig.com/es/nuestros-costes no describe el ajuste; falta confirmarlo para IG España.
+# - "rate_minus_dividends": se resta `r − q`, para un broker que no ajusta dividendos. Necesita
+#   [futures.basis.dividends] con una serie de dividendos con fuente (hoy no hay ninguna).
+[futures.basis]
+mode = "rate"
+
+# Tasa de la base de cada futuro: series diarias de `reference_rates`, con su hora de publicación
+# (`python -m cfds_intel.rates`). Cada tramo vale desde su `from` hasta el `from` del siguiente.
+# Un instrumento sin entrada no se puede simular con velas de futuros.
+[futures.basis.rates]
+# Futuros de CME en USD: EFFR hasta el 29-03-2018 y SOFR desde su primera publicación, el
+# 02-04-2018 (Federal Reserve Bank of New York). La misma empalmadura que el estudio de #421.
+US500 = [{ series = "EFFR" }, { series = "SOFR", from = "2018-04-02" }]
+US100 = [{ series = "EFFR" }, { series = "SOFR", from = "2018-04-02" }]
+US30 = [{ series = "EFFR" }, { series = "SOFR", from = "2018-04-02" }]
+US2000 = [{ series = "EFFR" }, { series = "SOFR", from = "2018-04-02" }]
+# FDAX (Eurex) en EUR: €STR. El DAX es un índice de rendimiento (reinvierte los dividendos), así
+# que su base es esencialmente la tasa. Las velas del FDAX empiezan en 2025-03.
+DE40 = [{ series = "ESTR" }]
+# XAUUSD: sin entrada. La financiación del oro al contado ya sale de la base del futuro (ADR 0013,
+# `commodity_basis`) y todavía no se simula (#418): se decide en su Issue.
+
+# Barras de los futuros micro de IBKR (#630): las de `ibkr_bars` (cron cada 5 min, unos 10 a 15
+# minutos de atraso, solo velas completas). Como fuente de la liquidez de 15m y 1h de los CFD con
+# mapeo; sin diarias. Lo calculado se guarda bajo `<instrumento><id_suffix>` (por ejemplo
+# US100.IBKR), aparte de lo del CFD y de lo de Databento. Tienen la forma del precio del futuro,
+# con su base distinta a la del CFD.
+#
+# Contratos: el loader guarda el vencimiento vigente más cercano (config/ibkr.toml), uno por vez.
+# Se empalman en el orden en que se empezaron a guardar: un contrato nuevo se usa recién después de
+# la última vela del anterior (su historia anterior se descarta). Así una vela ya usada no cambia
+# cuando llega un contrato nuevo (sin repintado), y nunca se mezclan dos contratos en una vela. Sin
+# ajuste de precios: en el cambio de contrato hay un salto, igual que en el continuo de Databento.
+[ibkr]
+# Valor de `source` en ibkr_bars: el de [load] source de config/ibkr.toml (un test lo controla).
+source = "ibkr"
+what_to_show = "TRADES"
+label = "futuros micro CME de IBKR (~10 min de atraso; base distinta al CFD)"
+id_suffix = ".IBKR"
+
+# Instrumento de ibkr_bars de cada CFD. Los demás no tienen velas de IBKR.
+[ibkr.instruments]
+US100 = "MNQ"
+US500 = "MES"

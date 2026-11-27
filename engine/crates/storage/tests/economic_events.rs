@@ -8,7 +8,7 @@ use cfds_storage::PgStore;
 use chrono::{DateTime, Utc};
 
 async fn store() -> PgStore {
-    let url = std::env::var("DATABASE_URL").expect("falta DATABASE_URL (necesita PostgreSQL)");
+    let url = cfds_storage::test_db::test_database_url();
     let s = PgStore::connect(&url).await.unwrap();
     s.migrate().await.unwrap();
     s
@@ -38,8 +38,8 @@ async fn put(s: &PgStore, source: &str, event: &str, impact: &str, scheduled: &s
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn events_are_read_only_once_published_and_validated_by_the_contract() {
     let s = store().await;
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let source = format!("it{nanos}");
+    // La fuente no admite guiones: un número propio.
+    let source = format!("it{}", cfds_storage::test_db::unique_number());
     put(
         &s,
         &source,

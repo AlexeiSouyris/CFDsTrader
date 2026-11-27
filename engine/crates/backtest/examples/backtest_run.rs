@@ -248,7 +248,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         let spread_source = match source {
             CandleSource::Ig => cfds_journal::SpreadSource::Measured,
-            CandleSource::Futures => cfds_journal::SpreadSource::Config,
+            // IBKR (#630): `prepare` ya lo rechaza; sin spread medido, como los futuros.
+            CandleSource::Futures | CandleSource::Ibkr => cfds_journal::SpreadSource::Config,
         };
         let run = run_record(
             run_id,
@@ -269,13 +270,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         // La curva diaria con su drawdown y comprar y mantener (#299), para el detalle de la
         // corrida en la UI. Sin comprar y mantener (falta un tipo de referencia), va vacío.
+        // Comprar y mantener se realiza al final: al tipo de cambio de ese momento.
+        let fx_end = m15
+            .last()
+            .and_then(|c| setup.account_to_instrument.at(c.end()));
         let benchmark = buy_and_hold(&m15, size, &setup)
-            .map(|bh| {
+            .zip(fx_end)
+            .map(|(bh, fx)| {
                 cfds_journal::RunBuyAndHold::from_backtest(
                     out.clone(),
                     size,
                     &bh,
-                    setup.account_to_instrument,
+                    fx,
                     setup.initial_equity,
                 )
             })
@@ -319,8 +325,9 @@ fn run_record(
     let net: Vec<Decimal> = report
         .trades
         .iter()
-        .map(|t| t.net_pnl / setup.account_to_instrument)
-        .collect();
+        .map(|t| setup.to_account(t.net_pnl, t.closed_at()))
+        .collect::<Result<_, _>>()
+        .map_err(|e| format!("{e:?}"))?;
     let intervals: Vec<_> = report
         .trades
         .iter()

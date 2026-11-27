@@ -23,19 +23,19 @@ export function NotFound({
         <p className="mt-2 text-[14px] text-muted-foreground">
           La página que buscás no existe o se movió.
         </p>
-        <div className="mt-6 flex justify-center gap-2">
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             type="button"
             onClick={onHome}
-            className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-[13px] font-bold text-primary-foreground"
+            className="inline-flex items-center gap-2 rounded-full whitespace-nowrap bg-primary px-4 py-2.5 text-[13px] font-bold text-primary-foreground"
           >
             <Home className="size-4" aria-hidden="true" />
-            Ir al panel
+            Ir al inicio
           </button>
           <button
             type="button"
             onClick={onExplore}
-            className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2.5 text-[13px] font-bold"
+            className="inline-flex items-center gap-2 rounded-full whitespace-nowrap border border-border px-4 py-2.5 text-[13px] font-bold"
           >
             <Compass className="size-4" aria-hidden="true" />
             Buscar una vista o un instrumento

@@ -9,7 +9,12 @@
 //! los indicadores bajo ese mismo id: mismo cálculo, sin mezclar con los del CFD de IG. La sesión
 //! de cada día es la del CFD.
 //! Es idempotente: lo ya guardado e idéntico cuenta como "ya estaban". Si un valor recalculado
-//! diera distinto, frena con error (sería repintado) y no guarda nada de ese instrumento.
+//! diera distinto, frena con error (sería repintado) y no guarda nada de ese instrumento. Con
+//! `--fuente futuros` (#409), en cambio, no pisa el guardado ni frena: guarda el resto y avisa qué
+//! días quedaron con el valor viejo (la historia de los futuros se extendió hacia atrás). Un día
+//! guardado **sin valor** (NULL, por falta de historia) que ahora tiene valor sí se completa, una
+//! sola vez y auditado en `daily_null_fills` (#417, migración 0040); se reporta como
+//! "completados". Un valor ya guardado no se pisa nunca.
 
 use std::path::PathBuf;
 
@@ -35,6 +40,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .and_then(|s| CandleSource::parse(s))
             .ok_or("uso: [--fuente ig|futuros]")?,
     };
+    // Las barras de IBKR (#630) no tienen diarias.
+    if source == CandleSource::Ibkr {
+        return Err("--fuente ibkr: las barras de IBKR no tienen diarias".into());
+    }
     println!("diarias: {}", sources.label(source));
     let cfg = DailyConfig::from_toml(INDICATORS)?;
     let config_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../config");
@@ -66,30 +75,81 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .iter()
             .filter(|r| r.atr.is_some() && r.realized_vol.is_some())
             .count();
-        let r = store.insert_daily_indicators(&rows).await?;
+        let r = save(
+            source,
+            id,
+            "indicadores",
+            if source == CandleSource::Futures {
+                store.insert_daily_indicators_keeping(&rows).await?
+            } else {
+                (store.insert_daily_indicators(&rows).await?, Vec::new())
+            },
+        );
         println!(
-            "{id}: {} días con sesión ({} con los dos indicadores) → {} nuevos, {} ya estaban",
+            "{id}: {} días con sesión ({} con los dos indicadores) → {} nuevos, {} ya estaban, {} completados (NULL → valor)",
             rows.len(),
             ready,
             r.inserted,
-            r.unchanged
+            r.unchanged,
+            r.filled
         );
         let dd = daily_drawdowns(&days, session, &cfg)
             .map_err(|d| format!("{id}: el calendario de sesiones no cubre el {d}"))?;
         let ready = dd.iter().filter(|r| r.drawdown.is_some()).count();
-        let r = store.insert_daily_drawdowns(&dd).await?;
+        let r = save(
+            source,
+            id,
+            "caída desde el máximo",
+            if source == CandleSource::Futures {
+                store.insert_daily_drawdowns_keeping(&dd).await?
+            } else {
+                (store.insert_daily_drawdowns(&dd).await?, Vec::new())
+            },
+        );
         println!(
-            "{id}: caída desde el máximo de {} velas: {ready} días con valor → {} nuevos, {} ya estaban",
-            cfg.drawdown_window, r.inserted, r.unchanged
+            "{id}: caída desde el máximo de {} velas: {ready} días con valor → {} nuevos, {} ya estaban, {} completados (NULL → valor)",
+            cfg.drawdown_window, r.inserted, r.unchanged, r.filled
         );
         let terciles = daily_vol_terciles(&days, session, &cfg)
             .map_err(|d| format!("{id}: el calendario de sesiones no cubre el {d}"))?;
         let ready = terciles.iter().filter(|r| r.tercile.is_some()).count();
-        let r = store.insert_daily_vol_terciles(&terciles).await?;
+        let r = save(
+            source,
+            id,
+            "tercio de la volatilidad",
+            if source == CandleSource::Futures {
+                store.insert_daily_vol_terciles_keeping(&terciles).await?
+            } else {
+                (
+                    store.insert_daily_vol_terciles(&terciles).await?,
+                    Vec::new(),
+                )
+            },
+        );
         println!(
-            "{id}: tercio de la volatilidad ({} años de historia): {ready} días con valor → {} nuevos, {} ya estaban",
-            cfg.vol_tercile_years, r.inserted, r.unchanged
+            "{id}: tercio de la volatilidad ({} años de historia): {ready} días con valor → {} nuevos, {} ya estaban, {} completados (NULL → valor)",
+            cfg.vol_tercile_years, r.inserted, r.unchanged, r.filled
         );
     }
     Ok(())
+}
+
+/// Con futuros (#409), un valor ya guardado con otro valor no se pisa ni frena el resto: queda el
+/// guardado y se avisa qué días son. Pasa cuando la historia se extendió hacia atrás: los días
+/// que antes no tenían historia suficiente quedaron guardados sin valor. Con IG sigue siendo un
+/// error (el `?` de quien llama).
+fn save(
+    source: CandleSource,
+    id: &cfds_core::InstrumentId,
+    what: &str,
+    (report, kept): (cfds_storage::InsertReport, Vec<NaiveDate>),
+) -> cfds_storage::InsertReport {
+    if let (Some(a), Some(b)) = (kept.first(), kept.last()) {
+        eprintln!(
+            "⚠️  {id} ({what}, {source:?}): {} días ya guardados con otro valor, no se pisan \
+             (quedan los guardados), del {a} al {b}",
+            kept.len()
+        );
+    }
+    report
 }

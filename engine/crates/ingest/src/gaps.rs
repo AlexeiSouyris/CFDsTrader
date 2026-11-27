@@ -271,6 +271,7 @@ mod tests {
     fn session_days_refuse_dates_the_calendar_does_not_cover() {
         let cal = calendar();
         let nyse = cal.session("XNYS").expect("NYSE");
-        assert_eq!(session_days(nyse, d("2019-01-01"), d("2019-01-10")), None);
+        // El calendario cubre desde 2011 (#390): antes de eso no hay sesiones conocidas.
+        assert_eq!(session_days(nyse, d("2010-01-01"), d("2010-01-10")), None);
     }
 }

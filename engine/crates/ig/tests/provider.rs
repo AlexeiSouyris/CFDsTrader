@@ -808,6 +808,41 @@ async fn recent_mode_asks_the_exact_range_without_margin() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn recent_mode_brings_spreads_in_the_same_exact_request() {
+    let (from, to) = (at("2026-11-20T09:00:00Z"), at("2026-11-20T10:00:00Z"));
+    let t = Recorded::default().login().ok(DE40_15M);
+    let ig = provider(&t, cfg());
+    let (candles, spreads) = cfds_ig::Recent(&ig)
+        .history_with_spreads(&de40(), Timeframe::M15, from, to)
+        .await
+        .unwrap();
+    // Un login y UN pedido, el mismo rango exacto que `history` en modo reciente (#437):
+    // guardar el spread no cuesta cupo extra.
+    let sent = t.sent();
+    assert_eq!(sent.len(), 2);
+    assert_eq!(
+        sent[1].path,
+        "/prices/IX.D.DAX.IFE.IP?resolution=MINUTE_15&from=2026-11-20T10:00:00\
+         &to=2026-11-20T10:59:59&pageSize=500&pageNumber=1"
+    );
+    let t2 = Recorded::default().login().ok(DE40_15M);
+    let ig2 = provider(&t2, cfg());
+    let alone = cfds_ig::Recent(&ig2)
+        .history(&de40(), Timeframe::M15, from, to)
+        .await
+        .unwrap();
+    assert_eq!(candles, alone, "las mismas velas que `Recent::history`");
+    assert_eq!(spreads.len(), 4);
+    for (s, c) in spreads.iter().zip(&candles) {
+        assert_eq!(
+            (&s.instrument_id, s.timeframe, s.start),
+            (&c.instrument_id, c.timeframe, c.start)
+        );
+        assert_eq!((s.spread, s.source.as_str()), (dec!(1.4), "ig_demo"));
+    }
+}
+
+#[tokio::test(start_paused = true)]
 async fn recent_mode_estimates_one_point_per_candle() {
     // Cupo restante 9995 tras el primer pedido. Un rango exacto de 9995 velas de 15m entra
     // justo; con margen (o contando el extremo) no entraría.

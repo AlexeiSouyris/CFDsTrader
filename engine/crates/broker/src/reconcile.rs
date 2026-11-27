@@ -10,6 +10,11 @@
 //!      (en paper, el mismo simulador; con un broker real, su API) → `Mismatch`;
 //!   4. cualquier diferencia: **kill switch** con el motivo, y no se opera hasta revisar.
 //! ```
+//!
+//! El kill switch también se guarda (#441): cada activación queda en el registro con cuántas
+//! órdenes había (`KillSwitchMark`), y al reconstruir se vuelve a activar en ese mismo punto.
+//! Así sobrevive a un reinicio, y las órdenes que rechazó por estar activo se reconstruyen
+//! iguales. Solo una liberación guardada (votación de la spec §1.2) lo apaga.
 
 use std::collections::BTreeMap;
 
@@ -17,6 +22,7 @@ use cfds_core::{ClientId, InstrumentId, Order, OrderReport, Position};
 use chrono::{DateTime, Utc};
 
 use crate::Broker;
+use crate::checkpoint::BrokerCheckpoint;
 use crate::paper::{BrokerConfig, MarketSetup, PaperBroker};
 
 /// Una diferencia entre el libro propio y el broker.
@@ -107,6 +113,30 @@ pub fn reconcile(own: &[Position], broker: &[Position]) -> Reconciliation {
     out
 }
 
+/// Un cambio guardado del kill switch (#441), en orden: después de `after_orders` órdenes del
+/// registro.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KillSwitchMark {
+    /// Cuántas órdenes del registro había cuando pasó (se aplica antes de la orden siguiente).
+    pub after_orders: usize,
+    pub change: KillSwitchChange,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KillSwitchChange {
+    /// Se activó, con este motivo y en este momento.
+    Activated { reason: String, at: DateTime<Utc> },
+    /// Se liberó después de la votación de la spec §1.2. El gateway nunca la escribe.
+    Released,
+}
+
+fn apply(paper: &mut PaperBroker, mark: &KillSwitchMark) {
+    match &mark.change {
+        KillSwitchChange::Activated { reason, at } => paper.activate_kill_switch(reason, *at),
+        KillSwitchChange::Released => paper.replay_kill_switch_release(),
+    }
+}
+
 /// Reconstruye el broker simulado desde el registro guardado (`PaperBroker::journal`) y lo
 /// reconcilia con `broker_positions` en `now`. Si algo no coincide, el broker reconstruido queda
 /// con el **kill switch activo**.
@@ -117,9 +147,77 @@ pub fn restore_and_reconcile(
     broker_positions: &[Position],
     now: DateTime<Utc>,
 ) -> (PaperBroker, Reconciliation) {
-    let mut paper = PaperBroker::new(cfg, markets);
+    restore_with_kill_switch(cfg, markets, journal, &[], broker_positions, now)
+}
+
+/// Como [`restore_and_reconcile`], pero aplicando además los cambios guardados del kill switch
+/// (`marks`, en orden) en el punto del registro donde pasaron (#441). Si el último es una
+/// activación, el broker reconstruido queda con el kill switch activo.
+pub fn restore_with_kill_switch(
+    cfg: BrokerConfig,
+    markets: BTreeMap<InstrumentId, MarketSetup>,
+    journal: &[(Order, OrderReport)],
+    marks: &[KillSwitchMark],
+    broker_positions: &[Position],
+    now: DateTime<Utc>,
+) -> (PaperBroker, Reconciliation) {
+    replay(
+        PaperBroker::new(cfg, markets),
+        journal,
+        0,
+        marks,
+        broker_positions,
+        now,
+    )
+}
+
+/// Como [`restore_with_kill_switch`], pero desde un punto de control (#463): el broker arranca
+/// en el estado de `ck` y se reenvían solo las órdenes y los cambios del kill switch
+/// posteriores. Da exactamente lo mismo que desde la primera orden. Error si el punto de
+/// control no verifica con este registro, esta config o estas velas (y entonces se reconstruye
+/// completo).
+pub fn restore_from_checkpoint(
+    cfg: BrokerConfig,
+    markets: BTreeMap<InstrumentId, MarketSetup>,
+    ck: &BrokerCheckpoint,
+    journal: &[(Order, OrderReport)],
+    marks: &[KillSwitchMark],
+    broker_positions: &[Position],
+    now: DateTime<Utc>,
+) -> Result<(PaperBroker, Reconciliation), String> {
+    let applied = marks
+        .get(..ck.marks_applied)
+        .ok_or("hay menos cambios del kill switch que los que cubre el punto de control")?;
+    if applied.iter().any(|m| m.after_orders > ck.after_orders) {
+        return Err("un cambio del kill switch cubierto es posterior al punto de control".into());
+    }
+    let paper = PaperBroker::from_checkpoint(cfg, markets, ck, journal)?;
+    Ok(replay(
+        paper,
+        journal,
+        ck.after_orders,
+        &marks[ck.marks_applied..],
+        broker_positions,
+        now,
+    ))
+}
+
+/// Reenvía `journal[start..]` sobre `paper`, con los cambios del kill switch `marks` en su
+/// punto del registro, y reconcilia con `broker_positions` en `now`.
+fn replay(
+    mut paper: PaperBroker,
+    journal: &[(Order, OrderReport)],
+    start: usize,
+    marks: &[KillSwitchMark],
+    broker_positions: &[Position],
+    now: DateTime<Utc>,
+) -> (PaperBroker, Reconciliation) {
     let mut drifts = Vec::new();
-    for (order, stored) in journal {
+    let mut pending = marks.iter().peekable();
+    for (i, (order, stored)) in journal.iter().enumerate().skip(start) {
+        while let Some(m) = pending.next_if(|m| m.after_orders <= i) {
+            apply(&mut paper, m);
+        }
         let replayed = paper.submit(order);
         if &replayed != stored {
             drifts.push(Drift {
@@ -128,6 +226,9 @@ pub fn restore_and_reconcile(
                 replayed,
             });
         }
+    }
+    for m in pending {
+        apply(&mut paper, m);
     }
     let own = paper.positions(now);
     let mut rec = reconcile(&own, broker_positions);

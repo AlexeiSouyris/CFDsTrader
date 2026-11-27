@@ -11,6 +11,27 @@ default_timeframe = "1d"
 # Niveles con exists_from en estos días hacia atrás desde as_of (alcanza para PDH/PDL y PWH/PWL).
 levels_days = 14
 
+# Fuente automática de la vista de liquidez (#628; decisión del dueño del 25-11-2026, «1 sí»).
+# Con ?source=auto (lo que abre la UI), el gateway usa las velas del CFD de IG; si en la ventana
+# del timeframe hay menos de `min_candles` velas cerradas, prueba en orden las fuentes de
+# `fallback` y usa la primera que tenga alguna vela, y la respuesta dice cuál usó y por qué
+# (`fallback` de liquidity_view.v1). Si ninguna tiene velas, la vista de IG vacía ("sin datos").
+# Con ?source=ig, futures o ibkr, esa fuente y nada más (la elección manual de la UI).
+[view.auto]
+label = "automática (IG; sin velas de IG, futuros)"
+# Menos de esto en la ventana cuenta como "IG todavía no tiene velas": con una o dos velas sueltas
+# no hay niveles ni FVG que mostrar. Un valor para ajustar con el uso.
+min_candles = 20
+# IBKR primero (#630): al día, con ~10 min de atraso, pero solo de los CFD con mapeo
+# (config/candle_sources.toml [ibkr.instruments]); los demás pasan a Databento.
+fallback = ["ibkr", "futures"]
+
+# El motivo que muestra la UI tal cual, por fuente de reemplazo (1 a 300 caracteres). En la de
+# IBKR, `{symbol}` es el instrumento de IBKR del CFD (MNQ para US100, MES para US500).
+[view.auto.notes]
+ibkr = "IG todavía no tiene velas: se muestran futuros de CME ({symbol}, IBKR, ~10 min de atraso). Base distinta al CFD."
+futures = "IG todavía no tiene velas de este instrumento y timeframe: se muestran futuros de CME/Eurex (Databento). Base distinta al CFD: los niveles no son precios del CFD."
+
 # Ventana de cada timeframe, en días hacia atrás desde as_of (el cierre de la última vela):
 # velas (y desequilibrio) que se mandan, y FVG creados en ese lapso.
 [windows.15m]
@@ -45,6 +66,11 @@ runs_limit = 50
 [ops]
 # Eventos del broker y alertas que se guardan en memoria (los últimos) para la UI.
 feed_size = 50
+# Eventos iguales (mismo nivel, origen, nombre y campos) se agrupan en una fila con `count` y
+# `last_seen` (#576). Cuántos grupos devuelve GET /api/v1/ops/events sin ?limit= (1..=feed_size).
+events_limit = 20
+# Cuántas filas de ops_events se leen para agruparlas (feed_size..=100000).
+group_scan = 2000
 # Días de eventos que conserva la base (#337). Los borra el job de retención:
 #   DATABASE_URL=... cargo run -p cfds-gateway --example ops_events_retention
 retention_days = 30
@@ -53,6 +79,74 @@ retention_days = 30
 persist_queue = 1000
 # Segundos entre reintentos si la base no responde.
 retry_secs = 30
+
+# Velas de IBKR para la terminal de la app (#551): /api/v1/ibkr/bars y /api/v1/ibkr/watchlist,
+# solo lectura de ibkr_bars. El día de sesión de la variación sale de [session] de
+# config/terminal.toml (el mismo criterio que la terminal bolsa).
+[ibkr]
+# Fuente de las velas guardadas: la de [load] source de config/ibkr.toml.
+source = "ibkr"
+# Instrumentos de la watchlist, en orden. Cada uno está en config/ibkr.toml (sin futuros continuos).
+instruments = ["MNQ", "MES", "QQQ"]
+# Velas que devuelve /api/v1/ibkr/bars sin ?limit, y el máximo que acepta ?limit.
+default_bars = 500
+max_bars = 5000
+# Vela en formación (#558, solo visual): GET /api/v1/ibkr/live (SSE, contracts/ibkr_live_bar.v1).
+# Con true, el gateway abre su propia conexión de streaming a IB Gateway paper con [live] de
+# config/ibkr.toml (client_id 21, mismas guardas: puerto, cuenta paper de .env, kill switch). Si IB
+# Gateway está cerrado, el gateway arranca igual y la ruta informa "disconnected". Con false no se
+# conecta nada y la ruta informa "disabled".
+live = true
+# Conexiones SSE abiertas a la vez, como máximo (cada gráfico abierto es una).
+live_max_clients = 16
+# Cada cuánto va un comentario SSE (": ping") para que nada corte una conexión sin mensajes.
+live_heartbeat_secs = 15
+
+# Noticias de la vista Noticias (#600): GET /api/v1/news, solo lectura de news_items y
+# news_interpretations (lo escribe Python). Una noticia sale recién desde su published_at.
+[news]
+# Noticias que devuelve sin ?limit, y el máximo que acepta ?limit (1..=1000).
+default_limit = 50
+max_limit = 200
+
+# Calendario de la vista Noticias (#600): GET /api/v1/calendar, solo lectura de economic_events y
+# official_releases. Una fila sale recién desde su published_at.
+[calendar]
+# Sin ?from, el rango empieza estos días antes de ahora.
+past_days = 1
+# Sin ?to, el rango termina estos días después de from (o de ahora, si from es anterior).
+future_days = 14
+# El rango from..to más largo que se acepta, en días (1..=3660).
+max_days = 400
+
+# Academia (#719, docs/design/2026-11-academia.md): /api/v1/academy/*. El catálogo sale de
+# config/academy.toml. Las rutas POST (desbloqueo a mano, lección completada, examen) usan el mismo
+# token local que [paper] y escriben solo en academy_events (solo agregar).
+[academy]
+# La persona de la Academia (spec §1.2); hoy solo el dueño.
+member_id = "owner"
+# Tamaño máximo del body de un POST (un quiz_answer.v1 de 20 preguntas ocupa ~1,5 KB).
+max_body_bytes = 16384
+
+# Laboratorio de estrategias (#776, docs/design/2026-11-laboratorio.md §5): /api/v1/lab/*. El
+# catálogo y la validación salen de config/lab.toml y config/risk.toml. El gateway nunca corre un
+# backtest: encolar (POST /jobs) y cancelar (DELETE /jobs/{id}) usan el mismo token local que
+# [paper] y escriben solo en las tablas del laboratorio (solo agregar); los corre el lab_worker.
+[lab]
+# Tamaño máximo del body de un POST (un lab_job_request.v1 con 20 variantes ocupa ~20 KB).
+max_body_bytes = 65536
+# Conexiones SSE de progreso abiertas a la vez, como máximo.
+sse_max_clients = 8
+# Cada cuánto va un comentario SSE (": ping") y cuánto espera cada lectura del stream de Redis.
+sse_heartbeat_secs = 15
+# Sin Redis (REDIS_URL), cada cuánto se miran los eventos del trabajo en PostgreSQL.
+sse_poll_secs = 2
+# Vista previa de riesgo (POST /api/v1/lab/risk_preview, #777): días de velas de futuros que se leen
+# para el ATR (el precio de referencia es el cierre de la última cerrada).
+risk_preview_days = 30
+# Simuladores de varianza y de cuentas fondeadas (#805): tope del body (una lista de hasta 20 000
+# operaciones con hora y R ocupa ~1 MB).
+sim_max_body_bytes = 1048576
 
 # Contexto de mercado del Panel (#294): /api/v1/sentiment y /api/v1/analogs, solo lectura.
 [context]

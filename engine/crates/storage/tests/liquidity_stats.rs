@@ -15,13 +15,11 @@ use cfds_storage::{PgStore, StatsReport, StatsRunReport, StorageError};
 use chrono::{DateTime, NaiveDate, TimeDelta, Utc};
 use rust_decimal::dec;
 
-const NEEDS: &str = "necesita PostgreSQL: DATABASE_URL";
 const TEST_DB: &str = "cfds_test_stats";
 
 /// La base de prueba propia, con las migraciones aplicadas.
 async fn store() -> PgStore {
-    let url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| panic!("falta DATABASE_URL ({NEEDS})"));
+    let url = cfds_storage::test_db::test_database_url();
     let admin = PgStore::connect(&url).await.unwrap();
     let exists: bool =
         sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)")
@@ -35,14 +33,7 @@ async fn store() -> PgStore {
             .execute(admin.pool())
             .await;
     }
-    let (rest, query) = match url.split_once('?') {
-        Some((r, q)) => (r, format!("?{q}")),
-        None => (url.as_str(), String::new()),
-    };
-    let (server, _db) = rest
-        .rsplit_once('/')
-        .expect("DATABASE_URL sin nombre de base");
-    let s = PgStore::connect(&format!("{server}/{TEST_DB}{query}"))
+    let s = PgStore::connect(&cfds_storage::test_db::with_database(&url, TEST_DB))
         .await
         .unwrap();
     s.migrate().await.unwrap();
@@ -50,8 +41,7 @@ async fn store() -> PgStore {
 }
 
 async fn fresh_instrument(s: &PgStore, prefix: &str) -> InstrumentId {
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let id: InstrumentId = format!("{prefix}{nanos}").parse().unwrap();
+    let id: InstrumentId = cfds_storage::test_db::unique_id(prefix).parse().unwrap();
     s.upsert_instrument(&Instrument {
         id: id.clone(),
         name: "Test estadísticas".into(),

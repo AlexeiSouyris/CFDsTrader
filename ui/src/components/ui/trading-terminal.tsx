@@ -2,18 +2,25 @@
  * Piezas de la terminal de trading (fase 10, prototipo, #275): la franja de la cuenta con el modo
  * simulación, el aviso de kill switch, el ticket de orden y las posiciones abiertas.
  *
- * Diseño propio del sistema de `ui/` (vidrio, Manrope, pocos colores con sentido: verde y rojo
+ * Diseño propio del sistema de `ui/` (superficies lisas, Manrope, pocos colores con sentido: verde y rojo
  * solo para dirección y P/L, ámbar solo para "simulación"). **No calcula nada:** el P/L, el
  * margen, el apalancamiento y la validación de riesgo llegan del motor; la UI los muestra.
  */
-import { Check, OctagonAlert, ShieldCheck, X } from 'lucide-react'
+import { Check, Clock, OctagonAlert, ShieldCheck, X } from 'lucide-react'
 import { useId, useState, type FormEvent, type ReactNode } from 'react'
 
 import { AnimatedNumber } from '@/components/ui/animated-number'
 import { Term } from '@/components/ui/term'
-import { dateTimeUtc, decimal, isNegative, signed } from '@/lib/format'
+import {
+  dateTimeUtc,
+  decimal,
+  isNegative,
+  leverageText,
+  parseDecimalInput,
+  signed,
+} from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { newOrder } from '@/lib/paper-api'
+import { GatewayError, newOrder } from '@/lib/paper-api'
 import {
   REJECTION_LABEL,
   type Order,
@@ -24,26 +31,40 @@ import {
 } from '@/lib/paper-contracts'
 import type { TicketDraft } from '@/mocks'
 
-/** El indicador grande de que todo es simulación. */
-export function PaperBadge() {
+/**
+ * El indicador de que todo es simulación. En la barra de la Terminal (#552) va en su versión
+ * compacta, siempre a la vista.
+ */
+export function PaperBadge({ compact = false }: { compact?: boolean }) {
   return (
     <div
       role="status"
       aria-label="Modo simulación: no se envían órdenes reales"
-      className="flex items-center gap-3 rounded-[18px] border border-[var(--chart-signal)]/50 bg-[var(--chart-signal)]/10 px-4 py-3"
+      title="Paper: las órdenes van al broker simulado. No se envía ninguna orden real."
+      className={cn(
+        'flex shrink-0 items-center gap-3 border border-[var(--chart-signal)]/50 bg-[var(--chart-signal)]/10',
+        compact ? 'gap-2 rounded-full px-3 py-1.5' : 'rounded-section px-4 py-3',
+      )}
     >
       <span className="relative flex size-2.5" aria-hidden="true">
         <span className="absolute inline-flex size-full animate-ping rounded-full bg-[var(--chart-signal)] opacity-60 motion-reduce:animate-none" />
         <span className="relative inline-flex size-2.5 rounded-full bg-[var(--chart-signal)]" />
       </span>
       <span>
-        <strong className="block text-[15px] leading-none font-extrabold tracking-[0.12em] text-[var(--chart-signal)]">
+        <strong
+          className={cn(
+            'block leading-none font-extrabold text-[var(--chart-signal)]',
+            compact ? 'text-[11.5px] tracking-[0.1em]' : 'text-[15px] tracking-[0.12em]',
+          )}
+        >
           MODO SIMULACIÓN
         </strong>
-        <span className="mt-1 block text-[11px] text-muted-foreground">
-          <Term id="paper-trading">Paper</Term>: las órdenes van al broker simulado. No se envía
-          ninguna orden real.
-        </span>
+        {!compact && (
+          <span className="mt-1 block text-[11px] text-muted-foreground">
+            <Term id="paper-trading">Paper</Term>: las órdenes van al broker simulado. No se envía
+            ninguna orden real.
+          </span>
+        )}
       </span>
     </div>
   )
@@ -63,28 +84,20 @@ function Stat({
   className?: string
 }) {
   return (
-    <div className={cn('min-w-0', className)}>
-      <dt className="text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
+    <div className={cn('min-w-0', className)} title={typeof hint === 'string' ? hint : undefined}>
+      <dt className="text-[10px] font-bold tracking-[0.1em] whitespace-nowrap text-muted-foreground uppercase">
         {label}
       </dt>
       <dd
         className={cn(
-          'mt-1.5 leading-none font-extrabold tracking-[-0.03em] whitespace-nowrap tabular-nums',
-          big ? 'text-[clamp(30px,3.2vw,42px)]' : 'text-[20px]',
+          'mt-1 leading-none font-extrabold tracking-[-0.02em] whitespace-nowrap tabular-nums',
+          big ? 'text-[22px]' : 'text-[15px]',
         )}
       >
         {children}
       </dd>
-      {hint && (
-        <p
-          className={cn(
-            'text-[11px] leading-snug text-muted-foreground',
-            big ? 'mt-2.5' : 'mt-1.5',
-          )}
-        >
-          {hint}
-        </p>
-      )}
+      {/* dentro de un `dl` solo van `dt` y `dd` (#605): la aclaración es otro `dd` del mismo término */}
+      {hint && <dd className="mt-1 text-[10.5px] leading-snug text-muted-foreground">{hint}</dd>}
     </div>
   )
 }
@@ -92,27 +105,29 @@ function Stat({
 const tone = (v: string) => (isNegative(v) ? 'text-down' : 'text-up')
 
 /**
- * Capital, P/L, margen y apalancamiento de la cuenta de simulación, tal como llegan.
+ * La barra de la cuenta de simulación (#552): el modo simulación, el capital, el P/L, el margen,
+ * el apalancamiento y la pérdida del día, tal como llegan del motor, en una sola franja.
  *
- * El capital va en su propia columna (#356): con la cifra grande en la misma grilla que el resto
- * se pisaba con el P/L abierto. El resto de las cifras se acomoda solo (`auto-fit`) según el ancho.
+ * El capital va en su propia lista (#356): así no se pisa con el P/L abierto. El resto se acomoda
+ * solo según el ancho; en el celular, en dos columnas.
  */
-export function AccountStrip({ account }: { account: PaperAccount }) {
+export function AccountStrip({ account, aside }: { account: PaperAccount; aside?: ReactNode }) {
   const used = Number(account.daily_loss_used_pct)
   return (
+    // la usan el Inicio y la Terminal: superficie lisa, como todo desde #708
     <section
       aria-label="Cuenta de simulación"
-      className="glass relative grid gap-5 rounded-[20px] p-5 has-[[role=dialog]]:z-30 xl:grid-cols-[minmax(17rem,21rem)_minmax(0,1fr)] xl:gap-8"
+      className="panel relative flex min-w-0 flex-wrap items-center gap-x-6 gap-y-3 rounded-section px-4 py-3"
     >
-      <div className="grid content-start gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-center xl:grid-cols-1">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+        <PaperBadge compact />
         <dl>
           <Stat label="Capital" big hint={`${account.currency}, al ${dateTimeUtc(account.as_of)}`}>
             <AnimatedNumber value={account.equity} format={(t) => decimal(t, 2)} />
           </Stat>
         </dl>
-        <PaperBadge />
       </div>
-      <dl className="grid grid-cols-2 content-center gap-x-6 gap-y-5 border-t border-border pt-5 sm:grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] xl:border-t-0 xl:border-l xl:pt-0 xl:pl-8">
+      <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))]">
         <Stat label={<Term id="pl">P/L abierto</Term>} hint="posiciones abiertas">
           <span className={tone(account.unrealized_pl)}>
             <AnimatedNumber value={account.unrealized_pl} format={(t) => signed(t, 2)} />
@@ -130,19 +145,15 @@ export function AccountStrip({ account }: { account: PaperAccount }) {
           <AnimatedNumber value={account.margin_used} format={(t) => decimal(t, 2)} />
         </Stat>
         <Stat
-          label={<Term id="apalancamiento">Apalancamiento</Term>}
+          label={<Term id="apalancamiento">Apalanc.</Term>}
           hint={`${account.open_positions} de ${account.max_positions} posiciones`}
         >
-          {decimal(account.leverage)}:1
+          {leverageText(account.leverage)}
         </Stat>
-        <Stat
-          label="Pérdida del día"
-          hint="usada del máximo diario (§10)"
-          className="max-sm:col-span-2"
-        >
+        <Stat label="Pérdida del día" hint="usada del máximo diario">
           {decimal(account.daily_loss_used_pct)} %
           <span
-            className="mt-2.5 block h-1.5 overflow-hidden rounded-full bg-border"
+            className="mt-1.5 block h-1 overflow-hidden rounded-full bg-border"
             role="meter"
             aria-label="Pérdida del día usada"
             aria-valuemin={0}
@@ -160,6 +171,7 @@ export function AccountStrip({ account }: { account: PaperAccount }) {
           </span>
         </Stat>
       </dl>
+      {aside}
     </section>
   )
 }
@@ -170,7 +182,7 @@ export function KillSwitchBanner({ account }: { account: PaperAccount }) {
   return (
     <div
       role="alert"
-      className="flex flex-wrap items-start gap-3 rounded-[20px] border border-down/40 bg-down/10 p-4"
+      className="flex flex-wrap items-start gap-3 rounded-section border border-down/40 bg-down/10 p-4"
     >
       <OctagonAlert className="mt-0.5 size-5 shrink-0 text-down" aria-hidden="true" />
       <div className="min-w-0 flex-1">
@@ -188,9 +200,34 @@ export function KillSwitchBanner({ account }: { account: PaperAccount }) {
 }
 
 const SIDE = { long: 'Comprar', short: 'Vender' } as const
-/** Lo que se escribe con coma se manda con punto: el decimal viaja como texto (contratos). */
-const asDecimal = (s: string) => s.trim().replace(',', '.')
-const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
+/**
+ * Un error del gateway en palabras propias (#578): nunca el texto crudo del contrato. El código
+ * HTTP queda a la vista para quien tenga que revisarlo.
+ */
+function failureOf(e: unknown): { title: string; text: string } {
+  if (!(e instanceof GatewayError))
+    return {
+      title: 'No se pudo hablar con el motor.',
+      text: 'El gateway no responde. No se envió nada.',
+    }
+  const title = 'El motor no pudo procesar la orden.'
+  if (e.status === 400)
+    return {
+      title,
+      text: 'Algún dato de la orden no tiene el formato esperado. Revisá los precios.',
+    }
+  if (e.status === 403)
+    return {
+      title,
+      text: 'El gateway no deja enviar órdenes desde acá (403): falta el token local de escritura.',
+    }
+  if (e.status === 503)
+    return {
+      title,
+      text: 'El motor no acepta órdenes en este momento (arranque, reconciliación o apagado). Probá en un rato.',
+    }
+  return { title, text: `El gateway respondió con un error (${e.status}). No se envió nada.` }
+}
 /** Pantalla táctil (celular, tablet): ahí enviar pide una confirmación más (#307). */
 const coarsePointer = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches === true
@@ -209,14 +246,21 @@ const coarsePointer = () =>
  */
 export function OrderTicket({
   instruments,
+  names = {},
+  unavailable = [],
   initial,
   examples = [],
   preview,
   submit,
   onFilled,
+  onReport,
   locked,
 }: {
   instruments: string[]
+  /** nombre de cada instrumento, del catálogo del motor */
+  names?: Record<string, string>
+  /** los que el motor conoce pero no tienen velas: se ven, no se eligen */
+  unavailable?: string[]
   initial: TicketDraft
   /** tickets de ejemplo para la maqueta sin gateway */
   examples?: { label: string; draft: TicketDraft }[]
@@ -226,16 +270,18 @@ export function OrderTicket({
   submit?: (order: Order) => Promise<OrderReport>
   /** después de una orden ejecutada, para volver a pedir la cuenta y las posiciones */
   onFilled?: (report: OrderReport) => void
+  /** cada informe del broker simulado, con la orden enviada (la lista de órdenes de la sesión) */
+  onReport?: (order: Order, report: OrderReport) => void
   /** motivo por el que no se puede operar (por ejemplo, kill switch) */
   locked?: string
 }) {
   const id = useId()
   const [draft, setDraft] = useState<TicketDraft>(initial)
-  const [missing, setMissing] = useState<string | null>(null)
+  const [invalid, setInvalid] = useState<{ field: 'stop' | 'tp1'; text: string } | null>(null)
   const [verdict, setVerdict] = useState<TicketVerdict | null | undefined>(undefined)
   const [report, setReport] = useState<OrderReport | 'mock' | null>(null)
   const [busy, setBusy] = useState<'preview' | 'submit' | null>(null)
-  const [failure, setFailure] = useState<string | null>(null)
+  const [failure, setFailure] = useState<{ title: string; text: string } | null>(null)
   const [order, setOrder] = useState<Order | null>(null)
   const [confirming, setConfirming] = useState(false)
 
@@ -245,30 +291,42 @@ export function OrderTicket({
     setConfirming(false)
     setVerdict(undefined)
     setReport(null)
-    setMissing(null)
+    setInvalid(null)
     setFailure(null)
   }
 
   const validate = async (e: FormEvent) => {
     e.preventDefault()
     if (busy) return
-    if (!draft.stop.trim()) return setMissing('El stop es obligatorio: sin stop no se abre nada.')
-    setMissing(null)
+    // mensajes propios, antes de llamar al motor (#578): el formulario no usa los del navegador
+    if (!draft.stop.trim())
+      return setInvalid({
+        field: 'stop',
+        text: 'El stop es obligatorio: sin stop no se abre nada.',
+      })
+    const stop = parseDecimalInput(draft.stop)
+    if (stop === null)
+      return setInvalid({
+        field: 'stop',
+        text: 'El stop tiene que ser un precio positivo, por ejemplo 24800,5.',
+      })
+    const tp1 = draft.tp1.trim() ? parseDecimalInput(draft.tp1) : null
+    if (draft.tp1.trim() && tp1 === null)
+      return setInvalid({
+        field: 'tp1',
+        text: 'El TP1 tiene que ser un precio positivo, por ejemplo 24900, o quedar vacío.',
+      })
+    setInvalid(null)
     setFailure(null)
     setReport(null)
-    const o = newOrder({
-      instrument_id: draft.instrument_id,
-      side: draft.side,
-      stop: asDecimal(draft.stop),
-      tp1: draft.tp1.trim() ? asDecimal(draft.tp1) : null,
-    })
+    const o = newOrder({ instrument_id: draft.instrument_id, side: draft.side, stop, tp1 })
     setOrder(o)
     setBusy('preview')
     try {
       setVerdict(await preview(o))
     } catch (err) {
       setVerdict(undefined)
-      setFailure(errorText(err))
+      setFailure(failureOf(err))
     } finally {
       setBusy(null)
     }
@@ -282,11 +340,13 @@ export function OrderTicket({
     setFailure(null)
     try {
       // la hora de la orden es la del envío: el gateway rechaza órdenes viejas
-      const r = await submit({ ...order, created_at: new Date().toISOString() })
+      const sent = { ...order, created_at: new Date().toISOString() }
+      const r = await submit(sent)
       setReport(r)
+      onReport?.(sent, r)
       if (r.status === 'filled') onFilled?.(r)
     } catch (err) {
-      setFailure(errorText(err))
+      setFailure(failureOf(err))
     } finally {
       setBusy(null)
     }
@@ -300,6 +360,7 @@ export function OrderTicket({
   return (
     <form
       onSubmit={validate}
+      noValidate
       aria-label="Ticket de orden"
       aria-busy={busy !== null}
       className="@container grid gap-4"
@@ -342,8 +403,9 @@ export function OrderTicket({
           onChange={(e) => change({ instrument_id: e.target.value })}
         >
           {instruments.map((i) => (
-            <option key={i} value={i}>
-              {i}
+            <option key={i} value={i} disabled={unavailable.includes(i)}>
+              {[i, names[i]].filter(Boolean).join(' · ')}
+              {unavailable.includes(i) ? ' (sin velas)' : ''}
             </option>
           ))}
         </select>
@@ -356,10 +418,9 @@ export function OrderTicket({
             id={`${id}-stop`}
             aria-label="Stop (obligatorio)"
             inputMode="decimal"
-            required
             aria-required="true"
-            aria-invalid={missing ? true : undefined}
-            aria-describedby={missing ? `${id}-missing` : undefined}
+            aria-invalid={invalid?.field === 'stop' ? true : undefined}
+            aria-describedby={invalid?.field === 'stop' ? `${id}-invalid` : undefined}
             className={field}
             value={draft.stop}
             onChange={(e) => change({ stop: e.target.value })}
@@ -371,6 +432,8 @@ export function OrderTicket({
             id={`${id}-tp1`}
             aria-label="TP1 (opcional)"
             inputMode="decimal"
+            aria-invalid={invalid?.field === 'tp1' ? true : undefined}
+            aria-describedby={invalid?.field === 'tp1' ? `${id}-invalid` : undefined}
             className={field}
             value={draft.tp1}
             onChange={(e) => change({ tp1: e.target.value })}
@@ -382,9 +445,9 @@ export function OrderTicket({
         motor.
       </p>
 
-      {missing && (
-        <p id={`${id}-missing`} role="alert" className="text-[12.5px] font-semibold text-down">
-          {missing}
+      {invalid && (
+        <p id={`${id}-invalid`} role="alert" className="text-[12.5px] font-semibold text-down">
+          {invalid.text}
         </p>
       )}
 
@@ -392,7 +455,7 @@ export function OrderTicket({
         type="submit"
         disabled={Boolean(locked) || busy !== null}
         aria-describedby={locked ? `${id}-locked` : undefined}
-        className="glass-strong flex min-h-11 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[13px] font-bold disabled:cursor-not-allowed disabled:opacity-40"
+        className="panel flex min-h-11 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[13px] font-bold disabled:cursor-not-allowed disabled:opacity-40"
       >
         <ShieldCheck className="size-4" aria-hidden="true" />
         {busy === 'preview' ? 'Validando…' : 'Validar con el motor'}
@@ -400,8 +463,8 @@ export function OrderTicket({
 
       {failure && (
         <p role="alert" className="rounded-2xl border border-down/40 p-3 text-[12.5px]">
-          <strong className="block font-bold text-down">No se pudo hablar con el motor.</strong>
-          {failure}
+          <strong className="block font-bold text-down">{failure.title}</strong>
+          {failure.text}
         </p>
       )}
 
@@ -430,7 +493,7 @@ export function OrderTicket({
 
       {verdict?.accepted &&
         (report ? (
-          <Report report={report} />
+          <Report report={report} since={verdict.as_of} />
         ) : confirming ? (
           <div
             role="group"
@@ -485,11 +548,46 @@ export function OrderTicket({
   )
 }
 
-function Report({ report: r }: { report: OrderReport | 'mock' }) {
+/**
+ * Aviso de que el motor no tiene velas en vivo (`no_recent_candles`, #384): suele ser el cupo de
+ * IG agotado. Es un aviso de espera, no un error: va en tono neutro (ni rojo de error ni el ámbar
+ * reservado a "simulación") y con `role="status"`. La fecha es la que manda el motor (`as_of`); la UI no la calcula.
+ */
+function NoCandlesNotice({ since, className }: { since?: string; className?: string }) {
+  return (
+    <p
+      role="status"
+      className={cn(
+        'flex items-start gap-2 rounded-2xl border border-border bg-foreground/5 p-3 text-[12.5px]',
+        className,
+      )}
+    >
+      <Clock className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <span>
+        <strong className="font-bold">
+          {since ? `Sin velas en vivo desde ${dateTimeUtc(since)}.` : 'Sin velas en vivo.'}
+        </strong>{' '}
+        Vuelven cuando se renueve el cupo de IG.
+      </span>
+    </p>
+  )
+}
+
+function Report({ report: r, since }: { report: OrderReport | 'mock'; since?: string }) {
   if (r === 'mock')
     return (
       <p role="status" className="text-[12.5px] font-bold">
         Maqueta sin gateway: no se envió nada al broker simulado.
+      </p>
+    )
+  if (r.status === 'rejected' && r.rejection === 'no_recent_candles')
+    return <NoCandlesNotice since={since} />
+  if (r.status === 'pending')
+    return (
+      <p role="status" className="rounded-2xl border border-border p-3 text-[12.5px]">
+        <strong className="block font-extrabold">Pendiente de la próxima vela.</strong>
+        El motor la decide y la ejecuta (o la rechaza) en la apertura de la vela siguiente, desde{' '}
+        {dateTimeUtc(r.at)}. Mirá las posiciones abiertas.
       </p>
     )
   if (r.status === 'rejected')
@@ -512,18 +610,34 @@ function Report({ report: r }: { report: OrderReport | 'mock' }) {
 
 function Verdict({ verdict: v }: { verdict: TicketVerdict }) {
   const or = (x: string | null, f: (t: string) => string) => (x === null ? '—' : f(x))
+  // sin velas en vivo es una espera (cupo de IG), no un error: se avisa en tono neutro (#384)
+  const noCandles = v.rejection === 'no_recent_candles'
   return (
     <section
       aria-label="Validación de riesgo del motor"
       className={cn(
         'rounded-2xl border p-3',
-        v.accepted ? 'border-up/40 bg-up/5' : 'border-down/40 bg-down/5',
+        v.accepted
+          ? 'border-up/40 bg-up/5'
+          : noCandles
+            ? 'border-border'
+            : 'border-down/40 bg-down/5',
       )}
     >
-      <p className={cn('text-[13px] font-extrabold', v.accepted ? 'text-up' : 'text-down')}>
-        {v.accepted ? 'El motor la acepta' : 'El motor la rechaza'}
+      <p
+        className={cn(
+          'text-[13px] font-extrabold',
+          v.accepted ? 'text-up' : noCandles ? 'text-foreground' : 'text-down',
+        )}
+      >
+        {v.accepted
+          ? 'El motor la acepta'
+          : noCandles
+            ? 'En espera de datos'
+            : 'El motor la rechaza'}
       </p>
-      {v.rejection && (
+      {noCandles && <NoCandlesNotice since={v.as_of} className="mt-2" />}
+      {v.rejection && !noCandles && (
         <p className="mt-1 flex items-start gap-2 text-[12.5px]">
           <X className="mt-0.5 size-3.5 shrink-0 text-down" aria-hidden="true" />
           {REJECTION_LABEL[v.rejection]}
@@ -557,10 +671,13 @@ function Verdict({ verdict: v }: { verdict: TicketVerdict }) {
           <dt className="text-muted-foreground">Precio de referencia</dt>
           <dd className="font-bold tabular-nums">{or(v.reference, (t) => decimal(t))}</dd>
         </div>
-        <div>
-          <dt className="text-muted-foreground">Vela usada</dt>
-          <dd className="font-bold tabular-nums">{dateTimeUtc(v.as_of)}</dd>
-        </div>
+        {/* sin precio de referencia el motor no usó ninguna vela: no se muestra una hora (#578) */}
+        {v.reference !== null && (
+          <div>
+            <dt className="text-muted-foreground">Vela usada</dt>
+            <dd className="font-bold tabular-nums">{dateTimeUtc(v.as_of)}</dd>
+          </div>
+        )}
       </dl>
       {v.leverage_capped && (
         <p className="mt-2 flex items-start gap-2 text-[12px]">

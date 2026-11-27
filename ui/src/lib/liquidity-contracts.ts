@@ -5,6 +5,8 @@
  * Mismos campos, decimales como texto y los mismos enums. La UI no calcula nada (CLAUDE.md §1).
  */
 
+import type { ChartAnalysis } from '@/lib/analysis-contracts'
+
 export type Utc = string
 /** Decimal exacto como texto, nunca como número JSON. */
 export type Decimal = string
@@ -22,7 +24,16 @@ export type LiquidityBar = {
 }
 
 export type LevelKind =
-  'eqh' | 'eql' | 'pdh' | 'pdl' | 'pwh' | 'pwl' | 'session_high' | 'session_low'
+  | 'eqh'
+  | 'eql'
+  | 'pdh'
+  | 'pdl'
+  | 'pwh'
+  | 'pwl'
+  | 'session_high'
+  | 'session_low'
+  | 'round_high'
+  | 'round_low'
 export type TradingSession = 'asia' | 'london' | 'ny'
 /** intact; swept = barrido con reversión (el sweep de §5.4); broken = roto. */
 export type LevelState = 'intact' | 'swept' | 'broken'
@@ -125,10 +136,20 @@ export type ViewTimeframe = '15m' | '1h' | '1d'
 
 /**
  * De qué velas sale la vista (#259): `ig` = las del CFD de IG; `futures` = las armadas desde los
- * futuros de Databento, con la forma del precio del futuro y una base distinta a la del CFD.
+ * futuros de Databento, con la forma del precio del futuro y una base distinta a la del CFD;
+ * `ibkr` (#630) = las barras de los futuros micro de IBKR (MNQ, MES), también con base distinta.
  * `label` es el texto que manda el motor (`config/candle_sources.toml`).
  */
-export type ViewSource = { id: 'ig' | 'futures'; label: string }
+export type ViewSource = { id: 'ig' | 'futures' | 'ibkr'; label: string }
+
+/**
+ * La fuente que se pide (#628): una de las de arriba o `auto` = IG y, si IG no tiene velas
+ * suficientes, la primera de reemplazo con velas. Una vista siempre dice la que de verdad usó.
+ */
+export type SourceChoice = ViewSource['id'] | 'auto'
+
+/** Por qué la vista no sale de IG con `source=auto` (#628); `note` se muestra tal cual. */
+export type SourceFallback = { from: 'ig'; note: string }
 
 /** `daily_candle.v1`: día local de medianoche a medianoche, con `start` y `end` explícitos. */
 export type DailyBar = {
@@ -150,6 +171,8 @@ export type LiquidityViewData = {
   timeframe?: ViewTimeframe
   /** opcional en el contrato (#259); ausente = velas del CFD de IG */
   source?: ViewSource
+  /** opcional en el contrato (#628): solo si `auto` pasó a una fuente de reemplazo */
+  fallback?: SourceFallback
   generated_at: Utc
   /** cierre de la última vela cerrada guardada; null si no hay velas ("sin datos todavía") */
   as_of: Utc | null
@@ -160,6 +183,11 @@ export type LiquidityViewData = {
   /** un valor por vela de la ventana; el último es el actual */
   imbalance: Imbalance[]
   stats: LiquidityStats[]
+  /**
+   * opcional en el contrato (#501): las herramientas de análisis del motor, solo en 15m con las
+   * velas de IG; los índices se refieren a `candles`
+   */
+  analysis?: ChartAnalysis
 }
 
 /** `instrument.v1` */
@@ -177,6 +205,6 @@ export type GatewayInstruments = {
   default_timeframe: ViewTimeframe
   timeframes: ViewTimeframe[]
   instruments: InstrumentInfo[]
-  /** opcional en el contrato (#259); la primera es la que se usa sin `source` */
-  sources?: ViewSource[]
+  /** opcional en el contrato (#259); la primera es la que abre la vista (#628: `auto`) */
+  sources?: { id: SourceChoice; label: string }[]
 }

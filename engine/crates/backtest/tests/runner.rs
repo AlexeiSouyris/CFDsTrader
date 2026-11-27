@@ -49,11 +49,12 @@ fn setup() -> Setup {
         backtest: BacktestConfig::from_toml(include_str!("../../../../config/backtest.toml"))
             .unwrap(),
         initial_equity: dec!(1000),
-        account_to_instrument: dec!(1),
+        account_to_instrument: cfds_backtest::AccountFx::Same,
         // 1,1 % + 2,5 % de tasa = 3,6 % anual para los largos.
         funding_rates: FundingRates::Constant(dec!(1.1)),
         funding_cutoff: NaiveTime::from_hms_opt(23, 0, 0).unwrap(),
         funding_tz: chrono_tz::Europe::Madrid,
+        futures_basis: None,
         day_tz: chrono_tz::Europe::Madrid,
     }
 }
@@ -814,7 +815,7 @@ fn pnl_is_converted_to_the_account_currency() {
     let (m15, h1, setups) = three(|n| {
         let mut s = named(n);
         if n != "DE40" {
-            s.account_to_instrument = dec!(1.25);
+            s.account_to_instrument = fx_series(&[("2000-01-03T16:00:00Z", dec!(1.25))]);
         }
         s
     });
@@ -835,6 +836,75 @@ fn pnl_is_converted_to_the_account_currency() {
         report.final_equity.round_dp(10),
         (dec!(1000) + net).round_dp(10)
     );
+}
+
+/// Serie EUR/USD de prueba: (publicación, tipo).
+fn fx_series(points: &[(&str, Decimal)]) -> cfds_backtest::AccountFx {
+    let rates = points
+        .iter()
+        .map(|&(at, rate)| {
+            let at: DateTime<Utc> = at.parse().unwrap();
+            cfds_core::FxRate {
+                pair: "EURUSD".into(),
+                ref_date: at.date_naive(),
+                published_at: at,
+                rate,
+            }
+        })
+        .collect();
+    cfds_backtest::AccountFx::Daily(cfds_backtest::FxRates::new(rates).unwrap())
+}
+
+#[test]
+fn each_trade_is_converted_at_the_rate_in_force_when_it_closes() {
+    // ADR 0013 §4: el tipo cambia en el medio de la serie; cada operación se realiza al tipo
+    // vigente al cierre de su última salida.
+    let (m15, h1, setups) = three(named);
+    let middle = m15[0][m15[0].len() / 2].end();
+    let change = middle.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let (m15, h1, setups) = (m15, h1, {
+        let mut v = setups;
+        for s in &mut v {
+            s.account_to_instrument =
+                fx_series(&[("2000-01-03T16:00:00Z", dec!(1.25)), (&change, dec!(2))]);
+        }
+        v
+    });
+    let report = run_portfolio(&markets(&m15, &h1, &setups)).unwrap();
+    assert!(!report.trades.is_empty());
+    let net: Decimal = report
+        .trades
+        .iter()
+        .map(|t| {
+            let fx = if t.record.closed_at() >= middle {
+                dec!(2)
+            } else {
+                dec!(1.25)
+            };
+            t.record.net_pnl / fx
+        })
+        .sum();
+    assert_eq!(
+        report.final_equity.round_dp(10),
+        (dec!(1000) + net).round_dp(10)
+    );
+}
+
+#[test]
+fn without_a_published_rate_the_run_stops_instead_of_guessing() {
+    let (m15, h1, setups) = three(|n| {
+        let mut s = named(n);
+        s.account_to_instrument = cfds_backtest::AccountFx::Missing {
+            pair: "EURUSD".into(),
+        };
+        s
+    });
+    assert!(matches!(
+        run_portfolio(&markets(&m15, &h1, &setups)),
+        Err(PortfolioError::Run(cfds_backtest::RunError::MissingFxRate(
+            _
+        )))
+    ));
 }
 
 #[test]

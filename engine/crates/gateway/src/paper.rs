@@ -19,6 +19,10 @@
 //! - **Tamaño:** body de hasta `[paper] max_body_bytes`.
 //! - **Hora de la orden:** `created_at` tiene que estar a menos de `[paper] max_order_age_secs`
 //!   de la hora del gateway (nunca en el futuro): nadie elige a qué precio viejo entra.
+//!   Como es de ahora, su vela del fill todavía no llegó: si el riesgo la aceptaría, la respuesta
+//!   es `pending` y el broker la decide cuando llega esa vela (en la próxima operación, con
+//!   `settle_and_record`), igual que la reconstrucción (#471). La pendiente queda guardada
+//!   (#479): un reinicio antes de esa vela la retoma al arrancar y la decide igual.
 //! - **Arranque y parada (fase 9, #297):** `POST /api/v1/paper/orders` responde 503 mientras la
 //!   reconciliación al arrancar no pasó limpia o el gateway se está apagando (ver [`crate::ops`]).
 
@@ -26,10 +30,12 @@ use std::collections::BTreeMap;
 use std::future::Future;
 use std::sync::Arc;
 
-use cfds_backtest::{DailyRates, FundingRates, market_terms_from_catalog};
+use cfds_backtest::{AccountFx, DailyRates, FundingRates, FxRates, market_terms_from_catalog};
 use cfds_broker::{
     Broker, BrokerConfig, Flush, FundingSetup, MarketSetup, PaperBroker, ReconcileSchedule,
-    flush_journal, reconcile_periodically, restore_and_reconcile, submit_and_record,
+    flush_journal, kill_switch_marks, kill_switch_stored_active, reconcile_periodically,
+    restore_from_checkpoint, restore_pending_from_store, restore_with_kill_switch,
+    save_kill_switch, settle_and_record, stored_checkpoints, submit_and_record,
 };
 use cfds_core::{
     InstrumentId, Order, OrderReport, PaperAccount, Position, TicketVerdict, Timeframe,
@@ -200,6 +206,36 @@ fn same_token(a: &str, b: &str) -> bool {
             == 0
 }
 
+/// Solo el token anti-CSRF (para una escritura sin body, como cancelar un trabajo del
+/// laboratorio). `None` si pasa.
+pub(crate) fn token_guard(token: Option<&str>, req: &HttpIn) -> Option<Reply> {
+    let Some(expected) = token else {
+        return Some(text(
+            403,
+            "escritura apagada: falta el token local del gateway",
+        ));
+    };
+    (!req.token.is_some_and(|t| same_token(t, expected)))
+        .then(|| text(403, "falta la cabecera x-cfds-token o no coincide"))
+}
+
+/// Los chequeos de toda ruta de escritura del gateway (paper, Academia): token anti-CSRF, tipo de
+/// contenido y tamaño, en ese orden. `None` si pasa; si no, la respuesta de rechazo.
+pub(crate) fn write_guard(token: Option<&str>, req: &HttpIn, max_body: usize) -> Option<Reply> {
+    if let Some(refused) = token_guard(token, req) {
+        return Some(refused);
+    }
+    let json = |c: &str| {
+        c.split(';')
+            .next()
+            .is_some_and(|m| m.trim() == "application/json")
+    };
+    if !req.content_type.is_some_and(json) {
+        return Some(text(415, "el body tiene que ser application/json"));
+    }
+    (req.body.len() > max_body).then(|| text(413, "body demasiado grande"))
+}
+
 /// Atiende las rutas del broker simulado. `paper` es `None` si el broker no arrancó; `token` es
 /// el token local esperado (`None`: escritura apagada).
 pub async fn respond_paper<P: PaperService>(
@@ -253,22 +289,8 @@ pub async fn respond_paper<P: PaperService>(
                 .map_or_else(internal, |r| json(&r)),
         };
     }
-    // Escritura: token anti-CSRF, tipo de contenido y tamaño, en ese orden.
-    let Some(expected) = token else {
-        return text(403, "escritura apagada: falta el token local del gateway");
-    };
-    if !req.token.is_some_and(|t| same_token(t, expected)) {
-        return text(403, "falta la cabecera x-cfds-token o no coincide");
-    }
-    if !req.content_type.is_some_and(|c| {
-        c.split(';')
-            .next()
-            .is_some_and(|m| m.trim() == "application/json")
-    }) {
-        return text(415, "el body tiene que ser application/json");
-    }
-    if req.body.len() > cfg.max_body_bytes {
-        return text(413, "body demasiado grande");
+    if let Some(refused) = write_guard(token, &req, cfg.max_body_bytes) {
+        return refused;
     }
     if req.path == "/api/v1/paper/orders" {
         match paper.gate() {
@@ -315,6 +337,133 @@ pub struct PgPaper {
     pub(crate) ops: Arc<Ops>,
     /// La última reconciliación (al arrancar o periódica), para `GET /api/v1/ops/status` (#314).
     last_reconcile: std::sync::Mutex<Option<ReconcileStatus>>,
+    /// Si el kill switch activo ya está guardado (#441). Se mira con el candado del broker.
+    kill_switch_saved: std::sync::atomic::AtomicBool,
+    /// `[paper] candles_days`: las velas del broker empiezan esto antes de la primera orden del
+    /// registro (#438).
+    candles_window: TimeDelta,
+    /// Desde cuándo están cargadas las velas del broker (#481). Con el registro vacío, una
+    /// primera orden anterior a esto más la ventana trae antes las velas que le faltan
+    /// ([`Self::cover_first_order`]).
+    candles_loaded_from: std::sync::Mutex<DateTime<Utc>>,
+    /// Instrumentos cuya financiación usa una serie guardada (`reference_rates`), con su serie:
+    /// se vuelve a leer en cada `refresh` (#439).
+    funding_series: BTreeMap<InstrumentId, String>,
+    /// Instrumentos en otra moneda que la cuenta, con su par de `fx_rates` (ADR 0013): también
+    /// se vuelve a leer en cada `refresh` (#439).
+    fx_pairs: BTreeMap<InstrumentId, String>,
+}
+
+/// Desde cuándo carga velas el broker (#438): `window` antes de la **primera** orden del
+/// registro, para que la reconstrucción tenga las velas de todas las órdenes y el ATR salga
+/// igual que en la sesión que las procesó ([`PaperBroker::start_candles_at`]). Sin órdenes,
+/// `window` antes de la pendiente guardada más vieja (#479: la primera en entrar al registro
+/// puede ser una de ellas, y ahí se recortan) o de `now`.
+pub fn candles_from(
+    journal: &[(Order, OrderReport)],
+    pending: &[Order],
+    window: TimeDelta,
+    now: DateTime<Utc>,
+) -> DateTime<Utc> {
+    let first = journal.first().map_or_else(
+        || {
+            pending
+                .iter()
+                .map(|o| o.created_at)
+                .fold(now, DateTime::min)
+        },
+        |(o, _)| o.created_at,
+    );
+    first - window
+}
+
+/// Los mercados del broker armados desde el catálogo y lo guardado (velas de 15m desde
+/// `from(id)`, tipos de cambio y tasas de financiación hasta `now`).
+struct Loaded {
+    markets: BTreeMap<InstrumentId, MarketSetup>,
+    /// Instrumentos que no se operan, con el motivo.
+    skipped: Vec<String>,
+    funding_series: BTreeMap<InstrumentId, String>,
+    fx_pairs: BTreeMap<InstrumentId, String>,
+}
+
+async fn load_markets(
+    store: &PgStore,
+    catalog: &Catalog,
+    now: DateTime<Utc>,
+    from: impl Fn(&InstrumentId) -> DateTime<Utc>,
+) -> Result<Loaded, String> {
+    let mut markets = BTreeMap::new();
+    let mut skipped = Vec::new();
+    let mut funding_series = BTreeMap::new();
+    let mut fx_pairs = BTreeMap::new();
+    for id in catalog.instruments.keys() {
+        let terms = match market_terms_from_catalog(catalog, id) {
+            Ok(t) => t,
+            Err(e) => {
+                skipped.push(format!("{id}: {e}"));
+                continue;
+            }
+        };
+        // Contrato en otra moneda que la cuenta (el oro, en USD; ADR 0013 §4): el tipo de
+        // cambio diario guardado hasta `now`. Sin ninguno guardado, no entra.
+        let mut fx = terms.account_to_instrument.clone();
+        if let AccountFx::Missing { pair } = &fx {
+            let saved = store.fx_rates(pair, now).await.map_err(|e| e.to_string())?;
+            match FxRates::new(saved) {
+                Some(daily) => {
+                    fx_pairs.insert(id.clone(), pair.clone());
+                    fx = AccountFx::Daily(daily);
+                }
+                None => {
+                    skipped.push(format!("{id}: no hay tipos de {pair} guardados"));
+                    continue;
+                }
+            }
+        }
+        // Financiación con la serie diaria guardada (#79) si existe; si no, la constante
+        // documentada del catálogo (`[funding_benchmarks]`).
+        let mut rates = terms.funding_rates.clone();
+        if let Some(series) = catalog.instruments[id].terms.funding_benchmark.value() {
+            let saved = store
+                .reference_rates(series, now)
+                .await
+                .map_err(|e| e.to_string())?;
+            if let Some(daily) = DailyRates::new(saved) {
+                rates = FundingRates::Daily(daily);
+                // Solo si ya había serie al arrancar: pasar de la constante a la serie
+                // cambiaría los cortes ya valuados.
+                funding_series.insert(id.clone(), series.to_owned());
+            }
+        }
+        let candles = store
+            .candles(id, Timeframe::M15, from(id), now)
+            .await
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .filter(|c| c.is_closed_at(now))
+            .collect();
+        markets.insert(
+            id.clone(),
+            MarketSetup {
+                limits: terms.limits,
+                costs: terms.costs,
+                account_to_instrument: fx,
+                candles,
+                funding: FundingSetup {
+                    cutoff: terms.funding_cutoff,
+                    tz: terms.funding_tz,
+                    rates,
+                },
+            },
+        );
+    }
+    Ok(Loaded {
+        markets,
+        skipped,
+        funding_series,
+        fx_pairs,
+    })
 }
 
 impl PgPaper {
@@ -332,58 +481,76 @@ impl PgPaper {
         ops: Arc<Ops>,
         now: DateTime<Utc>,
     ) -> Result<(Self, Vec<String>), String> {
-        let mut markets = BTreeMap::new();
-        let mut skipped = Vec::new();
-        let from = now - TimeDelta::days(i64::from(paper.candles_days));
-        for id in catalog.instruments.keys() {
-            let terms = match market_terms_from_catalog(catalog, id) {
-                Ok(t) => t,
-                Err(e) => {
-                    skipped.push(format!("{id}: {e}"));
-                    continue;
-                }
+        let journal = store.paper_journal().await.map_err(|e| e.to_string())?;
+        // Las pendientes guardadas (#479) se retoman después de reconstruir; acá solo cuentan
+        // para saber desde cuándo cargar velas.
+        let pending = store.paper_pending().await.map_err(|e| e.to_string())?;
+        let candles_window = TimeDelta::days(i64::from(paper.candles_days));
+        let from = candles_from(&journal, &pending, candles_window, now);
+        // El kill switch guardado (#441) vuelve en el mismo punto del registro: sobrevive al
+        // reinicio y solo lo apaga una liberación guardada (votación de la spec §1.2).
+        let marks = kill_switch_marks(&store).await.map_err(|e| e.to_string())?;
+        // En paper, el "broker" es el mismo simulador: se reconstruye y se exige que cada
+        // informe salga igual al guardado (drift = repintado → kill switch). Primero desde el
+        // último punto de control que verifica (#463), con las velas desde su corte; si no
+        // verifica, desde la primera orden, como antes.
+        let checkpoints = stored_checkpoints(&store)
+            .await
+            .map_err(|e| e.to_string())?;
+        let mut restored = None;
+        if let Some((ck, _)) = checkpoints.last() {
+            let loaded = load_markets(&store, catalog, now, |id| {
+                ck.cuts.get(id).and_then(|c| c.first_start).unwrap_or(from)
+            })
+            .await?;
+            let rebuild = |positions: &[Position]| {
+                restore_from_checkpoint(
+                    cfg.clone(),
+                    loaded.markets.clone(),
+                    ck,
+                    &journal,
+                    &marks,
+                    positions,
+                    now,
+                )
             };
-            // Financiación con la serie diaria guardada (#79) si existe; si no, la constante
-            // documentada del catálogo (`[funding_benchmarks]`).
-            let mut rates = terms.funding_rates.clone();
-            if let Some(series) = catalog.instruments[id].terms.funding_benchmark.value() {
-                let saved = store
-                    .reference_rates(series, now)
-                    .await
-                    .map_err(|e| e.to_string())?;
-                if let Some(daily) = DailyRates::new(saved) {
-                    rates = FundingRates::Daily(daily);
+            if let Ok((mut probe, _)) = rebuild(&[]) {
+                let positions = probe.positions(now);
+                if let Ok((broker, rec)) = rebuild(&positions) {
+                    restored = Some((broker, rec, loaded, Some(ck.after_orders)));
                 }
             }
-            let candles = store
-                .candles(id, Timeframe::M15, from, now)
-                .await
-                .map_err(|e| e.to_string())?
-                .into_iter()
-                .filter(|c| c.is_closed_at(now))
-                .collect();
-            markets.insert(
-                id.clone(),
-                MarketSetup {
-                    limits: terms.limits,
-                    costs: terms.costs,
-                    account_to_instrument: terms.account_to_instrument,
-                    candles,
-                    funding: FundingSetup {
-                        cutoff: terms.funding_cutoff,
-                        tz: terms.funding_tz,
-                        rates,
-                    },
-                },
-            );
         }
-        let journal = store.paper_journal().await.map_err(|e| e.to_string())?;
-        // En paper, el "broker" es el mismo simulador: se reconstruye y se exige que cada
-        // informe salga igual al guardado (drift = repintado → kill switch).
-        let (probe, _) = restore_and_reconcile(cfg.clone(), markets.clone(), &journal, &[], now);
-        let mut probe = probe;
-        let positions = probe.positions(now);
-        let (mut broker, rec) = restore_and_reconcile(cfg, markets, &journal, &positions, now);
+        let (mut broker, rec, loaded, from_checkpoint) = match restored {
+            Some(r) => r,
+            None => {
+                let loaded = load_markets(&store, catalog, now, |_| from).await?;
+                let (mut probe, _) = restore_with_kill_switch(
+                    cfg.clone(),
+                    loaded.markets.clone(),
+                    &journal,
+                    &marks,
+                    &[],
+                    now,
+                );
+                let positions = probe.positions(now);
+                let (broker, rec) = restore_with_kill_switch(
+                    cfg,
+                    loaded.markets.clone(),
+                    &journal,
+                    &marks,
+                    &positions,
+                    now,
+                );
+                (broker, rec, loaded, None)
+            }
+        };
+        let Loaded {
+            skipped,
+            funding_series,
+            fx_pairs,
+            ..
+        } = loaded;
         let gate = Gate::default();
         gate.set(gate_after_reconcile(&rec));
         ops.log.log(
@@ -400,27 +567,92 @@ impl PgPaper {
                 "mismatches": rec.mismatches.len(),
                 "drifts": rec.drifts.len(),
                 "orders_accepted": gate.state() == GateState::Ready,
+                "from_checkpoint_after_orders": from_checkpoint,
             }),
         );
+        // Las velas se recortan antes de la primera orden que entre al registro (#438), también
+        // si la primera es una pendiente retomada que se decide antes de cualquier envío.
+        broker.anchor_candles_before_first_order(candles_window);
+        // Las pendientes guardadas (#479), sobre el broker reconstruido (con su kill switch):
+        // se deciden cuando llegue su vela del fill, como si no hubiera habido reinicio.
+        let resumed = restore_pending_from_store(&mut broker, &store, now)
+            .await
+            .map_err(|e| format!("retomar órdenes pendientes guardadas: {e}"))?;
+        ops.log.log(
+            if resumed.dropped.is_empty() {
+                Level::Info
+            } else {
+                Level::Warn
+            },
+            "gateway",
+            "pending_restored",
+            json!({
+                "restored": resumed.restored,
+                "dropped": resumed.dropped,
+                "skipped": resumed.skipped,
+            }),
+        );
+        if !resumed.dropped.is_empty() {
+            ops.alerts
+                .raise(
+                    AlertKind::DataError,
+                    &format!(
+                        "{} órdenes pendientes guardadas no se retomaron: su instrumento no se \
+                         opera en este arranque",
+                        resumed.dropped.len()
+                    ),
+                    now,
+                )
+                .await;
+        }
         let events = broker.take_events();
         log_events(&ops.log, &events);
         alert_events(&ops.alerts, &events, now).await;
         let journal_db = PgJournal::new(store.pool().clone());
-        Ok((
-            Self {
-                state: Mutex::new((broker, ReconcileSchedule::default())),
-                store,
-                journal: journal_db,
-                gate,
-                ops,
-                last_reconcile: std::sync::Mutex::new(Some(ReconcileStatus::new(
-                    ReconcileKind::Startup,
+        let saved = kill_switch_stored_active(&marks);
+        let paper = Self {
+            state: Mutex::new((broker, ReconcileSchedule::default())),
+            store,
+            journal: journal_db,
+            gate,
+            ops,
+            last_reconcile: std::sync::Mutex::new(Some(ReconcileStatus::new(
+                ReconcileKind::Startup,
+                now,
+                &rec,
+            ))),
+            kill_switch_saved: std::sync::atomic::AtomicBool::new(saved),
+            candles_window,
+            candles_loaded_from: std::sync::Mutex::new(from),
+            funding_series,
+            fx_pairs,
+        };
+        // El kill switch de la reconciliación al arrancar también se guarda.
+        {
+            let mut guard = paper.state.lock().await;
+            paper.save_kill_switch(&mut guard.0, now).await;
+        }
+        Ok((paper, skipped))
+    }
+
+    /// Guarda el kill switch activo si todavía no estaba guardado (#441). Si el guardado falla,
+    /// se alerta y se reintenta en la operación siguiente: el broker en marcha sigue con el
+    /// kill switch activo igual.
+    pub(crate) async fn save_kill_switch(&self, broker: &mut PaperBroker, now: DateTime<Utc>) {
+        use std::sync::atomic::Ordering;
+        let saved = self.kill_switch_saved.load(Ordering::SeqCst);
+        match save_kill_switch(broker, &self.store, saved).await {
+            Ok(s) => self.kill_switch_saved.store(s, Ordering::SeqCst),
+            Err(e) => {
+                self.fail(
+                    AlertKind::Disconnect,
+                    "kill_switch_write_failed",
+                    &e.to_string(),
                     now,
-                    &rec,
-                ))),
-            },
-            skipped,
-        ))
+                )
+                .await;
+            }
+        }
     }
 
     /// Parada segura: deja de aceptar órdenes, espera a la que esté en curso (el candado),
@@ -443,8 +675,24 @@ impl PgPaper {
                         "clean": f.is_clean(),
                         "saved_now": f.saved_now,
                         "orphans": f.orphans,
+                        "pending_dropped": f.pending_dropped,
+                        "pending_kept": f.pending_kept,
                     }),
                 );
+                if !f.pending_dropped.is_empty() {
+                    self.ops
+                        .alerts
+                        .raise(
+                            AlertKind::Disconnect,
+                            &format!(
+                                "apagado con {} órdenes pendientes de su vela sin guardar: \
+                                 se pierden",
+                                f.pending_dropped.len()
+                            ),
+                            now,
+                        )
+                        .await;
+                }
                 if !f.is_clean() {
                     self.ops
                         .alerts
@@ -468,11 +716,70 @@ impl PgPaper {
         report_failure(&self.ops.log, &self.ops.alerts, kind, event, error, now).await;
     }
 
-    /// Después de cada operación: los eventos del broker al log y a las alertas.
+    /// Después de cada operación: los eventos del broker al log y a las alertas, y el kill
+    /// switch guardado si se activó (#441).
     pub(crate) async fn drain(&self, broker: &mut PaperBroker, now: DateTime<Utc>) {
         let events = broker.take_events();
         log_events(&self.ops.log, &events);
         alert_events(&self.ops.alerts, &events, now).await;
+        self.save_kill_switch(broker, now).await;
+    }
+
+    /// Antes de mandar una orden: las velas del broker empiezan `[paper] candles_days` antes de
+    /// la primera orden que entre al registro, como las cargará la reconstrucción (#438). El
+    /// recorte lo hace el broker cuando esa orden entra (con órdenes pendientes, #471, la
+    /// primera en llegar puede no ser la primera del registro).
+    pub(crate) fn anchor_candles(&self, broker: &mut PaperBroker) {
+        broker.anchor_candles_before_first_order(self.candles_window);
+    }
+
+    /// Antes de mandar una orden con el registro vacío (#481): la reconstrucción cargará las
+    /// velas desde `created_at` de la primera orden menos `[paper] candles_days`, pero al
+    /// arrancar se cargaron desde `now` menos esa ventana. Una orden anterior al arranque (la del
+    /// runner, con `created_at` = cierre de la vela de la decisión, o una manual de hasta
+    /// `[paper] max_order_age_secs`) se quedaría sin las velas de ese tramo y su ATR saldría
+    /// distinto del de la reconstrucción. Acá se traen esas velas (todas cerradas) antes de
+    /// decidirla. Con órdenes en el registro no hace nada. Si la lectura falla no cambia nada y
+    /// devuelve el error: la orden no se manda.
+    pub(crate) async fn cover_first_order(
+        &self,
+        broker: &mut PaperBroker,
+        order: &Order,
+        now: DateTime<Utc>,
+    ) -> Result<(), String> {
+        if !broker.journal().is_empty() {
+            return Ok(());
+        }
+        let need = order.created_at - self.candles_window;
+        let loaded = *self
+            .candles_loaded_from
+            .lock()
+            .map_err(|_| "candado de las velas cargadas".to_owned())?;
+        if need >= loaded {
+            return Ok(());
+        }
+        // Primero se leen todas; recién después se agregan (todo o nada).
+        let mut older = Vec::new();
+        for id in broker.markets().keys() {
+            let candles: Vec<_> = self
+                .store
+                .candles(id, Timeframe::M15, need, loaded)
+                .await
+                .map_err(|e| e.to_string())?
+                .into_iter()
+                .filter(|c| c.is_closed_at(now))
+                .collect();
+            older.push((id.clone(), candles));
+        }
+        for (id, candles) in older {
+            broker
+                .prepend_candles(&id, candles)
+                .map_err(|e| format!("{id}: {e}"))?;
+        }
+        if let Ok(mut l) = self.candles_loaded_from.lock() {
+            *l = need;
+        }
+        Ok(())
     }
 
     /// `refresh` con sus errores logueados y alertados.
@@ -526,6 +833,37 @@ impl PgPaper {
                 }
             }
         }
+        // Las tasas de la financiación publicadas desde el arranque (#439), antes de valuar.
+        for (id, series) in &self.funding_series {
+            let saved = self
+                .store
+                .reference_rates(series, now)
+                .await
+                .map_err(|e| e.to_string())?;
+            if let Some(daily) = DailyRates::new(saved) {
+                broker
+                    .update_funding_rates(id, FundingRates::Daily(daily))
+                    .map_err(|e| format!("{id}: {e}"))?;
+            }
+        }
+        // Y los tipos de cambio (ADR 0013), con la misma regla: cada uno desde su publicación.
+        for (id, pair) in &self.fx_pairs {
+            let saved = self
+                .store
+                .fx_rates(pair, now)
+                .await
+                .map_err(|e| e.to_string())?;
+            if let Some(daily) = FxRates::new(saved) {
+                broker
+                    .update_account_fx(id, AccountFx::Daily(daily))
+                    .map_err(|e| format!("{id}: {e}"))?;
+            }
+        }
+        // Las órdenes pendientes cuya vela del fill ya llegó (#471): se deciden y se guardan,
+        // con las velas, tasas y tipos de ahora y antes de reconciliar.
+        settle_and_record(broker, &self.store)
+            .await
+            .map_err(|e| format!("guardar órdenes pendientes decididas: {e}"))?;
         let markets = broker.markets().clone();
         let rec = reconcile_periodically(&self.store, broker, markets, sched, now)
             .await
@@ -559,6 +897,8 @@ impl PaperService for PgPaper {
         }
         let now = order.created_at;
         self.refresh_checked(broker, sched, now).await?;
+        self.cover_first_order(broker, &order, now).await?;
+        self.anchor_candles(broker);
         let r = submit_and_record(broker, &self.store, &order)
             .await
             .map_err(|e| e.to_string());
@@ -597,5 +937,58 @@ impl PaperService for PgPaper {
 
     fn gate(&self) -> GateState {
         self.gate.state()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cfds_core::{OrderSide, OrderStatus, PaperMode};
+    use rust_decimal::dec;
+
+    fn order(id: &str, at: &str) -> Order {
+        Order {
+            order_id: id.parse().unwrap(),
+            mode: PaperMode::Paper,
+            instrument_id: "US100".parse().unwrap(),
+            side: OrderSide::Long,
+            stop: dec!(98),
+            tp1: None,
+            proposal_id: None,
+            created_at: at.parse().unwrap(),
+        }
+    }
+
+    /// #438 y #479: velas desde la primera orden del registro; sin registro, desde la pendiente
+    /// guardada más vieja (o `now`), siempre menos la ventana.
+    #[test]
+    fn candles_start_before_the_first_order_or_the_oldest_pending_one() {
+        let w = TimeDelta::days(5);
+        let now: DateTime<Utc> = "2026-11-24T12:00:00Z".parse().unwrap();
+        let first = order("a", "2026-11-20T10:00:00Z");
+        let report = OrderReport {
+            order_id: first.order_id.clone(),
+            status: OrderStatus::Rejected,
+            rejection: None,
+            position_id: None,
+            size: None,
+            fill_price: None,
+            commission: None,
+            at: first.created_at,
+        };
+        let pending = [
+            order("p2", "2026-11-24T11:07:00Z"),
+            order("p1", "2026-11-24T10:07:00Z"),
+        ];
+        let journal = [(first.clone(), report)];
+        assert_eq!(
+            candles_from(&journal, &pending, w, now),
+            first.created_at - w
+        );
+        assert_eq!(
+            candles_from(&[], &pending, w, now),
+            pending[1].created_at - w
+        );
+        assert_eq!(candles_from(&[], &[], w, now), now - w);
     }
 }

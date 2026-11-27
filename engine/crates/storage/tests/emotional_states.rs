@@ -11,7 +11,7 @@ use cfds_storage::{PgStore, StorageError};
 use chrono::{DateTime, TimeDelta, Utc};
 
 async fn store() -> PgStore {
-    let url = std::env::var("DATABASE_URL").expect("falta DATABASE_URL (necesita PostgreSQL)");
+    let url = cfds_storage::test_db::test_database_url();
     let s = PgStore::connect(&url).await.unwrap();
     s.migrate().await.unwrap();
     s
@@ -19,8 +19,7 @@ async fn store() -> PgStore {
 
 /// Un instrumento propio de esta corrida (la tabla no se puede vaciar).
 fn fresh_id() -> InstrumentId {
-    let n = Utc::now().timestamp_nanos_opt().unwrap();
-    format!("EMO{n}").parse().unwrap()
+    cfds_storage::test_db::unique_id("EMO").parse().unwrap()
 }
 
 fn at(s: &str) -> DateTime<Utc> {

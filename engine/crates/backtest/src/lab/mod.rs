@@ -1,0 +1,66 @@
+//! Laboratorio de estrategias (#710, `docs/design/2026-11-laboratorio.md`): una estrategia
+//! descrita con bloques (`strategy_spec.v1`) que el motor valida contra su catálogo
+//! (`strategy_catalog.v1`) y después corre con el arnés de investigación (`research`).
+//!
+//! ```text
+//! contratos:  spec (spec), catálogo (catalog) y resultado de la validación con la spec tipada
+//!             (validation)
+//! catálogo:   bloques y parámetros del código + rangos de config/lab.toml + riesgo y distancia
+//!             del stop de config/risk.toml                                   → blocks::catalog
+//! validación: forma del contrato, bloques y parámetros del catálogo, topes, riesgo ≤ config,
+//!             costos ≥ catálogo, período antes del fuera de muestra (research_period)
+//!                                                         → validate_spec → ValidSpec + hashes
+//! planes:     señales con velas cerradas (decisión al cierre de t, entrada en t + 1), stop en
+//!             ATR, salida por tiempo o sesión, objetivo en R → plans_from_spec → research::Plan
+//! informe:    secciones del lab_report.v1 con stats, pbo, montecarlo y wilson → sections
+//!             run_plans + trade_return + secciones + suerte + comprar y mantener → lab_report
+//!             (lab_report.v1, "exploratorio, no vota")
+//! ensayos:    cada corrida agrega un lab_trial.v1 (solo agregar); variantes distintas de la
+//!             familia → N del Sharpe deflactado del laboratorio                 → trial
+//! trabajos:   lab_job_request.v1 (variantes de una familia y un período) y lab_job_event.v1
+//!             (en cola, corriendo, listo, falló, cancelado); id = hash del pedido + intento
+//!             → job (lo guarda cfds_journal::lab, lo corre el lab_worker)
+//! en vivo:    la curva de cada variante apenas termina (la del informe, reducida a pocos
+//!             puntos) en el evento de "corriendo variantes"                     → curve
+//! worker:     [worker] de config/lab.toml y el avance de cada etapa → worker (lo usa el
+//!             lab_worker, un proceso aparte que corre la cola)
+//! varianza:   variance_sim_request.v1 → research::variance (caminos de capital, rachas, caída,
+//!             ruina; incertidumbre del win rate con una Beta) → variance_sim_report.v1, con los
+//!             topes de [variance] de config/lab.toml                         → variance
+//! hash:       SHA-256 de la spec canónica (claves ordenadas, decimales normalizados, sin
+//!             espacios); familia = mismo instrumento y mismos tipos de bloque (PENDIENTE §9.2)
+//! ```
+//! Funciones puras, sin base de datos ni red. La UI nunca calcula nada de esto.
+
+pub mod blocks;
+pub mod catalog;
+pub mod curve;
+pub mod job;
+pub mod plans;
+pub mod report;
+pub mod sections;
+pub mod spec;
+pub mod trial;
+pub mod validate;
+pub mod validation;
+pub mod variance;
+pub mod worker;
+
+pub use blocks::{LabConfig, catalog};
+pub use catalog::StrategyCatalog;
+pub use curve::{TrialCurve, downsample};
+pub use job::{
+    JobStage, JobState, JobStep, LabJobEvent, LabJobRequest, check_variants, job_id, request_sha256,
+};
+pub use plans::{LabSeries, planned_exit_for, plans_from_spec};
+pub use report::{ReportInputs, lab_report, run_setup};
+pub use sections::ReportConfig;
+pub use spec::{StrategySpec, canonical_json, family_sha256, sha256_hex, spec_sha256};
+pub use trial::{LabTrial, family_variants, read_trials};
+pub use validate::{validate_spec, validate_spec_json};
+pub use validation::{
+    Average, EntryCondition, EntryFilter, ErrorCode, ExitRule, SpecError, SpecValidation, StopRule,
+    ValidSpec,
+};
+pub use variance::{VarianceConfig, VarianceError, VarianceRequest, run_variance};
+pub use worker::{WorkerConfig, progress};

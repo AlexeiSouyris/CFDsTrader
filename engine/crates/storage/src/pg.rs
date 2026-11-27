@@ -1,8 +1,8 @@
 //! Histórico en PostgreSQL.
 
 use cfds_core::{
-    Candle, CandleSpread, DailyCandle, DailyDrawdown, DailyIndicator, DailyVolTercile, Instrument,
-    InstrumentId, NewsInterpretation, ReferenceRate, SentimentObservation, Timeframe,
+    Candle, CandleSpread, DailyCandle, DailyDrawdown, DailyIndicator, DailyVolTercile, FxRate,
+    Instrument, InstrumentId, NewsInterpretation, ReferenceRate, SentimentObservation, Timeframe,
 };
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -19,6 +19,32 @@ type IndicatorRow = (NaiveDate, DateTime<Utc>, Option<Decimal>, Option<Decimal>)
 pub struct InsertReport {
     pub inserted: usize,
     pub unchanged: usize,
+    /// Filas ya guardadas con algún valor en NULL que ahora se completaron (#417, solo las cargas
+    /// `_keeping` de indicadores diarios). Cada columna pasa de NULL a un valor una sola vez.
+    pub filled: usize,
+}
+
+/// Motivo que queda en `daily_null_fills` al completar un NULL de un indicador diario (#417).
+pub const NULL_FILL_REASON: &str = "#417";
+
+/// Declara el motivo en la transacción: sin él, el trigger de la migración 0040 rechaza el UPDATE.
+async fn declare_null_fill_reason(tx: &mut Transaction<'_, Postgres>) -> Result<(), sqlx::Error> {
+    sqlx::query("SELECT set_config('cfds.null_fill_reason', $1, true)")
+        .bind(NULL_FILL_REASON)
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
+}
+
+/// Qué hacer con una columna que puede quedar en NULL al recargar una fila ya guardada (#417):
+/// `Some(valor)` si se completa (guardada NULL, nueva con valor), y si hay conflicto (guardada con
+/// valor y la nueva distinta, incluido NULL: eso no se pisa nunca).
+fn fill_of<T: PartialEq + Clone>(stored: &Option<T>, new: &Option<T>) -> (Option<T>, bool) {
+    match (stored, new) {
+        (None, Some(v)) => (Some(v.clone()), false),
+        (Some(s), n) => (None, n.as_ref() != Some(s)),
+        (None, None) => (None, false),
+    }
 }
 
 /// Fila de `ig_allowance_log`: observed_at, points_returned, remaining, total, resets_at.
@@ -26,7 +52,7 @@ type AllowanceRow = (DateTime<Utc>, i64, i64, i64, DateTime<Utc>);
 /// Fila de `news_interpretations` (#194): id, source, item_id, published_at, interpreted_at,
 /// interpreter_name, interpreter_version, interpreter_model, interpreter_prompt_sha256,
 /// summary_es e impacts (JSONB leído como texto).
-type NewsInterpretationRow = (
+pub(crate) type NewsInterpretationRow = (
     String,
     String,
     String,
@@ -423,8 +449,32 @@ impl PgStore {
         &self,
         rows: &[DailyIndicator],
     ) -> Result<InsertReport, StorageError> {
+        Ok(self.insert_daily_indicators_with(rows, false).await?.0)
+    }
+
+    /// Como [`Self::insert_daily_indicators`], pero una fila que ya está guardada con **otros** valores no frena
+    /// la carga (#409): se deja la guardada tal cual (solo agregar: nunca se pisa), no se guarda
+    /// la nueva y su día vuelve en la lista, para reportarlo. El resto se guarda. Una columna
+    /// guardada en NULL que ahora tiene valor, con la misma publicación, sí se completa, una sola
+    /// vez y auditada en `daily_null_fills` (#417); cuenta en `filled`.
+    pub async fn insert_daily_indicators_keeping(
+        &self,
+        rows: &[DailyIndicator],
+    ) -> Result<(InsertReport, Vec<NaiveDate>), StorageError> {
+        self.insert_daily_indicators_with(rows, true).await
+    }
+
+    async fn insert_daily_indicators_with(
+        &self,
+        rows: &[DailyIndicator],
+        keep: bool,
+    ) -> Result<(InsertReport, Vec<NaiveDate>), StorageError> {
         let mut tx = self.pool.begin().await?;
+        if keep {
+            declare_null_fill_reason(&mut tx).await?;
+        }
         let mut report = InsertReport::default();
+        let mut kept = Vec::new();
         for r in rows {
             let atr_period = i32::try_from(r.atr_period).unwrap_or(i32::MAX);
             let window = i32::try_from(r.realized_vol_window).unwrap_or(i32::MAX);
@@ -462,15 +512,43 @@ impl PgStore {
             .await?;
             if stored == (r.published_at, r.atr, r.realized_vol) {
                 report.unchanged += 1;
-            } else {
+                continue;
+            }
+            if !keep {
                 return Err(StorageError::DailyIndicatorConflict {
                     instrument: r.instrument_id.to_string(),
                     day: r.day,
                 });
             }
+            if stored.0 != r.published_at {
+                kept.push(r.day);
+                continue;
+            }
+            let (atr, atr_conflict) = fill_of(&stored.1, &r.atr);
+            let (vol, vol_conflict) = fill_of(&stored.2, &r.realized_vol);
+            if atr.is_some() || vol.is_some() {
+                sqlx::query(
+                    "UPDATE daily_indicators
+                     SET atr = COALESCE(atr, $5), realized_vol = COALESCE(realized_vol, $6)
+                     WHERE instrument_id = $1 AND day = $2 AND atr_period = $3
+                       AND realized_vol_window = $4",
+                )
+                .bind(r.instrument_id.as_str())
+                .bind(r.day)
+                .bind(atr_period)
+                .bind(window)
+                .bind(atr)
+                .bind(vol)
+                .execute(&mut *tx)
+                .await?;
+                report.filled += 1;
+            }
+            if atr_conflict || vol_conflict {
+                kept.push(r.day);
+            }
         }
         tx.commit().await?;
-        Ok(report)
+        Ok((report, kept))
     }
 
     /// Guarda caídas desde el máximo (#213) en **una sola transacción**, como
@@ -480,8 +558,32 @@ impl PgStore {
         &self,
         rows: &[DailyDrawdown],
     ) -> Result<InsertReport, StorageError> {
+        Ok(self.insert_daily_drawdowns_with(rows, false).await?.0)
+    }
+
+    /// Como [`Self::insert_daily_drawdowns`], pero una fila que ya está guardada con **otros** valores no frena
+    /// la carga (#409): se deja la guardada tal cual (solo agregar: nunca se pisa), no se guarda
+    /// la nueva y su día vuelve en la lista, para reportarlo. El resto se guarda. Una caída
+    /// guardada en NULL que ahora tiene valor se completa, como en
+    /// [`Self::insert_daily_indicators_keeping`] (#417).
+    pub async fn insert_daily_drawdowns_keeping(
+        &self,
+        rows: &[DailyDrawdown],
+    ) -> Result<(InsertReport, Vec<NaiveDate>), StorageError> {
+        self.insert_daily_drawdowns_with(rows, true).await
+    }
+
+    async fn insert_daily_drawdowns_with(
+        &self,
+        rows: &[DailyDrawdown],
+        keep: bool,
+    ) -> Result<(InsertReport, Vec<NaiveDate>), StorageError> {
         let mut tx = self.pool.begin().await?;
+        if keep {
+            declare_null_fill_reason(&mut tx).await?;
+        }
         let mut report = InsertReport::default();
+        let mut kept = Vec::new();
         for r in rows {
             let window = i32::try_from(r.drawdown_window).unwrap_or(i32::MAX);
             let inserted = sqlx::query(
@@ -514,15 +616,38 @@ impl PgStore {
             .await?;
             if stored == (r.published_at, r.drawdown) {
                 report.unchanged += 1;
-            } else {
+                continue;
+            }
+            if !keep {
                 return Err(StorageError::DailyIndicatorConflict {
                     instrument: r.instrument_id.to_string(),
                     day: r.day,
                 });
             }
+            if stored.0 != r.published_at {
+                kept.push(r.day);
+                continue;
+            }
+            let (drawdown, conflict) = fill_of(&stored.1, &r.drawdown);
+            if drawdown.is_some() {
+                sqlx::query(
+                    "UPDATE daily_drawdowns SET drawdown = $4
+                     WHERE instrument_id = $1 AND day = $2 AND drawdown_window = $3",
+                )
+                .bind(r.instrument_id.as_str())
+                .bind(r.day)
+                .bind(window)
+                .bind(drawdown)
+                .execute(&mut *tx)
+                .await?;
+                report.filled += 1;
+            }
+            if conflict {
+                kept.push(r.day);
+            }
         }
         tx.commit().await?;
-        Ok(report)
+        Ok((report, kept))
     }
 
     /// Guarda tercios de la volatilidad (`daily_vol_tercile.v1`) en **una sola transacción**,
@@ -533,8 +658,32 @@ impl PgStore {
         &self,
         rows: &[DailyVolTercile],
     ) -> Result<InsertReport, StorageError> {
+        Ok(self.insert_daily_vol_terciles_with(rows, false).await?.0)
+    }
+
+    /// Como [`Self::insert_daily_vol_terciles`], pero una fila que ya está guardada con **otros** valores no frena
+    /// la carga (#409): se deja la guardada tal cual (solo agregar: nunca se pisa), no se guarda
+    /// la nueva y su día vuelve en la lista, para reportarlo. El resto se guarda. Un tercio
+    /// guardado en NULL que ahora tiene valor se completa, como en
+    /// [`Self::insert_daily_indicators_keeping`] (#417).
+    pub async fn insert_daily_vol_terciles_keeping(
+        &self,
+        rows: &[DailyVolTercile],
+    ) -> Result<(InsertReport, Vec<NaiveDate>), StorageError> {
+        self.insert_daily_vol_terciles_with(rows, true).await
+    }
+
+    async fn insert_daily_vol_terciles_with(
+        &self,
+        rows: &[DailyVolTercile],
+        keep: bool,
+    ) -> Result<(InsertReport, Vec<NaiveDate>), StorageError> {
         let mut tx = self.pool.begin().await?;
+        if keep {
+            declare_null_fill_reason(&mut tx).await?;
+        }
         let mut report = InsertReport::default();
+        let mut kept = Vec::new();
         for r in rows {
             let window = i32::try_from(r.realized_vol_window).unwrap_or(i32::MAX);
             let years = i32::try_from(r.history_years).unwrap_or(i32::MAX);
@@ -572,15 +721,40 @@ impl PgStore {
             .await?;
             if (stored.0, stored.1.as_deref()) == (r.published_at, tercile) {
                 report.unchanged += 1;
-            } else {
+                continue;
+            }
+            if !keep {
                 return Err(StorageError::DailyIndicatorConflict {
                     instrument: r.instrument_id.to_string(),
                     day: r.day,
                 });
             }
+            if stored.0 != r.published_at {
+                kept.push(r.day);
+                continue;
+            }
+            let (fill, conflict) = fill_of(&stored.1.as_deref(), &tercile);
+            if let Some(t) = fill {
+                sqlx::query(
+                    "UPDATE daily_vol_terciles SET tercile = $5
+                     WHERE instrument_id = $1 AND day = $2 AND realized_vol_window = $3
+                       AND history_years = $4",
+                )
+                .bind(r.instrument_id.as_str())
+                .bind(r.day)
+                .bind(window)
+                .bind(years)
+                .bind(t)
+                .execute(&mut *tx)
+                .await?;
+                report.filled += 1;
+            }
+            if conflict {
+                kept.push(r.day);
+            }
         }
         tx.commit().await?;
-        Ok(report)
+        Ok((report, kept))
     }
 
     /// Tercios de la volatilidad de un instrumento con día en `[from, to)` y los parámetros
@@ -687,6 +861,33 @@ impl PgStore {
             .collect())
     }
 
+    /// Tipos de cambio de `pair` (ADR 0013 §4, `fx_rate.v1`) publicados hasta `until`, en
+    /// orden de publicación. Incluye las correcciones (otra fila con otra `published_at`).
+    pub async fn fx_rates(
+        &self,
+        pair: &str,
+        until: DateTime<Utc>,
+    ) -> Result<Vec<FxRate>, StorageError> {
+        let rows: Vec<(NaiveDate, DateTime<Utc>, Decimal)> = sqlx::query_as(
+            "SELECT ref_date, published_at, rate FROM fx_rates
+             WHERE pair = $1 AND published_at <= $2
+             ORDER BY published_at, ref_date",
+        )
+        .bind(pair)
+        .bind(until)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(ref_date, published_at, rate)| FxRate {
+                pair: pair.to_string(),
+                ref_date,
+                published_at,
+                rate,
+            })
+            .collect())
+    }
+
     /// Guarda velas diarias (#103) en **una sola transacción**. Una vela idéntica ya guardada
     /// cuenta como `unchanged`; otro valor para el mismo día es [`StorageError::DailyConflict`]
     /// y no se guarda nada del lote.
@@ -694,8 +895,27 @@ impl PgStore {
         &self,
         candles: &[DailyCandle],
     ) -> Result<InsertReport, StorageError> {
+        Ok(self.insert_daily_with(candles, false).await?.0)
+    }
+
+    /// Como [`Self::insert_daily`], pero una fila que ya está guardada con **otros** valores no frena
+    /// la carga (#409): se deja la guardada tal cual (solo agregar: nunca se pisa), no se guarda
+    /// la nueva y su día vuelve en la lista, para reportarlo. El resto se guarda.
+    pub async fn insert_daily_keeping(
+        &self,
+        candles: &[DailyCandle],
+    ) -> Result<(InsertReport, Vec<NaiveDate>), StorageError> {
+        self.insert_daily_with(candles, true).await
+    }
+
+    async fn insert_daily_with(
+        &self,
+        candles: &[DailyCandle],
+        keep: bool,
+    ) -> Result<(InsertReport, Vec<NaiveDate>), StorageError> {
         let mut tx = self.pool.begin().await?;
         let mut report = InsertReport::default();
+        let mut kept = Vec::new();
         for c in candles {
             let inserted = sqlx::query(concat!(
                 "INSERT INTO daily_candles (",
@@ -732,14 +952,17 @@ impl PgStore {
             if row_to_daily(&row)? == *c {
                 report.unchanged += 1;
             } else {
-                return Err(StorageError::DailyConflict {
-                    instrument: c.instrument_id.to_string(),
-                    day: c.day,
-                });
+                if !keep {
+                    return Err(StorageError::DailyConflict {
+                        instrument: c.instrument_id.to_string(),
+                        day: c.day,
+                    });
+                }
+                kept.push(c.day);
             }
         }
         tx.commit().await?;
-        Ok(report)
+        Ok((report, kept))
     }
 
     /// Velas diarias de un instrumento con día en `[from, to)`, en orden.
@@ -761,6 +984,25 @@ impl PgStore {
         .fetch_all(&self.pool)
         .await?;
         rows.iter().map(row_to_daily).collect()
+    }
+
+    /// Cierres del VIX (`vix_daily`, ADR 0012) publicados en `[from, to)`, en orden de
+    /// publicación: `(published_at, close)`. Una corrección de Cboe es otra fila (#491).
+    pub async fn vix_closes(
+        &self,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<(DateTime<Utc>, Decimal)>, StorageError> {
+        let rows: Vec<(DateTime<Utc>, Decimal)> = sqlx::query_as(
+            "SELECT published_at, close FROM vix_daily
+             WHERE published_at >= $1 AND published_at < $2
+             ORDER BY published_at, ref_date",
+        )
+        .bind(from)
+        .bind(to)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
     }
 
     /// Fin de la última vela diaria guardada de un instrumento que ya terminó en `at`
@@ -882,7 +1124,7 @@ fn to_i64(v: u64) -> Result<i64, StorageError> {
 
 /// Arma el documento del contrato `news_interpretation.v1` con la fila (el `interpreter`
 /// aplanado vuelve a ser un objeto) y lo valida con `NewsInterpretation`, igual que un mensaje.
-fn row_to_news_interpretation(
+pub(crate) fn row_to_news_interpretation(
     r: NewsInterpretationRow,
 ) -> Result<NewsInterpretation, StorageError> {
     let (

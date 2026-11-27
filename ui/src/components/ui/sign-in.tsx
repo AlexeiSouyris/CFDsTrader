@@ -16,6 +16,7 @@ export function SignIn({ onSignIn }: { onSignIn: () => void }) {
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const errorId = useId()
+  const codeHint = useId()
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -28,7 +29,10 @@ export function SignIn({ onSignIn }: { onSignIn: () => void }) {
   }
 
   const field =
-    'w-full rounded-xl border border-border bg-[color-mix(in_srgb,var(--card)_45%,transparent)] px-4 py-3 text-[14px] placeholder:text-muted-foreground focus:outline-2 focus:outline-ring'
+    'w-full rounded-xl border border-border bg-[color-mix(in_srgb,var(--card)_45%,transparent)] px-4 py-3 text-[14px] font-normal placeholder:text-muted-foreground focus:outline-2 focus:outline-ring'
+
+  // etiquetas visibles (#579): el texto de ejemplo desaparece al escribir y no alcanza como nombre
+  const labelCls = 'grid gap-1.5 text-[12px] font-semibold'
 
   return (
     <div className="grid min-h-svh place-items-center px-4">
@@ -36,7 +40,7 @@ export function SignIn({ onSignIn }: { onSignIn: () => void }) {
         onSubmit={submit}
         noValidate
         aria-describedby={error ? errorId : undefined}
-        className="glass w-full max-w-sm rounded-3xl p-8"
+        className="panel w-full max-w-sm rounded-sm p-8"
       >
         <span className="mx-auto mb-5 grid size-12 place-items-center rounded-full bg-primary text-primary-foreground">
           <CandlestickIcon size={24} playOnMount duration={1.6} />
@@ -46,34 +50,43 @@ export function SignIn({ onSignIn }: { onSignIn: () => void }) {
           Fondo del grupo · modo simulación
         </p>
         <div className="grid gap-3">
-          <input
-            className={field}
-            type="email"
-            autoComplete="username"
-            placeholder="Email"
-            aria-label="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <input
-            className={field}
-            type="password"
-            autoComplete="current-password"
-            placeholder="Contraseña"
-            aria-label="Contraseña"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <input
-            className={`${field} tracking-[0.4em] placeholder:tracking-normal`}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            placeholder="Código 2FA"
-            aria-label="Código del segundo factor"
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-          />
+          <label className={labelCls}>
+            Email
+            <input
+              className={field}
+              type="email"
+              autoComplete="username"
+              placeholder="nombre@ejemplo.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </label>
+          <label className={labelCls}>
+            Contraseña
+            <input
+              className={field}
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+          <label className={labelCls}>
+            Código del segundo factor
+            <input
+              className={`${field} tracking-[0.4em] placeholder:tracking-normal`}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              placeholder="6 dígitos"
+              aria-describedby={codeHint}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+            />
+          </label>
+          <span id={codeHint} className="-mt-1.5 text-[11px] text-muted-foreground">
+            El de tu app de autenticación (2FA).
+          </span>
           {error && (
             <p id={errorId} role="alert" className="text-[12px] text-down">
               {error}

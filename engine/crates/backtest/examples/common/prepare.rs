@@ -6,15 +6,16 @@
 use std::path::PathBuf;
 
 use cfds_backtest::{
-    BacktestConfig, DailyRates, FundingRates, Setup, mark_rollovers, setup_from_catalog,
+    BacktestConfig, DailyRates, FundingRates, FuturesBasis, Setup, StudyAssumptions,
+    apply_assumptions, apply_funding_scenario, mark_rollovers, setup_from_catalog, splice_rates,
 };
 use cfds_core::{Candle, InstrumentId, NewsInterpretation, Timeframe};
 use cfds_indicators::TrendConfig;
 use cfds_liquidity::LiquidityConfig;
 use cfds_market_data::{
-    CandleSource, CandleSources, Catalog, ExchangeCalendar, NewsFilterConfig, SpreadFilterConfig,
-    TradingWindowConfig, ValidationConfig, check_series, decision_flags, spread_flags,
-    trading_window,
+    CandleSource, CandleSources, Catalog, ExchangeCalendar, NewsFilterConfig, RateSegment,
+    SpreadFilterConfig, TradingWindowConfig, ValidationConfig, check_series, decision_flags,
+    spread_flags, trading_window,
 };
 use cfds_patterns::PatternsConfig;
 use cfds_risk::RiskConfig;
@@ -49,24 +50,85 @@ pub struct Prepared {
     pub interpreter: BacktestInterpreter,
 }
 
+/// Escenario de financiación de un estudio (#405): el tipo de referencia rotulado `series`
+/// reemplaza EN MEMORIA al del catálogo (`config/` no cambia). Con `rates`, la serie diaria sale
+/// de ahí (por ejemplo, un CSV de la fuente oficial); sin `rates`, de `reference_rates`.
+pub struct FundingScenario {
+    pub series: String,
+    pub rates: Option<DailyRates>,
+}
+
+/// Lo que un estudio cambia en memoria (ver `common/study.rs`). Nunca es oficial.
+pub struct Study {
+    pub funding: Option<FundingScenario>,
+    /// Costos supuestos que completan los `pending` del catálogo (#421).
+    pub assumptions: Option<StudyAssumptions>,
+}
+
+#[allow(dead_code, reason = "walk_forward usa `prepare_with`")]
 pub async fn prepare(
+    id: &InstrumentId,
+    source: CandleSource,
+    period: (DateTime<Utc>, DateTime<Utc>),
+    equity: Decimal,
+    reset_days: Option<u32>,
+    without_news: bool,
+) -> Result<Prepared, Box<dyn std::error::Error>> {
+    prepare_with(id, source, period, equity, reset_days, without_news, None).await
+}
+
+pub async fn prepare_with(
     id: &InstrumentId,
     source: CandleSource,
     (from, to): (DateTime<Utc>, DateTime<Utc>),
     equity: Decimal,
     reset_days: Option<u32>,
     without_news: bool,
+    study: Option<Study>,
 ) -> Result<Prepared, Box<dyn std::error::Error>> {
     // Las velas y lo que lee la estrategia (noticias, calendario, sesión) son del CFD `id`; lo que
     // se guarda queda bajo `out` (con futuros, el instrumento derivado: nunca se mezcla).
-    let sources = CandleSources::from_toml(cfg!("candle_sources.toml"))?;
+    let mut sources = CandleSources::from_toml(cfg!("candle_sources.toml"))?;
+    let mut catalog = Catalog::from_toml(cfg!("instruments.toml"))?;
+    let (scenario, assumptions) = match study {
+        Some(s) => (s.funding, s.assumptions),
+        None => (None, None),
+    };
+    if let Some(a) = &assumptions {
+        let filled = apply_assumptions(&mut catalog, &mut sources, a)?;
+        println!(
+            "⚠️  COSTOS SUPUESTOS (estudio, no oficial; fuente \"{}\"): {}. config/ no cambia.",
+            a.source,
+            filled.join(", ")
+        );
+    }
     let out = sources.instrument_for(source, id)?;
     let feed = match source {
         CandleSource::Ig => CandleFeed::Ig,
         CandleSource::Futures => CandleFeed::Futures(&sources.futures_source),
+        // Las barras de IBKR (#630) son solo para la vista de liquidez: poca historia y sin
+        // diarias ni base de financiación.
+        CandleSource::Ibkr => return Err("el backtest no usa las barras de IBKR".into()),
     };
     println!("velas: {} ({out})", sources.label(source));
-    let catalog = Catalog::from_toml(cfg!("instruments.toml"))?;
+    // Escenario (#405): el valor constante que se agrega solo completa el catálogo en memoria;
+    // la corrida usa la serie diaria (más abajo).
+    let mut scenario_rates = None;
+    if let Some(s) = scenario {
+        let value = s
+            .rates
+            .as_ref()
+            .and_then(|r| r.at(to))
+            .unwrap_or(Decimal::ZERO);
+        let before = apply_funding_scenario(&mut catalog, id, &s.series, value)?;
+        println!(
+            "⚠️  ESCENARIO DE FINANCIACIÓN (estudio, no oficial): tipo de referencia {} en memoria \
+             (en config/instruments.toml: {}). config/ no cambia.",
+            s.series,
+            before.as_deref().unwrap_or("pendiente")
+        );
+        scenario_rates = s.rates;
+    }
     let strategy = Configs {
         patterns: PatternsConfig::from_toml(cfg!("patterns.toml"))?,
         liquidity: LiquidityConfig::from_toml(cfg!("liquidity.toml"))?,
@@ -98,13 +160,31 @@ pub async fn prepare(
         .get(id)
         .and_then(|spec| spec.terms.funding_benchmark.value())
         .ok_or("el instrumento no tiene tipo de referencia de financiación")?;
-    let daily = DailyRates::new(store.reference_rates(series, to).await?).ok_or_else(|| {
-        format!("no hay valores de {series} guardados: cargarlos con `python -m cfds_intel.rates`")
-    })?;
+    let daily = match scenario_rates {
+        Some(d) => d,
+        None => DailyRates::new(store.reference_rates(series, to).await?).ok_or_else(|| {
+            format!(
+                "no hay valores de {series} guardados: cargarlos con `python -m cfds_intel.rates`"
+            )
+        })?,
+    };
     if let Some((day, pct)) = daily.at_with_day(from) {
         println!("financiación: {series} diario (al inicio, {pct} % del {day})");
     }
     setup.funding_rates = FundingRates::Daily(daily);
+    // Contrato en otra moneda que la cuenta (el oro, ADR 0013 §4): el tipo de cambio diario
+    // guardado, vigente en cada momento. Sin serie, no se corre (nunca un tipo inventado).
+    if let cfds_backtest::AccountFx::Missing { pair } = &setup.account_to_instrument {
+        let fx = cfds_backtest::FxRates::new(store.fx_rates(pair, to).await?).ok_or_else(|| {
+            format!(
+                "no hay tipos de {pair} guardados: cargarlos con `python -m cfds_intel.rates.fx`"
+            )
+        })?;
+        if let Some((day, rate)) = fx.at_with_day(from) {
+            println!("tipo de cambio: {pair} diario del BCE (al inicio, {rate} del {day})");
+        }
+        setup.account_to_instrument = cfds_backtest::AccountFx::Daily(fx);
+    }
     let raw_m15 = store
         .candles_from(feed, id, id, Timeframe::M15, from, to)
         .await?;
@@ -156,6 +236,30 @@ pub async fn prepare(
             rolls.len(),
             closed.len()
         );
+        // Base del futuro (#467): lo que el precio ya descontó se resta de la financiación.
+        let spec = sources.basis.instruments.get(id).ok_or_else(|| {
+            format!(
+                "falta futures.basis.rates.{id} en config/candle_sources.toml: sin la tasa de la \
+                 base, la financiación con futuros contaría la tasa dos veces (#467)"
+            )
+        })?;
+        let rate = load_spliced(&store, &spec.rate, to).await?;
+        let dividends = match &spec.dividends {
+            Some(d) => Some(FundingRates::Daily(load_spliced(&store, d, to).await?)),
+            None => None,
+        };
+        if let Some((day, pct)) = rate.at_with_day(from) {
+            println!(
+                "base del futuro ({:?}): se descuenta {} (al inicio, {pct} % del {day})",
+                sources.basis.mode,
+                rate.series()
+            );
+        }
+        setup.futures_basis = Some(FuturesBasis {
+            rate: FundingRates::Daily(rate),
+            dividends,
+            rolls,
+        });
     }
     // Filtro de spread (spec §7.3): necesita el spread de cierre guardado (#95), también de los
     // días anteriores al período. Sin ese dato no se abre. Con futuros no hay spread medido del
@@ -174,7 +278,7 @@ pub async fn prepare(
             );
             ok
         }
-        CandleSource::Futures => {
+        CandleSource::Futures | CandleSource::Ibkr => {
             eprintln!(
                 "⚠️  filtro de spread (§7.3): NO se aplica, no hay spread medido del CFD para las \
                  velas de futuros. Los costos usan el spread de config ({} puntos), no medido.",
@@ -267,5 +371,27 @@ pub async fn prepare(
         news,
         published_from,
         interpreter,
+    })
+}
+
+/// Serie diaria empalmada de los tramos `segments` (#467), rotulada con sus nombres
+/// (`EFFR→SOFR`). Sin valores guardados, error con el comando que los carga.
+async fn load_spliced(
+    store: &PgStore,
+    segments: &[RateSegment],
+    to: DateTime<Utc>,
+) -> Result<DailyRates, Box<dyn std::error::Error>> {
+    let mut rows = Vec::with_capacity(segments.len());
+    for s in segments {
+        rows.push(store.reference_rates(&s.series, to).await?);
+    }
+    let label = segments
+        .iter()
+        .map(|s| s.series.as_str())
+        .collect::<Vec<_>>()
+        .join("→");
+    splice_rates(segments, rows, &label).ok_or_else(|| {
+        format!("no hay valores de {label} guardados: cargarlos con `python -m cfds_intel.rates`")
+            .into()
     })
 }

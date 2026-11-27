@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/academy_event.v1.schema.json",
+  "title": "Academy event v1",
+  "description": "Un evento de progreso de la Academia (docs/design/2026-11-academia.md §4.2, #717), tal como se guarda en academy_events (solo agregar: nunca se edita una fila; el estado se reconstruye leyendo los eventos). Lo escribe el motor: el intento de examen con la corrección del motor (quiz_result.v1 en quiz, o exam_result.v1 en replay para un examen de replay, #759), la lección sin examen completada y el desbloqueo o rebloqueo a mano de una herramienta (quién y cuándo). El pedido de la UI a POST /api/v1/academy/events es $defs/request.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["seq", "member_id", "kind", "lesson_id", "tool_id", "action", "quiz", "catalog_version", "recorded_at"],
+  "properties": {
+    "seq": { "description": "Orden de llegada, lo asigna la base (BIGSERIAL).", "type": "integer", "minimum": 1 },
+    "member_id": { "description": "La persona (spec §1.2); hoy solo el dueño.", "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+    "kind": { "enum": ["lesson_completed", "exam_attempt", "tool_override"] },
+    "lesson_id": { "oneOf": [{ "$ref": "academy_catalog.v1.schema.json#/$defs/lesson_id" }, { "type": "null" }] },
+    "tool_id": { "description": "La herramienta de un tool_override, o * para todas.", "oneOf": [{ "$ref": "#/$defs/tool_or_all" }, { "type": "null" }] },
+    "action": { "description": "unlock: se desbloquea a mano; relock: se quita el desbloqueo a mano (vuelve a lo que digan las lecciones).", "oneOf": [{ "enum": ["unlock", "relock"] }, { "type": "null" }] },
+    "quiz": { "description": "La corrección del motor de un intento de examen de preguntas.", "oneOf": [{ "$ref": "quiz_result.v1.schema.json" }, { "type": "null" }] },
+    "replay": { "description": "La calificación del motor (exam_result.v1) de un intento de examen de replay de una lección (#759), guardada antes de responder; null en los demás eventos. Opcional: los eventos guardados antes de #759 no lo traen.", "oneOf": [{ "$ref": "exam_result.v1.schema.json" }, { "type": "null" }] },
+    "catalog_version": { "$ref": "academy_catalog.v1.schema.json#/$defs/version" },
+    "recorded_at": { "description": "Hora en que lo guardó el motor, en UTC.", "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "lesson_completed" } } },
+      "then": { "properties": { "lesson_id": { "type": "string" }, "tool_id": { "type": "null" }, "action": { "type": "null" }, "quiz": { "type": "null" }, "replay": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "exam_attempt" } } },
+      "then": {
+        "properties": { "lesson_id": { "type": "string" }, "tool_id": { "type": "null" }, "action": { "type": "null" } },
+        "description": "Un intento lleva quiz (examen de preguntas) o replay (examen de replay), nunca los dos.",
+        "oneOf": [
+          { "properties": { "quiz": { "type": "object" }, "replay": { "type": "null" } } },
+          { "required": ["replay"], "properties": { "quiz": { "type": "null" }, "replay": { "type": "object" } } }
+        ]
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "tool_override" } } },
+      "then": { "properties": { "lesson_id": { "type": "null" }, "tool_id": { "type": "string" }, "action": { "type": "string" }, "quiz": { "type": "null" }, "replay": { "type": "null" } } }
+    }
+  ],
+  "$defs": {
+    "tool_or_all": { "type": "string", "pattern": "^(\\*|tool\\.[a-z0-9_]{1,48})$" },
+    "request": {
+      "description": "Body de POST /api/v1/academy/events: completar una lección sin examen o desbloquear o rebloquear a mano. Los intentos de examen no entran por acá: los escribe el motor al corregir.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["lesson_completed", "tool_override"] },
+        "lesson_id": { "$ref": "academy_catalog.v1.schema.json#/$defs/lesson_id" },
+        "tool_id": { "$ref": "#/$defs/tool_or_all" },
+        "action": { "enum": ["unlock", "relock"] }
+      },
+      "oneOf": [
+        { "properties": { "kind": { "const": "lesson_completed" } }, "required": ["lesson_id"], "not": { "anyOf": [{ "required": ["tool_id"] }, { "required": ["action"] }] } },
+        { "properties": { "kind": { "const": "tool_override" } }, "required": ["tool_id", "action"], "not": { "required": ["lesson_id"] } }
+      ]
+    }
+  }
+}

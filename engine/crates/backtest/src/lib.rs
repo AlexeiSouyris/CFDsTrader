@@ -1,24 +1,34 @@
 //! Backtest (Fase 3): salidas de una operación (spec §8 y §12), costos (§11) y el recorrido
 //! completo de un instrumento con su registro de operaciones y comprar y mantener.
 
+pub mod analysis;
+pub mod basis;
 pub mod config;
 pub mod costs;
 pub mod evaluation;
 pub mod exits;
 pub mod export;
+pub mod lab;
 pub mod metrics;
 pub mod portfolio;
+pub mod proposals;
 pub mod rates;
+pub mod research;
 pub mod rollover;
 pub mod runner;
+pub mod scenario;
 pub mod sensitivity;
 pub mod setup;
 pub mod variants;
 
+pub use analysis::{
+    AnalysisConfig, ExportAnalysis, WarmupConfig, analysis_export, analysis_view, last_closed_day,
+};
+pub use basis::{FuturesBasis, basis_carry, roll_jumps, splice_rates};
 pub use config::{BacktestConfig, CostConfig, ExitConfig, MetricsConfig};
 pub use costs::{
-    Commission, Execution, InstrumentCosts, commission, fill_price, funding, funding_cutoffs,
-    funding_nights, funding_over,
+    BasisFlow, Commission, Execution, InstrumentCosts, commission, commodity_basis,
+    commodity_funding, fill_price, funding, funding_cutoffs, funding_nights, funding_over,
 };
 pub use evaluation::{
     Aggregate, EvalError, EvaluationConfig, FoldResult, Inputs, PeriodResult, Slice, aggregate,
@@ -31,11 +41,18 @@ pub use portfolio::{
     KillSwitchEvent, KillSwitchEventKind, Market, PortfolioError, PortfolioRejected,
     PortfolioReport, PortfolioTrade, run_portfolio,
 };
-pub use rates::{DailyRates, FundingRates};
+pub use proposals::{
+    Label, Overlap, Proposal, ProposalReport, ProposalRules, Tally, proposals, tally_by,
+};
+pub use rates::{AccountFx, DailyRates, FundingRates, FxRates};
 pub use rollover::mark_rollovers;
 pub use runner::{
     BuyAndHold, CloseReason, ExitRecord, RejectedSignal, Report, RunError, Setup, TradeRecord,
     buy_and_hold, choose, execute, pick, run, run_checked, run_with_news,
+};
+pub use scenario::{
+    AssumedTerms, SCENARIO_SOURCE, StudyAssumptions, add_weekdays, apply_assumptions,
+    apply_funding_scenario, rates_from_csv,
 };
 pub use sensitivity::{
     ConfigTexts, ParamFile, SensitivityParam, SensitivityPoint, Stability, override_toml,

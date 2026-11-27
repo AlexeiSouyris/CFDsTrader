@@ -19,7 +19,7 @@ Closes #
 
 - [ ] Busqué en `main`, Issues y PRs abiertos: no existe otra implementación de esto.
 - [ ] El cálculo vive en un solo lenguaje (no dupliqué lógica entre Rust, Python y UI).
-- [ ] Si creé o cambié un módulo, actualicé el *Registro de módulos* en `docs/ARCHITECTURE.md`.
+- [ ] Si creé o cambié un módulo, actualicé su ficha en `docs/modules/` y regeneré el *Registro de módulos* (`python3 tools/docs_index.py`).
 - [ ] Si agregué o cambié mensajes entre lenguajes, actualicé `contracts/`.
 
 ## Calidad y riesgo

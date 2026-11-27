@@ -14,6 +14,10 @@
 //! - Un empate con un cierre anterior cuenta como "el más alto" (o "el más bajo").
 //! - Informativo: no suma al puntaje hasta validarse en la fase 5 y votarse.
 
+pub mod vix;
+
+pub use vix::{VixConfig, VixRegime, vix_known_at, vix_regime};
+
 use std::str::FromStr;
 
 use cfds_core::Candle;

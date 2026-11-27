@@ -70,22 +70,25 @@ instrument_id = "DE40"
 min_session_hours = 18
 
 # Russell 2000 (#371): solo para el estudio en backtest. RTY se negocia en CME Globex desde julio
-# de 2017; antes estaba en ICE (TF), así que GLBX.MDP3 no lo tiene. Eso lo dice --estimate.
+# de 2017; antes estaba en ICE (TF), así que GLBX.MDP3 no lo tiene. `start` propio (#410), medido
+# gratis con la metadata el 24-11-2026: `symbology.resolve` de RTY.c.0 da "not_found" antes de
+# 2016 y `get_record_count` da 422 (symbology_invalid_request) hasta mayo de 2017, 0 barras del
+# 2017-06-01 al 2017-07-08 y las primeras barras el domingo 2017-07-09 (6 barras; 340 el lunes 10).
 [[symbols]]
 dataset = "GLBX.MDP3"
 symbol = "RTY.c.0"
 publisher = "GLBX.MDP3.GLBX"
 instrument_id = "US2000"
 min_session_hours = 22
+start = "2017-07-09"
 
 # Oro (#371): solo para el estudio. Futuro de COMEX en CME Globex, que opera unas 23 h.
 # Va con `v.0` (el vencimiento de más volumen) y no con `c.0`: en el oro, el vencimiento más
 # cercano en el calendario casi nunca es el que se negocia (los activos son feb, abr, jun, ago,
 # oct y dic). Medido con --estimate el 24-11-2026, de 2011 a hoy: GC.c.0 da 241.103 barras
 # (USD 0,88), casi sin operaciones, y GC.v.0 da 5.513.746 (USD 20,13).
-# `XAUUSD` todavía no está en config/instruments.toml (falta decidir clase de activo, sesión y
-# financiación): las barras de 1 minuto se guardan igual (`futures_bars_1m` no depende del
-# catálogo), pero no se arman velas hasta que esté.
+# `XAUUSD` está en config/instruments.toml desde #418 (ADR 0013), con los datos de IG que faltan
+# pendientes: nadie lo opera hasta tenerlos.
 [[symbols]]
 dataset = "GLBX.MDP3"
 symbol = "GC.v.0"

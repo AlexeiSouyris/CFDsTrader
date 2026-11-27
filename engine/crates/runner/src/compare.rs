@@ -14,6 +14,8 @@
 //!   rechazo del riesgo (un lado rechazó lo que el otro operó)
 //!   falta en paper / sobra en paper (sin un rechazo que lo explique)
 //! ```
+//! El backtest no opera antes de `desde` ([`entries_from`]): el tramo anterior es solo
+//! calentamiento, así arranca con el mismo capital y sin posición, como paper (#440).
 //! Montos en la moneda del instrumento.
 
 use std::collections::BTreeMap;
@@ -233,6 +235,22 @@ fn per_unit(gross: Decimal, size: Decimal) -> Decimal {
     } else {
         gross / size
     }
+}
+
+/// Marcas de entrada del backtest de la comparación: las de `entries` (sin marca cuenta como
+/// permitida, como en el backtest), pero ninguna en una vela que cierra antes de `from` (#440).
+///
+/// Las velas anteriores a `from` (`[runner] lookback_days`) son solo calentamiento: los
+/// indicadores y patrones las usan, pero el backtest no opera en ellas. Así llega a `from` sin
+/// posición abierta y con el capital inicial (el de la cuenta paper en `from`), igual que paper,
+/// que decide desde `from`. Si operara en el calentamiento, todas las operaciones emparejadas
+/// saldrían con otro tamaño y esa diferencia, que no es de ejecución, iría a «tamaño».
+/// No mira el futuro: solo apaga entradas, nunca agrega datos.
+pub fn entries_from(m15: &[Candle], entries: &[bool], from: DateTime<Utc>) -> Vec<bool> {
+    m15.iter()
+        .enumerate()
+        .map(|(i, c)| c.end() >= from && entries.get(i).copied().unwrap_or(true))
+        .collect()
 }
 
 /// Lo que entra a la comparación.

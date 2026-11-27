@@ -1,0 +1,630 @@
+{
+  "member_id": "owner",
+  "catalog_version": "981eb4238fa8cd8761e6c98c01b8171af349587fc98f296a33803de1f09b6ba0",
+  "as_of": "2026-11-25T16:00:00Z",
+  "lessons": [
+    {
+      "lesson_id": "0.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "0.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "0.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "1.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "1.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "1.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "2.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "2.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "2.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "2.4",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "3.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "3.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "3.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "3.4",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "4.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "4.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "4.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "4.4",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "5.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "5.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "5.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "5.4",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "6.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "6.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "6.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "6.4",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "6.5",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "7.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "7.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "7.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "7.4",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "7.5",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "8.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "8.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "8.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "8.4",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "8.5",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "9.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "9.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "9.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "9.4",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "9.5",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "10.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "10.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "10.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "10.4",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "10.5",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "10.6",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "10.7",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "11.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "11.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "11.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "12.1",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "12.2",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "12.3",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    },
+    {
+      "lesson_id": "12.4",
+      "passed": false,
+      "passed_at": null,
+      "attempts": 0,
+      "best_score_pct": null
+    }
+  ],
+  "tools": [
+    {
+      "tool_id": "tool.watchlist",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "0.1"
+    },
+    {
+      "tool_id": "tool.instrument_panel",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "0.1"
+    },
+    {
+      "tool_id": "tool.glossary",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "0.2"
+    },
+    {
+      "tool_id": "tool.source_selector",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "1.1"
+    },
+    {
+      "tool_id": "tool.ticket_costs",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "2.1"
+    },
+    {
+      "tool_id": "tool.cost_calculator",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "2.4"
+    },
+    {
+      "tool_id": "tool.candle_chart",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "3.1"
+    },
+    {
+      "tool_id": "tool.timeframe_selector",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "3.2"
+    },
+    {
+      "tool_id": "tool.multichart",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "3.2"
+    },
+    {
+      "tool_id": "tool.replay_practice",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "3.3"
+    },
+    {
+      "tool_id": "tool.ruler",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "3.3"
+    },
+    {
+      "tool_id": "tool.journal_notes",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "3.4"
+    },
+    {
+      "tool_id": "tool.pivots_layer",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "4.1"
+    },
+    {
+      "tool_id": "tool.drawing",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "4.2"
+    },
+    {
+      "tool_id": "tool.levels_layer",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "4.3"
+    },
+    {
+      "tool_id": "tool.chart_patterns",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "4.3"
+    },
+    {
+      "tool_id": "tool.liquidity_map",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "5.1"
+    },
+    {
+      "tool_id": "tool.sweep_structure",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "5.2"
+    },
+    {
+      "tool_id": "tool.fvg_order_blocks",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "5.3"
+    },
+    {
+      "tool_id": "tool.fvg_stats",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "5.3"
+    },
+    {
+      "tool_id": "tool.atr",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "6.1"
+    },
+    {
+      "tool_id": "tool.moving_averages",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "6.2"
+    },
+    {
+      "tool_id": "tool.fibonacci",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "6.4"
+    },
+    {
+      "tool_id": "tool.floor_pivots",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "6.4"
+    },
+    {
+      "tool_id": "tool.spring_upthrust",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "6.4"
+    },
+    {
+      "tool_id": "tool.bottoms",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "6.4"
+    },
+    {
+      "tool_id": "tool.vix_regime",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "6.4"
+    },
+    {
+      "tool_id": "tool.paper_ticket",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "7.3"
+    },
+    {
+      "tool_id": "tool.trading_status_bar",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "7.4"
+    },
+    {
+      "tool_id": "tool.variance_simulator",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "8.3"
+    },
+    {
+      "tool_id": "tool.backtest_runs",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "9.1"
+    },
+    {
+      "tool_id": "tool.pbo",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "9.3"
+    },
+    {
+      "tool_id": "tool.walk_forward",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "9.4"
+    },
+    {
+      "tool_id": "tool.results_registry",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "9.5"
+    },
+    {
+      "tool_id": "tool.lab_builder",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "10.3"
+    },
+    {
+      "tool_id": "tool.terminal_news",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "10.6"
+    },
+    {
+      "tool_id": "tool.imbalance",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "11.1"
+    },
+    {
+      "tool_id": "tool.propsim",
+      "unlocked": false,
+      "by": null,
+      "lesson_id": "12.4"
+    }
+  ],
+  "unlock_all": false
+}

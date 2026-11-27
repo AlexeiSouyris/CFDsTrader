@@ -1,0 +1,117 @@
+# Laboratorio de estrategias (#710, docs/design/2026-11-laboratorio.md). Lo lee el motor
+# (cfds_backtest::lab) para armar el catálogo (contracts/strategy_catalog.v1) y validar cada spec.
+# Ni el runner ni el paper ni la estrategia en uso lo leen.
+#
+# PENDIENTE del dueño (§9 del diseño, puntos 3, 4 y 7): estos son los valores RECOMENDADOS en el
+# diseño. Se usan para poder construir el laboratorio, pero cambiarlos es decisión del dueño.
+# Son límites de lo que se puede pedir, no parámetros de ninguna estrategia: no deciden ninguna
+# operación. El riesgo máximo por operación y la distancia del stop en ATR NO están acá: salen
+# de config/risk.toml (nunca más que eso, CLAUDE.md §5).
+
+# Sube cuando un bloque o un parámetro cambia de forma incompatible: una spec armada con otra
+# versión no se corre.
+catalog_version = 1
+
+[limits]
+# §9 punto 3 (PENDIENTE): como mucho 3 condiciones de entrada (unidas con "y") y 2 filtros.
+max_entry_conditions = 3
+max_filters = 2
+# Los costos solo se pueden subir (1 = los del catálogo de instrumentos) hasta este tope.
+max_cost_multiplier = "5"
+# §9 punto 7 (PENDIENTE): variantes de una misma familia por corrida.
+max_variants_per_run = 20
+
+# Rango (inclusivo) y valor propuesto de cada parámetro numérico de cada bloque. Los tipos de
+# bloque y los nombres de los parámetros son del motor; acá solo van los números. El motor
+# rechaza un bloque o parámetro de acá que no conozca, y uno suyo que falte acá.
+#
+# `default` es solo lo que la UI propone: una spec sin el parámetro nunca se rellena con él.
+
+[params.ma_cross]
+# Cruce de dos medias de los cierres (SMA o EMA), en velas del timeframe de la señal.
+average = { default = "ema" }
+fast = { min = "2", max = "200", default = "20" }
+slow = { min = "3", max = "400", default = "50" }
+
+[params.opening_range_breakout]
+# Ruptura del rango de apertura (familia C de la ronda 1, research::orb_plans): velas de 15m del
+# rango y última hora local de la bolsa a la que puede cerrar la vela de la ruptura.
+range_candles = { min = "1", max = "8", default = "2" }
+last_breakout_close = { default = "15:00" }
+
+[params.entry_hours_utc]
+# Solo entra si la decisión (cierre de la vela de la señal) cae en [from, to) UTC.
+from = { default = "13:30" }
+to = { default = "20:00" }
+
+[params.atr]
+# Stop a k × ATR de Wilder de `period` velas del timeframe de la señal. El rango de k sale de
+# config/risk.toml ([stop_distance] min_atr y max_atr).
+period = { min = "2", max = "100", default = "14" }
+k = { default = "1.5" }
+
+[params.time_target]
+# Salida a las N velas del timeframe de la señal y/o al cierre de la sesión de contado (hace
+# falta al menos una), con objetivo opcional en múltiplos de R.
+max_candles = { min = "1", max = "500", default = "8" }
+session_close = { default = "true" }
+target_r = { min = "0.5", max = "10", default = "2" }
+
+[report]
+# Convenciones del informe (lab_report.v1), no parámetros de ninguna estrategia: nivel de los
+# intervalos (IC del R medio e IC de Wilson del win rate), ancho de los tramos del histograma de R
+# y cantidad de entradas al azar del test de suerte (research::luck; la semilla es la de
+# [montecarlo] de config/research.toml).
+confidence = "0.95"
+r_step = "0.5"
+luck_simulations = 1000
+
+[worker]
+# El lab_worker (#775): proceso aparte que corre los trabajos de la cola de a uno (§9 puntos 6 y
+# 7 del diseño, PENDIENTES: valores recomendados). Solo velas ya guardadas, nunca IG, y nunca el
+# fuera de muestra. No decide nada de ninguna estrategia.
+#
+# Cada cuánto mira la cola cuando está vacía (segundos).
+poll_secs = 5
+# Duración máxima de un trabajo (minutos): pasado eso falla. Se revisa entre etapas.
+max_minutes = 60
+# Desde cuándo se cargan las velas: el calentamiento de los indicadores antes del período (como el
+# ejemplo laboratorio).
+load_from = "2011-01-01T00:00:00Z"
+# Escenario de financiación de estudio: el tipo de EE. UU. sigue pendiente, así que se usa el €STR
+# guardado (como el ejemplo laboratorio y las rondas; €STR empieza en octubre de 2019). PENDIENTE.
+funding_scenario = "ESTR"
+# Los eventos de cada trabajo en Redis (lab_jobs.v1.<job_id>) vencen solos después de esto (horas);
+# PostgreSQL los guarda siempre.
+stream_ttl_hours = 24
+stream_maxlen = 1000
+# La curva de capital de cada variante que se manda en vivo apenas termina (#854): como mucho estos
+# puntos (2 a 200), así el progreso sigue liviano. Es solo para mostrar.
+curve_max_points = 200
+
+[variance]
+# Simulador de varianza (§4.2 del diseño, #801; research::variance). PENDIENTE del dueño (§9
+# puntos 7 y 9 del diseño: valores recomendados). Son límites y valores por defecto de una
+# simulación EDUCATIVA, no parámetros de ninguna estrategia: no deciden ninguna operación.
+#
+# Topes de lo que se puede pedir (§9 punto 7: 10 000 caminos × 1 000 operaciones).
+max_paths = 10000
+max_trades = 1000
+# Largo máximo de una lista de R reales.
+max_r_values = 10000
+# Riesgo por operación máximo que se puede simular, en %. Más alto que el de config/risk.toml a
+# propósito: sirve para VER qué pasa con riesgos altos (la ruina). El informe avisa cuando el
+# pedido pasa el riesgo por operación del proyecto.
+max_risk_pct = "10"
+# Valores cuando el pedido no los trae.
+default_paths = 10000
+default_seed = 20261126
+# Ruina = el capital cayó un 30 % desde el inicial (el mismo umbral de [montecarlo] de
+# config/research.toml).
+default_ruin_threshold_pct = "30"
+# Bloques del bootstrap al remuestrear R reales (1 = bootstrap simple: operaciones independientes).
+default_block_len = 1
+# Rachas: P(racha perdedora más larga ≥ k) para k = 1..streak_max_k.
+streak_max_k = 20
+# Ancho de los tramos del histograma de la caída máxima (fracción: 0.05 = 5 %).
+drawdown_bin = "0.05"

@@ -1,0 +1,102 @@
+# Velas DIARIAS de futuros desde Databento (#522), para investigación (borrador del programa 3,
+# #513). Misma forma que config/databento.toml y el mismo importador
+# (`python -m cfds_intel.databento --daily ...`, validado por `cfds_intel.databento.config`).
+# La key va en el .env (DATABENTO_API_KEY), nunca acá. Los datos se guardan solo en la base local
+# de la máquina de datos (CFDS_DATA_MACHINE=1), en `futures_bars_1d`.
+#
+# OJO, cierre de la vela: la vela `ohlcv-1d` de Databento va de MEDIANOCHE A MEDIANOCHE UTC, no
+# de la hora de liquidación (settlement) de la bolsa. El borrador del programa 3 pide velas a la
+# hora de liquidación: estas NO lo cumplen y no hay que usarlas como si lo hicieran. Las horas de
+# liquidación de cada mercado no están en este repo; no se inventan.
+#
+# El motor en Rust NO lee este archivo (lee solo config/databento.toml, `FuturesFeeds`): estos
+# futuros no tienen CFD en config/instruments.toml y nadie los opera.
+
+[download]
+# Esquema oficial de velas diarias (docs: schemas-and-data-formats/ohlcv).
+schema = "ohlcv-1d"
+stype_in = "continuous"
+# Desde cuándo (#522, aprobado por el dueño el 24-11-2026). El fin es la medianoche UTC de hoy o
+# el último día completo publicado del dataset (metadata.get_dataset_range), el que sea antes.
+start = "2011-01-01"
+
+[budget]
+# Tope DURO de gasto (USD) por corrida (#522). Se aplica a la estimación total antes de bajar y,
+# durante la corrida, a la suma de los `get_cost` de cada pedido. La estimación del 24-11-2026 fue
+# de USD 0,0489 por mercado (USD 0,49 los 10), aprobada por el dueño: "si gastemos 0,49 usd".
+max_usd = "1"
+
+# Futuro → id interno. Son datos de investigación: el id es la raíz del futuro y NO está en
+# config/instruments.toml (no es un CFD operable). Todos son `v.0` (el vencimiento de más volumen,
+# como GC.v.0 en config/databento.toml) del libro central de CME Globex (GLBX.MDP3.GLBX).
+# Ojo: 6J es yenes en dólares (USD por JPY), al revés que el USDJPY de contado.
+
+# Nikkei 225 en dólares.
+[[symbols]]
+dataset = "GLBX.MDP3"
+symbol = "NKD.v.0"
+publisher = "GLBX.MDP3.GLBX"
+instrument_id = "NKD"
+
+# Nota del Tesoro de EE. UU. a 10 años.
+[[symbols]]
+dataset = "GLBX.MDP3"
+symbol = "ZN.v.0"
+publisher = "GLBX.MDP3.GLBX"
+instrument_id = "ZN"
+
+# Bono del Tesoro de EE. UU..
+[[symbols]]
+dataset = "GLBX.MDP3"
+symbol = "ZB.v.0"
+publisher = "GLBX.MDP3.GLBX"
+instrument_id = "ZB"
+
+# Euro.
+[[symbols]]
+dataset = "GLBX.MDP3"
+symbol = "6E.v.0"
+publisher = "GLBX.MDP3.GLBX"
+instrument_id = "6E"
+
+# Yen.
+[[symbols]]
+dataset = "GLBX.MDP3"
+symbol = "6J.v.0"
+publisher = "GLBX.MDP3.GLBX"
+instrument_id = "6J"
+
+# Libra.
+[[symbols]]
+dataset = "GLBX.MDP3"
+symbol = "6B.v.0"
+publisher = "GLBX.MDP3.GLBX"
+instrument_id = "6B"
+
+# Dólar australiano.
+[[symbols]]
+dataset = "GLBX.MDP3"
+symbol = "6A.v.0"
+publisher = "GLBX.MDP3.GLBX"
+instrument_id = "6A"
+
+# Plata.
+[[symbols]]
+dataset = "GLBX.MDP3"
+symbol = "SI.v.0"
+publisher = "GLBX.MDP3.GLBX"
+instrument_id = "SI"
+
+# Petróleo WTI.
+[[symbols]]
+dataset = "GLBX.MDP3"
+symbol = "CL.v.0"
+publisher = "GLBX.MDP3.GLBX"
+instrument_id = "CL"
+
+# Cobre.
+[[symbols]]
+dataset = "GLBX.MDP3"
+symbol = "HG.v.0"
+publisher = "GLBX.MDP3.GLBX"
+instrument_id = "HG"

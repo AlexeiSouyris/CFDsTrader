@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/academy_catalog.v1.schema.json",
+  "title": "Academy catalog v1",
+  "description": "El catálogo de la Academia (docs/design/2026-11-academia.md §4 y §5.5, #717): niveles, lecciones, sus exámenes y qué herramienta de la Terminal desbloquea cada una, armado por el motor desde config/academy.toml. Respuesta de GET /api/v1/academy/catalog. Las claves de las respuestas NO viajan acá: las tiene el motor. Los umbrales son educativos (no de trading) y provisorios hasta que el dueño los apruebe.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["catalog_version", "levels", "tools", "thresholds"],
+  "properties": {
+    "catalog_version": { "description": "SHA-256 (hex) del texto de config/academy.toml: cambia si cambia cualquier pregunta, clave o umbral.", "$ref": "#/$defs/version" },
+    "levels": { "type": "array", "items": { "$ref": "#/$defs/level" } },
+    "tools": {
+      "description": "Herramientas con candado. Una herramienta que no está acá no tiene candado.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "lesson_id"],
+        "properties": {
+          "id": { "$ref": "#/$defs/tool_id" },
+          "name": { "$ref": "#/$defs/text" },
+          "lesson_id": { "description": "La lección que la desbloquea al aprobarla.", "$ref": "#/$defs/lesson_id" }
+        }
+      }
+    },
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["quiz_pass_pct", "locked_tools_visible", "provisional"],
+      "properties": {
+        "quiz_pass_pct": { "description": "Porcentaje de respuestas correctas para aprobar un examen de preguntas.", "$ref": "#/$defs/decimal" },
+        "locked_tools_visible": { "description": "true: la herramienta bloqueada se ve con un candado; false: se esconde.", "type": "boolean" },
+        "provisional": { "description": "true mientras el dueño no apruebe los umbrales.", "type": "boolean" }
+      }
+    }
+  },
+  "$defs": {
+    "version": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "lesson_id": { "type": "string", "pattern": "^(0|[1-9][0-9]?)\\.([1-9][0-9]?)$" },
+    "question_id": { "type": "string", "pattern": "^(0|[1-9][0-9]?)\\.([1-9][0-9]?)\\.([1-9][0-9]?)$" },
+    "tool_id": { "type": "string", "pattern": "^tool\\.[a-z0-9_]{1,48}$" },
+    "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "decimal": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "level": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "title", "lessons"],
+      "properties": {
+        "level": { "type": "integer", "minimum": 0, "maximum": 99 },
+        "title": { "$ref": "#/$defs/text" },
+        "lessons": { "type": "array", "items": { "$ref": "#/$defs/lesson" } }
+      }
+    },
+    "lesson": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "objective", "doc", "exam", "unlocks"],
+      "properties": {
+        "id": { "$ref": "#/$defs/lesson_id" },
+        "title": { "$ref": "#/$defs/text" },
+        "objective": { "$ref": "#/$defs/text" },
+        "doc": { "description": "Markdown de la lección en el repo (docs/academia/...), o null si todavía no está escrita.", "oneOf": [{ "type": "string", "pattern": "^docs/academia/[a-z0-9._/-]{1,120}\\.md$" }, { "type": "null" }] },
+        "exam": { "$ref": "#/$defs/exam" },
+        "unlocks": { "type": "array", "items": { "$ref": "#/$defs/tool_id" } }
+      }
+    },
+    "exam": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ready", "questions"],
+      "properties": {
+        "kind": { "description": "quiz: preguntas que corrige el motor; replay: examen con velas del pasado (#720, se guarda como intento desde #759); none: la lección se completa sin nota.", "enum": ["quiz", "replay", "none"] },
+        "ready": { "description": "false si el examen todavía no tiene contenido (preguntas pendientes): no se puede rendir. Un examen de replay siempre está listo.", "type": "boolean" },
+        "questions": { "type": "array", "items": { "$ref": "#/$defs/question" } },
+        "replay_kind": { "description": "El tipo de sesión de replay del examen (replay_session.v1 kind: levels, pivots o trades); null si el examen no es de replay (#759, #800). Opcional: los catálogos anteriores no lo traen.", "oneOf": [{ "enum": ["levels", "pivots", "trades"] }, { "type": "null" }] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "replay" } } },
+          "then": { "required": ["replay_kind"], "properties": { "replay_kind": { "type": "string" } } },
+          "else": { "properties": { "replay_kind": { "type": "null" } } }
+        }
+      ]
+    },
+    "question": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "prompt", "options", "unit"],
+      "properties": {
+        "id": { "$ref": "#/$defs/question_id" },
+        "kind": { "description": "choice: una opción; number: un número (string decimal) que el motor compara con su tolerancia.", "enum": ["choice", "number"] },
+        "prompt": { "$ref": "#/$defs/text" },
+        "options": {
+          "description": "Opciones de una pregunta choice (sin decir cuál es la correcta); null en number.",
+          "oneOf": [
+            {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "text"],
+                "properties": { "id": { "type": "string", "pattern": "^[a-z]$" }, "text": { "$ref": "#/$defs/text" } }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "unit": { "description": "Unidad de la respuesta numérica (por ejemplo pts, R, %), o null.", "oneOf": [{ "type": "string", "minLength": 1, "maxLength": 16 }, { "type": "null" }] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "choice" } } },
+          "then": { "properties": { "options": { "type": "array" }, "unit": { "type": "null" } } },
+          "else": { "properties": { "options": { "type": "null" } } }
+        }
+      ]
+    }
+  }
+}

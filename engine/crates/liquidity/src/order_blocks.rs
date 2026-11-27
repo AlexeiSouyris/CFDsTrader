@@ -77,16 +77,18 @@ pub fn order_block_touches_at(candles: &[Candle], t: usize, obs: &[OrderBlock]) 
     };
     obs.iter()
         .filter(|ob| ob.known_at < t)
+        // Primero el toque, que es barato: la invalidación recorre las velas desde la ruptura y
+        // solo hace falta para los que la vela toca (mismo resultado, #390).
+        .filter(|ob| match ob.side {
+            Side::Long => c.low <= ob.high && c.close >= ob.low,
+            Side::Short => c.high >= ob.low && c.close <= ob.high,
+        })
         .filter(|ob| {
             // Invalidado si alguna vela posterior a la ruptura (incluida t) cerró del otro lado.
             !candles[ob.known_at + 1..=t].iter().any(|x| match ob.side {
                 Side::Long => x.close < ob.low,
                 Side::Short => x.close > ob.high,
             })
-        })
-        .filter(|ob| match ob.side {
-            Side::Long => c.low <= ob.high && c.close >= ob.low,
-            Side::Short => c.high >= ob.low && c.close <= ob.high,
         })
         .copied()
         .collect()

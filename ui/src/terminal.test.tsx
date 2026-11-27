@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
+import { exampleChart } from '@/test/example-chart'
 import App from '@/App'
 import { signed } from '@/lib/format'
 import { CHART_SIGNALS, CURRENT_MEMBER, MEMBERS, PAPER_ACCOUNT, PAPER_POSITIONS } from '@/mocks'
@@ -43,6 +44,20 @@ describe('terminal de trading (fase 10, #275)', () => {
     expect(lists[1]).toHaveTextContent('P/L abierto')
   })
 
+  it('las listas de la cuenta son `dl` válidas: solo grupos de `dt` y `dd` (#605)', () => {
+    render(<TerminalView member={CURRENT_MEMBER} />)
+    const account = screen.getByRole('region', { name: 'Cuenta de simulación' })
+    for (const dl of account.querySelectorAll('dl')) {
+      for (const group of dl.children) {
+        expect(group.tagName).toBe('DIV')
+        const tags = [...group.children].map((c) => c.tagName)
+        expect(tags[0]).toBe('DT')
+        expect(tags.slice(1).length).toBeGreaterThan(0)
+        expect(tags.slice(1).every((t) => t === 'DD')).toBe(true)
+      }
+    }
+  })
+
   it('en el celular cada celda de una posición lleva su nombre (#356)', () => {
     render(<TerminalView member={CURRENT_MEMBER} />)
     const table = screen.getByRole('table', { name: 'Posiciones abiertas' })
@@ -62,8 +77,9 @@ describe('terminal de trading (fase 10, #275)', () => {
     ])
   })
 
-  it('marca las señales del motor en el gráfico', () => {
+  it('marca las señales del motor en el gráfico', async () => {
     const { container } = render(<TerminalView member={CURRENT_MEMBER} />)
+    await exampleChart()
     expect(container.querySelectorAll('[data-signal]')).toHaveLength(CHART_SIGNALS.length)
   })
 
@@ -105,6 +121,7 @@ describe('terminal de trading (fase 10, #275)', () => {
   it('con el kill switch activo avisa y no deja operar ni aprobar', () => {
     render(<TerminalView member={MEMBERS[0]} />)
     fireEvent.click(screen.getByRole('button', { name: 'Kill switch activo' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Propuestas' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Kill switch activo')
     expect(within(ticket()).getByRole('button', { name: /Validar con el motor/ })).toBeDisabled()
     expect(screen.queryByRole('button', { name: /Aprobar/ })).not.toBeInTheDocument()
@@ -113,6 +130,7 @@ describe('terminal de trading (fase 10, #275)', () => {
 
   it('las propuestas muestran la probabilidad con su rango, nunca como certeza', () => {
     render(<TerminalView member={CURRENT_MEMBER} />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Propuestas' }))
     const props = screen.getByRole('region', { name: 'Propuestas' })
     expect(props).toHaveTextContent(/rango \d+–\d+ %/)
     expect(props).toHaveTextContent('no una promesa')

@@ -1,24 +1,50 @@
 //! Gateway: API **de solo lectura** del motor para la UI (#231). Dos rutas:
 //!
-//! - `GET /api/v1/liquidity?instrument=<id>[&timeframe=15m|1h|1d][&source=ig|futures]` →
-//!   `contracts/liquidity_view.v1`: lo que ya está guardado en PostgreSQL (velas, niveles, FVG,
+//! - `GET /api/v1/liquidity?instrument=<id>[&timeframe=15m|1h|1d][&source=ig|futures|ibkr|auto][&before=<UTC>]`
+//!   → `contracts/liquidity_view.v1`: lo que ya está guardado en PostgreSQL (velas, niveles, FVG,
 //!   desequilibrio y agregados) de ese timeframe, tal como se conocía al cierre de su última vela.
 //!   Sin `timeframe`, 15m. Sin `source`, las velas del CFD de IG; con `futures`, lo calculado
 //!   con las velas de los futuros (#259, guardado bajo el instrumento derivado de
-//!   `config/candle_sources.toml`). La respuesta dice de qué fuente es.
+//!   `config/candle_sources.toml`). La respuesta dice de qué fuente es. Con `before` (RFC 3339 en
+//!   UTC, terminado en `Z`), la misma vista tal como se conocía en ese momento: solo velas que
+//!   cerraron a más tardar en `before`. La UI lo usa para pedir historia al desplazarse al
+//!   pasado (#401, paginación por fecha). Un `before` futuro cuenta como ahora.
+//!   Con `source=ibkr` (#630), lo calculado con las barras de IBKR de los CFD con mapeo
+//!   (`[ibkr]` de `config/candle_sources.toml`). Con `source=auto` (#628), las velas de IG y,
+//!   si en la ventana no hay suficientes, la primera
+//!   fuente de reemplazo de `[view.auto]` de `config/gateway.toml` que tenga velas: la respuesta
+//!   dice cuál usó (`source`) y por qué (`fallback`).
 //! - `GET /api/v1/instruments` → `contracts/gateway_instruments.v1`: los instrumentos del
 //!   catálogo, los timeframes y los valores por defecto de la vista.
 //!
+//! En 15m con las velas de IG, la vista trae además el bloque opcional `analysis` (#501): las
+//! herramientas de análisis tal como las arma `cfds_backtest::analysis` (el mismo bloque de
+//! `chart_export.v1`). Se calculan con `[warmup]` velas de 15m antes de la primera de la vista
+//! (`config/analysis.toml`) y se devuelve solo lo de la vista (#511), también con `before`; las
+//! diarias y el VIX salen de un caché en memoria ([`series_cache`]). Solo se muestran: no
+//! entran al puntaje.
+//!
 //! No calcula nada nuevo, no envía órdenes ni escribe en la base.
 
+pub mod academy;
+pub mod academy_replay;
 pub mod context;
 pub mod emotions;
 pub mod fund;
+pub mod ibkr;
+pub mod ibkr_live;
+pub mod journal;
+pub mod lab;
+pub mod lab_risk;
+pub mod lab_sims;
 pub mod learning;
+pub mod ml;
+pub mod news;
 pub mod ops;
 pub mod ops_store;
 pub mod paper;
 pub mod paper_runner;
+pub mod series_cache;
 pub mod status;
 pub mod walk_forward;
 
@@ -26,13 +52,14 @@ use std::future::Future;
 use std::net::SocketAddr;
 use std::num::NonZeroU32;
 
+use cfds_backtest::{AnalysisConfig, ExportAnalysis, analysis_export, analysis_view};
 use cfds_core::{
     Candle, DailyCandle, FvgEvent, Imbalance, Instrument, InstrumentId, LiquidityLevel,
     LiquidityStats, StatsTimeframe, Timeframe,
 };
 use cfds_market_data::{CandleSource, CandleSources};
 use cfds_storage::{CandleFeed, PgStore, StorageError};
-use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
+use chrono::{DateTime, NaiveDate, SecondsFormat, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 
 /// Los timeframes de la vista, en el orden en que se ofrecen.
@@ -63,6 +90,62 @@ pub struct GatewayConfig {
     pub m15: Window,
     pub h1: Window,
     pub d1: Window,
+    /// `[view.auto]` (#628): la fuente automática.
+    pub auto: AutoSource,
+}
+
+/// La fuente automática de la vista (#628): IG y, si en la ventana hay menos de `min_candles`
+/// velas, la primera de `fallback` que tenga velas, con su motivo.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AutoSource {
+    pub label: String,
+    pub min_candles: usize,
+    /// Fuentes de reemplazo en orden, cada una con el motivo que muestra la UI.
+    pub fallback: Vec<(CandleSource, String)>,
+}
+
+impl AutoSource {
+    fn from_raw(raw: RawAuto) -> Result<Self, String> {
+        let RawAuto {
+            label,
+            min_candles,
+            fallback,
+            mut notes,
+        } = raw;
+        if !(1..=80).contains(&label.chars().count()) {
+            return Err("view.auto.label: de 1 a 80 caracteres".into());
+        }
+        if fallback.is_empty() {
+            return Err("view.auto.fallback: hace falta al menos una fuente".into());
+        }
+        let mut out: Vec<(CandleSource, String)> = Vec::with_capacity(fallback.len());
+        for name in fallback {
+            let s = CandleSource::parse(&name)
+                .filter(|s| *s != CandleSource::Ig)
+                .ok_or_else(|| format!("view.auto.fallback: fuente inválida {name:?}"))?;
+            if out.iter().any(|(o, _)| *o == s) {
+                return Err(format!("view.auto.fallback: {name:?} repetida"));
+            }
+            let note = notes
+                .remove(s.as_str())
+                .ok_or_else(|| format!("view.auto.notes.{}: falta", s.as_str()))?;
+            if !(1..=300).contains(&note.chars().count()) {
+                return Err(format!(
+                    "view.auto.notes.{}: de 1 a 300 caracteres",
+                    s.as_str()
+                ));
+            }
+            out.push((s, note));
+        }
+        if let Some(k) = notes.keys().next() {
+            return Err(format!("view.auto.notes.{k}: no está en fallback"));
+        }
+        Ok(Self {
+            label,
+            min_candles: min_candles.get() as usize,
+            fallback: out,
+        })
+    }
 }
 
 /// Ventana de un timeframe, hacia atrás desde `as_of`.
@@ -97,6 +180,20 @@ struct RawConfig {
     /// `[ops]`: lo lee [`status::StatusConfig`] (#314).
     #[allow(dead_code)]
     ops: toml::Table,
+    /// `[ibkr]`: lo lee [`ibkr::IbkrViewConfig`] (#551).
+    #[allow(dead_code)]
+    ibkr: toml::Table,
+    /// `[news]` y `[calendar]`: los lee [`news::NewsConfig`] (#600).
+    #[allow(dead_code)]
+    news: toml::Table,
+    #[allow(dead_code)]
+    calendar: toml::Table,
+    /// `[academy]`: lo lee [`academy::AcademyRoutes`] (#719).
+    #[allow(dead_code)]
+    academy: toml::Table,
+    /// `[lab]`: lo lee [`lab::LabRoutes`] (#776).
+    #[allow(dead_code)]
+    lab: toml::Table,
 }
 
 #[derive(Deserialize)]
@@ -111,6 +208,16 @@ struct RawView {
     default_instrument: String,
     default_timeframe: String,
     levels_days: NonZeroU32,
+    auto: RawAuto,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawAuto {
+    label: String,
+    min_candles: NonZeroU32,
+    fallback: Vec<String>,
+    notes: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Deserialize)]
@@ -156,6 +263,7 @@ impl GatewayConfig {
             m15: w(raw.windows.m15),
             h1: w(raw.windows.h1),
             d1: w(raw.windows.d1),
+            auto: AutoSource::from_raw(raw.view.auto)?,
         })
     }
 }
@@ -192,6 +300,15 @@ pub struct ViewSource {
 }
 
 impl ViewSource {
+    /// La fuente automática (#628), solo en la lista de `GET /api/v1/instruments`: una vista
+    /// siempre dice la fuente que de verdad usó.
+    pub fn auto(auto: &AutoSource) -> Self {
+        Self {
+            id: "auto",
+            label: auto.label.clone(),
+        }
+    }
+
     pub fn new(source: CandleSource, sources: &CandleSources) -> Self {
         Self {
             id: source.as_str(),
@@ -200,11 +317,23 @@ impl ViewSource {
     }
 }
 
+/// Por qué la vista no sale de las velas de IG con `source=auto` (#628).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Fallback {
+    /// La fuente que se pidió primero (`ig`).
+    pub from: &'static str,
+    /// El motivo, de `[view.auto.notes]`.
+    pub note: String,
+}
+
 /// `contracts/liquidity_view.v1`: mensajes de otros contratos, sin cambios.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct LiquidityView {
     pub instrument_id: InstrumentId,
     pub source: ViewSource,
+    /// Solo con `source=auto` cuando la vista sale de una fuente de reemplazo (#628).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback: Option<Fallback>,
     #[serde(serialize_with = "ser_timeframe")]
     pub timeframe: StatsTimeframe,
     pub generated_at: String,
@@ -214,6 +343,78 @@ pub struct LiquidityView {
     pub fvgs: Vec<FvgEvent>,
     pub imbalance: Vec<Imbalance>,
     pub stats: Vec<LiquidityStats>,
+    /// Herramientas de análisis (#501), un valor por vela de `candles` donde corresponde. Solo
+    /// en 15m con las velas de IG ([`has_analysis`]); ausente en los demás casos.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub analysis: Option<ExportAnalysis>,
+}
+
+/// Si la vista lleva `analysis` (#501): solo en 15m (el timeframe para el que están
+/// parametrizadas en `config/analysis.toml`) y con las velas del CFD de IG (los futuros no
+/// tienen diarias).
+pub fn has_analysis(source: CandleSource, tf: StatsTimeframe) -> bool {
+    source == CandleSource::Ig && tf == StatsTimeframe::M15
+}
+
+/// Lo que necesita el bloque `analysis`: `config/analysis.toml` y `[pivots] strength` de
+/// `config/patterns.toml` (los mismos pivotes que el export).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ViewAnalysis {
+    pub config: AnalysisConfig,
+    pub pivot_strength: usize,
+}
+
+impl ViewAnalysis {
+    pub fn from_toml(analysis: &str, patterns: &str) -> Result<Self, String> {
+        Ok(Self {
+            config: AnalysisConfig::from_toml(analysis).map_err(|e| format!("analysis: {e}"))?,
+            pivot_strength: cfds_patterns::PatternsConfig::from_toml(patterns)
+                .map_err(|e| format!("patterns: {e}"))?
+                .pivots
+                .strength,
+        })
+    }
+
+    /// El bloque sobre las velas de la vista. `daily` y `vix` se leen hasta `as_of`; las funciones
+    /// de `cfds_backtest::analysis` usan para cada vela solo lo ya cerrado o publicado a su cierre.
+    pub fn block(
+        &self,
+        m15: &[Candle],
+        daily: &[DailyCandle],
+        vix: &[(DateTime<Utc>, rust_decimal::Decimal)],
+    ) -> ExportAnalysis {
+        analysis_export(m15, daily, vix, self.pivot_strength, &self.config)
+    }
+
+    /// El bloque de la vista `view` calculado con las velas de calentamiento `warmup` (las
+    /// anteriores a la primera de la vista, en orden, #511): índices de `view`, nada de antes.
+    pub fn view_block(
+        &self,
+        warmup: &[Candle],
+        view: &[Candle],
+        daily: &[DailyCandle],
+        vix: &[(DateTime<Utc>, rust_decimal::Decimal)],
+    ) -> ExportAnalysis {
+        let all: Vec<Candle> = warmup.iter().chain(view).cloned().collect();
+        analysis_view(
+            &all,
+            warmup.len(),
+            daily,
+            vix,
+            self.pivot_strength,
+            &self.config,
+        )
+    }
+
+    /// Las últimas `[warmup] m15_bars` de `before` (velas que empezaron antes de la primera de
+    /// la vista), en orden.
+    pub fn warmup_tail(&self, mut before: Vec<Candle>) -> Vec<Candle> {
+        let n = self.config.warmup.m15_bars;
+        if before.len() > n {
+            before.drain(..before.len() - n);
+        }
+        before
+    }
 }
 
 fn ser_timeframe<S: serde::Serializer>(tf: &StatsTimeframe, s: S) -> Result<S::Ok, S::Error> {
@@ -235,6 +436,7 @@ impl LiquidityView {
         Self {
             instrument_id: instrument,
             source,
+            fallback: None,
             timeframe,
             generated_at: utc(now),
             as_of: None,
@@ -246,6 +448,7 @@ impl LiquidityView {
             fvgs: Vec::new(),
             imbalance: Vec::new(),
             stats: Vec::new(),
+            analysis: None,
         }
     }
 }
@@ -281,6 +484,10 @@ pub struct PgSource {
     pub reaction_bars: Vec<NonZeroU32>,
     /// `config/candle_sources.toml`.
     pub sources: CandleSources,
+    /// Herramientas de análisis (#501); `None` = la vista no las trae.
+    pub analysis: Option<ViewAnalysis>,
+    /// Diarias y VIX ya leídos para `analysis` (#511).
+    pub cache: series_cache::SeriesCache,
 }
 
 impl PgSource {
@@ -296,6 +503,15 @@ impl PgSource {
         let feed = match source {
             CandleSource::Ig => CandleFeed::Ig,
             CandleSource::Futures => CandleFeed::Futures(&self.sources.futures_source),
+            // Un CFD sin mapeo no tiene velas de IBKR (#630): "sin datos".
+            CandleSource::Ibkr => match self.sources.ibkr_instrument(id) {
+                Some(instrument) => CandleFeed::Ibkr(cfds_storage::IbkrFeed {
+                    source: &self.sources.ibkr.source,
+                    instrument,
+                    what_to_show: &self.sources.ibkr.what_to_show,
+                }),
+                None => return Ok(None),
+            },
         };
         let w = self.config.window(tf);
         let intraday = match tf {
@@ -320,8 +536,8 @@ impl PgSource {
             let first = candles.first().map_or(as_of, |c| c.start);
             return Ok(Some((Bars::Intraday(candles), as_of, first)));
         }
-        // Los futuros no tienen diarias (#259): en 1d esa fuente queda "sin datos".
-        if source == CandleSource::Futures {
+        // Los futuros (#259) e IBKR (#630) no tienen diarias: en 1d esas fuentes quedan "sin datos".
+        if source != CandleSource::Ig {
             return Ok(None);
         }
         // 1d: `as_of` es el fin de la última diaria **terminada** de `daily_candles`, aunque sea
@@ -341,6 +557,72 @@ impl PgSource {
             return Ok(None);
         };
         Ok(Some((Bars::Daily(daily), as_of, first)))
+    }
+
+    /// El bloque `analysis` (#501) de las velas de 15m de la vista. Pivotes, Fibonacci,
+    /// spring/upthrust y fondos se calculan con `[warmup]` velas anteriores (#511). La EMA y las
+    /// medias diarias necesitan los días anteriores a la ventana: todas las diarias guardadas
+    /// hasta `as_of`, como en el export, del caché; el VIX publicado hasta `as_of`, también.
+    async fn analysis(
+        &self,
+        va: &ViewAnalysis,
+        feed: CandleFeed<'_>,
+        base: &InstrumentId,
+        id: &InstrumentId,
+        m15: &[Candle],
+        as_of: DateTime<Utc>,
+    ) -> Result<ExportAnalysis, StorageError> {
+        let first = m15.first().map_or(as_of, |c| c.start);
+        let lookback = TimeDelta::days(i64::from(va.config.warmup.max_lookback_days));
+        let before = self
+            .store
+            .candles_from(feed, base, id, Timeframe::M15, first - lookback, first)
+            .await?;
+        let warmup = va.warmup_tail(before);
+        let daily = self.daily_known(id, as_of).await?;
+        let vix = self.vix_known(as_of).await?;
+        Ok(va.view_block(&warmup, m15, &daily, &vix))
+    }
+
+    /// Las diarias terminadas hasta `as_of`, del caché; se vuelven a leer todas solo si en la
+    /// base hay un día terminado posterior al último del caché.
+    async fn daily_known(
+        &self,
+        id: &InstrumentId,
+        as_of: DateTime<Utc>,
+    ) -> Result<Vec<DailyCandle>, StorageError> {
+        let last_end = self.store.last_daily_end(id, as_of).await?;
+        if let Some(days) = self.cache.daily_known(id, as_of, last_end) {
+            return Ok(days);
+        }
+        let first_day = NaiveDate::from_ymd_opt(2000, 1, 1).unwrap_or(NaiveDate::MIN);
+        let days = self
+            .store
+            .daily_candles(id, first_day, as_of.date_naive() + TimeDelta::days(1))
+            .await?;
+        Ok(self.cache.store_daily(id, days, as_of))
+    }
+
+    /// El VIX publicado hasta `as_of`: se leen solo los cierres desde el último del caché.
+    async fn vix_known(
+        &self,
+        as_of: DateTime<Utc>,
+    ) -> Result<Vec<series_cache::VixClose>, StorageError> {
+        let from = self.cache.vix_last().unwrap_or_else(|| {
+            NaiveDate::from_ymd_opt(2000, 1, 1)
+                .unwrap_or(NaiveDate::MIN)
+                .and_time(chrono::NaiveTime::MIN)
+                .and_utc()
+        });
+        // `vix_closes` deja afuera `to`: un segundo más para incluir lo publicado justo en `as_of`.
+        let read = if from <= as_of {
+            self.store
+                .vix_closes(from, as_of + TimeDelta::seconds(1))
+                .await?
+        } else {
+            Vec::new()
+        };
+        Ok(self.cache.add_vix(&read, as_of))
     }
 }
 
@@ -381,9 +663,17 @@ impl LiquiditySource for PgSource {
             .into_iter()
             .filter(|g| g.timeframe == tf && g.as_of <= as_of)
             .collect();
+        let analysis = match (&self.analysis, &candles) {
+            (Some(va), Bars::Intraday(m15)) if has_analysis(source, tf) && !m15.is_empty() => Some(
+                self.analysis(va, CandleFeed::Ig, base, id, m15, as_of)
+                    .await?,
+            ),
+            _ => None,
+        };
         Ok(LiquidityView {
             instrument_id: base.clone(),
             source: view_source,
+            fallback: None,
             timeframe: tf,
             generated_at: utc(now),
             as_of: Some(utc(as_of)),
@@ -392,6 +682,7 @@ impl LiquiditySource for PgSource {
             fvgs,
             imbalance,
             stats,
+            analysis,
         })
     }
 }
@@ -439,6 +730,15 @@ pub(crate) fn param<'q>(query: Option<&'q str>, name: &str) -> Option<&'q str> {
         .find_map(|kv| kv.strip_prefix(name)?.strip_prefix('='))
 }
 
+/// `before` de la query: RFC 3339 en UTC (`…Z`); los `:` pueden llegar codificados (`%3A`).
+pub(crate) fn parse_before(s: &str) -> Option<DateTime<Utc>> {
+    let s = s.replace("%3A", ":").replace("%3a", ":");
+    if !s.ends_with('Z') {
+        return None;
+    }
+    s.parse::<DateTime<Utc>>().ok()
+}
+
 /// Atiende un pedido (ver el encabezado del módulo). Todo lo demás es 4xx. Los errores de la
 /// base no se muestran al cliente.
 #[allow(clippy::too_many_arguments)]
@@ -465,9 +765,13 @@ pub async fn respond<S: LiquiditySource>(
             default_timeframe: timeframe_name(config.default_timeframe),
             timeframes: TIMEFRAMES.into_iter().map(timeframe_name).collect(),
             instruments: catalog.to_vec(),
-            sources: CandleSource::ALL
-                .into_iter()
-                .map(|s| ViewSource::new(s, sources))
+            // La automática primero (#628): es la que abre la UI.
+            sources: std::iter::once(ViewSource::auto(&config.auto))
+                .chain(
+                    CandleSource::ALL
+                        .into_iter()
+                        .map(|s| ViewSource::new(s, sources)),
+                )
                 .collect(),
         };
         return json(&reply, "los instrumentos");
@@ -482,18 +786,36 @@ pub async fn respond<S: LiquiditySource>(
             None => return text(400, "timeframe: 15m, 1h o 1d"),
         },
     };
+    // `None` = automática (#628).
     let candle_source = match param(query, "source") {
-        None => CandleSource::Ig,
+        None => Some(CandleSource::Ig),
+        Some("auto") => None,
         Some(s) => match CandleSource::parse(s) {
-            Some(c) => c,
-            None => return text(400, "source: ig o futures"),
+            Some(c) => Some(c),
+            None => return text(400, "source: ig, futures, ibkr o auto"),
+        },
+    };
+    // `before` (#401): la vista "tal como se conocía" en ese momento, nunca después de ahora.
+    let at = match param(query, "before") {
+        None => now,
+        Some(s) => match parse_before(s) {
+            Some(t) => t.min(now),
+            None => return text(400, "before: fecha RFC 3339 en UTC (…Z)"),
         },
     };
     if !catalog.iter().any(|i| i.id == id) {
         return text(404, "instrumento fuera del catálogo");
     }
-    match source.view(&id, candle_source, tf, now).await {
-        Ok(view) => json(&view, &format!("la vista de {id}")),
+    let view = match candle_source {
+        Some(c) => source.view(&id, c, tf, at).await,
+        None => auto_view(source, &config.auto, sources, &id, tf, at).await,
+    };
+    match view {
+        Ok(mut view) => {
+            // `generated_at` es cuándo se armó la respuesta, aunque se lea el pasado.
+            view.generated_at = utc(now);
+            json(&view, &format!("la vista de {id}"))
+        }
         Err(e) => {
             eprintln!(
                 "gateway: error leyendo la vista de {id} {}: {e}",
@@ -502,6 +824,38 @@ pub async fn respond<S: LiquiditySource>(
             text(500, "error interno")
         }
     }
+}
+
+/// La vista con `source=auto` (#628): la de IG si tiene al menos `min_candles` velas; si no, la
+/// de la primera fuente de reemplazo con alguna vela, con su motivo; si ninguna tiene, la de IG.
+/// Cada fuente se lee con sus propias velas cerradas hasta `at`: no se mezclan. En el motivo,
+/// `{symbol}` es el instrumento de IBKR del CFD (#630), si tiene.
+pub async fn auto_view<S: LiquiditySource>(
+    source: &S,
+    auto: &AutoSource,
+    sources: &CandleSources,
+    id: &InstrumentId,
+    tf: StatsTimeframe,
+    at: DateTime<Utc>,
+) -> Result<LiquidityView, StorageError> {
+    let ig = source.view(id, CandleSource::Ig, tf, at).await?;
+    if ig.candles.len() >= auto.min_candles {
+        return Ok(ig);
+    }
+    for (other, note) in &auto.fallback {
+        let mut v = source.view(id, *other, tf, at).await?;
+        if !v.candles.is_empty() {
+            v.fallback = Some(Fallback {
+                from: CandleSource::Ig.as_str(),
+                note: match sources.ibkr_instrument(id) {
+                    Some(symbol) => note.replace("{symbol}", symbol),
+                    None => note.clone(),
+                },
+            });
+            return Ok(v);
+        }
+    }
+    Ok(ig)
 }
 
 #[cfg(test)]
@@ -560,6 +914,64 @@ mod tests {
             now(),
         )
         .await
+    }
+
+    #[test]
+    fn analysis_only_in_15m_from_ig() {
+        assert!(has_analysis(CandleSource::Ig, StatsTimeframe::M15));
+        assert!(!has_analysis(CandleSource::Ig, StatsTimeframe::H1));
+        assert!(!has_analysis(CandleSource::Ig, StatsTimeframe::D1));
+        assert!(!has_analysis(CandleSource::Futures, StatsTimeframe::M15));
+        // Sin bloque, la respuesta no trae la clave (la forma de antes, #501).
+        let s = ViewSource::new(CandleSource::Ig, &sources());
+        let v = LiquidityView::empty("US100".parse().unwrap(), s, StatsTimeframe::M15, now());
+        let doc = serde_json::to_value(&v).unwrap();
+        assert!(doc.get("analysis").is_none());
+        let va = ViewAnalysis::from_toml(
+            include_str!("../../../../config/analysis.toml"),
+            include_str!("../../../../config/patterns.toml"),
+        )
+        .unwrap();
+        assert_eq!(va.config.ema_daily_period, 365);
+        assert!(ViewAnalysis::from_toml("x = 1", "").is_err());
+    }
+
+    /// `[warmup]` de `config/analysis.toml` (#511): se valida al cargar y se usan solo las
+    /// últimas `m15_bars` velas antes de la vista.
+    #[test]
+    fn the_warmup_is_validated_and_keeps_the_last_bars() {
+        let real = include_str!("../../../../config/analysis.toml");
+        let patterns = include_str!("../../../../config/patterns.toml");
+        let va = ViewAnalysis::from_toml(real, patterns).unwrap();
+        assert_eq!(va.config.warmup.m15_bars, 1000);
+        for bad in [
+            real.replace("m15_bars = 1000", "m15_bars = 50"),
+            real.replace("max_lookback_days = 45", "max_lookback_days = 3"),
+            real.replace("max_lookback_days = 45", "max_lookback_days = \"45\""),
+            real.replace("m15_bars = 1000", "m15_bars = 1000\nextra = 1"),
+        ] {
+            assert!(ViewAnalysis::from_toml(&bad, patterns).is_err(), "{bad}");
+        }
+        let t0: DateTime<Utc> = "2026-11-20T00:00:00Z".parse().unwrap();
+        let bars: Vec<Candle> = (0..1200i64)
+            .map(|k| Candle {
+                instrument_id: "US100".parse().unwrap(),
+                timeframe: Timeframe::M15,
+                start: t0 + TimeDelta::minutes(15 * k),
+                open: rust_decimal::Decimal::ONE,
+                high: rust_decimal::Decimal::ONE,
+                low: rust_decimal::Decimal::ONE,
+                close: rust_decimal::Decimal::ONE,
+                volume: None,
+            })
+            .collect();
+        let tail = va.warmup_tail(bars.clone());
+        assert_eq!(tail.len(), 1000);
+        assert_eq!(tail[0].start, bars[200].start);
+        assert_eq!(va.warmup_tail(bars[..10].to_vec()).len(), 10);
+        // El bloque tiene un valor por vela de la vista, nada del calentamiento.
+        let block = va.view_block(&tail[..990], &tail[990..], &[], &[]);
+        assert_eq!(block.ema_daily.len(), 10);
     }
 
     #[test]
@@ -633,8 +1045,10 @@ mod tests {
         assert_eq!(
             v["sources"],
             serde_json::json!([
+                {"id": "auto", "label": "automática (IG; sin velas de IG, futuros)"},
                 {"id": "ig", "label": "IG CFD"},
-                {"id": "futures", "label": "futuros CME/Eurex (base distinta al CFD)"}
+                {"id": "futures", "label": "futuros CME/Eurex (base distinta al CFD)"},
+                {"id": "ibkr", "label": "futuros micro CME de IBKR (~10 min de atraso; base distinta al CFD)"}
             ])
         );
     }
@@ -662,6 +1076,250 @@ mod tests {
             get(path, Some("instrument=US100&source=cfd")).await.status,
             400
         );
+    }
+
+    /// Devuelve en `as_of` el momento con que se leyó la vista, para ver qué llega a la fuente.
+    struct Echo;
+
+    impl LiquiditySource for Echo {
+        async fn view(
+            &self,
+            id: &InstrumentId,
+            source: CandleSource,
+            tf: StatsTimeframe,
+            at: DateTime<Utc>,
+        ) -> Result<LiquidityView, StorageError> {
+            let s = ViewSource::new(source, &sources());
+            let mut v = LiquidityView::empty(id.clone(), s, tf, at);
+            v.as_of = Some(utc(at));
+            Ok(v)
+        }
+    }
+
+    async fn echo(q: &str) -> Reply {
+        let path = "/api/v1/liquidity";
+        respond(
+            &Echo,
+            &config(),
+            &sources(),
+            &catalog(),
+            "GET",
+            path,
+            Some(q),
+            now(),
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn before_reads_the_view_as_known_at_that_time() {
+        // sin before: ahora
+        let r = echo("instrument=US100&timeframe=1h").await;
+        let v: serde_json::Value = serde_json::from_str(&r.body).unwrap();
+        assert_eq!(v["as_of"], "2026-11-23T10:00:00Z");
+        // con before (también con los ':' codificados): ese momento; generated_at sigue siendo ahora
+        for q in [
+            "instrument=US100&timeframe=1h&before=2026-11-20T08:15:00Z",
+            "instrument=US100&before=2026-11-20T08%3A15%3A00Z&timeframe=1h",
+        ] {
+            let r = echo(q).await;
+            assert_eq!(r.status, 200, "{q}");
+            let v: serde_json::Value = serde_json::from_str(&r.body).unwrap();
+            assert_eq!(v["as_of"], "2026-11-20T08:15:00Z", "{q}");
+            assert_eq!(v["generated_at"], "2026-11-23T10:00:00Z", "{q}");
+            assert_eq!(v["timeframe"], "1h", "{q}");
+        }
+        // un before futuro no deja mirar más allá de ahora
+        let r = echo("instrument=US100&before=2030-01-01T00:00:00Z").await;
+        let v: serde_json::Value = serde_json::from_str(&r.body).unwrap();
+        assert_eq!(v["as_of"], "2026-11-23T10:00:00Z");
+        // fechas mal formadas o sin zona UTC
+        for bad in [
+            "ayer",
+            "2026-11-20T08:15:00",
+            "2026-11-20T08:15:00+01:00",
+            "",
+        ] {
+            let r = echo(&format!("instrument=US100&before={bad}")).await;
+            assert_eq!(r.status, 400, "{bad}");
+        }
+    }
+
+    /// Una fuente con `ig` velas de IG y `futures` velas de futuros (de 1h, cerradas antes de
+    /// `at`), para ver qué elige `source=auto` (#628) sin base de datos.
+    struct Stocked {
+        ig: usize,
+        futures: usize,
+        ibkr: usize,
+    }
+
+    impl LiquiditySource for Stocked {
+        async fn view(
+            &self,
+            id: &InstrumentId,
+            source: CandleSource,
+            tf: StatsTimeframe,
+            at: DateTime<Utc>,
+        ) -> Result<LiquidityView, StorageError> {
+            let n = match source {
+                CandleSource::Ig => self.ig,
+                CandleSource::Futures => self.futures,
+                CandleSource::Ibkr => self.ibkr,
+            };
+            let mut v =
+                LiquidityView::empty(id.clone(), ViewSource::new(source, &sources()), tf, at);
+            if n == 0 {
+                return Ok(v);
+            }
+            let one = rust_decimal::Decimal::ONE;
+            let candles = (0..n)
+                .map(|k| Candle {
+                    instrument_id: id.clone(),
+                    timeframe: Timeframe::H1,
+                    start: at - TimeDelta::hours(n as i64 + 1 - k as i64),
+                    open: one,
+                    high: one,
+                    low: one,
+                    close: one,
+                    volume: None,
+                })
+                .collect();
+            v.candles = Bars::Intraday(candles);
+            v.as_of = Some(utc(at - TimeDelta::hours(1)));
+            Ok(v)
+        }
+    }
+
+    async fn stocked(ig: usize, futures: usize, q: &str) -> serde_json::Value {
+        stocked3(ig, futures, 0, q).await
+    }
+
+    async fn stocked3(ig: usize, futures: usize, ibkr: usize, q: &str) -> serde_json::Value {
+        let r = respond(
+            &Stocked { ig, futures, ibkr },
+            &config(),
+            &sources(),
+            &catalog(),
+            "GET",
+            "/api/v1/liquidity",
+            Some(q),
+            now(),
+        )
+        .await;
+        assert_eq!(r.status, 200, "{q}");
+        serde_json::from_str(&r.body).unwrap()
+    }
+
+    #[tokio::test]
+    async fn auto_falls_back_to_futures_while_ig_has_no_candles() {
+        let min = config().auto.min_candles;
+        let q = "instrument=US100&timeframe=1h&source=auto";
+        // IG vacío o con menos velas que el mínimo: futuros, y la respuesta lo dice.
+        for ig in [0, min - 1] {
+            let v = stocked(ig, 50, q).await;
+            assert_eq!(v["source"]["id"], "futures", "ig={ig}");
+            assert_eq!(
+                v["source"]["label"],
+                "futuros CME/Eurex (base distinta al CFD)"
+            );
+            assert_eq!(v["fallback"]["from"], "ig");
+            let note = v["fallback"]["note"].as_str().unwrap();
+            assert!(note.starts_with("IG todavía no tiene velas"), "{note}");
+            assert!(note.contains("Base distinta al CFD"), "{note}");
+            assert_eq!(v["candles"].as_array().unwrap().len(), 50);
+        }
+    }
+
+    #[tokio::test]
+    async fn auto_goes_back_to_ig_when_it_has_candles() {
+        let min = config().auto.min_candles;
+        let q = "instrument=US100&timeframe=1h&source=auto";
+        let v = stocked(min, 50, q).await;
+        assert_eq!(v["source"]["id"], "ig");
+        assert_eq!(v["source"]["label"], "IG CFD");
+        assert!(v.get("fallback").is_none(), "sin reemplazo no hay motivo");
+        assert_eq!(v["candles"].as_array().unwrap().len(), min);
+        // Ninguna fuente tiene velas: la vista de IG, vacía y sin motivo.
+        let v = stocked(0, 0, q).await;
+        assert_eq!(v["source"]["id"], "ig");
+        assert_eq!(v["as_of"], serde_json::Value::Null);
+        assert!(v.get("fallback").is_none());
+        // Pocas velas de IG y ninguna de futuros: las de IG.
+        let v = stocked(3, 0, q).await;
+        assert_eq!(v["source"]["id"], "ig");
+        assert_eq!(v["candles"].as_array().unwrap().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn a_source_picked_by_hand_is_never_replaced() {
+        for (q, id) in [
+            ("instrument=US100&timeframe=1h&source=ig", "ig"),
+            ("instrument=US100&timeframe=1h", "ig"),
+            ("instrument=US100&timeframe=1h&source=futures", "futures"),
+            ("instrument=US100&timeframe=1h&source=ibkr", "ibkr"),
+        ] {
+            let v = stocked(0, 0, q).await;
+            assert_eq!(v["source"]["id"], id, "{q}");
+            assert!(v.get("fallback").is_none(), "{q}");
+            let v = stocked(0, 50, q).await;
+            assert_eq!(v["source"]["id"], id, "{q}");
+        }
+    }
+
+    /// IBKR primero (#630): US100 tiene MNQ y el motivo lo nombra; sin velas de IBKR, futuros.
+    #[tokio::test]
+    async fn auto_tries_ibkr_before_the_futures() {
+        let q = "instrument=US100&timeframe=1h&source=auto";
+        let v = stocked3(0, 50, 30, q).await;
+        assert_eq!(v["source"]["id"], "ibkr");
+        assert_eq!(
+            v["fallback"]["note"],
+            "IG todavía no tiene velas: se muestran futuros de CME (MNQ, IBKR, ~10 min de atraso). \
+             Base distinta al CFD."
+        );
+        assert_eq!(v["candles"].as_array().unwrap().len(), 30);
+        let v = stocked3(0, 50, 0, q).await;
+        assert_eq!(v["source"]["id"], "futures");
+        assert!(!v["fallback"]["note"].as_str().unwrap().contains("{symbol}"));
+        // Con IG de vuelta, IG aunque IBKR tenga velas.
+        let v = stocked3(config().auto.min_candles, 50, 30, q).await;
+        assert_eq!(v["source"]["id"], "ig");
+        assert!(v.get("fallback").is_none());
+    }
+
+    #[test]
+    fn the_auto_source_is_validated() {
+        let auto = config().auto;
+        assert_eq!(auto.fallback.len(), 2);
+        assert_eq!(auto.fallback[0].0, CandleSource::Ibkr);
+        assert_eq!(auto.fallback[1].0, CandleSource::Futures);
+        for (from, to) in [
+            ("min_candles = 20", "min_candles = 0"),
+            ("fallback = [\"ibkr\", \"futures\"]", "fallback = []"),
+            ("fallback = [\"ibkr\", \"futures\"]", "fallback = [\"ig\"]"),
+            ("fallback = [\"ibkr\", \"futures\"]", "fallback = [\"cfd\"]"),
+            (
+                "fallback = [\"ibkr\", \"futures\"]",
+                "fallback = [\"futures\"]",
+            ),
+            (
+                "fallback = [\"ibkr\", \"futures\"]",
+                "fallback = [\"ibkr\", \"futures\", \"futuros\"]",
+            ),
+            ("[view.auto.notes]\nibkr = ", "[view.auto.notes]\nnope = "),
+            ("[view.auto.notes]\n", "[view.auto.notes]\nig = \"x\"\n"),
+            ("label = \"automática", "nope = 1\nlabel = \"automática"),
+        ] {
+            let bad = CONFIG.replacen(from, to, 1);
+            assert_ne!(bad, CONFIG, "{from}");
+            assert!(GatewayConfig::from_toml(&bad).is_err(), "{to}");
+        }
+        let long = CONFIG.replacen(
+            "futures = \"IG todavía",
+            &format!("futures = \"{}IG todavía", "x".repeat(300)),
+            1,
+        );
+        assert!(GatewayConfig::from_toml(&long).is_err());
     }
 
     #[tokio::test]

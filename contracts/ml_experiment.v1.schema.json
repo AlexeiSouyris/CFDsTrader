@@ -22,9 +22,13 @@
       "pattern": "^[0-9a-f]{7,40}(-dirty)?$"
     },
     "backtest_run_id": {
-      "description": "Corrida de backtest_runs de la que salen las propuestas.",
+      "description": "Corrida de la que salen las propuestas: de backtest_runs o, con label_source = ml_label_runs, de ml_label_runs (#409).",
       "type": "string",
       "pattern": "^[A-Za-z0-9._-]{1,100}$"
+    },
+    "label_source": {
+      "description": "Opcional (#409, cambio compatible): de qué tabla es backtest_run_id. 'backtest_runs' (con P/L, #200) si falta; 'ml_label_runs' para las corridas de etiquetas sin P/L (#399).",
+      "enum": ["backtest_runs", "ml_label_runs"]
     },
     "config_sha256": {
       "description": "SHA-256 (hex) de config/ml.toml, probability.toml, data_split.toml y backtest.toml.",
@@ -103,6 +107,25 @@
         "high": { "type": ["number", "null"] },
         "blocks": { "description": "Semanas del bootstrap por bloques.", "type": ["integer", "null"], "minimum": 0 }
       }
+    },
+    "calibration": {
+      "description": "Opcional (#433, cambio compatible): calibración por grupos de la predicción (spec ML §6) sobre todas las validaciones de las ventanas que entrenaron, la misma del informe. Falta en los experimentos guardados antes y en los que quedaron en suspenso.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bins", "interval", "pooled"],
+      "properties": {
+        "bins": { "description": "En cuántos grupos iguales (por orden de la predicción) se partieron las validaciones: config/ml.toml calibration_bins.", "type": "integer", "minimum": 1 },
+        "interval": { "description": "Intervalo de la frecuencia observada: Wilson del 95 %.", "enum": ["wilson_95"] },
+        "pooled": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "B0": { "$ref": "#/$defs/calibration_bins" },
+            "B1": { "$ref": "#/$defs/calibration_bins" },
+            "M1": { "$ref": "#/$defs/calibration_bins" }
+          }
+        }
+      }
     }
   },
   "$defs": {
@@ -118,6 +141,25 @@
         "log_loss": { "type": "number", "minimum": 0 },
         "brier": { "type": "number", "minimum": 0, "maximum": 1 },
         "auc": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+      }
+    },
+    "probability": { "type": "number", "minimum": 0, "maximum": 1 },
+    "calibration_bins": {
+      "description": "Los grupos, de la predicción más baja a la más alta (los vacíos no se guardan).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["p_min", "p_max", "n", "mean_predicted", "observed", "low", "high"],
+        "properties": {
+          "p_min": { "description": "Predicción más baja del grupo (desde).", "$ref": "#/$defs/probability" },
+          "p_max": { "description": "Predicción más alta del grupo (hasta).", "$ref": "#/$defs/probability" },
+          "n": { "description": "Casos del grupo.", "type": "integer", "minimum": 1 },
+          "mean_predicted": { "description": "Predicción media del grupo.", "$ref": "#/$defs/probability" },
+          "observed": { "description": "Frecuencia observada de y = 1 en el grupo.", "$ref": "#/$defs/probability" },
+          "low": { "description": "Límite inferior del intervalo de la frecuencia observada.", "$ref": "#/$defs/probability" },
+          "high": { "description": "Límite superior del intervalo de la frecuencia observada.", "$ref": "#/$defs/probability" }
+        }
       }
     },
     "by_model": {

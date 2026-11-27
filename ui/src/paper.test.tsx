@@ -45,6 +45,20 @@ const verdictFor = (o: Order, accepted = true): TicketVerdict => ({
   as_of: '2026-11-23T10:00:00Z',
 })
 
+/** El catálogo del motor (de prueba): el ticket ofrece solo estos (#578). */
+const CATALOG = {
+  default_instrument: 'US100',
+  default_timeframe: '15m',
+  timeframes: ['15m', '1h', '1d'],
+  instruments: ['US100', 'US30'].map((id) => ({
+    id,
+    name: id,
+    asset_class: 'index',
+    currency: 'EUR',
+    exchange_timezone: 'America/New_York',
+  })),
+}
+
 type Call = { url: string; init?: RequestInit }
 
 /** Un gateway falso con las rutas del broker simulado. */
@@ -59,6 +73,7 @@ function gateway(opts: {
     const url = String(input)
     calls.push({ url, init })
     const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status })
+    if (url === '/api/v1/instruments') return json(CATALOG)
     if (url === '/api/v1/paper/account') return json(ACCOUNT)
     if (url === '/api/v1/paper/positions') return json(positions)
     if (url === '/api/v1/paper/preview') {
@@ -90,7 +105,13 @@ function gateway(opts: {
   return { calls, posts: () => calls.filter((c) => c.init?.method === 'POST') }
 }
 
-const ticket = () => screen.getByRole('form', { name: 'Ticket de orden' })
+/** El ticket arranca vacío (#578): se escribe el stop antes de validar. */
+async function readyTicket(stop = '99,5') {
+  await screen.findByText('simulación · broker simulado')
+  const form = await screen.findByRole('form', { name: 'Ticket de orden' })
+  fireEvent.change(within(form).getByLabelText(/Stop/), { target: { value: stop } })
+  return form
+}
 
 describe('terminal con el broker simulado del gateway (#292)', () => {
   afterEach(() => {
@@ -116,9 +137,7 @@ describe('terminal con el broker simulado del gateway (#292)', () => {
   it('valida con preview, envía con orders el mismo order_id y vuelve a pedir las posiciones', async () => {
     const gw = gateway({})
     render(<TerminalView member={CURRENT_MEMBER} />)
-    await screen.findByText('simulación · broker simulado')
-    const form = ticket()
-    fireEvent.change(within(form).getByLabelText(/Stop/), { target: { value: '99,5' } })
+    const form = await readyTicket()
     fireEvent.change(within(form).getByLabelText(/TP1/), { target: { value: '' } })
     fireEvent.click(within(form).getByRole('button', { name: /Validar con el motor/ }))
 
@@ -163,8 +182,7 @@ describe('terminal con el broker simulado del gateway (#292)', () => {
   it('un rechazo del riesgo lo dice con su motivo y no deja enviar', async () => {
     gateway({ accept: false })
     render(<TerminalView member={CURRENT_MEMBER} />)
-    await screen.findByText('simulación · broker simulado')
-    const form = ticket()
+    const form = await readyTicket()
     fireEvent.click(within(form).getByRole('button', { name: /Validar con el motor/ }))
     expect(await within(form).findByText('El motor la rechaza')).toBeInTheDocument()
     expect(
@@ -185,19 +203,37 @@ describe('terminal con el broker simulado del gateway (#292)', () => {
       },
     })
     render(<TerminalView member={CURRENT_MEMBER} />)
-    await screen.findByText('simulación · broker simulado')
-    const form = ticket()
+    const form = await readyTicket()
     fireEvent.click(within(form).getByRole('button', { name: /Validar con el motor/ }))
     fireEvent.click(await within(form).findByRole('button', { name: 'Comprar en simulación' }))
     expect(await within(form).findByText('El broker simulado la rechazó.')).toBeInTheDocument()
     expect(within(form).getByText('No alcanza el margen libre.')).toBeInTheDocument()
   })
 
+  it('una orden pendiente de su vela (#471) no se muestra como ejecutada', async () => {
+    gateway({
+      report: {
+        status: 'pending',
+        rejection: null,
+        position_id: null,
+        size: null,
+        fill_price: null,
+        commission: null,
+        at: '2026-11-23T10:07:00Z',
+      },
+    })
+    render(<TerminalView member={CURRENT_MEMBER} />)
+    const form = await readyTicket()
+    fireEvent.click(within(form).getByRole('button', { name: /Validar con el motor/ }))
+    fireEvent.click(await within(form).findByRole('button', { name: 'Comprar en simulación' }))
+    expect(await within(form).findByText('Pendiente de la próxima vela.')).toBeInTheDocument()
+    expect(within(form).queryByText('Ejecutada en simulación (paper).')).toBeNull()
+  })
+
   it('si el gateway no deja escribir (sin token), lo avisa sin inventar respuesta', async () => {
     gateway({ previewStatus: 403 })
     render(<TerminalView member={CURRENT_MEMBER} />)
-    await screen.findByText('simulación · broker simulado')
-    const form = ticket()
+    const form = await readyTicket()
     fireEvent.click(within(form).getByRole('button', { name: /Validar con el motor/ }))
     const alert = await within(form).findByRole('alert')
     expect(alert).toHaveTextContent('403')
@@ -252,6 +288,10 @@ describe('token del proxy de Vite (#292)', () => {
     const post = { ...ui, method: 'POST', url: '/api/v1/paper/orders' }
     expect(gatewayTokenFor(post, 'secreto-de-prueba')).toBe('secreto-de-prueba')
     expect(gatewayTokenFor({ ...post, url: '/api/v1/paper/preview' }, 'x')).toBe('x')
+    // y los de la Academia (#769): eventos, exámenes y replay
+    expect(gatewayTokenFor({ ...post, url: '/api/v1/academy/events' }, 'x')).toBe('x')
+    expect(gatewayTokenFor({ ...post, url: '/api/v1/academy/replay/rp-1/step' }, 'x')).toBe('x')
+    expect(gatewayTokenFor({ ...post, url: '/api/v1/academyx' }, 'x')).toBeNull()
     // sin token configurado, nada
     expect(gatewayTokenFor(post, undefined)).toBeNull()
     // lecturas y otras rutas, sin token

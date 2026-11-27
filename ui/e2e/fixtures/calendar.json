@@ -1,0 +1,111 @@
+{
+ "from": "2026-11-24T16:00:00Z",
+ "to": "2026-12-09T16:00:00Z",
+ "as_of": "2026-11-25T16:00:00Z",
+ "generated_at": "2026-11-25T16:00:00Z",
+ "economic_events": [
+  {
+   "source": "forex_factory",
+   "event": "CPI m/m",
+   "country": "AU",
+   "instrument_id": null,
+   "impact": "high",
+   "scheduled_at": "2026-11-25T00:30:00Z",
+   "published_at": "2026-11-23T14:50:13Z"
+  },
+  {
+   "source": "forex_factory",
+   "event": "CPI y/y",
+   "country": "AU",
+   "instrument_id": null,
+   "impact": "high",
+   "scheduled_at": "2026-11-25T00:30:00Z",
+   "published_at": "2026-11-23T14:50:13Z"
+  },
+  {
+   "source": "forex_factory",
+   "event": "Construction Work Done q/q",
+   "country": "AU",
+   "instrument_id": null,
+   "impact": "low",
+   "scheduled_at": "2026-11-25T00:30:00Z",
+   "published_at": "2026-11-23T14:50:13Z"
+  },
+  {
+   "source": "forex_factory",
+   "event": "Trimmed Mean CPI m/m",
+   "country": "AU",
+   "instrument_id": null,
+   "impact": "high",
+   "scheduled_at": "2026-11-25T00:30:00Z",
+   "published_at": "2026-11-23T14:50:13Z"
+  },
+  {
+   "source": "forex_factory",
+   "event": "BOJ Core CPI y/y",
+   "country": "JP",
+   "instrument_id": null,
+   "impact": "low",
+   "scheduled_at": "2026-11-25T05:00:00Z",
+   "published_at": "2026-11-23T14:50:13Z"
+  },
+  {
+   "source": "forex_factory",
+   "event": "German Final GDP q/q",
+   "country": "EU",
+   "instrument_id": null,
+   "impact": "low",
+   "scheduled_at": "2026-11-25T07:00:00Z",
+   "published_at": "2026-11-23T14:50:13Z"
+  },
+  {
+   "source": "forex_factory",
+   "event": "UBS Economic Expectations",
+   "country": "CH",
+   "instrument_id": null,
+   "impact": "low",
+   "scheduled_at": "2026-11-25T09:00:00Z",
+   "published_at": "2026-11-23T14:50:13Z"
+  },
+  {
+   "source": "forex_factory",
+   "event": "German 10-y Bond Auction",
+   "country": "EU",
+   "instrument_id": null,
+   "impact": "low",
+   "scheduled_at": "2026-11-25T10:42:00Z",
+   "published_at": "2026-11-23T14:50:13Z"
+  },
+  {
+   "source": "forex_factory",
+   "event": "Core Durable Goods Orders m/m",
+   "country": "US",
+   "instrument_id": null,
+   "impact": "low",
+   "scheduled_at": "2026-11-25T13:30:00Z",
+   "published_at": "2026-11-23T14:50:13Z"
+  },
+  {
+   "source": "forex_factory",
+   "event": "Core PCE Price Index m/m",
+   "country": "US",
+   "instrument_id": null,
+   "impact": "high",
+   "scheduled_at": "2026-11-25T13:30:00Z",
+   "published_at": "2026-11-23T14:50:13Z"
+  }
+ ],
+ "official_releases": [
+  {
+   "source": "bls",
+   "series": "employment_situation",
+   "reference_period": "2026-11",
+   "status": "scheduled",
+   "scheduled_at": "2026-12-04T13:30:00Z",
+   "published_at": "2026-11-06T13:30:00Z",
+   "time_rule": "bls_calendar_0830_et",
+   "with_press_conference": null,
+   "source_url": "https://www.bls.gov/schedule/2026/home.htm"
+  }
+ ]
+}

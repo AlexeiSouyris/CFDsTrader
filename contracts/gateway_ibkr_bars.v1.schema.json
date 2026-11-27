@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/gateway_ibkr_bars.v1.schema.json",
+  "title": "Gateway IBKR bars v1",
+  "description": "Respuesta de GET /api/v1/ibkr/bars?instrument=<id>&timeframe=<tf>[&limit=<n>][&before=<UTC>] del gateway (#551): las últimas velas CERRADAS de IBKR guardadas en ibkr_bars (ibkr_bar.v1), de una sola serie (un contrato, un tamaño y un precio: nunca se mezclan contratos), de la más vieja a la más nueva. La serie es la de la última vela cerrada a as_of. Solo lectura y presentación: el gateway no calcula nada. Los datos de IBKR sin suscripción llegan con unos 10 minutos de atraso.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instrument_id", "timeframe", "source", "as_of", "generated_at", "series", "bars"],
+  "properties": {
+    "instrument_id": { "description": "Id del instrumento en config/ibkr.toml (por ejemplo MNQ, MES, QQQ).", "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" },
+    "timeframe": { "description": "Tamaño de las velas.", "enum": ["1m", "15m", "1h"] },
+    "source": { "description": "Fuente de las velas ([ibkr] source de config/gateway.toml).", "type": "string", "pattern": "^[a-z][a-z0-9_]{0,31}$" },
+    "as_of": { "description": "Instante en UTC al que se leyó: ahora, o 'before' si es anterior. Solo entran velas que cerraron (start + tamaño) a más tardar en as_of.", "$ref": "#/$defs/utc" },
+    "generated_at": { "description": "Cuándo se armó la respuesta, en UTC.", "$ref": "#/$defs/utc" },
+    "series": {
+      "description": "De qué serie son las velas; null si no hay ninguna vela cerrada a as_of (sin datos todavía).",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["contract", "kind", "what_to_show"],
+          "properties": {
+            "contract": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9. ]{0,31}$" },
+            "kind": { "enum": ["future", "stock", "forex"] },
+            "what_to_show": { "enum": ["TRADES", "MIDPOINT"] }
+          }
+        }
+      ]
+    },
+    "bars": {
+      "description": "Velas cerradas de esa serie, en orden por start, sin repetir. Vacío si series es null. Para pedir más viejas: before = start de la primera.",
+      "type": "array",
+      "items": { "$ref": "ibkr_bar.v1.schema.json" }
+    }
+  },
+  "$defs": {
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" }
+  }
+}

@@ -8,6 +8,13 @@
  * una vela alcista, abajo en una bajista; sobre la línea en el gráfico de línea), sin importar la
  * altura del cursor. Los dos puntos de la medición también se pegan al cierre de su vela.
  *
+ * Movimiento fluido (#377): el punto, la línea vertical y el extremo de la medición no saltan de
+ * vela en vela: se deslizan hacia su destino con `requestAnimationFrame` (un acercamiento
+ * exponencial, sin rebote). Con `prefers-reduced-motion` van directo. El estado del cursor vive
+ * en un almacén chico fuera de React (`PointerStore`): mover el mouse **no vuelve a dibujar el
+ * gráfico**, solo la capa del punto y la cabecera que lo leen. En modo línea el punto recorre la
+ * línea de forma continua (entre cierre y cierre); con velas se pega al cierre.
+ *
  * **Es una medición visual que hace el usuario, no lógica de trading** (CLAUDE.md §1): no genera
  * señales, no toca el motor ni los contratos y no se guarda en ningún lado. El precio de cada punto
  * es el cierre de la vela tal como llega, pasado a `Number` como ya se hace para ubicar cosas en
@@ -16,10 +23,42 @@
  * Uso: al soltar, la medición queda visible hasta un clic o `Esc`. Un segundo arrastre la
  * reemplaza. Funciona con mouse y con el dedo (pointer events); por eso el SVG lleva
  * `touch-action: none` y la página se desplaza tocando fuera del gráfico.
+ *
+ * Gráficos navegables (#401): el arrastre simple desplaza el gráfico (`chart-nav.tsx`) y la
+ * medición se hace con **Shift + arrastrar** o con el botón de regla. Los índices son los de
+ * todas las velas cargadas; `frame` dice qué parte se ve y con qué escala, y cambia sin volver a
+ * dibujar el gráfico.
  */
-import { useEffect, useRef, useState, type PointerEvent, type RefObject } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type PointerEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 
 import { decimal } from '@/lib/format'
+
+/** Cómo se dibuja el precio: velas o línea de cierre con área (#377). */
+export const CHART_MODES = ['Velas', 'Línea'] as const
+export type ChartMode = (typeof CHART_MODES)[number]
+
+/** Encuadre vivo (#401): primera vela visible (fraccionaria), ancho de vela y escala de precio. */
+export type Frame = { start: number; slot: number; yOf: (price: number) => number }
+
+/** Almacén del encuadre vivo: se lee sin volver a dibujar el gráfico. */
+export type FrameSource = { subscribe: (f: () => void) => () => void; get: () => Frame }
+
+const NO_FRAME: FrameSource = { subscribe: () => () => {}, get: () => null as unknown as Frame }
+
+/** El encuadre vivo, o el fijo del dibujo si el gráfico no se desplaza. */
+export function useFrame(plot: MeasurePlot): Frame {
+  const src = plot.frame ?? NO_FRAME
+  const f = useSyncExternalStore(src.subscribe, src.get, src.get)
+  return f ?? { start: 0, slot: plot.slot, yOf: plot.yOf }
+}
 
 /** Cómo está dibujado el panel de precio, en coordenadas del SVG. */
 export type MeasurePlot = {
@@ -31,28 +70,150 @@ export type MeasurePlot = {
   /** borde superior e inferior del panel de precio */
   top: number
   bottom: number
-  /** ancho de cada vela */
+  /** ancho de cada vela (sin `frame`) */
   slot: number
-  /** inicio (ISO, UTC) de cada vela visible, en orden */
+  /** inicio (ISO, UTC) de cada vela, en orden */
   starts: string[]
-  /** cierre de cada vela visible (mismo orden que `starts`): ahí se pegan el punto y la medición */
+  /** cierre de cada vela (mismo orden que `starts`): ahí se pegan el punto y la medición */
   closes: number[]
+  /** encuadre vivo (#401); sin él, se ven todas las velas con `slot` y `yOf` fijos */
+  frame?: FrameSource
+  /** signo del tramo visible (color del modo línea); sin él, el de todas las velas */
+  trend?: Trend
   /** altura de un precio: la escala del eje Y del gráfico */
   yOf: (price: number) => number
   /** decimales con que se muestran los precios del instrumento */
   digits: number
+  /** velas o línea (por defecto, velas) */
+  mode?: ChartMode
+  /** el punto también sigue al cursor fuera del panel de precio (gráficos con más paneles) */
+  anyY?: boolean
   /**
-   * Vela bajo el cursor si el gráfico ya la sigue por su cuenta (la cruz de lectura de
-   * `trading-chart`). Sin este dato, la herramienta la sigue sola dentro del panel de precio.
+   * Guía propia del gráfico (la cruz de lectura de `trading-chart`), en vez de la línea vertical
+   * tenue. Recibe la posición animada del punto y la vela bajo el cursor.
    */
-  hover?: number | null
+  guide?: (p: { x: number; y: number; i: number }) => ReactNode
 }
 
 /** Un punto en datos (vela y precio), así sobrevive a un cambio de ancho o a una vela nueva. */
 type Point = { start: string; price: number }
 type Measure = { from: Point; to: Point; dragging: boolean }
+/** Posición en datos: índice de vela (puede ser fraccionario en modo línea) y precio. */
+type Spot = { idx: number; price: number }
+
+export type PointerState = {
+  /** vela más cercana al cursor (la que se lee en la cabecera); `null` fuera del gráfico */
+  hover: number | null
+  /** dónde va el punto y dónde está dibujado ahora (se acerca a `dotGoal` cuadro a cuadro) */
+  dotGoal: Spot | null
+  dot: Spot | null
+  measure: Measure | null
+  /** extremo final de la medición: destino y posición dibujada */
+  endGoal: Spot | null
+  end: Spot | null
+}
 
 const CLICK_PX = 3
+/** constante de tiempo del acercamiento, en ms: a los ~5 τ el punto ya llegó */
+export const GLIDE_TAU_MS = 55
+const GLIDE_DONE_MS = GLIDE_TAU_MS * 5
+
+export const prefersReducedMotion = () =>
+  typeof window !== 'undefined' &&
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+
+const EMPTY: PointerState = {
+  hover: null,
+  dotGoal: null,
+  dot: null,
+  measure: null,
+  endGoal: null,
+  end: null,
+}
+
+/** Un paso del acercamiento exponencial; `k` es la fracción del camino que se recorre. */
+function approach(cur: Spot | null, goal: Spot | null, k: number): Spot | null {
+  if (!cur || !goal) return goal
+  return {
+    idx: cur.idx + (goal.idx - cur.idx) * k,
+    price: cur.price + (goal.price - cur.price) * k,
+  }
+}
+
+/**
+ * Estado del cursor fuera de React: los manejadores del puntero lo escriben y solo los
+ * componentes chicos que lo leen (`useSyncExternalStore`) se vuelven a dibujar. La animación corre
+ * acá, con `requestAnimationFrame`, y se detiene sola al llegar.
+ */
+export class PointerStore {
+  private s: PointerState = EMPTY
+  private subs = new Set<() => void>()
+  private frame = 0
+  private last = 0
+  private goalAt = 0
+
+  get = () => this.s
+  subscribe = (f: () => void) => {
+    this.subs.add(f)
+    return () => {
+      this.subs.delete(f)
+      if (this.subs.size === 0) this.stop()
+    }
+  }
+
+  private emit(next: PointerState) {
+    this.s = next
+    this.subs.forEach((f) => f())
+  }
+
+  /** Cambia el estado. El punto y el extremo de la medición se deslizan, salvo que aparezcan. */
+  set(patch: Partial<Pick<PointerState, 'hover' | 'dotGoal' | 'measure' | 'endGoal'>>) {
+    const smooth = !prefersReducedMotion() && typeof requestAnimationFrame === 'function'
+    const next: PointerState = { ...this.s, ...patch }
+    // al aparecer (o sin animación) va directo a su lugar; si no, arranca desde donde está
+    next.dot = smooth && next.dotGoal && this.s.dot ? this.s.dot : next.dotGoal
+    next.end = smooth && next.endGoal && this.s.end ? this.s.end : next.endGoal
+    const moving =
+      (next.dot !== null && next.dot !== next.dotGoal) ||
+      (next.end !== null && next.end !== next.endGoal)
+    this.emit(next)
+    if (moving) {
+      this.goalAt = performance.now()
+      this.start()
+    }
+  }
+
+  private start() {
+    if (this.frame) return
+    this.last = performance.now()
+    this.frame = requestAnimationFrame(this.tick)
+  }
+  private stop() {
+    if (this.frame) cancelAnimationFrame(this.frame)
+    this.frame = 0
+  }
+  private tick = (now: number) => {
+    this.frame = 0
+    const dt = Math.max(0, Math.min(64, now - this.last))
+    this.last = now
+    const done = now - this.goalAt >= GLIDE_DONE_MS
+    const k = done ? 1 : 1 - Math.exp(-dt / GLIDE_TAU_MS)
+    const s = this.s
+    const dot = done ? s.dotGoal : approach(s.dot, s.dotGoal, k)
+    const end = done ? s.endGoal : approach(s.end, s.endGoal, k)
+    this.emit({ ...s, dot, end })
+    if (!done) this.frame = requestAnimationFrame(this.tick)
+  }
+}
+
+/** Lee una parte del estado del cursor; el componente se dibuja solo cuando esa parte cambia. */
+export function usePointer<T>(store: PointerStore, select: (s: PointerState) => T): T {
+  return useSyncExternalStore(
+    store.subscribe,
+    () => select(store.get()),
+    () => select(EMPTY),
+  )
+}
 
 /** distancia mínima entre rótulos del eje (y entre un rótulo y un precio del eje), en px */
 export const LABEL_GAP = 12
@@ -73,6 +234,54 @@ export function placeLabels<T extends { y: number }>(items: T[], minY: number, m
     out[k].y = Math.max(minY, Math.min(out[k].y, limit))
   }
   return out
+}
+
+/** Cuántos rótulos entran como mucho en el eje de precio: el resto se agrupa con "+N" (#580). */
+export const MAX_AXIS_LABELS = 8
+
+/** Un rótulo del eje que se puede agrupar: `rank` menor = más importante (encabeza el grupo). */
+type Groupable = { key: string; text: string; title: string; y: number; rank?: number }
+
+/**
+ * Agrupa los rótulos del eje que se pisarían (a menos de `LABEL_GAP`) en uno solo: el más
+ * importante del grupo con "+N" y, en su `title`, todos los nombres. Si aun así quedan más de
+ * `max`, se juntan los grupos más cercanos. Después `placeLabels` los separa. Así quedan a la
+ * vista los precios del eje (#580). Es solo geometría de dibujo.
+ */
+export function groupLabels<T extends Groupable>(
+  items: T[],
+  minY: number,
+  maxY: number,
+  max = MAX_AXIS_LABELS,
+): (T & { count: number })[] {
+  const sorted = items
+    .map((t) => ({ ...t, y: Math.max(minY, Math.min(maxY, t.y)) }))
+    .sort((a, b) => a.y - b.y)
+  const groups: T[][] = []
+  for (const t of sorted) {
+    const g = groups.at(-1)
+    if (g && t.y - g[g.length - 1].y < LABEL_GAP) g.push(t)
+    else groups.push([t])
+  }
+  while (groups.length > Math.max(1, max)) {
+    let k = 0
+    for (let i = 1; i < groups.length - 1; i++) {
+      const gap = (j: number) => groups[j + 1][0].y - groups[j][groups[j].length - 1].y
+      if (gap(i) < gap(k)) k = i
+    }
+    groups.splice(k, 2, [...groups[k], ...groups[k + 1]])
+  }
+  const out = groups.map((g) => {
+    const head = g.reduce((best, t) => ((t.rank ?? 0) < (best.rank ?? 0) ? t : best), g[0])
+    const more = g.length - 1
+    return {
+      ...head,
+      text: more ? `${head.text} +${more}` : head.text,
+      title: g.map((t) => t.title).join('\n'),
+      count: g.length,
+    }
+  })
+  return placeLabels(out, minY, maxY)
 }
 
 /** Número con signo y `d` decimales para la etiqueta: "+12,50", "−0,08" o "0,00". */
@@ -110,53 +319,158 @@ export function measureText(from: number, to: number, digits: number) {
   }
 }
 
-const TREND_COLOR = {
+export type Trend = ReturnType<typeof measureText>['trend']
+
+/** Ancho aproximado de un carácter de la pestaña (11 px) y su relleno, para medir sin el DOM. */
+const TAB_CHAR = 6.1
+const TAB_PAD = 14
+const TAB_LINE = 13
+
+/**
+ * Dónde va la pestaña de la medición (#394): pegada al rectángulo y centrada en x sobre él;
+ * arriba si entra, si no abajo, y si tampoco, colgada por dentro del borde de arriba. Nunca sale
+ * del panel. Una sola línea si entra en el ancho del panel; si no, dos. Solo geometría de dibujo.
+ */
+export function measureTab(o: {
+  x0: number
+  x1: number
+  yTop: number
+  yBot: number
+  top: number
+  bottom: number
+  plotW: number
+  /** cambio en precio, en %, velas y lapso */
+  parts: [string, string, string, string]
+}) {
+  const [price, pct, bars, lapse] = o.parts
+  const one = o.parts.join(' · ')
+  const lines =
+    one.length * TAB_CHAR + TAB_PAD <= o.plotW ? [one] : [`${price} · ${pct}`, `${bars} · ${lapse}`]
+  const w = Math.max(...lines.map((l) => l.length)) * TAB_CHAR + TAB_PAD
+  const h = 6 + TAB_LINE * lines.length
+  const x = Math.max(0, Math.min(o.plotW - w, (o.x0 + o.x1) / 2 - w / 2))
+  let side: 'above' | 'below' | 'inside' = 'above'
+  let y = o.yTop - h
+  if (y < o.top) {
+    side = o.yBot + h <= o.bottom ? 'below' : 'inside'
+    y = side === 'below' ? o.yBot : Math.max(o.top, Math.min(o.bottom - h, o.yTop))
+  }
+  return { x, y, w, h, side, lines }
+}
+
+/**
+ * El cambio para la cabecera (#377): "+312,28 ▲ 4,49 %" o "−482,25 ▼ 6,42 %". Solo texto de
+ * pantalla, con las mismas cuentas que la medición.
+ */
+export function changeText(from: number, to: number, digits: number) {
+  const t = measureText(from, to, digits)
+  const arrow = t.trend === 'up' ? '▲' : t.trend === 'down' ? '▼' : '·'
+  return { ...t, text: `${t.price} ${arrow} ${t.pct.replace(/^[+−]/, '')}` }
+}
+
+/** Color de cada signo, con los tokens del tema (claro y oscuro). */
+export const TREND_COLOR = {
   up: 'var(--chart-up)',
   down: 'var(--chart-down)',
   flat: 'var(--muted-foreground)',
 } as const
 
-export function useChartMeasure(svgRef: RefObject<SVGSVGElement | null>, plot: MeasurePlot) {
-  const [measure, setMeasure] = useState<Measure | null>(null)
-  const [ownHover, setOwnHover] = useState<number | null>(null)
-  const downAt = useRef<{ x: number; y: number } | null>(null)
-  const { width, height, plotW, top, bottom, slot, starts, closes, yOf, digits } = plot
-  const hover = plot.hover === undefined ? ownHover : plot.hover
+/** Signo del rango visible: último cierre contra el primero (para el color del modo línea). */
+export function rangeTrend(closes: number[], digits: number): Trend {
+  const a = closes.find(Number.isFinite)
+  const b = closes.findLast(Number.isFinite)
+  return a === undefined || b === undefined ? 'flat' : measureText(a, b, digits).trend
+}
 
-  const open = measure !== null
+/** Precio sobre la línea en un índice fraccionario (entre dos cierres). */
+export function closeAt(closes: number[], f: number): number {
+  const i0 = Math.max(0, Math.min(closes.length - 1, Math.floor(f)))
+  const i1 = Math.min(closes.length - 1, i0 + 1)
+  const a = closes[i0]
+  const b = closes[i1]
+  if (!Number.isFinite(a)) return b
+  if (!Number.isFinite(b)) return a
+  return a + (b - a) * Math.max(0, Math.min(1, f - i0))
+}
+
+/** Puntos de la línea de cierre entre dos índices (fraccionarios), para resaltar un tramo. */
+export function segment(
+  closes: number[],
+  a: number,
+  b: number,
+  x: (f: number) => number,
+  yOf: (p: number) => number,
+) {
+  const lo = Math.min(a, b)
+  const hi = Math.max(a, b)
+  const idx = [lo]
+  for (let i = Math.ceil(lo); i <= Math.floor(hi); i++) if (i > lo && i < hi) idx.push(i)
+  idx.push(hi)
+  return idx
+    .map((f) => [x(f), yOf(closeAt(closes, f))])
+    .filter(([, y]) => Number.isFinite(y))
+    .map(([px, py]) => `${px.toFixed(1)},${py.toFixed(1)}`)
+}
+
+export function useChartMeasure(svgRef: RefObject<SVGSVGElement | null>, plot: MeasurePlot) {
+  const [store] = useState(() => new PointerStore())
+  const downAt = useRef<{ x: number; y: number } | null>(null)
+  const { width, height, plotW, top, bottom, slot, starts, closes } = plot
+  const line = plot.mode === 'Línea'
+  const n = starts.length
+
   useEffect(() => {
-    if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMeasure(null)
+      if (e.key === 'Escape' && store.get().measure) store.set({ measure: null, endGoal: null })
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open])
+  }, [store])
 
-  /** Del cursor a la vela de esa x; `null` si cae fuera del panel de precio (y `clamp` es falso). */
-  const toIndex = (e: PointerEvent<SVGSVGElement>, clamp: boolean): number | null => {
+  /** Del cursor a una posición continua en velas; `null` fuera del panel (si `clamp` es falso). */
+  const toPos = (e: PointerEvent<SVGSVGElement>, clamp: boolean): number | null => {
     const r = svgRef.current?.getBoundingClientRect()
-    if (!r || !r.width || !r.height || starts.length === 0) return null
+    if (!r || !r.width || !r.height || n === 0) return null
     const x = ((e.clientX - r.left) / r.width) * width
     const y = ((e.clientY - r.top) / r.height) * height
-    if (!clamp && (x < 0 || x > plotW || y < top || y > bottom)) return null
+    const outY = plot.anyY ? y < 0 || y > height : y < top || y > bottom
+    if (!clamp && (x < 0 || x > plotW || outY)) return null
+    const f = plot.frame?.get()
+    const s = f?.slot ?? slot
+    const first = f?.start ?? 0
     const cx = Math.max(0, Math.min(plotW - 0.01, x))
-    return Math.max(0, Math.min(starts.length - 1, Math.floor(cx / slot)))
+    // solo velas a la vista: la del borde izquierdo cuenta si se ve su centro
+    const lo = Math.max(0, Math.ceil(first - 0.5))
+    const hi = Math.min(n - 1, Math.floor(first + plotW / s - 0.5))
+    return Math.max(lo, Math.min(hi, first + cx / s - 0.5))
   }
-  /** Del cursor a un punto en datos, pegado al cierre de su vela; `null` si no hay dónde. */
-  const toPoint = (e: PointerEvent<SVGSVGElement>, clamp: boolean): Point | null => {
-    const i = toIndex(e, clamp)
-    return i === null || !Number.isFinite(closes[i]) ? null : { start: starts[i], price: closes[i] }
+  /** Adónde va el punto: sobre la línea (continuo) o al cierre de la vela. */
+  const spotOf = (pos: number): Spot => {
+    const i = Math.round(pos)
+    return line ? { idx: pos, price: closeAt(closes, pos) } : { idx: i, price: closes[i] }
   }
+  const hoverAt = (pos: number | null) => ({
+    hover: pos === null ? null : Math.round(pos),
+    dotGoal: pos === null ? null : spotOf(pos),
+  })
+  const pointOf = (pos: number | null): Point | null => {
+    if (pos === null) return null
+    const i = Math.round(pos)
+    return Number.isFinite(closes[i]) ? { start: starts[i], price: closes[i] } : null
+  }
+  const endOf = (p: Point): Spot => ({ idx: starts.indexOf(p.start), price: p.price })
 
   const onPointerDown = (e: PointerEvent<SVGSVGElement>) => {
-    setOwnHover(toIndex(e, false))
-    if (e.button !== 0) return
-    const p = toPoint(e, false)
+    const pos = toPos(e, false)
+    if (e.button !== 0) {
+      store.set(hoverAt(pos))
+      return
+    }
+    const p = pointOf(pos)
     downAt.current = { x: e.clientX, y: e.clientY }
     if (!p) {
       // un clic fuera del panel de precio (eje, fechas) también cierra la medición
-      setMeasure(null)
+      store.set({ ...hoverAt(pos), measure: null, endGoal: null })
       return
     }
     try {
@@ -164,144 +478,57 @@ export function useChartMeasure(svgRef: RefObject<SVGSVGElement | null>, plot: M
     } catch {
       // sin captura el arrastre igual funciona dentro del gráfico
     }
-    setMeasure({ from: p, to: p, dragging: true })
+    store.set({ ...hoverAt(pos), measure: { from: p, to: p, dragging: true }, endGoal: endOf(p) })
   }
   const onPointerMove = (e: PointerEvent<SVGSVGElement>) => {
+    const measure = store.get().measure
     // mientras se arrastra el punto sigue al cursor aunque salga del panel
-    setOwnHover(toIndex(e, measure?.dragging === true))
-    if (!measure?.dragging) return
-    const p = toPoint(e, true)
-    if (p) setMeasure({ ...measure, to: p })
+    const pos = toPos(e, measure?.dragging === true)
+    if (!measure?.dragging) {
+      store.set(hoverAt(pos))
+      return
+    }
+    const p = pointOf(toPos(e, true))
+    if (!p) return store.set(hoverAt(pos))
+    store.set({ ...hoverAt(pos), measure: { ...measure, to: p }, endGoal: endOf(p) })
   }
   const onPointerUp = (e: PointerEvent<SVGSVGElement>) => {
     const d = downAt.current
     downAt.current = null
+    const measure = store.get().measure
     if (!measure?.dragging || !d) return
     const moved = Math.abs(e.clientX - d.x) > CLICK_PX || Math.abs(e.clientY - d.y) > CLICK_PX
     // sin arrastre es un clic: cierra la medición que hubiera
-    setMeasure(moved ? { ...measure, dragging: false } : null)
+    store.set(
+      moved ? { measure: { ...measure, dragging: false } } : { measure: null, endGoal: null },
+    )
   }
   const onPointerCancel = () => {
     downAt.current = null
-    setOwnHover(null)
-    if (measure?.dragging) setMeasure(null)
+    const dragging = store.get().measure?.dragging
+    store.set({ ...hoverAt(null), ...(dragging ? { measure: null, endGoal: null } : {}) })
   }
   const onPointerLeave = () => {
-    if (!measure?.dragging) setOwnHover(null)
+    if (!store.get().measure?.dragging) store.set(hoverAt(null))
   }
 
-  // el punto que sigue al gráfico: en la vela bajo el cursor, a la altura de su cierre
-  const hi = hover !== null && hover >= 0 && hover < starts.length ? hover : null
-  const dot =
-    hi !== null && Number.isFinite(closes[hi]) ? (
-      <g data-hover-dot={starts[hi]} pointerEvents="none" aria-hidden>
-        {/* línea vertical tenue, salvo que el gráfico ya dibuje su propia cruz de lectura */}
-        {plot.hover === undefined && (
-          <line
-            x1={hi * slot + slot / 2}
-            x2={hi * slot + slot / 2}
-            y1={top}
-            y2={bottom}
-            stroke="var(--foreground)"
-            strokeOpacity={0.18}
-          />
-        )}
-        <circle
-          cx={hi * slot + slot / 2}
-          cy={yOf(closes[hi])}
-          r={4}
-          fill="var(--foreground)"
-          stroke="var(--background)"
-          strokeWidth={1.5}
-        />
-      </g>
-    ) : null
-
-  let overlay = null
-  const ia = measure ? starts.indexOf(measure.from.start) : -1
-  const ib = measure ? starts.indexOf(measure.to.start) : -1
-  // si una de las velas ya no está a la vista (cambió el rango), la medición no se dibuja
-  if (measure && ia >= 0 && ib >= 0) {
-    const t = measureText(measure.from.price, measure.to.price, digits)
-    const color = TREND_COLOR[t.trend]
-    const bars = Math.abs(ib - ia)
-    const lines = [
-      `${t.price} (${t.pct})`,
-      `${bars} ${bars === 1 ? 'vela' : 'velas'} · ${span(Date.parse(starts[ib]) - Date.parse(starts[ia]))}`,
-    ]
-    const x0 = Math.min(ia, ib) * slot
-    const x1 = (Math.max(ia, ib) + 1) * slot
-    const ya = yOf(measure.from.price)
-    const yb = yOf(measure.to.price)
-    // etiqueta junto al cursor (el punto final), del lado donde entra
-    const cx = ib * slot + slot / 2
-    const w = Math.max(...lines.map((l) => l.length)) * 6.4 + 16
-    const h = 36
-    const lx = cx + 10 + w > plotW ? Math.max(0, cx - 10 - w) : cx + 10
-    const ly = yb - h - 8 < top ? Math.min(bottom - h, yb + 8) : yb - h - 8
-    overlay = (
-      <g data-measure={t.trend} data-from={t.from} data-to={t.to} pointerEvents="none" aria-hidden>
-        <rect
-          data-measure-box
-          x={x0}
-          y={Math.min(ya, yb)}
-          width={Math.max(1, x1 - x0)}
-          height={Math.max(1, Math.abs(yb - ya))}
-          fill={color}
-          fillOpacity={0.16}
-          stroke={color}
-          strokeOpacity={0.7}
-        />
-        <line x1={x0} x2={x1} y1={ya} y2={ya} stroke={color} strokeDasharray="3 3" />
-        {[
-          [ia, ya],
-          [ib, yb],
-        ].map(([i, y], k) => (
-          <circle
-            key={k}
-            data-measure-point={k === 0 ? 'from' : 'to'}
-            cx={i * slot + slot / 2}
-            cy={y}
-            r={3.5}
-            fill={color}
-            stroke="var(--background)"
-            strokeWidth={1.5}
-          />
-        ))}
-        <g transform={`translate(${lx},${ly})`}>
-          <rect
-            width={w}
-            height={h}
-            rx={5}
-            fill="var(--background)"
-            fillOpacity={0.92}
-            stroke={color}
-          />
-          {lines.map((l, k) => (
-            <text
-              key={k}
-              data-measure-line={k}
-              x={8}
-              y={15 + k * 14}
-              fontSize={11}
-              fontWeight={k === 0 ? 700 : 500}
-              fill={k === 0 ? color : 'var(--foreground)'}
-            >
-              {l}
-            </text>
-          ))}
-        </g>
-      </g>
-    )
+  /** Mueve la lectura con el teclado (flechas): `delta` velas desde la actual o la última. */
+  const step = (delta: number) => {
+    if (n === 0) return
+    const i = Math.max(0, Math.min(n - 1, (store.get().hover ?? n - 1) + delta))
+    store.set(hoverAt(i))
   }
+  const clear = () => store.set(hoverAt(null))
+  /** Borra la medición (un clic sin arrastre sobre el gráfico). */
+  const dismiss = () => store.set({ measure: null, endGoal: null })
 
   return {
+    store,
+    step,
+    clear,
+    dismiss,
     handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onPointerLeave },
-    overlay: (
-      <>
-        {dot}
-        {overlay}
-      </>
-    ),
+    /** lo que necesita `ChartFollower` para dibujar la capa que se mueve */
+    plot,
   }
 }

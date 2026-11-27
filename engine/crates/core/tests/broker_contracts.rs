@@ -135,6 +135,28 @@ fn order_report_roundtrips_filled_and_rejected() {
     assert!(!v.is_valid(&with(&doc, "status", json!("rejected"))));
 }
 
+#[test]
+fn order_report_pending_has_no_decision_yet() {
+    // #471: la vela del fill todavía no llegó. Solo en la respuesta del envío.
+    let s = "order_report.v1.schema.json";
+    let pending = OrderReport {
+        status: OrderStatus::Pending,
+        rejection: None,
+        position_id: None,
+        size: None,
+        fill_price: None,
+        commission: None,
+        ..filled()
+    };
+    assert_roundtrip(s, &pending);
+    let doc = serde_json::to_value(&pending).unwrap();
+    let v = validator(s);
+    assert!(!v.is_valid(&with(&doc, "rejection", json!("no_price"))));
+    assert!(!v.is_valid(&with(&doc, "position_id", json!("pos:1"))));
+    assert!(!v.is_valid(&with(&doc, "fill_price", json!("105.75"))));
+    assert!(!v.is_valid(&with(&doc, "size", json!("1.9"))));
+}
+
 fn verdict() -> TicketVerdict {
     TicketVerdict {
         order_id: order().order_id,

@@ -42,8 +42,8 @@ afterEach(() => vi.unstubAllGlobals())
 
 const openSearch = () => {
   render(<App initialStage="app" />)
-  fireEvent.click(screen.getByRole('button', { name: /Buscar una vista o un instrumento/ }))
-  return screen.getByRole('dialog', { name: 'Buscar una vista o un instrumento' })
+  fireEvent.click(screen.getByRole('button', { name: /Buscar o elegir un comando/ }))
+  return screen.getByRole('dialog', { name: 'Paleta de comandos' })
 }
 const input = () => screen.getByRole('combobox', { name: 'Buscar' })
 const options = () => within(screen.getByRole('listbox')).getAllByRole('option')
@@ -53,7 +53,7 @@ describe('buscador del encabezado (#362)', () => {
   it('Enter antes de que llegue el catálogo elige apenas llega', async () => {
     openSearch()
     fireEvent.change(input(), { target: { value: 'alemania' } })
-    expect(screen.queryAllByRole('option')).toHaveLength(0)
+    expect(within(screen.getByRole('dialog')).queryAllByRole('option')).toHaveLength(0)
     fireEvent.keyDown(input(), { key: 'Enter' })
     expect(await screen.findByRole('group', { name: 'Instrumento del gráfico 1' })).toBeVisible()
     expect(location.hash).toBe('#terminal')
@@ -114,7 +114,7 @@ describe('buscador del encabezado (#362)', () => {
     fireEvent.keyDown(input(), { key: 'ArrowDown' })
     fireEvent.keyDown(input(), { key: 'ArrowDown' })
     fireEvent.keyDown(input(), { key: 'Enter' })
-    expect(location.hash).toBe('#panel')
+    expect(location.hash).toBe('#terminal')
   })
 
   it('Esc cierra sin navegar', () => {
@@ -173,6 +173,6 @@ describe('buscador del encabezado (#362)', () => {
     act(() => {
       fireEvent.click(screen.getByRole('button', { name: 'Buscar una vista o un instrumento' }))
     })
-    expect(screen.getByRole('dialog', { name: 'Buscar una vista o un instrumento' })).toBeVisible()
+    expect(screen.getByRole('dialog', { name: 'Paleta de comandos' })).toBeVisible()
   })
 })

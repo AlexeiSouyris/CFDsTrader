@@ -67,15 +67,15 @@ pub fn to_record(e: &OpsEvent) -> Option<OpsEventRecord> {
     })
 }
 
-/// Una fila de la base como `ops_event.v1`.
+/// Una fila de la base como `ops_event.v1` (un evento solo: `count = 1`).
 pub fn from_record(r: OpsEventRecord) -> OpsEvent {
-    OpsEvent {
-        ts: r.ts.to_rfc3339_opts(SecondsFormat::Secs, true),
-        level: r.level,
-        target: r.target,
-        event: r.event,
-        fields: r.fields,
-    }
+    OpsEvent::single(
+        r.ts.to_rfc3339_opts(SecondsFormat::Secs, true),
+        r.level,
+        r.target,
+        r.event,
+        r.fields,
+    )
 }
 
 /// El lado del feed: la cola hacia la tarea de guardado.

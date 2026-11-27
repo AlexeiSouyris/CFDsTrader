@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/ibkr_live_bar.v1.schema.json",
+  "title": "IBKR live bar v1",
+  "description": "Cada mensaje (campo data de un evento SSE) de GET /api/v1/ibkr/live?instrument=<id>&timeframe=<tf> del gateway (#558): la vela EN FORMACIÓN de IBKR de un instrumento y un timeframe, armada por el motor (cfds_ibkr::live) con los precios por streaming, y el estado de la conexión. SOLO VISUAL: ningún indicador, patrón, señal ni estrategia la usa; la UI la dibuja tal cual y no arma velas. Como mucho un mensaje por segundo por conexión. Cuando la vela termina su período llega una vez con forming = false y no cambia más; la vela histórica de ibkr_bars (gateway_ibkr_bars.v1) es la que vale. Los períodos se alinean en UTC. Los precios de IBKR sin suscripción llegan con unos 10 minutos de atraso (data_type delayed, delay_seconds ~600).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instrument_id", "timeframe", "source", "status", "reason", "data_type", "delay_seconds", "contract", "forming", "bar", "generated_at"],
+  "properties": {
+    "instrument_id": { "description": "Id del instrumento en [live] de config/ibkr.toml (MNQ, MES, QQQ).", "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" },
+    "timeframe": { "description": "Tamaño de la vela.", "enum": ["1m", "5m", "15m", "1h"] },
+    "source": { "description": "Fuente ([ibkr] source de config/gateway.toml, la misma de ibkr_bars).", "type": "string", "pattern": "^[a-z][a-z0-9_]{0,31}$" },
+    "status": {
+      "description": "disabled: [ibkr] live = false en config/gateway.toml (no hay conexión). connecting: abriendo la conexión con IB Gateway. disconnected: sin conexión con IB Gateway (cerrado, reiniciando o cortado), reintenta solo. stopped: detenido por una guarda (cuenta que no es la paper, configuración) o un dato inválido, no reintenta hasta reiniciar el gateway. rejected: IBKR rechazó la suscripción de este instrumento. waiting: suscripto, sin operados nuevos todavía (por ejemplo, mercado cerrado). streaming: llegan precios y hay vela.",
+      "enum": ["disabled", "connecting", "disconnected", "stopped", "rejected", "waiting", "streaming"]
+    },
+    "reason": { "description": "Motivo en texto para disconnected, stopped o rejected; null en los demás.", "type": ["string", "null"], "maxLength": 300 },
+    "data_type": { "description": "Tipo de dato que informa IBKR para esta suscripción: live (en vivo), delayed (demorado), frozen (último en vivo con el mercado cerrado), delayed_frozen. null si todavía no se sabe.", "enum": ["live", "delayed", "frozen", "delayed_frozen", null] },
+    "delay_seconds": { "description": "Atraso medido en segundos (hora de llegada menos hora del último operado), entero no negativo; null si todavía no se midió.", "type": ["integer", "null"], "minimum": 0 },
+    "contract": { "description": "Contrato como lo nombra IBKR (MNQZ6, QQQ); null si todavía no se sabe.", "type": ["string", "null"], "pattern": "^[A-Z0-9][A-Z0-9. ]{0,31}$" },
+    "forming": { "description": "true: bar es la vela en curso y puede cambiar. false: bar terminó su período y no cambia más, o no hay vela (bar null).", "type": "boolean" },
+    "bar": {
+      "description": "La vela (en formación o recién cerrada), o null si no hay.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end", "open", "high", "low", "close", "partial", "ticks"],
+          "properties": {
+            "start": { "description": "Inicio del período en UTC, alineado.", "$ref": "#/$defs/utc" },
+            "end": { "description": "Fin del período en UTC (start + timeframe).", "$ref": "#/$defs/utc" },
+            "open": { "$ref": "#/$defs/price" },
+            "high": { "$ref": "#/$defs/price" },
+            "low": { "$ref": "#/$defs/price" },
+            "close": { "$ref": "#/$defs/price" },
+            "partial": { "description": "true si la vela empezó a armarse a mitad de su período (la conexión empezó después): la apertura, el máximo y el mínimo pueden no ser los del período entero.", "type": "boolean" },
+            "ticks": { "description": "Cuántos precios entraron (IBKR manda muestras, no cada operado).", "type": "integer", "minimum": 1 }
+          }
+        }
+      ]
+    },
+    "generated_at": { "description": "Cuándo se armó el mensaje, en UTC.", "$ref": "#/$defs/utc" }
+  },
+  "$defs": {
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" },
+    "price": { "description": "Precio como string decimal exacto.", "type": "string", "pattern": "^\\d+(\\.\\d+)?$" }
+  }
+}

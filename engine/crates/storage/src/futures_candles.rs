@@ -100,6 +100,24 @@ impl PgStore {
         from: DateTime<Utc>,
         to: DateTime<Utc>,
     ) -> Result<Vec<Candle>, StorageError> {
+        Ok(self
+            .futures_candles_with_contract(source, instrument, timeframe, from, to)
+            .await?
+            .into_iter()
+            .map(|fc| fc.candle)
+            .collect())
+    }
+
+    /// Lo mismo que [`PgStore::futures_candles`], con el contrato de cada vela (#449): las
+    /// diarias de un continuo por volumen (`GC.v.0`) cortan donde cambia el contrato.
+    pub async fn futures_candles_with_contract(
+        &self,
+        source: &str,
+        instrument: &InstrumentId,
+        timeframe: Timeframe,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<FuturesCandle>, StorageError> {
         let rows: Vec<CandleRow> = sqlx::query_as(
             "SELECT contract_id, start_at, open, high, low, close, volume FROM futures_candles
              WHERE source = $1 AND instrument_id = $2 AND timeframe = $3
@@ -113,37 +131,72 @@ impl PgStore {
         .bind(to)
         .fetch_all(self.pool())
         .await?;
-        Ok(rows
-            .into_iter()
-            .map(|(_, start, open, high, low, close, volume)| Candle {
-                instrument_id: instrument.clone(),
-                timeframe,
-                start,
-                open,
-                high,
-                low,
-                close,
-                volume: Some(volume),
+        rows.into_iter()
+            .map(|(contract, start, open, high, low, close, volume)| {
+                Ok(FuturesCandle {
+                    candle: Candle {
+                        instrument_id: instrument.clone(),
+                        timeframe,
+                        start,
+                        open,
+                        high,
+                        low,
+                        close,
+                        volume: Some(volume),
+                    },
+                    contract_id: u64::try_from(contract).map_err(|_| {
+                        StorageError::CorruptRow(format!("futures_candles: contract_id {contract}"))
+                    })?,
+                })
             })
-            .collect())
+            .collect()
     }
 
     /// Desde y hasta cuándo (`[desde, hasta)`) están bajadas las barras de 1 minuto del futuro
-    /// de `instrument` (`futures_bar_loads`). `None` si no se bajó nada.
+    /// `dataset`/`symbol` que corresponde a `instrument` (`futures_bar_loads`). `None` si no se
+    /// bajó nada. `dataset` y `symbol` salen de `config/databento.toml`
+    /// (`cfds_market_data::FuturesFeeds`), como en [`PgStore::futures_bars`]: las cargas de otro
+    /// dataset o símbolo con el mismo instrumento no cuentan (#385), ni los tramos de velas
+    /// diarias (`schema = 'ohlcv-1d'`, #522).
     pub async fn futures_loaded_range(
         &self,
         source: &str,
+        dataset: &str,
+        symbol: &str,
         instrument: &InstrumentId,
     ) -> Result<Option<(DateTime<Utc>, DateTime<Utc>)>, StorageError> {
         let row: (Option<DateTime<Utc>>, Option<DateTime<Utc>>) = sqlx::query_as(
             "SELECT min(l.from_at), max(l.to_at) FROM futures_bar_loads l
-             WHERE l.source = $1 AND EXISTS (
+             WHERE l.source = $1 AND l.dataset = $2 AND l.symbol = $3
+               AND l.schema = 'ohlcv-1m' AND EXISTS (
                  SELECT 1 FROM futures_bars_1m b
                  WHERE b.source = l.source AND b.dataset = l.dataset AND b.symbol = l.symbol
-                   AND b.instrument_id = $2)",
+                   AND b.instrument_id = $4)",
+        )
+        .bind(source)
+        .bind(dataset)
+        .bind(symbol)
+        .bind(instrument.as_str())
+        .fetch_one(self.pool())
+        .await?;
+        Ok(row.0.zip(row.1))
+    }
+
+    /// Inicio de la primera y de la última vela armada de `source` para `instrument` en
+    /// `timeframe` (el replay de la Academia sortea dentro de ese tramo, #723). `None` sin velas.
+    pub async fn futures_candle_range(
+        &self,
+        source: &str,
+        instrument: &InstrumentId,
+        timeframe: Timeframe,
+    ) -> Result<Option<(DateTime<Utc>, DateTime<Utc>)>, StorageError> {
+        let row: (Option<DateTime<Utc>>, Option<DateTime<Utc>>) = sqlx::query_as(
+            "SELECT min(start_at), max(start_at) FROM futures_candles
+             WHERE source = $1 AND instrument_id = $2 AND timeframe = $3",
         )
         .bind(source)
         .bind(instrument.as_str())
+        .bind(timeframe.as_str())
         .fetch_one(self.pool())
         .await?;
         Ok(row.0.zip(row.1))
@@ -167,6 +220,7 @@ impl PgStore {
                 self.futures_candles(source, base, timeframe, from, to)
                     .await?
             }
+            CandleFeed::Ibkr(f) => self.ibkr_candles(&f, timeframe, from, to).await?,
         };
         for c in &mut candles {
             c.instrument_id = out.clone();
@@ -194,6 +248,18 @@ impl PgStore {
             .bind(before)
             .fetch_one(self.pool())
             .await?),
+            CandleFeed::Ibkr(f) => Ok(sqlx::query_scalar(
+                "SELECT max(start_at) FROM ibkr_bars
+                 WHERE source = $1 AND instrument_id = $2 AND what_to_show = $3
+                   AND bar_size = $4 AND start_at <= $5",
+            )
+            .bind(f.source)
+            .bind(f.instrument)
+            .bind(f.what_to_show)
+            .bind(timeframe.as_str())
+            .bind(before)
+            .fetch_one(self.pool())
+            .await?),
         }
     }
 }
@@ -204,4 +270,14 @@ impl PgStore {
 pub enum CandleFeed<'a> {
     Ig,
     Futures(&'a str),
+    /// Las barras de IBKR de un instrumento de `ibkr_bars` (#630), por ejemplo MNQ.
+    Ibkr(IbkrFeed<'a>),
+}
+
+/// Qué barras de `ibkr_bars` (#630): fuente, instrumento (por ejemplo `MNQ`) y precio.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IbkrFeed<'a> {
+    pub source: &'a str,
+    pub instrument: &'a str,
+    pub what_to_show: &'a str,
 }

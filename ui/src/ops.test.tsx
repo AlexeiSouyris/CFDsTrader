@@ -100,7 +100,7 @@ describe('estado de la operación (#314)', () => {
     render(<TerminalView member={CURRENT_MEMBER} />)
     await waitFor(() => expect(bar()).toHaveAttribute('data-ops-status', 'ready'))
     expect(bar()).toHaveTextContent('Acepta órdenes')
-    expect(bar()).toHaveTextContent('Kill switch apagado')
+    expect(bar()).toHaveTextContent('Kill switch inactivo')
     expect(bar()).toHaveTextContent('40,0 % del máximo (3 % del capital)')
     expect(bar()).toHaveTextContent('1,35:1')
     expect(bar()).toHaveTextContent('Reconciliación al arrancar: limpia (3 coinciden)')
@@ -141,6 +141,19 @@ describe('estado de la operación (#314)', () => {
     expect(bar()).not.toHaveTextContent('Acepta órdenes')
   })
 
+  it('sin posiciones: apalancamiento "—" y la reconciliación lo dice en palabras (#612)', async () => {
+    gateway({
+      ...READY,
+      account: { ...READY.account!, leverage: '0', open_positions: 0 },
+      last_reconcile: { ...READY.last_reconcile!, kind: 'periodic', matched: 0 },
+    })
+    render(<OperationView />)
+    await waitFor(() => expect(bar()).toHaveAttribute('data-ops-status', 'ready'))
+    expect(bar()).toHaveTextContent('Apalancamiento — · 0 de 5 posiciones')
+    expect(bar()).not.toHaveTextContent('0:1')
+    expect(bar()).toHaveTextContent('Reconciliación periódica: limpia, sin posiciones que comparar')
+  })
+
   it('arrancando y con reconciliación sucia, lo muestra en la barra', async () => {
     gateway({
       ...READY,
@@ -172,6 +185,67 @@ describe('estado de la operación (#314)', () => {
     // Se guardan en la base (#337): ya no se pierden al reiniciar.
     expect(screen.getByText(/se conservan al reiniciar el gateway/)).toBeInTheDocument()
     expect(screen.queryByText(/empiezan de cero/)).toBeNull()
+  })
+
+  it('un evento repetido es una fila con cuántas veces, la última y desde cuándo (#576)', async () => {
+    gateway(READY, [
+      {
+        ts: '2026-11-25T04:09:26Z',
+        last_seen: '2026-11-25T04:12:46Z',
+        count: 50,
+        level: 'warn',
+        target: 'gateway',
+        event: 'connection_error',
+        fields: { error: 'timeout' },
+      },
+      EVENTS[2],
+    ])
+    render(<OperationView />)
+    const list = await screen.findByRole('list', { name: 'Eventos y alertas' })
+    const items = within(list).getAllByRole('listitem')
+    expect(items).toHaveLength(2)
+    expect(items[0]).toHaveTextContent('×50')
+    expect(items[0]).toHaveTextContent('04:12')
+    expect(items[0]).toHaveTextContent(/desde .*04:09/)
+    // Un evento solo (sin count, o con 1) no muestra contador.
+    expect(items[1]).not.toHaveTextContent('×')
+  })
+
+  it('la carga de IBKR trabada se ve como alerta, en palabras simples (#607)', async () => {
+    gateway(READY, [
+      {
+        ts: '2026-11-25T10:40:00Z',
+        level: 'info',
+        target: 'ibkr_load',
+        event: 'ibkr_recovered',
+        fields: {
+          message: 'IBKR volvió a responder después de 5 h 5 min sin datos.',
+          since: '2026-11-25T05:35:00Z',
+        },
+      },
+      {
+        ts: '2026-11-25T06:10:00Z',
+        level: 'error',
+        target: 'alert',
+        event: 'ibkr_stalled',
+        fields: {
+          message: 'IBKR no responde hace 35 min: reiniciá IB Gateway.',
+          since: '2026-11-25T05:35:00Z',
+          series: 'MNQ 1m',
+          failures: 7,
+          error: 'IBKR rechazó el pedido: timed out before the request ended',
+        },
+      },
+    ])
+    render(<OperationView />)
+    const list = await screen.findByRole('list', { name: 'Eventos y alertas' })
+    const items = within(list).getAllByRole('listitem')
+    expect(items[0]).toHaveTextContent('IBKR responde de nuevo')
+    expect(items[0]).toHaveTextContent('volvió a responder después de 5 h 5 min')
+    expect(items[1]).toHaveTextContent('IBKR sin respuesta')
+    expect(items[1]).toHaveTextContent('IBKR no responde hace 35 min: reiniciá IB Gateway.')
+    expect(items[1]).toHaveAttribute('data-level', 'error')
+    expect(items[1]).toHaveClass('bg-down/5')
   })
 
   it('sin eventos o sin gateway lo dice', async () => {

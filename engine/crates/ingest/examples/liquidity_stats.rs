@@ -3,7 +3,7 @@
 //! de apertura diarios, desequilibrio de 15m, 1h y 1d, y los agregados. No usa IG ni gasta cupo.
 //!
 //! ```text
-//! DATABASE_URL=... cargo run -p cfds-ingest --example liquidity_stats [-- --fuente futuros]
+//! DATABASE_URL=... cargo run -p cfds-ingest --example liquidity_stats [-- --fuente futuros|ibkr]
 //! ```
 //! Con `--fuente futuros` (#259) usa las velas de 15m y 1h armadas desde los futuros de
 //! Databento y guarda todo bajo el instrumento derivado (por ejemplo `US500.FUT`). Los futuros
@@ -46,7 +46,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let first_day = NaiveDate::from_ymd_opt(2000, 1, 1).ok_or("fecha")?;
     let tomorrow = now.date_naive().succ_opt().ok_or("fecha")?;
     for (id, spec) in &catalog.instruments {
-        let (feed, out) = source::feed(&sources, chosen, id)?;
+        let Some((feed, out)) = source::feed(&sources, chosen, id)? else {
+            println!("{id}: sin velas de {}", sources.label(chosen));
+            continue;
+        };
         let mut events = Vec::new();
         let mut imbalances = Vec::new();
         for tf in [Timeframe::M15, Timeframe::H1] {
@@ -64,7 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 sources.label(chosen)
             );
         }
-        // Los futuros no tienen diarias: con esa fuente no hay 1d ni gaps de apertura.
+        // Los futuros e IBKR no tienen diarias: con esas fuentes no hay 1d ni gaps de apertura.
         let daily: Vec<_> = match chosen {
             CandleSource::Ig => store
                 .daily_candles(id, first_day, tomorrow)
@@ -72,7 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .into_iter()
                 .filter(|d| d.is_closed_at(now))
                 .collect(),
-            CandleSource::Futures => Vec::new(),
+            CandleSource::Futures | CandleSource::Ibkr => Vec::new(),
         };
         events.extend(fvg_events(&daily, atr_period, &stats_cfg));
         imbalances.extend(imbalance_series(&daily, atr_period, &imbalance_cfg));

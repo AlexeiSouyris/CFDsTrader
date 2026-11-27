@@ -5,7 +5,8 @@
  *   `deltaX` dominante. Se acumula y, al pasar el umbral, avanza (`+1`) o retrocede (`-1`) una
  *   pestaña; después espera un rato para que la inercia del gesto no salte varias.
  *   No se dispara sobre un elemento con desplazamiento horizontal propio (tablas anchas, gráficos)
- *   ni sobre lo marcado con `data-swipe-ignore`, ni con `Ctrl` (es el zoom con pellizco).
+ *   ni sobre lo marcado con `data-swipe-ignore`, ni con `Ctrl` (es el zoom con pellizco), ni
+ *   cuando otro ya usó el evento (un gráfico que se desplaza con el trackpad, #415).
  *   Se cancela el evento que usa, así el navegador no hace además su "atrás/adelante".
  * - **Teclado:** `Ctrl+←/→` y `⌘+[` / `⌘+]`. No actúa mientras se escribe en un campo.
  * - **Dedo (#307):** un deslizamiento horizontal rápido (más de `touchMinPx`, bastante más
@@ -82,7 +83,9 @@ export function useTabSwipe(
     let lockedUntil = 0
 
     const onWheel = (e: WheelEvent) => {
-      if (e.ctrlKey) return
+      // Ctrl es el pellizco; si un gráfico ya usó la rueda (desplaza o hace zoom), no es para
+      // la pestaña (#415): sin esto, desplazar el gráfico con el trackpad cambiaba de vista.
+      if (e.ctrlKey || e.defaultPrevented || ownsTouch(e.target)) return
       const dx = e.deltaMode === 1 ? e.deltaX * 16 : e.deltaX
       if (Math.abs(dx) <= Math.abs(e.deltaY)) return
       if (scrollsHorizontally(e.target)) return

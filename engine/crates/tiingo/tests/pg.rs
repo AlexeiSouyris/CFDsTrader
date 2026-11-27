@@ -19,17 +19,16 @@ const BODY: &str = r#"[{"date":"2026-01-05T00:00:00.000Z","close":100,"divCash":
                        {"date":"2026-01-06T00:00:00.000Z","close":101,"divCash":0,"splitFactor":1}]"#;
 
 fn url() -> String {
-    std::env::var("DATABASE_URL").expect("falta DATABASE_URL")
+    cfds_storage::test_db::test_database_url()
 }
 
-/// Símbolo único por corrida: las tablas son de solo agregar y no se limpian.
+/// Símbolo único por corrida: las tablas son de solo agregar y no se limpian. Un `unique_id` no
+/// entra en los 16 caracteres del símbolo: va `T` y 15 cifras hexadecimales de un número propio.
 fn symbol() -> String {
-    let n = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos()
-        % 1_000_000_000_000;
-    format!("T{n}")
+    format!(
+        "T{:015X}",
+        cfds_storage::test_db::unique_number() & ((1 << 60) - 1)
+    )
 }
 
 /// Config con un plan enorme, para que los topes de la prueba no dependan del uso de otras corridas.

@@ -73,9 +73,15 @@ pub fn fvg_touches_at(candles: &[Candle], t: usize, cfg: &LiquidityConfig) -> Ve
         return Vec::new();
     };
     let from = (t + 1).saturating_sub(cfg.fvg_lookback_bars);
-    fvgs_up_to(candles, t)
-        .into_iter()
-        .filter(|f| f.created_at < t && f.created_at >= from)
+    // Lo mismo que filtrar `fvgs_up_to(candles, t)`, pero solo con los FVG creados dentro de la
+    // ventana: no recorre toda la historia en cada vela (#390).
+    (from.max(2)..t)
+        .filter_map(|i| fvg_created_at(candles, i))
+        .filter(|f| {
+            !candles[f.created_at + 1..=t]
+                .iter()
+                .any(|later| is_filled_by(f, later))
+        })
         .filter(|f| match f.side {
             Side::Long => c.low <= f.top && c.close >= f.bottom,
             Side::Short => c.high >= f.bottom && c.close <= f.top,

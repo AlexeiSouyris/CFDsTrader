@@ -24,7 +24,7 @@ use tokio::sync::Mutex;
 const GATEWAY: &str = include_str!("../../../../config/gateway.toml");
 const RISK: &str = include_str!("../../../../config/risk.toml");
 const BACKTEST: &str = include_str!("../../../../config/backtest.toml");
-const BROKER: &str = include_str!("../../../../config/broker.toml");
+const BROKER: &str = include_str!("../../broker/tests/fixtures/broker.toml");
 const TOKEN: &str = "token-local-de-prueba-123";
 
 fn at(i: i64) -> DateTime<Utc> {
@@ -94,7 +94,7 @@ fn paper() -> MemPaper {
             funding_admin_fee_pct: dec!(2.5),
             funding_day_count: dec!(365),
         },
-        account_to_instrument: Decimal::ONE,
+        account_to_instrument: cfds_backtest::AccountFx::Same,
         candles,
         funding: FundingSetup {
             cutoff: NaiveTime::from_hms_opt(23, 0, 0).unwrap(),
@@ -421,7 +421,7 @@ async fn bad_orders_and_routes_are_rejected() {
 #[tokio::test]
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn the_read_only_session_writes_only_the_broker_journal() {
-    let url = std::env::var("DATABASE_URL").expect("falta DATABASE_URL (necesita PostgreSQL)");
+    let url = cfds_storage::test_db::test_database_url();
     cfds_storage::PgStore::connect(&url)
         .await
         .unwrap()
@@ -431,11 +431,22 @@ async fn the_read_only_session_writes_only_the_broker_journal() {
     let ro = cfds_storage::PgStore::connect(&cfds_gateway::read_only_url(&url))
         .await
         .unwrap();
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap();
-    let id = format!("gw-ro-{nanos}");
-    let order: Order = serde_json::from_value(order(&id, dec!(98))).unwrap();
-    let report = paper().0.lock().await.submit(&order);
-    assert!(ro.insert_paper_order(&order, &report).await.unwrap());
+    let id = cfds_storage::test_db::unique_id("gw-ro");
+    let decided: Order = serde_json::from_value(order(&id, dec!(98))).unwrap();
+    let report = paper().0.lock().await.submit(&decided);
+    assert!(ro.insert_paper_order(&decided, &report).await.unwrap());
+    // #479: también las pendientes guardadas y su final, cada uno en su transacción de escritura.
+    let pid = cfds_storage::test_db::unique_id("gw-ro-pending");
+    let pending: Order = serde_json::from_value(order(&pid, dec!(98))).unwrap();
+    assert!(ro.insert_paper_pending(&pending).await.unwrap());
+    let stored = |p: Vec<Order>| p.iter().any(|o| o.order_id == pending.order_id);
+    assert!(stored(ro.paper_pending().await.unwrap()));
+    assert!(
+        ro.drop_paper_pending(&pid, "prueba", Utc::now())
+            .await
+            .unwrap()
+    );
+    assert!(!stored(ro.paper_pending().await.unwrap()));
     let direct = sqlx::query(
         "INSERT INTO paper_orders (order_id, instrument_id, created_at, document)
          VALUES ('gw-ro-direct', 'US100', now(), '{\"order_id\": \"gw-ro-direct\", \"mode\": \"paper\"}')",
@@ -539,7 +550,7 @@ async fn the_run_detail_route_reads_one_run_with_its_curve_and_trades() {
 async fn the_read_only_session_can_write_the_paper_journal() {
     use cfds_journal::pg::{PgJournal, Recorded};
     use cfds_journal::{BreakdownItem, Direction, Proposal, Signal, Source};
-    let url = std::env::var("DATABASE_URL").expect("necesita PostgreSQL: DATABASE_URL");
+    let url = cfds_storage::test_db::test_database_url();
     let rw = cfds_storage::PgStore::connect(&url).await.unwrap();
     rw.migrate().await.unwrap();
     rw.upsert_instrument(&cfds_core::Instrument {
@@ -554,7 +565,7 @@ async fn the_read_only_session_can_write_the_paper_journal() {
     let ro = cfds_storage::PgStore::connect(&cfds_gateway::read_only_url(&url))
         .await
         .unwrap();
-    let tag = format!("ro{}", Utc::now().timestamp_nanos_opt().unwrap());
+    let tag = cfds_storage::test_db::unique_id("ro");
     let p = Proposal {
         id: format!("{tag}:US100:2026-01-05T10:00:00Z:long"),
         source: Source::Paper,

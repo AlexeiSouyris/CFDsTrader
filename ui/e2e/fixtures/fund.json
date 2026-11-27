@@ -1,0 +1,24 @@
+{
+ "currency": "EUR",
+ "basis": "last_settlement",
+ "valued_at": "2026-11-23T07:00:00Z",
+ "nav": "1.0412",
+ "total_value": "1041.20",
+ "total_units": "1000",
+ "members": [
+  {
+   "member_id": "alexei",
+   "units": "600",
+   "value": "624.72",
+   "net_contributions": "600.00",
+   "pnl": "24.72"
+  },
+  {
+   "member_id": "m2",
+   "units": "400",
+   "value": "416.48",
+   "net_contributions": "400.00",
+   "pnl": "16.48"
+  }
+ ]
+}

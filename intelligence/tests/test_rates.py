@@ -152,3 +152,22 @@ def test_fetch_asks_the_configured_series_in_csv() -> None:
     )
     assert seen["accept"] == "text/csv"
     assert seen["timeout"] == CFG.timeout_secs
+
+
+def test_estr_skips_holidays_without_empty_rows() -> None:
+    # CSV real del BCE (#447), del 27-03 al 03-04-2024: el €STR (frecuencia B, días hábiles
+    # TARGET) no trae fila para Viernes Santo ni Lunes de Pascua. El del jueves 28-03 rige
+    # hasta que se publica el siguiente, el martes 02-04 a las 9:00 CEST.
+    real = Path(__file__).resolve().parent / "fixtures" / "ecb_estr_2024-03-27_04-03.csv"
+    values = parse_csv(real.read_text(), ESTR)
+    assert [d for d, _ in values] == [
+        date(2024, 3, 27),
+        date(2024, 3, 28),
+        date(2024, 4, 2),
+        date(2024, 4, 3),
+    ]
+    rates = to_rates(values, ESTR, LATE)
+    assert rates[1].published_at == utc(2024, 4, 2, 7)
+    # Si el BCE mandara la fila vacía, como en el EUR/USD, el resultado sería el mismo.
+    with_empty = csv_of(("2024-03-28", "3.899"), ("2024-03-29", ""), ("2024-04-02", "3.906"))
+    assert to_rates(parse_csv(with_empty, ESTR), ESTR, LATE)[0].published_at == utc(2024, 4, 2, 7)

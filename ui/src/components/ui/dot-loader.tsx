@@ -56,7 +56,7 @@ export function DotLoader({
 export function LoadingScreen({ label = 'Cargando el panel' }: { label?: string }) {
   return (
     <div role="status" className="grid min-h-svh place-items-center">
-      <div className="glass flex items-center gap-4 rounded-2xl px-5 py-4">
+      <div className="panel flex items-center gap-4 rounded-sm px-5 py-4">
         <DotLoader />
         <p className="text-[13px] font-semibold">{label}…</p>
       </div>

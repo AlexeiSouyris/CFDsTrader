@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/risk_preview.v1.schema.json",
+  "title": "Risk preview v1",
+  "description": "Vista previa de riesgo del laboratorio (docs/design/2026-11-laboratorio.md §4.1, #777): con un capital hipotético, un riesgo %, un instrumento, una dirección y un stop (precio o k × ATR), qué tamaño daría el módulo de riesgo, con qué nocional, apalancamiento y margen, cuánto se pierde si salta el stop (con el colchón por gaps de config/risk.toml), el costo de ida y vuelta, y qué límite recorta o rechaza. Un solo cálculo: el mismo cfds-risk check del broker simulado, sin estado de cuenta (sin posiciones abiertas, sin caída, sin kill switch). El riesgo pedido nunca pasa el de config/risk.toml. El precio de referencia es el cierre de la última vela cerrada guardada de los futuros del instrumento (la fuente del laboratorio). Lo calcula el motor; la UI no calcula nada. Simulación: no manda órdenes. Pedido: $defs/request en POST /api/v1/lab/risk_preview.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "instrument_id", "timeframe", "direction", "as_of", "reference", "atr", "atr_period", "stop",
+    "stop_atr", "equity", "risk_pct_requested", "risk_pct_applied", "accepted", "rejection",
+    "size", "notional", "leverage", "margin", "risk", "risk_pct", "leverage_capped",
+    "group_capped", "round_trip_cost", "account_currency", "instrument_currency", "fx_rate",
+    "limits", "notes"
+  ],
+  "properties": {
+    "instrument_id": { "$ref": "#/$defs/instrument_id" },
+    "timeframe": { "enum": ["15m", "1h"] },
+    "direction": { "enum": ["long", "short"] },
+    "as_of": { "description": "Cierre de la última vela cerrada usada, o null si no había.", "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }] },
+    "reference": { "description": "Precio de referencia (cierre de esa vela, en la moneda del instrumento).", "$ref": "#/$defs/decimal_or_null" },
+    "atr": { "description": "ATR de Wilder de atr_period velas del timeframe, o null en el calentamiento.", "$ref": "#/$defs/decimal_or_null" },
+    "atr_period": { "type": "integer", "minimum": 1 },
+    "stop": { "description": "El stop usado (el pedido, o referencia ∓ k × ATR).", "$ref": "#/$defs/decimal_or_null" },
+    "stop_atr": { "description": "Distancia del stop en ATR.", "$ref": "#/$defs/decimal_or_null" },
+    "equity": { "description": "Capital hipotético, en la moneda de la cuenta.", "$ref": "#/$defs/decimal" },
+    "risk_pct_requested": { "$ref": "#/$defs/decimal" },
+    "risk_pct_applied": { "description": "El pedido, recortado al de config/risk.toml.", "$ref": "#/$defs/decimal" },
+    "accepted": { "type": "boolean" },
+    "rejection": {
+      "description": "Motivo del rechazo (los códigos de ticket_verdict.v1), o null si se acepta.",
+      "oneOf": [{ "$ref": "ticket_verdict.v1.schema.json#/$defs/rejection" }, { "type": "null" }]
+    },
+    "size": { "description": "Moneda del instrumento por punto.", "$ref": "#/$defs/decimal_or_null" },
+    "notional": { "description": "En la moneda del instrumento.", "$ref": "#/$defs/decimal_or_null" },
+    "leverage": { "description": "Nocional / capital, ya con el tope aplicado.", "$ref": "#/$defs/decimal_or_null" },
+    "margin": { "description": "En la moneda del instrumento.", "$ref": "#/$defs/decimal_or_null" },
+    "risk": { "description": "Pérdida si salta el stop, con el colchón por gaps (gap_atr), sin costos, en la moneda de la cuenta.", "$ref": "#/$defs/decimal_or_null" },
+    "risk_pct": { "description": "risk / capital, en %.", "$ref": "#/$defs/decimal_or_null" },
+    "leverage_capped": { "description": "true si el tope de apalancamiento redujo el tamaño.", "type": "boolean" },
+    "group_capped": { "description": "true si el tope de un grupo correlacionado redujo el tamaño.", "type": "boolean" },
+    "round_trip_cost": {
+      "description": "Spread, slippage y comisión de entrar y salir al precio de referencia, en la moneda de la cuenta. null si se rechaza o si al catálogo le falta algún costo. La financiación nocturna no va acá (depende del tipo de referencia de cada noche).",
+      "$ref": "#/$defs/decimal_or_null"
+    },
+    "account_currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+    "instrument_currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+    "fx_rate": { "description": "Moneda del instrumento por unidad de la de la cuenta (1 si son la misma), o null si no hay tipo publicado.", "$ref": "#/$defs/decimal_or_null" },
+    "limits": {
+      "description": "Los límites de config/risk.toml y del catálogo que se aplicaron.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_risk_pct", "min_stop_atr", "max_stop_atr", "gap_atr", "max_leverage", "margin_pct"],
+      "properties": {
+        "max_risk_pct": { "$ref": "#/$defs/decimal" },
+        "min_stop_atr": { "$ref": "#/$defs/decimal" },
+        "max_stop_atr": { "$ref": "#/$defs/decimal" },
+        "gap_atr": { "$ref": "#/$defs/decimal" },
+        "max_leverage": { "$ref": "#/$defs/decimal" },
+        "margin_pct": { "$ref": "#/$defs/decimal_or_null" }
+      }
+    },
+    "notes": { "description": "Avisos en español (riesgo recortado, tamaño recortado, sin costos, fuente de las velas).", "type": "array", "items": { "type": "string", "minLength": 1 } }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "accepted": { "const": true } } },
+      "then": { "properties": { "rejection": { "type": "null" }, "size": { "type": "string" }, "notional": { "type": "string" }, "leverage": { "type": "string" }, "margin": { "type": "string" }, "risk": { "type": "string" }, "risk_pct": { "type": "string" } } },
+      "else": { "properties": { "rejection": { "type": "string" }, "size": { "type": "null" }, "notional": { "type": "null" }, "leverage": { "type": "null" }, "margin": { "type": "null" }, "risk": { "type": "null" }, "risk_pct": { "type": "null" }, "round_trip_cost": { "type": "null" } } }
+    }
+  ],
+  "$defs": {
+    "request": {
+      "description": "El pedido de POST /api/v1/lab/risk_preview.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["instrument_id", "timeframe", "direction", "equity", "risk_pct", "atr_period", "stop"],
+      "properties": {
+        "instrument_id": { "$ref": "#/$defs/instrument_id" },
+        "timeframe": { "enum": ["15m", "1h"] },
+        "direction": { "enum": ["long", "short"] },
+        "equity": { "description": "Capital hipotético (moneda de la cuenta).", "$ref": "#/$defs/decimal" },
+        "risk_pct": { "description": "Riesgo por operación pedido, en % (se recorta al de config).", "$ref": "#/$defs/decimal" },
+        "atr_period": { "description": "Velas del ATR de Wilder (el riesgo mide la distancia del stop en ATR).", "type": "integer", "minimum": 1, "maximum": 200 },
+        "stop": {
+          "oneOf": [
+            {
+              "type": "object", "additionalProperties": false, "required": ["kind", "k"],
+              "properties": { "kind": { "const": "atr" }, "k": { "$ref": "#/$defs/decimal" } }
+            },
+            {
+              "type": "object", "additionalProperties": false, "required": ["kind", "price"],
+              "properties": { "kind": { "const": "price" }, "price": { "$ref": "#/$defs/decimal" } }
+            }
+          ]
+        }
+      }
+    },
+    "instrument_id": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$" },
+    "decimal": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "decimal_or_null": { "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" }
+  }
+}

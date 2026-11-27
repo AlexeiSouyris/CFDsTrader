@@ -13,15 +13,13 @@ use rust_decimal::dec;
 #[path = "common/run_sample.rs"]
 mod run_sample;
 
-const NEEDS: &str = "necesita PostgreSQL: DATABASE_URL";
-
 fn at(s: &str) -> DateTime<Utc> {
     s.parse().unwrap()
 }
 
 /// Base migrada, con el instrumento cargado y sin entradas previas de `run_id`.
 async fn journal(run_id: &str) -> PgJournal {
-    let url = std::env::var("DATABASE_URL").expect(NEEDS);
+    let url = cfds_storage::test_db::test_database_url();
     let store = PgStore::connect(&url).await.unwrap();
     store.migrate().await.unwrap();
     store
@@ -181,7 +179,7 @@ async fn the_database_rejects_impossible_proposals() {
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn a_backtest_run_is_stored_once_and_never_rewritten() {
     // La tabla es de solo agregar: un run_id propio por corrida del test.
-    let run_id = format!("bt-run-{}", Utc::now().timestamp_nanos_opt().unwrap());
+    let run_id = cfds_storage::test_db::unique_id("bt-run");
     let j = journal(&run_id).await;
     let run = run_sample::sample(&run_id);
     assert!(j.run(&run_id).await.unwrap().is_none());
@@ -219,7 +217,7 @@ async fn a_backtest_run_is_stored_once_and_never_rewritten() {
     ));
 
     // La base impide modificar o borrar.
-    let url = std::env::var("DATABASE_URL").expect(NEEDS);
+    let url = cfds_storage::test_db::test_database_url();
     let pool = sqlx::PgPool::connect(&url).await.unwrap();
     for sql in [
         "UPDATE backtest_runs SET timeframe = '1h' WHERE run_id = $1",
@@ -275,7 +273,7 @@ async fn ml_features_are_stored_once_and_never_rewritten() {
 async fn the_run_detail_joins_the_run_its_curve_and_its_trades() {
     use cfds_journal::{RunCurve, RunTrade};
     // Tablas de solo agregar: un run_id propio por corrida del test.
-    let run_id = format!("bt-detail-{}", Utc::now().timestamp_nanos_opt().unwrap());
+    let run_id = cfds_storage::test_db::unique_id("bt-detail");
     let j = journal(&run_id).await;
     assert!(j.run_detail(&run_id).await.unwrap().is_none());
 
@@ -328,7 +326,7 @@ async fn the_run_detail_joins_the_run_its_curve_and_its_trades() {
     assert!(j.record_run_curve(&orphan).await.is_err());
 
     // la base impide modificar o borrar la curva
-    let url = std::env::var("DATABASE_URL").expect(NEEDS);
+    let url = cfds_storage::test_db::test_database_url();
     let pool = sqlx::PgPool::connect(&url).await.unwrap();
     for sql in [
         "UPDATE backtest_run_curves SET buy_and_hold = '[]'::jsonb WHERE run_id = $1",
@@ -380,4 +378,136 @@ async fn the_shown_probability_is_stored_with_the_proposal() {
     // Las del backtest siguen sin el campo.
     let (bt, _) = entry("it-journal-shown-bt");
     assert_eq!(bt.shown, None);
+}
+
+/// #399: corrida de etiquetas, etiqueta y variables, todo de solo agregar e idempotente.
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn ml_labels_and_their_run_are_stored_once_and_never_rewritten() {
+    use cfds_journal::ml_label::{LabelCandles, LabelMethod, LabelReason, MlLabel, MlLabelRun};
+    // Tablas de solo agregar: este run_id no se borra entre corridas, todo es idempotente.
+    let j = journal("it-ml-labels-setup").await;
+    let (p, _) = entry("it-ml-labels");
+    j.record(&p, None).await.unwrap();
+    let run = MlLabelRun {
+        run_id: "it-ml-labels".into(),
+        instrument_id: p.instrument_id.clone(),
+        candle_source: LabelCandles::Futures,
+        from: at("2026-11-19T00:00:00Z"),
+        to: at("2026-11-20T00:00:00Z"),
+        method: LabelMethod::MidNoCosts,
+        config_sha256: cfds_journal::config_sha256(&[("strategy.toml", "x = 1")]),
+    };
+    assert!(matches!(
+        j.record_ml_label_run(&run).await.unwrap(),
+        Recorded::Inserted | Recorded::Unchanged
+    ));
+    assert_eq!(
+        j.record_ml_label_run(&run).await.unwrap(),
+        Recorded::Unchanged
+    );
+    assert_eq!(
+        j.ml_label_run("it-ml-labels").await.unwrap(),
+        Some(run.clone())
+    );
+    let mut longer = run.clone();
+    longer.to = at("2026-11-21T00:00:00Z");
+    assert!(matches!(
+        j.record_ml_label_run(&longer).await,
+        Err(JournalError::Conflict { .. })
+    ));
+    let mut empty = run;
+    empty.run_id = "it-ml-labels-empty".into();
+    empty.to = empty.from;
+    assert!(matches!(
+        j.record_ml_label_run(&empty).await,
+        Err(JournalError::InvalidLabelRun)
+    ));
+
+    let l = MlLabel {
+        proposal_id: p.id.clone(),
+        signal_at: p.signal_at,
+        y: 1,
+        exit_reason: LabelReason::Tp1,
+        resolved_at: p.signal_at + chrono::TimeDelta::minutes(45),
+        method: LabelMethod::MidNoCosts,
+    };
+    assert!(matches!(
+        j.record_ml_label(&l).await.unwrap(),
+        Recorded::Inserted | Recorded::Unchanged
+    ));
+    assert_eq!(j.record_ml_label(&l).await.unwrap(), Recorded::Unchanged);
+    assert_eq!(j.ml_label(&p.id).await.unwrap(), Some(l.clone()));
+    let mut other = l.clone();
+    other.y = 0;
+    other.exit_reason = LabelReason::Stop;
+    assert!(matches!(
+        j.record_ml_label(&other).await,
+        Err(JournalError::Conflict { .. })
+    ));
+    // La base rechaza una clase que no coincide con el motivo y una propuesta inexistente.
+    let pool = cfds_storage::PgStore::connect(&cfds_storage::test_db::test_database_url())
+        .await
+        .unwrap()
+        .pool()
+        .clone();
+    assert!(
+        sqlx::query(
+            "INSERT INTO ml_labels (proposal_id, signal_at, y, exit_reason, resolved_at, method)
+             VALUES ($1, now(), 1, 'stop', now() + interval '1 hour', 'mid_no_costs')"
+        )
+        .bind("it-ml-labels:otra")
+        .execute(&pool)
+        .await
+        .is_err()
+    );
+    assert!(
+        sqlx::query("DELETE FROM ml_labels WHERE proposal_id = $1")
+            .bind(&p.id)
+            .execute(&pool)
+            .await
+            .is_err(),
+        "solo agregar"
+    );
+}
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL: DATABASE_URL"]
+async fn the_paper_journal_lists_only_paper_newest_first_with_outcomes() {
+    let run_id = "it-journal-paper-source";
+    let j = journal(run_id).await;
+    let (backtest, _) = entry(run_id);
+    let (mut older, mut done) = entry(run_id);
+    older.source = cfds_journal::Source::Paper;
+    older.id = format!("{run_id}:older");
+    done.proposal_id = older.id.clone();
+    let mut newer = older.clone();
+    newer.id = format!("{run_id}:newer");
+    newer.signal_at = at("2026-11-20T09:00:00Z");
+    assert_eq!(j.record(&backtest, None).await.unwrap(), Recorded::Inserted);
+    assert_eq!(
+        j.record(&older, Some(&done)).await.unwrap(),
+        Recorded::Inserted
+    );
+    assert_eq!(j.record(&newer, None).await.unwrap(), Recorded::Inserted);
+    let mine: Vec<_> = j
+        .source_trades(cfds_journal::Source::Paper, 500)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|t| t.proposal.run_id == run_id)
+        .collect();
+    assert_eq!(mine.len(), 2, "solo las de paper, no la del backtest");
+    assert_eq!(mine[0].proposal, newer);
+    assert_eq!(mine[0].outcome, None);
+    assert_eq!(mine[1].proposal, older);
+    assert_eq!(mine[1].outcome, Some(done));
+    // el límite se aplica en la base
+    assert!(
+        j.source_trades(cfds_journal::Source::Paper, 1)
+            .await
+            .unwrap()
+            .len()
+            <= 1
+    );
 }

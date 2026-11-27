@@ -233,8 +233,8 @@ pub fn evaluate_period_with(
     let net: Vec<Decimal> = report
         .trades
         .iter()
-        .map(|t| t.net_pnl / setup.account_to_instrument)
-        .collect();
+        .map(|t| setup.to_account(t.net_pnl, t.closed_at()))
+        .collect::<Result<_, _>>()?;
     let intervals: Vec<_> = report
         .trades
         .iter()
@@ -256,14 +256,18 @@ pub fn evaluate_period_with(
         &setup.backtest.metrics,
     );
     let bh = buy_and_hold(&m15[first..hi], bh_size, setup);
+    // Comprar y mantener se realiza al final del tramo: al tipo de ese momento.
+    let bh_return = match &bh {
+        Some(b) => Some(setup.to_account(b.net_pnl, end)? / setup.initial_equity),
+        None => None,
+    };
     Ok((
         PeriodResult {
             period,
             candles: hi - first,
             metrics: Some(metrics),
             final_equity: report.final_equity,
-            buy_and_hold_return: bh
-                .map(|b| b.net_pnl / setup.account_to_instrument / setup.initial_equity),
+            buy_and_hold_return: bh_return,
             buy_and_hold: bh,
         },
         Some(report),

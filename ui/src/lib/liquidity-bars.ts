@@ -3,7 +3,10 @@
  * cierre. El gráfico necesita los dos para ubicar cada evento en la vela que ya cerró. Sumar la
  * duración del timeframe al inicio es geometría de pantalla, no un cálculo de trading.
  */
-import type { LiquidityViewData } from '@/lib/liquidity-contracts'
+import type { LiquidityViewData, ViewTimeframe } from '@/lib/liquidity-contracts'
+
+/** Timeframes que dibuja el gráfico: los de la vista de liquidez y `1m`, solo de IBKR (#556). */
+export type ChartTimeframe = ViewTimeframe | '1m'
 
 export type ChartBar = {
   start: string
@@ -28,4 +31,15 @@ export function chartBars(data: LiquidityViewData): ChartBar[] {
     low: c.low,
     close: c.close,
   }))
+}
+
+/**
+ * Une velas por su inicio (las de `next` reemplazan a las de `prev`), en orden (#401): las más
+ * viejas que se piden al desplazarse al pasado con las que llegan en cada actualización.
+ */
+export function mergeBars(prev: ChartBar[], next: ChartBar[]): ChartBar[] {
+  const by = new Map<string, ChartBar>()
+  for (const b of prev) by.set(b.start, b)
+  for (const b of next) by.set(b.start, b)
+  return [...by.values()].sort((x, y) => Date.parse(x.start) - Date.parse(y.start))
 }

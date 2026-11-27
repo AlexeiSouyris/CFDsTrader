@@ -1,0 +1,192 @@
+{
+ "status": "REQUEST_SUCCEEDED",
+ "responseTime": 0,
+ "message": [],
+ "Results": {
+  "series": [
+   {
+    "seriesID": "CUSR0000SA0",
+    "data": [
+     {
+      "year": "2026",
+      "period": "M10",
+      "periodName": "October",
+      "latest": "true",
+      "value": "337.476",
+      "footnotes": [
+       {}
+      ]
+     },
+     {
+      "year": "2026",
+      "period": "M09",
+      "periodName": "September",
+      "value": "336.298",
+      "footnotes": [
+       {}
+      ]
+     },
+     {
+      "year": "2026",
+      "period": "M08",
+      "periodName": "August",
+      "value": "334.131",
+      "footnotes": [
+       {}
+      ]
+     },
+     {
+      "year": "2025",
+      "period": "M10",
+      "periodName": "October",
+      "value": "-",
+      "footnotes": [
+       {
+        "code": "X",
+        "text": "Data unavailable due to the 2025 lapse in appropriations"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "seriesID": "CUSR0000SA0L1E",
+    "data": [
+     {
+      "year": "2026",
+      "period": "M10",
+      "periodName": "October",
+      "latest": "true",
+      "value": "339.900",
+      "footnotes": [
+       {}
+      ]
+     },
+     {
+      "year": "2026",
+      "period": "M09",
+      "periodName": "September",
+      "value": "338.896",
+      "footnotes": [
+       {}
+      ]
+     },
+     {
+      "year": "2026",
+      "period": "M08",
+      "periodName": "August",
+      "value": "337.765",
+      "footnotes": [
+       {}
+      ]
+     },
+     {
+      "year": "2025",
+      "period": "M10",
+      "periodName": "October",
+      "value": "-",
+      "footnotes": [
+       {
+        "code": "X",
+        "text": "Data unavailable due to the 2025 lapse in appropriations"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "seriesID": "CES0000000001",
+    "data": [
+     {
+      "year": "2026",
+      "period": "M10",
+      "periodName": "October",
+      "latest": "true",
+      "value": "159293",
+      "footnotes": [
+       {
+        "code": "P",
+        "text": "preliminary"
+       }
+      ]
+     },
+     {
+      "year": "2026",
+      "period": "M09",
+      "periodName": "September",
+      "value": "159128",
+      "footnotes": [
+       {
+        "code": "P",
+        "text": "preliminary"
+       }
+      ]
+     },
+     {
+      "year": "2026",
+      "period": "M08",
+      "periodName": "August",
+      "value": "159068",
+      "footnotes": [
+       {}
+      ]
+     },
+     {
+      "year": "2025",
+      "period": "M10",
+      "periodName": "October",
+      "value": "158408",
+      "footnotes": [
+       {}
+      ]
+     }
+    ]
+   },
+   {
+    "seriesID": "LNS14000000",
+    "data": [
+     {
+      "year": "2026",
+      "period": "M10",
+      "periodName": "October",
+      "latest": "true",
+      "value": "4.1",
+      "footnotes": [
+       {}
+      ]
+     },
+     {
+      "year": "2026",
+      "period": "M09",
+      "periodName": "September",
+      "value": "4.2",
+      "footnotes": [
+       {}
+      ]
+     },
+     {
+      "year": "2026",
+      "period": "M08",
+      "periodName": "August",
+      "value": "4.1",
+      "footnotes": [
+       {}
+      ]
+     },
+     {
+      "year": "2025",
+      "period": "M10",
+      "periodName": "October",
+      "value": "-",
+      "footnotes": [
+       {
+        "code": "9",
+        "text": "Data unavailable due to the 2025 lapse in appropriations."
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}

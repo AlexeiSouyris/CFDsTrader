@@ -22,6 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
+from typing import Protocol
 from zoneinfo import ZoneInfo
 
 from cfds_intel.net import https_get
@@ -33,6 +34,17 @@ _KEY = re.compile(r"^[A-Z0-9_]+(\.[A-Z0-9_]+)*$")
 
 class RatesError(ValueError):
     """Respuesta o configuración que no cumple las reglas: no se guarda nada."""
+
+
+class Publication(Protocol):
+    """Lo que hace falta para fechar la publicación de una serie (BCE o NY Fed, #467)."""
+
+    @property
+    def name(self) -> str: ...
+    @property
+    def publication_time(self) -> time: ...
+    @property
+    def publication_tz(self) -> ZoneInfo: ...
 
 
 @dataclass(frozen=True)
@@ -105,9 +117,13 @@ class Rate:
 
 
 def parse_csv(text: str, s: SeriesConfig) -> list[tuple[date, Decimal]]:
-    """Filas de la API → (fecha, tasa) en orden. Cualquier fila rara rechaza todo."""
+    """Filas de la API → (fecha, tasa) en orden. Cualquier fila rara rechaza todo.
+
+    Una fila con `OBS_VALUE` vacío es un día sin publicación (feriado del BCE, #447): se saltea.
+    """
     expected_key = f"{s.flow}.{s.key}"
     out: list[tuple[date, Decimal]] = []
+    prev: date | None = None
     reader = csv.DictReader(io.StringIO(text))
     missing = {"KEY", "TIME_PERIOD", "OBS_VALUE"} - set(reader.fieldnames or [])
     if missing:
@@ -120,20 +136,25 @@ def parse_csv(text: str, s: SeriesConfig) -> list[tuple[date, Decimal]]:
         except ValueError as e:
             raise RatesError(f"{s.name}: fecha inválida {row['TIME_PERIOD']!r}") from e
         raw = row["OBS_VALUE"]
+        if prev is not None and day <= prev:
+            raise RatesError(f"{s.name}: fechas desordenadas o repetidas en {day}")
+        prev = day
+        if raw == "":
+            # Sin publicación ese día (#447): el BCE manda la fila vacía en sus feriados TARGET
+            # (por ejemplo, Viernes Santo del EUR/USD). No se guarda ni se inventa un valor.
+            continue
         try:
             value = Decimal(raw)
         except InvalidOperation as e:
             raise RatesError(f"{s.name} {day}: {raw!r} no es un número") from e
         if not value.is_finite():
             raise RatesError(f"{s.name} {day}: {raw!r} no es un número")
-        if out and day <= out[-1][0]:
-            raise RatesError(f"{s.name}: fechas desordenadas o repetidas en {day}")
         out.append((day, value))
     return out
 
 
 def to_rates(
-    values: list[tuple[date, Decimal]], s: SeriesConfig, retrieved_at: datetime
+    values: list[tuple[date, Decimal]], s: Publication, retrieved_at: datetime
 ) -> list[Rate]:
     """(fecha, tasa) en orden → registros con su hora de publicación, sin adelantarla nunca."""
     if retrieved_at.tzinfo is None:

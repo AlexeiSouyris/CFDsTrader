@@ -460,14 +460,21 @@ impl<T: Transport> IgProvider<T> {
         from: DateTime<Utc>,
         to: DateTime<Utc>,
     ) -> Result<(Vec<Candle>, Vec<CandleSpread>), ProviderError> {
+        self.candles_and_spreads(instrument, timeframe, from, to, Window::Padded)
+            .await
+    }
+
+    /// Velas y spreads de un solo pedido, con el rango armado según `window`.
+    async fn candles_and_spreads(
+        &self,
+        instrument: &InstrumentId,
+        timeframe: Timeframe,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+        window: Window,
+    ) -> Result<(Vec<Candle>, Vec<CandleSpread>), ProviderError> {
         let raw = self
-            .prices(
-                self.epic(instrument)?,
-                timeframe.into(),
-                from,
-                to,
-                Window::Padded,
-            )
+            .prices(self.epic(instrument)?, timeframe.into(), from, to, window)
             .await?;
         let candles = model::to_candles(&raw, instrument, timeframe, from, to)
             .map_err(ProviderError::InvalidResponse)?;
@@ -634,6 +641,23 @@ enum Window {
 /// Si el rango cruzara un cambio de horario, faltarían velas y la validación de la ingesta
 /// rechazaría el lote: nunca entra un dato equivocado.
 pub struct Recent<'a, T>(pub &'a IgProvider<T>);
+
+impl<T: Transport> Recent<'_, T> {
+    /// Velas y spread de cierre de cada vela **del mismo pedido exacto** (#437): lo que usa
+    /// `ig_live` para guardar el spread sin gastar cupo extra (1 punto por vela, igual que
+    /// [`MarketDataProvider::history`] en modo reciente).
+    pub async fn history_with_spreads(
+        &self,
+        instrument: &InstrumentId,
+        timeframe: Timeframe,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<(Vec<Candle>, Vec<CandleSpread>), ProviderError> {
+        self.0
+            .candles_and_spreads(instrument, timeframe, from, to, Window::Exact)
+            .await
+    }
+}
 
 impl<T: Transport> MarketDataProvider for Recent<'_, T> {
     async fn history(

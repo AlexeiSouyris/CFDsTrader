@@ -8,6 +8,7 @@ use cfds_core::{
     AssetClass, Candle, CandleSpread, Currency, DailyCandle, Instrument, InstrumentId,
     SentimentObservation, Timeframe,
 };
+use cfds_storage::test_db::{unique_id, unique_number};
 use cfds_storage::{
     AllowanceRecord, CandlePublisher, PgStore, Published, StorageError, stream_key,
 };
@@ -21,7 +22,9 @@ fn env(name: &str) -> String {
 }
 
 async fn store() -> PgStore {
-    let s = PgStore::connect(&env("DATABASE_URL")).await.unwrap();
+    let s = PgStore::connect(&cfds_storage::test_db::test_database_url())
+        .await
+        .unwrap();
     s.migrate().await.unwrap();
     s
 }
@@ -41,7 +44,9 @@ async fn with_instrument(store: &PgStore, name: &str) -> InstrumentId {
         exchange_timezone: "America/New_York".into(),
     };
     store.upsert_instrument(&i).await.unwrap();
-    let pool = sqlx::PgPool::connect(&env("DATABASE_URL")).await.unwrap();
+    let pool = sqlx::PgPool::connect(&cfds_storage::test_db::test_database_url())
+        .await
+        .unwrap();
     sqlx::query("DELETE FROM daily_candles WHERE instrument_id = $1")
         .bind(i.id.as_str())
         .execute(&pool)
@@ -301,7 +306,9 @@ async fn sentiment_is_append_only_and_idempotent() {
         matches!(err, StorageError::SentimentConflict { .. }),
         "{err}"
     );
-    let pool = sqlx::PgPool::connect(&env("DATABASE_URL")).await.unwrap();
+    let pool = sqlx::PgPool::connect(&cfds_storage::test_db::test_database_url())
+        .await
+        .unwrap();
     let count: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM sentiment_observations WHERE instrument_id = $1 AND observed_for >= $2",
     )
@@ -504,9 +511,11 @@ async fn the_database_rejects_impossible_daily_candles() {
 async fn reference_rates_are_read_only_once_published_in_publication_order() {
     let s = store().await;
     // La tabla es de solo agregar: una serie propia por corrida.
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap();
-    let series = format!("ITRATE{nanos}");
-    let pool = sqlx::PgPool::connect(&env("DATABASE_URL")).await.unwrap();
+    // La serie no admite guiones: un número propio.
+    let series = format!("ITRATE{}", unique_number());
+    let pool = sqlx::PgPool::connect(&cfds_storage::test_db::test_database_url())
+        .await
+        .unwrap();
     for (day, published, rate) in [
         ("2026-11-13", "2026-11-16T08:00:00Z", "2.437"),
         ("2026-11-12", "2026-11-13T08:00:00Z", "2.443"),
@@ -548,6 +557,72 @@ async fn reference_rates_are_read_only_once_published_in_publication_order() {
     .execute(&pool)
     .await;
     assert!(early.is_err());
+}
+
+#[tokio::test]
+#[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
+async fn fx_rates_are_read_only_once_published_in_publication_order() {
+    let s = store().await;
+    // La tabla es de solo agregar: un par propio por corrida (seis letras de un número propio).
+    let mut n = unique_number();
+    let pair: String = (0..6)
+        .map(|_| {
+            let letter = char::from(b'A' + (n % 26) as u8);
+            n /= 26;
+            letter
+        })
+        .collect();
+    let pool = sqlx::PgPool::connect(&cfds_storage::test_db::test_database_url())
+        .await
+        .unwrap();
+    for (day, published, rate) in [
+        ("2026-11-23", "2026-11-23T16:00:00Z", "1.0939"),
+        ("2026-11-20", "2026-11-20T16:00:00Z", "1.099"),
+        ("2026-11-20", "2026-11-24T10:00:00Z", "1.1"),
+    ] {
+        sqlx::query(
+            "INSERT INTO fx_rates (pair, ref_date, published_at, rate)
+             VALUES ($1, $2::date, $3::timestamptz, $4::numeric)",
+        )
+        .bind(&pair)
+        .bind(day)
+        .bind(published)
+        .bind(rate)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    let until: DateTime<Utc> = "2026-11-24T00:00:00Z".parse().unwrap();
+    let got = s.fx_rates(&pair, until).await.unwrap();
+    let summary: Vec<(String, Decimal)> = got
+        .iter()
+        .map(|r| (r.ref_date.to_string(), r.rate))
+        .collect();
+    // La corrección del 24 todavía no estaba publicada.
+    assert_eq!(
+        summary,
+        vec![
+            ("2026-11-20".to_string(), dec!(1.099)),
+            ("2026-11-23".to_string(), dec!(1.0939)),
+        ]
+    );
+    assert!(got.iter().all(|r| r.pair == pair));
+    // Ni un tipo publicado antes de su día ni uno no positivo.
+    for (published, rate) in [
+        ("2026-11-26T12:00:00Z", "1.1"),
+        ("2026-11-27T16:00:00Z", "0"),
+    ] {
+        let bad = sqlx::query(
+            "INSERT INTO fx_rates (pair, ref_date, published_at, rate)
+             VALUES ($1, '2026-11-27', $2::timestamptz, $3::numeric)",
+        )
+        .bind(&pair)
+        .bind(published)
+        .bind(rate)
+        .execute(&pool)
+        .await;
+        assert!(bad.is_err(), "{published} {rate}");
+    }
 }
 
 #[tokio::test]
@@ -635,8 +710,7 @@ async fn allowance_window_keeps_only_the_observations_not_yet_renewed() {
 async fn daily_indicators_are_idempotent_and_refuse_to_repaint() {
     let s = store().await;
     // La tabla es de solo agregar: un instrumento propio por corrida.
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let us = with_instrument(&s, &format!("ITIND{nanos}")).await;
+    let us = with_instrument(&s, &unique_id("ITIND")).await;
     let row = |day: &str, atr: Option<Decimal>| cfds_core::DailyIndicator {
         instrument_id: us.clone(),
         day: day.parse().unwrap(),
@@ -678,8 +752,7 @@ async fn daily_indicators_are_idempotent_and_refuse_to_repaint() {
 async fn daily_drawdowns_are_idempotent_and_refuse_to_repaint() {
     let s = store().await;
     // La tabla es de solo agregar: un instrumento propio por corrida.
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let us = with_instrument(&s, &format!("ITDD{nanos}")).await;
+    let us = with_instrument(&s, &unique_id("ITDD")).await;
     let row = |day: &str, drawdown: Option<Decimal>| cfds_core::DailyDrawdown {
         instrument_id: us.clone(),
         day: day.parse().unwrap(),
@@ -719,8 +792,7 @@ async fn daily_vol_terciles_are_idempotent_read_back_and_refuse_to_repaint() {
     use cfds_core::{DailyVolTercile, VolTercile};
     let s = store().await;
     // La tabla es de solo agregar: un instrumento propio por corrida.
-    let nanos = Utc::now().timestamp_nanos_opt().unwrap() % 1_000_000_000_000;
-    let us = with_instrument(&s, &format!("ITVT{nanos}")).await;
+    let us = with_instrument(&s, &unique_id("ITVT")).await;
     let row = |day: &str, tercile: Option<VolTercile>| DailyVolTercile {
         instrument_id: us.clone(),
         day: day.parse().unwrap(),
@@ -806,7 +878,7 @@ async fn news_interpretations_are_read_by_interpreter_range_and_cutoff() {
     let s = store().await;
     let pool = s.pool().clone();
     // La tabla es de solo agregar: ids y versión del intérprete propios de esta corrida.
-    let run = Utc::now().timestamp_nanos_opt().unwrap();
+    let run = unique_number();
     let version = format!("t{run}");
     let other = format!("u{run}");
     let id = |k: i64| format!("{:064x}", i128::from(run) * 10 + i128::from(k));
@@ -902,4 +974,306 @@ async fn news_interpretations_are_read_by_interpreter_range_and_cutoff() {
 
 fn id_of(s: &str) -> InstrumentId {
     s.parse().unwrap()
+}
+
+/// #409: con `_keeping`, una fila ya guardada con otros valores no se pisa ni frena el resto.
+#[tokio::test]
+#[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
+async fn keeping_loads_save_the_rest_and_report_the_rows_that_differ() {
+    use cfds_core::{DailyVolTercile, VolTercile};
+    let s = store().await;
+    // Tablas de solo agregar: un instrumento propio por corrida.
+    let us = with_instrument(&s, &unique_id("ITKEEP")).await;
+    let d = days(&us);
+    // La historia vieja empezaba en el día 2 y ese día quedó distinto.
+    let mut old_first = d[1].clone();
+    old_first.open += dec!(3);
+    s.insert_daily(&[old_first.clone()]).await.unwrap();
+    assert!(
+        s.insert_daily(&d).await.is_err(),
+        "sin _keeping sigue frenando"
+    );
+    let (r, kept) = s.insert_daily_keeping(&d).await.unwrap();
+    assert_eq!((r.inserted, r.unchanged), (2, 0));
+    assert_eq!(kept, vec![d[1].day]);
+    let (from, to) = ("2026-10-01".parse().unwrap(), "2026-11-01".parse().unwrap());
+    assert_eq!(
+        s.daily_candles(&us, from, to).await.unwrap(),
+        vec![d[0].clone(), old_first, d[2].clone()],
+        "la guardada no se pisa"
+    );
+    let (again, kept) = s.insert_daily_keeping(&d).await.unwrap();
+    assert_eq!((again.inserted, again.unchanged, kept.len()), (0, 2, 1));
+
+    // Tercios: un día guardado con valor y ahora con otro queda con el guardado; uno guardado
+    // sin valor (sin historia) y ahora con valor se completa (#417); el resto se guarda.
+    let row = |day: &str, tercile: Option<VolTercile>| DailyVolTercile {
+        instrument_id: us.clone(),
+        day: day.parse().unwrap(),
+        published_at: format!("{day}T23:00:00Z").parse().unwrap(),
+        realized_vol_window: 20,
+        history_years: 3,
+        tercile,
+    };
+    s.insert_daily_vol_terciles(&[
+        row("2026-11-20", None),
+        row("2026-11-23", Some(VolTercile::Mid)),
+    ])
+    .await
+    .unwrap();
+    let new = vec![
+        row("2026-11-19", Some(VolTercile::Low)),
+        row("2026-11-20", Some(VolTercile::High)),
+        row("2026-11-23", Some(VolTercile::Low)),
+    ];
+    let (r, kept) = s.insert_daily_vol_terciles_keeping(&new).await.unwrap();
+    assert_eq!((r.inserted, r.filled), (1, 1));
+    assert_eq!(kept, vec![new[2].day]);
+    let day = |d: &str| d.parse::<chrono::NaiveDate>().unwrap();
+    let read = s
+        .daily_vol_terciles(&us, 20, 3, day("2026-11-01"), day("2026-12-01"))
+        .await
+        .unwrap();
+    assert_eq!(
+        read,
+        vec![
+            new[0].clone(),
+            new[1].clone(),
+            row("2026-11-23", Some(VolTercile::Mid))
+        ]
+    );
+    // Ya completado: la segunda carga no completa nada más.
+    let (again, kept) = s.insert_daily_vol_terciles_keeping(&new).await.unwrap();
+    assert_eq!((again.unchanged, again.filled, kept.len()), (2, 0, 1));
+}
+
+/// Cuántas filas de auditoría (#417) hay para un instrumento en una tabla.
+async fn null_fills(
+    s: &PgStore,
+    table: &str,
+    instrument: &InstrumentId,
+) -> Vec<(String, String, String)> {
+    sqlx::query_as(
+        "SELECT column_name, new_value, reason FROM daily_null_fills
+         WHERE table_name = $1 AND row_key ->> 'instrument_id' = $2
+         ORDER BY id",
+    )
+    .bind(table)
+    .bind(instrument.as_str())
+    .fetch_all(s.pool())
+    .await
+    .unwrap()
+}
+
+/// #417: en las tablas de indicadores diarios solo se puede completar un NULL, una vez, con motivo
+/// y auditado. Valor → otro, valor → NULL, cambiar la clave o la publicación y DELETE fallan.
+#[tokio::test]
+#[ignore = "necesita PostgreSQL y Redis: DATABASE_URL y REDIS_URL"]
+async fn daily_indicator_nulls_are_filled_once_with_audit_and_nothing_else_changes() {
+    use cfds_core::{DailyDrawdown, DailyIndicator, DailyVolTercile, VolTercile};
+    let s = store().await;
+    let us = with_instrument(&s, &unique_id("ITFILL")).await;
+    let pool = s.pool().clone();
+    let at = |day: &str| -> DateTime<Utc> { format!("{day}T23:00:00Z").parse().unwrap() };
+    let t = |day: &str, tercile: Option<VolTercile>| DailyVolTercile {
+        instrument_id: us.clone(),
+        day: day.parse().unwrap(),
+        published_at: at(day),
+        realized_vol_window: 20,
+        history_years: 3,
+        tercile,
+    };
+    s.insert_daily_vol_terciles(&[
+        t("2026-11-19", None),
+        t("2026-11-20", Some(VolTercile::High)),
+    ])
+    .await
+    .unwrap();
+
+    // Ejecuta un UPDATE/DELETE en su propia transacción, con o sin el motivo declarado.
+    let exec = |sql: &'static str, reason: bool| {
+        let pool = pool.clone();
+        let us = us.clone();
+        async move {
+            let mut tx = pool.begin().await.unwrap();
+            if reason {
+                sqlx::query("SET LOCAL cfds.null_fill_reason = '#417'")
+                    .execute(&mut *tx)
+                    .await
+                    .unwrap();
+            }
+            let r = sqlx::query(sql).bind(us.as_str()).execute(&mut *tx).await;
+            match r {
+                Ok(_) => tx.commit().await.map(|_| ()),
+                Err(e) => Err(e),
+            }
+        }
+    };
+    // Sin motivo, ni siquiera NULL → valor.
+    assert!(
+        exec(
+            "UPDATE daily_vol_terciles SET tercile = 'low' WHERE instrument_id = $1 AND day = '2026-11-19'",
+            false
+        )
+        .await
+        .is_err()
+    );
+    // NULL → valor: pasa y queda auditado.
+    exec(
+        "UPDATE daily_vol_terciles SET tercile = 'low' WHERE instrument_id = $1 AND day = '2026-11-19'",
+        true,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        null_fills(&s, "daily_vol_terciles", &us).await,
+        vec![("tercile".to_string(), "low".to_string(), "#417".to_string())]
+    );
+    let key: String = sqlx::query_scalar(
+        "SELECT row_key::text FROM daily_null_fills WHERE row_key ->> 'instrument_id' = $1",
+    )
+    .bind(us.as_str())
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let key: serde_json::Value = serde_json::from_str(&key).unwrap();
+    assert_eq!(key["day"], "2026-11-19");
+    assert_eq!(key["history_years"], 3);
+    assert!(key.get("tercile").is_none() && key.get("inserted_at").is_none());
+    // Una sola vez: ya completado, no cambia más. Valor → otro valor y valor → NULL fallan.
+    for sql in [
+        "UPDATE daily_vol_terciles SET tercile = 'mid' WHERE instrument_id = $1 AND day = '2026-11-19'",
+        "UPDATE daily_vol_terciles SET tercile = 'mid' WHERE instrument_id = $1 AND day = '2026-11-20'",
+        "UPDATE daily_vol_terciles SET tercile = NULL WHERE instrument_id = $1 AND day = '2026-11-20'",
+        // Un UPDATE que no cambia nada, o que toca la publicación, tampoco.
+        "UPDATE daily_vol_terciles SET tercile = tercile WHERE instrument_id = $1",
+        "UPDATE daily_vol_terciles SET published_at = published_at + INTERVAL '1 hour' WHERE instrument_id = $1",
+        "DELETE FROM daily_vol_terciles WHERE instrument_id = $1",
+    ] {
+        assert!(exec(sql, true).await.is_err(), "debería fallar: {sql}");
+    }
+    let read = s
+        .daily_vol_terciles(
+            &us,
+            20,
+            3,
+            "2026-11-01".parse().unwrap(),
+            "2026-12-01".parse().unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        read,
+        vec![
+            t("2026-11-19", Some(VolTercile::Low)),
+            t("2026-11-20", Some(VolTercile::High))
+        ]
+    );
+    // La auditoría también es de solo agregar.
+    assert!(
+        sqlx::query("DELETE FROM daily_null_fills WHERE row_key ->> 'instrument_id' = $1")
+            .bind(us.as_str())
+            .execute(&pool)
+            .await
+            .is_err()
+    );
+
+    // daily_indicators: completa solo la columna en NULL; la otra, con valor distinto, no se pisa.
+    let ind = |day: &str, atr: Option<Decimal>, vol: Option<Decimal>| DailyIndicator {
+        instrument_id: us.clone(),
+        day: day.parse().unwrap(),
+        published_at: at(day),
+        atr_period: 14,
+        atr,
+        realized_vol_window: 20,
+        realized_vol: vol,
+    };
+    s.insert_daily_indicators(&[ind("2026-11-19", None, Some(dec!(0.2)))])
+        .await
+        .unwrap();
+    let (r, kept) = s
+        .insert_daily_indicators_keeping(&[ind("2026-11-19", Some(dec!(31.5)), Some(dec!(0.3)))])
+        .await
+        .unwrap();
+    assert_eq!((r.filled, kept.len()), (1, 1));
+    let read = s
+        .daily_indicators(
+            &us,
+            14,
+            20,
+            "2026-11-01".parse().unwrap(),
+            "2026-12-01".parse().unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        read,
+        vec![ind("2026-11-19", Some(dec!(31.5)), Some(dec!(0.2)))]
+    );
+    assert_eq!(
+        null_fills(&s, "daily_indicators", &us).await,
+        vec![("atr".to_string(), "31.5".to_string(), "#417".to_string())]
+    );
+    assert!(
+        exec(
+            "UPDATE daily_indicators SET realized_vol = 0.3 WHERE instrument_id = $1",
+            true
+        )
+        .await
+        .is_err()
+    );
+    assert!(
+        exec(
+            "DELETE FROM daily_indicators WHERE instrument_id = $1",
+            true
+        )
+        .await
+        .is_err()
+    );
+
+    // daily_drawdowns: igual, y una publicación distinta no completa nada.
+    let dd = |day: &str, published_at: DateTime<Utc>, drawdown: Option<Decimal>| DailyDrawdown {
+        instrument_id: us.clone(),
+        day: day.parse().unwrap(),
+        published_at,
+        drawdown_window: 252,
+        drawdown,
+    };
+    s.insert_daily_drawdowns(&[
+        dd("2026-11-19", at("2026-11-19"), None),
+        dd("2026-11-20", at("2026-11-20"), None),
+    ])
+    .await
+    .unwrap();
+    let later = at("2026-11-20") + TimeDelta::hours(1);
+    let (r, kept) = s
+        .insert_daily_drawdowns_keeping(&[
+            dd("2026-11-19", at("2026-11-19"), Some(dec!(-0.04))),
+            dd("2026-11-20", later, Some(dec!(-0.05))),
+        ])
+        .await
+        .unwrap();
+    assert_eq!((r.filled, kept), (1, vec!["2026-11-20".parse().unwrap()]));
+    assert_eq!(
+        null_fills(&s, "daily_drawdowns", &us).await,
+        vec![(
+            "drawdown".to_string(),
+            "-0.04".to_string(),
+            "#417".to_string()
+        )]
+    );
+    assert!(
+        exec(
+            "UPDATE daily_drawdowns SET drawdown = -0.05 WHERE instrument_id = $1 AND day = '2026-11-19'",
+            true
+        )
+        .await
+        .is_err()
+    );
+    // Sin _keeping (IG) una fila distinta sigue siendo un error: no completa.
+    assert!(matches!(
+        s.insert_daily_drawdowns(&[dd("2026-11-20", at("2026-11-20"), Some(dec!(-0.05)))])
+            .await,
+        Err(StorageError::DailyIndicatorConflict { .. })
+    ));
 }

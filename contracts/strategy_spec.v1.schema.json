@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/strategy_spec.v1.schema.json",
+  "title": "Strategy spec v1",
+  "description": "Una estrategia del laboratorio descrita con bloques (docs/design/2026-11-laboratorio.md §1.3, #710): mercado, dirección, de 1 a N condiciones de entrada unidas con \"y\", filtros, stop, salida, riesgo por operación, multiplicador de costos, período y modo. La arma la UI (o un archivo JSON) a partir de strategy_catalog.v1; el motor la valida (spec_validation.v1) y la corre. La UI no calcula nada (CLAUDE.md §1). Qué tipos de bloque existen, qué parámetros aceptan, sus rangos y los topes (condiciones, filtros, riesgo, costos) los dice el catálogo del motor, no este schema: el motor rechaza todo lo que el catálogo no tenga. La identidad de la estrategia es el SHA-256 de su forma canónica (claves ordenadas, decimales normalizados como texto, sin espacios): el mismo contenido da siempre el mismo hash.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "catalog_version", "market", "direction", "entry", "filters", "stop", "exit", "risk_pct",
+    "cost_multiplier", "period", "mode"
+  ],
+  "properties": {
+    "catalog_version": {
+      "description": "Versión de strategy_catalog.v1 con la que se armó. Si no coincide con la del motor, la spec no se corre.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "market": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["instrument_id", "source", "timeframe"],
+      "properties": {
+        "instrument_id": {
+          "description": "El CFD (por ejemplo US500). Con velas de futuros, el motor guarda todo bajo el instrumento derivado (US500.FUT), como backtest_run.v1.",
+          "$ref": "#/$defs/instrument_id"
+        },
+        "source": {
+          "description": "Fuente de velas. v1: solo futuros (el arnés de investigación). Agregar otra fuente es un cambio compatible.",
+          "enum": ["futures"]
+        },
+        "timeframe": {
+          "description": "Timeframe de la señal. La ejecución, el stop y las salidas se simulan siempre con velas de 15m.",
+          "enum": ["15m", "1h"]
+        }
+      }
+    },
+    "direction": {
+      "description": "Qué lados se operan: solo largos, solo cortos o los dos.",
+      "enum": ["long", "short", "both"]
+    },
+    "entry": {
+      "description": "Condiciones de entrada unidas con \"y\": se entra al cierre de la vela t solo si todas dan señal en t y en el mismo lado. Sin \"o\" en la v1. El tope lo da el catálogo (limits.max_entry_conditions).",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/block" }
+    },
+    "filters": {
+      "description": "Filtros que solo pueden quitar entradas, nunca agregarlas. Vacío = sin filtros. El tope lo da el catálogo (limits.max_filters).",
+      "type": "array",
+      "items": { "$ref": "#/$defs/block" }
+    },
+    "stop": {
+      "description": "Stop obligatorio (CLAUDE.md §5): sin stop no hay estrategia.",
+      "$ref": "#/$defs/block"
+    },
+    "exit": {
+      "description": "Salida: por tiempo y/o por objetivo, según los parámetros del bloque en el catálogo.",
+      "$ref": "#/$defs/block"
+    },
+    "risk_pct": {
+      "description": "Riesgo por operación en % del capital. Nunca más que el de config/risk.toml (limits.max_risk_pct del catálogo); el tamaño lo da siempre el módulo de riesgo.",
+      "$ref": "#/$defs/decimal"
+    },
+    "cost_multiplier": {
+      "description": "Multiplicador de todos los costos del catálogo (spread, slippage, comisión y financiación). Solo se pueden subir: nunca menos que limits.min_cost_multiplier (1).",
+      "$ref": "#/$defs/decimal"
+    },
+    "period": {
+      "description": "Período pedido [from, to). Nunca puede tocar el fuera de muestra (guardia research_period, config/data_split.toml).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "description": "Inclusive.", "$ref": "#/$defs/utc" },
+        "to": { "description": "Exclusive.", "$ref": "#/$defs/utc" }
+      }
+    },
+    "mode": {
+      "description": "exploratory: libre, cada resultado dice \"exploratorio, no vota\" y queda contado como lab_trial. confirmatory: solo con un pre-registro congelado (flujo L13, todavía no disponible: el motor lo rechaza).",
+      "enum": ["exploratory", "confirmatory"]
+    },
+    "preregistration_sha256": {
+      "description": "Solo en modo confirmatorio: SHA-256 del pre-registro congelado. Opcional.",
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "block": {
+      "description": "Un bloque del catálogo: su tipo y sus parámetros por nombre. Los nombres, tipos y rangos de cada parámetro los da strategy_catalog.v1; un parámetro opcional ausente queda apagado.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "params"],
+      "properties": {
+        "type": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$" },
+        "params": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[a-z][a-z0-9_]{0,39}$" },
+          "additionalProperties": { "$ref": "#/$defs/param_value" }
+        }
+      }
+    },
+    "param_value": {
+      "description": "Entero (kind integer), booleano (kind boolean) o texto: decimal como texto (kind decimal), hora \"HH:MM\" (kind time) u opción (kind enum).",
+      "oneOf": [
+        { "type": "integer" },
+        { "type": "boolean" },
+        { "type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,40}$" }
+      ]
+    },
+    "instrument_id": {
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$"
+    },
+    "decimal": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    }
+  }
+}

@@ -14,32 +14,19 @@ use cfds_core::{
     Candle, InstrumentId, KillSwitch, Order, OrderSide, OrderStatus, PaperMode, Timeframe,
 };
 use cfds_risk::{InstrumentLimits, RiskConfig};
+use cfds_storage::test_db::with_database;
 use cfds_storage::{PgStore, StorageError};
 use chrono::{DateTime, NaiveTime, TimeDelta, Utc};
 use rust_decimal::{Decimal, dec};
 
 const RISK: &str = include_str!("../../../../config/risk.toml");
 const BACKTEST: &str = include_str!("../../../../config/backtest.toml");
-const BROKER: &str = include_str!("../../../../config/broker.toml");
+const BROKER: &str = include_str!("fixtures/broker.toml");
 const DB: &str = "cfds_test_broker";
-
-/// La misma URL, apuntando a otra base.
-fn with_database(url: &str, db: &str) -> String {
-    let (base, query) = url
-        .split_once('?')
-        .map_or((url, None), |(b, q)| (b, Some(q)));
-    let (server, _) = base
-        .rsplit_once('/')
-        .expect("DATABASE_URL sin nombre de base");
-    match query {
-        Some(q) => format!("{server}/{db}?{q}"),
-        None => format!("{server}/{db}"),
-    }
-}
 
 /// Crea `cfds_test_broker` desde cero y devuelve la conexión con las migraciones hechas.
 async fn fresh_store() -> PgStore {
-    let url = std::env::var("DATABASE_URL").expect("falta DATABASE_URL (necesita PostgreSQL)");
+    let url = cfds_storage::test_db::test_database_url();
     let admin = PgStore::connect(&url).await.unwrap();
     sqlx::query("DROP DATABASE IF EXISTS cfds_test_broker WITH (FORCE)")
         .execute(admin.pool())
@@ -87,7 +74,7 @@ fn markets() -> BTreeMap<InstrumentId, MarketSetup> {
                     funding_admin_fee_pct: dec!(2.5),
                     funding_day_count: dec!(365),
                 },
-                account_to_instrument: Decimal::ONE,
+                account_to_instrument: cfds_backtest::AccountFx::Same,
                 candles,
                 funding: FundingSetup {
                     cutoff: NaiveTime::from_hms_opt(23, 0, 0).unwrap(),
@@ -225,16 +212,4 @@ async fn the_order_journal_lives_in_postgres_and_rebuilds_the_broker() {
     .execute(store.pool())
     .await;
     assert!(live.is_err(), "una orden real no entra al registro");
-}
-
-#[test]
-fn the_test_database_url_keeps_server_and_options() {
-    assert_eq!(
-        with_database("postgres://u:p@h:5432/cfds?sslmode=disable", DB),
-        "postgres://u:p@h:5432/cfds_test_broker?sslmode=disable"
-    );
-    assert_eq!(
-        with_database("postgres://u:p@h/cfds", DB),
-        "postgres://u:p@h/cfds_test_broker"
-    );
 }

@@ -193,7 +193,7 @@ fn pair(source: Source, tag: &str, i: u32, start: DateTime<Utc>, hit: bool) -> (
 #[tokio::test]
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn the_report_its_proposals_and_votes_are_stored_once() {
-    let url = std::env::var("DATABASE_URL").expect("necesita PostgreSQL: DATABASE_URL");
+    let url = cfds_storage::test_db::test_database_url();
     let store = PgStore::connect(&url).await.unwrap();
     store.migrate().await.unwrap();
     store
@@ -207,10 +207,12 @@ async fn the_report_its_proposals_and_votes_are_stored_once() {
         .await
         .unwrap();
     let j = PgJournal::new(store.pool().clone());
-    // Ids propios por corrida del test (solo agregar). Fechas lejanas para no mezclarse.
-    let tag = format!("t{}", Utc::now().timestamp_nanos_opt().unwrap());
+    // Ids propios por corrida del test (solo agregar). Fechas lejanas para no mezclarse: cada
+    // corrida toma un tramo propio de 61 días (sus 60 días de propuestas no tocan los de otra).
+    let tag = cfds_storage::test_db::unique_id("t");
+    let slot = cfds_storage::test_db::unique_number() % 10_000;
     let base = Utc.with_ymd_and_hms(2090, 1, 5, 0, 0, 0).unwrap()
-        + Duration::minutes(Utc::now().timestamp() % 100_000);
+        + Duration::days(61 * i64::try_from(slot).unwrap());
     let train_tag = format!("{tag}-bt");
     for i in 0..40 {
         let (p, o) = pair(Source::Backtest, &train_tag, i, base, i % 2 == 0);

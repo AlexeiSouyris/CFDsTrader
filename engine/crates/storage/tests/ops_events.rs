@@ -28,12 +28,12 @@ fn event(ts: DateTime<Utc>, run: &str, n: i64) -> OpsEventRecord {
 #[tokio::test]
 #[ignore = "necesita PostgreSQL: DATABASE_URL"]
 async fn saved_from_a_read_only_session_in_order_append_only_and_purged_only_by_retention() {
-    let url = std::env::var("DATABASE_URL").expect("falta DATABASE_URL (necesita PostgreSQL)");
+    let url = cfds_storage::test_db::test_database_url();
     let rw = PgStore::connect(&url).await.unwrap();
     rw.migrate().await.unwrap();
     let ro = PgStore::connect(&read_only(&url)).await.unwrap();
     // Hora futura propia de esta corrida: estos eventos son los más nuevos de la tabla.
-    let run = Utc::now().timestamp_nanos_opt().unwrap().to_string();
+    let run = cfds_storage::test_db::unique_id("ops");
     let t = Utc::now() + TimeDelta::days(3650);
     let events = vec![
         event(t, &run, 0),

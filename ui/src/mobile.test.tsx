@@ -218,24 +218,24 @@ describe('celular: gestos, gráficos y ticket (#307)', () => {
   it('deslizar con el dedo cambia de pestaña; desde el borde o sobre un gráfico, no', () => {
     render(<App initialStage="app" />)
     const main = screen.getByRole('main')
-    expect(heading()).toHaveTextContent('Panel')
+    expect(heading()).toHaveTextContent('Inicio')
     fingerSwipe(main, 400, 200)
     expect(heading()).toHaveTextContent('Terminal')
     fingerSwipe(main, 200, 400)
-    expect(heading()).toHaveTextContent('Panel')
+    expect(heading()).toHaveTextContent('Inicio')
 
     // pegado al borde izquierdo: es el "atrás" del iPhone
     fingerSwipe(main, 10, 300)
-    expect(heading()).toHaveTextContent('Panel')
+    expect(heading()).toHaveTextContent('Inicio')
     // corto o vertical: no cuenta
     fingerSwipe(main, 400, 360)
-    expect(heading()).toHaveTextContent('Panel')
+    expect(heading()).toHaveTextContent('Inicio')
 
     const chart = document.createElement('div')
     chart.className = 'touch-none'
     main.appendChild(chart)
     fingerSwipe(chart, 400, 100)
-    expect(heading()).toHaveTextContent('Panel')
+    expect(heading()).toHaveTextContent('Inicio')
   })
 
   it('con 4 gráficos, en el celular se ve uno y un selector elige cuál', () => {

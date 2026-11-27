@@ -52,7 +52,7 @@ pub struct RunnerDeps {
     pub probability: Option<ProbabilityTable>,
     pub probability_cfg: ProbabilityConfig,
     /// Propuestas de paper con el resultado ya en el diario (en memoria; tras reiniciar se
-    /// vuelven a mirar y el diario no duplica nada).
+    /// mira el diario antes de valuar: lo ya guardado no se vuelve a escribir, #438).
     pub outcomes_done: Mutex<BTreeSet<String>>,
 }
 
@@ -282,6 +282,14 @@ impl PgPaper {
             );
             publish(&self.ops.log, &self.ops.alerts, &step.notices, now).await;
             if let (Some(order), Some(signal)) = (&step.order, &step.signal) {
+                // Con el registro vacío, las velas desde esta orden menos la ventana, como las
+                // cargará la reconstrucción (#481). Si no se pueden leer, no se manda.
+                if let Err(e) = self.cover_first_order(broker, order, now).await {
+                    self.fail(AlertKind::Disconnect, "store_failed", &e, now)
+                        .await;
+                    continue;
+                }
+                self.anchor_candles(broker);
                 // El apalancamiento que decide el riesgo, antes de enviar (la vista previa no
                 // cambia nada).
                 let verdict = broker.preview(order, order.created_at);
@@ -351,6 +359,25 @@ impl PgPaper {
             let Some(outcome) = paper_outcome(pid, &t) else {
                 continue;
             };
+            // Después de un reinicio: si el resultado ya está en el diario, no se reescribe
+            // (el diario nunca se reescribe; una valuación distinta sería un error en cada paso).
+            match self.journal.outcome(pid, outcome.kind).await {
+                Ok(Some(_)) => {
+                    done.insert(pid.clone());
+                    continue;
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    self.fail(
+                        AlertKind::Disconnect,
+                        "outcome_write_failed",
+                        &e.to_string(),
+                        now,
+                    )
+                    .await;
+                    continue;
+                }
+            }
             let written = match self.journal.proposal(pid).await {
                 Ok(Some(p)) => self.journal.record(&p, Some(&outcome)).await.map(|_| ()),
                 // Sin propuesta en el diario (por ejemplo, una orden del ticket manual): nada.

@@ -1,3 +1,9 @@
 dist
 node_modules
 package-lock.json
+
+# datos de las pruebas e2e (#661): se generan, no se formatean a mano
+e2e/fixtures
+e2e/__screenshots__
+test-results
+playwright-report
