@@ -4,8 +4,10 @@
  * órdenes (`/api/v1/paper/orders` solo acepta `POST`), así que la lista es de la sesión: se pierde
  * al recargar. Solo muestra lo que llegó; no calcula nada.
  */
+import { InstrumentName } from '@/components/ui/instrument-name'
 import { ScrollRegion } from '@/components/ui/scroll-region'
 import { dateTimeUtc, decimal } from '@/lib/format'
+import type { InstrumentNames } from '@/lib/liquidity-api'
 import { REJECTION_LABEL, type Order, type OrderReport } from '@/lib/paper-contracts'
 import { cn } from '@/lib/utils'
 
@@ -17,7 +19,14 @@ const STATUS: Record<OrderReport['status'], { label: string; tone: string }> = {
   rejected: { label: 'Rechazada', tone: 'bg-down/10 text-down' },
 }
 
-export function SessionOrders({ orders }: { orders: SentOrder[] }) {
+export function SessionOrders({
+  orders,
+  names = {},
+}: {
+  orders: SentOrder[]
+  /** nombres legibles del catálogo (#861) */
+  names?: InstrumentNames
+}) {
   if (orders.length === 0)
     return (
       <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-[13px] text-muted-foreground">
@@ -71,7 +80,11 @@ export function SessionOrders({ orders }: { orders: SentOrder[] }) {
                   {dateTimeUtc(report.at)}
                 </td>
                 <td className={cn(cell, 'whitespace-nowrap')}>
-                  <span className="font-extrabold">{order.instrument_id}</span>{' '}
+                  <InstrumentName
+                    id={order.instrument_id}
+                    names={names}
+                    className="font-extrabold"
+                  />{' '}
                   <span
                     className={cn(
                       'ml-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-bold',

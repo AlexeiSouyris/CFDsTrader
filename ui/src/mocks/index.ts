@@ -95,13 +95,18 @@ function withChange(row: Omit<SparkRow, 'changePct'>): SparkRow {
 export const INDEX_ROWS: SparkRow[] = [
   {
     id: 'US100',
-    label: 'EEUU Tech 100',
-    sublabel: 'NASDAQ 100',
+    label: 'Nasdaq 100',
+    sublabel: 'US100',
     points: dailySeries(1, 24800, 0.09),
   },
-  { id: 'US500', label: 'US 500', sublabel: 'S&P 500', points: dailySeries(2, 6420, 0.05) },
-  { id: 'US30', label: 'Wall Street', sublabel: 'Dow Jones', points: dailySeries(3, 46100, 0.02) },
-  { id: 'DE40', label: 'Alemania 40', sublabel: 'DAX', points: dailySeries(4, 23900, -0.015) },
+  { id: 'US500', label: 'S&P 500', sublabel: 'US500', points: dailySeries(2, 6420, 0.05) },
+  { id: 'US30', label: 'Dow Jones 30', sublabel: 'US30', points: dailySeries(3, 46100, 0.02) },
+  {
+    id: 'DE40',
+    label: 'DAX 40 (Alemania)',
+    sublabel: 'DE40',
+    points: dailySeries(4, 23900, -0.015),
+  },
 ].map(withChange)
 
 export type HeatmapCompany = {

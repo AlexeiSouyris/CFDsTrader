@@ -11,9 +11,11 @@
  */
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react'
 
+import { InstrumentName } from '@/components/ui/instrument-name'
 import type { ExitReason } from '@/lib/backtest-contracts'
 import { dateUtc, decimal, isNegative, signed } from '@/lib/format'
 import { useJournal, type JournalEntry } from '@/lib/journal-api'
+import { useInstrumentNames, type InstrumentNames } from '@/lib/liquidity-api'
 import { cn } from '@/lib/utils'
 import type { Proposal } from '@/mocks'
 
@@ -52,7 +54,13 @@ function byDay(entries: JournalEntry[]) {
   return days
 }
 
-function Entry({ entry: { proposal: p, outcome: o } }: { entry: JournalEntry }) {
+function Entry({
+  entry: { proposal: p, outcome: o },
+  names,
+}: {
+  entry: JournalEntry
+  names: InstrumentNames
+}) {
   const long = p.side === 'long'
   const Arrow = long ? ArrowUpRight : ArrowDownRight
   return (
@@ -67,7 +75,7 @@ function Entry({ entry: { proposal: p, outcome: o } }: { entry: JournalEntry }) 
           {TIME.format(new Date(p.signal_at))} UTC
         </time>
         <h3 className="flex items-center gap-1.5 text-[15px] font-bold">
-          {p.instrument_id}
+          <InstrumentName id={p.instrument_id} names={names} />
           <span className="inline-flex items-center gap-0.5 text-[12.5px] font-semibold text-muted-foreground">
             <Arrow aria-hidden="true" className="size-3.5" />
             {long ? 'largo' : 'corto'}
@@ -123,6 +131,7 @@ function Quiet({ children, role }: { children: string; role: 'status' | 'alert' 
 
 export function JournalView() {
   const journal = useJournal()
+  const names = useInstrumentNames()
   return (
     <div
       data-section="journal"
@@ -161,7 +170,7 @@ export function JournalView() {
               </h2>
               <ol className="ml-1 border-l border-accent/40">
                 {entries.map((e) => (
-                  <Entry key={e.proposal.id} entry={e} />
+                  <Entry key={e.proposal.id} entry={e} names={names} />
                 ))}
               </ol>
             </div>

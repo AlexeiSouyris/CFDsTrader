@@ -115,6 +115,32 @@ export function useRemote<T>(
 
 export const useInstruments = () => useRemote('instruments', fetchInstruments)
 
+/** id → nombre legible de cada instrumento del catálogo del motor (#861). */
+export type InstrumentNames = Readonly<Record<string, string>>
+
+/**
+ * Los nombres del catálogo, o nada mientras carga, sin gateway o con una respuesta que no es la del
+ * contrato (los nombres son solo para mostrar: nunca rompen la vista).
+ */
+export const catalogNames = (catalog: Remote<GatewayInstruments>): InstrumentNames =>
+  catalog.status === 'ok' && Array.isArray(catalog.data?.instruments)
+    ? Object.fromEntries(
+        catalog.data.instruments
+          .filter((i) => typeof i?.id === 'string' && typeof i?.name === 'string')
+          .map((i) => [i.id, i.name]),
+      )
+    : {}
+
+/** Los nombres legibles del catálogo (`GET /api/v1/instruments`), para no mostrar el id solo. */
+export const useInstrumentNames = (): InstrumentNames => catalogNames(useInstruments())
+
+/** El nombre legible de un instrumento; el id si el catálogo no lo tiene (IBKR, sin gateway). */
+export const instrumentName = (names: InstrumentNames, id: string): string => names[id] ?? id
+
+/** "S&P 500 (US500)" para textos corridos; el id solo si el catálogo no tiene nombre. */
+export const instrumentLabel = (names: InstrumentNames, id: string): string =>
+  names[id] && names[id] !== id ? `${names[id]} (${id})` : id
+
 /** La vista de un instrumento, timeframe y fuente; `null` mientras no se sepa cuál. */
 export function useLiquidityView(
   sel: { instrument: string; timeframe: ViewTimeframe; source?: SourceChoice } | null,

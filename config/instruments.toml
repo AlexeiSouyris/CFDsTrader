@@ -97,9 +97,13 @@ SOFR = { value = "3.94", source = "nyfed-sofr" }
 # Spread típico (#67): el MAYOR entre el medido en la demo en sesión regular (ig-demo-spread) y el
 # mínimo publicado para la cuenta real (ig-es-indices), para no subestimar costos si la demo tiene
 # spreads más finos. Decisión de Alexei en #67. Tabla por franja horaria en la fuente ig-demo-spread.
+#
+# `name` es solo el nombre que muestra la app (#861): el conocido del índice, no el de IG (EEUU
+# Tech 100, US 500, Wall Street, Alemania 40, Oro al contado). Nada lo cruza con el broker: al
+# broker se lo identifica por `epic`.
 
 [instruments.US100]
-name = "EEUU Tech 100"
+name = "Nasdaq 100"
 asset_class = "index"
 currency = "EUR"   # contrato de 1 € por punto (#67); el índice cotiza en puntos
 exchange = "XNYS"
@@ -117,7 +121,7 @@ funding_day_count = { value = "360", source = "ig-es-costes" }
 funding_benchmark = { value = "SOFR", source = "ig-chat-sofr" }
 
 [instruments.US500]
-name = "US 500"
+name = "S&P 500"
 asset_class = "index"
 currency = "EUR"   # contrato de 1 € por punto (#67); el índice cotiza en puntos
 exchange = "XNYS"
@@ -135,7 +139,7 @@ funding_day_count = { value = "360", source = "ig-es-costes" }
 funding_benchmark = { value = "SOFR", source = "ig-chat-sofr" }
 
 [instruments.US30]
-name = "Wall Street"
+name = "Dow Jones 30"
 asset_class = "index"
 currency = "EUR"   # contrato de 1 € por punto (#67); el índice cotiza en puntos
 exchange = "XNYS"
@@ -153,7 +157,7 @@ funding_day_count = { value = "360", source = "ig-es-costes" }
 funding_benchmark = { value = "SOFR", source = "ig-chat-sofr" }
 
 [instruments.DE40]
-name = "Alemania 40"
+name = "DAX 40 (Alemania)"
 asset_class = "index"
 currency = "EUR"
 exchange = "XETR"
@@ -176,7 +180,7 @@ funding_benchmark = { value = "ESTR", source = "ig-es-costes" }
 # el 2026-11-24), así que los términos de IG quedan pendientes. No se llamó a la API de IG: el cupo
 # semanal está debajo de la reserva (#360).
 [instruments.US2000]
-name = "EE. UU. Russell 2000"
+name = "Russell 2000"
 asset_class = "index"
 currency = "EUR"   # como los demás índices de EE. UU. (#67), si IG ofrece el contrato de 1 €; confirmar
 exchange = "XNYS"
@@ -207,7 +211,7 @@ funding_benchmark = { pending = "IG España no lista este índice (2026-11-24). 
 
 # Oro al contado. Sesión de CME Globex como aproximación de la de IG (config/sessions.toml).
 [instruments.XAUUSD]
-name = "Oro al contado"
+name = "Oro"
 asset_class = "commodity"
 currency = "USD"   # ninguna materia prima de la tabla de CFD de IG está en EUR (ADR 0013)
 exchange = "CMEGLOBEX_METALS"

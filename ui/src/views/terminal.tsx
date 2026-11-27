@@ -66,7 +66,12 @@ import {
   type ChartSel,
 } from '@/lib/chart-slots'
 import { signed } from '@/lib/format'
-import { useInstruments } from '@/lib/liquidity-api'
+import {
+  catalogNames,
+  instrumentName,
+  type InstrumentNames,
+  useInstruments,
+} from '@/lib/liquidity-api'
 import type { ChartTimeframe } from '@/lib/liquidity-bars'
 import type { ViewTimeframe } from '@/lib/liquidity-contracts'
 import { ibkrSummaries, useMarketSummaries, type MarketSummary } from '@/lib/market-summary'
@@ -208,6 +213,7 @@ function ChartSlot({
   active,
   tools,
   onTools,
+  names,
 }: {
   index: number
   sel: ChartSel
@@ -222,6 +228,8 @@ function ChartSlot({
   active: boolean
   tools: ChartTools
   onTools: (patch: Partial<ChartTools>) => void
+  /** nombres legibles del catálogo (#861) */
+  names: InstrumentNames
 }) {
   const slot = useChartSlot(sel)
   const keys = [
@@ -252,7 +260,9 @@ function ChartSlot({
             options={keys.includes(current) ? keys : [current, ...keys]}
             format={(k) => {
               const p = parseSelKey(k)
-              return p.feed === 'ibkr' ? `${p.instrument} · IBKR` : p.instrument
+              return p.feed === 'ibkr'
+                ? `${p.instrument} · IBKR`
+                : instrumentName(names, p.instrument)
             }}
             value={current}
             onChange={(k) => {
@@ -280,6 +290,7 @@ function ChartSlot({
         mode={tools.mode}
         onMode={(mode) => onTools({ mode })}
         ohlc
+        names={names}
       />
     </Panel>
   )
@@ -380,10 +391,7 @@ export function TerminalView({ member }: { member: Member }) {
   }, [])
   const { instruments, timeframes } = useChartCatalog()
   const catalog = useInstruments()
-  const names: Record<string, string> =
-    catalog.status === 'ok'
-      ? Object.fromEntries(catalog.data.instruments.map((i) => [i.id, i.name]))
-      : {}
+  const names = catalogNames(catalog)
   const summaries = useMarketSummaries(instruments)
   const ibkr = useMarketSummaries([], ibkrSummaries)
   const ibkrInstruments = ibkr.rows.map((r) => r.instrument_id)
@@ -493,6 +501,7 @@ export function TerminalView({ member }: { member: Member }) {
                 active={count > 1 && i === current}
                 tools={tools[i]}
                 onTools={(patch) => patchTools(i, patch)}
+                names={names}
                 onChange={(s) =>
                   setSaved((prev) => ({
                     ...prev,
@@ -518,7 +527,7 @@ export function TerminalView({ member }: { member: Member }) {
             className="mb-2 rounded-xl border border-[var(--chart-signal)]/50 px-3 py-2 text-[12px] leading-snug"
           >
             <strong className="block font-bold">
-              {activeSel.instrument} (IBKR): solo datos, no operable.
+              {instrumentName(names, activeSel.instrument)} (IBKR): solo datos, no operable.
             </strong>
             <span className="text-muted-foreground">
               El gráfico muestra las velas de IBKR; el ticket sigue con los instrumentos del broker
@@ -563,7 +572,7 @@ export function TerminalView({ member }: { member: Member }) {
         Pidiendo las posiciones al broker simulado…
       </p>
     ) : (
-      <PositionsTable positions={openPositions} />
+      <PositionsTable positions={openPositions} names={names} />
     )
 
   const tabLabel: Record<Tab, string> = {
@@ -810,7 +819,7 @@ export function TerminalView({ member }: { member: Member }) {
         </div>
         <div role="tabpanel" id="terminal-tabpanel" aria-labelledby={`terminal-tab-${tab}`}>
           {tab === 'Posiciones' && positions}
-          {tab === 'Órdenes' && <SessionOrders orders={sent} />}
+          {tab === 'Órdenes' && <SessionOrders orders={sent} names={names} />}
           {tab === 'Historial' && <History account={account} live={live} />}
           {tab === 'Actividad' && <Activity />}
           {tab === 'Noticias' && (

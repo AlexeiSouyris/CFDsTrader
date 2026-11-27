@@ -170,6 +170,7 @@ const STATE_STYLE: Record<LevelState, { stroke: string; dash?: string; opacity: 
 
 export function LiquidityChart({
   instrument,
+  displayName = instrument,
   timeframe = '15m',
   caption = 'liquidez',
   liquidity = true,
@@ -195,6 +196,8 @@ export function LiquidityChart({
   className,
 }: {
   instrument: string
+  /** el nombre legible del instrumento (#861), para la cabecera; por defecto, el id */
+  displayName?: string
   /** `1m` solo para las velas de IBKR (#556), que no traen capas de liquidez */
   timeframe?: ChartTimeframe
   /** qué se ve, en la cabecera (por defecto, "liquidez"; las velas de IBKR dicen su fuente) */
@@ -608,7 +611,7 @@ export function LiquidityChart({
           <div>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <p className="text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase">
-                {instrument} · {TF_LABEL[timeframe].short} · {caption}
+                {displayName} · {TF_LABEL[timeframe].short} · {caption}
               </p>
               {vix && (
                 <span
@@ -653,7 +656,7 @@ export function LiquidityChart({
           role="img"
           tabIndex={0}
           data-swipe-ignore
-          aria-label={`${instrument}, ${count} ${TF_LABEL[timeframe].long[count === 1 ? 0 : 1]} con ${shownLevels.length} niveles de liquidez y ${shownFvgs.length} FVG. ${coarse ? 'Deslizá un dedo en horizontal para moverte en el tiempo y pellizcá con dos para acercar o alejar' : 'Arrastrá para moverte en el tiempo y usá Ctrl o ⌘ más la rueda (o la rueda después de un clic) para acercar o alejar'}; con el foco, flechas para desplazar y + y − para el zoom.`}
+          aria-label={`${displayName}, ${count} ${TF_LABEL[timeframe].long[count === 1 ? 0 : 1]} con ${shownLevels.length} niveles de liquidez y ${shownFvgs.length} FVG. ${coarse ? 'Deslizá un dedo en horizontal para moverte en el tiempo y pellizcá con dos para acercar o alejar' : 'Arrastrá para moverte en el tiempo y usá Ctrl o ⌘ más la rueda (o la rueda después de un clic) para acercar o alejar'}; con el foco, flechas para desplazar y + y − para el zoom.`}
           className={cn(
             'block w-full touch-pan-y select-none focus-visible:outline-2 focus-visible:outline-ring',
             ruler ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing',

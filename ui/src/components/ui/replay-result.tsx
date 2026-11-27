@@ -8,6 +8,7 @@ import { Check, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { dateTimeUtc, decimal, signed } from '@/lib/format'
+import { instrumentLabel, type InstrumentNames } from '@/lib/liquidity-api'
 import type { ExamResult, ExamRule, Outcome, PivotGrade } from '@/lib/replay-contracts'
 
 const RULE: Record<ExamRule['rule'], string> = {
@@ -117,11 +118,14 @@ export function ReplayResult({
   result: r,
   digits,
   barAt,
+  names = {},
 }: {
   result: ExamResult
   digits: number
   /** la vela por su número, si se llegó a ver (si no, «vela N») */
   barAt: (index: number) => string
+  /** nombres legibles del catálogo (#861) */
+  names?: InstrumentNames
 }) {
   const pct = (p: string | null) => (p === null ? '—' : `${decimal(p)} %`)
   const rr = (v: string | null) => (v === null ? '—' : `${signed(v, 2)} R`)
@@ -194,7 +198,7 @@ export function ReplayResult({
 
       <Part title={`${next()}. La fecha real`}>
         <p className="text-[12.5px]">
-          {r.revealed.instrument_id} · {r.revealed.timeframe} ·{' '}
+          {instrumentLabel(names, r.revealed.instrument_id)} · {r.revealed.timeframe} ·{' '}
           {r.revealed.source === 'futures' ? 'velas de futuros' : 'velas del CFD de IG'}: del{' '}
           <time dateTime={r.revealed.first_bar_at}>{dateTimeUtc(r.revealed.first_bar_at, 0)}</time>{' '}
           al <time dateTime={r.revealed.last_bar_at}>{dateTimeUtc(r.revealed.last_bar_at, 0)}</time>

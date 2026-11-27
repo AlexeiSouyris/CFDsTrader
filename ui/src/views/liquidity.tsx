@@ -19,7 +19,15 @@ import { LiquidityChart } from '@/components/ui/liquidity-chart'
 import { FvgTable, ImbalanceGauge, LevelsTable, StatsPanel } from '@/components/ui/liquidity-panels'
 import { Segmented } from '@/components/ui/segmented'
 import { Term } from '@/components/ui/term'
-import { fetchOlderBars, useInstruments, useLiquidityView } from '@/lib/liquidity-api'
+import {
+  catalogNames,
+  fetchOlderBars,
+  instrumentLabel,
+  instrumentName,
+  type InstrumentNames,
+  useInstruments,
+  useLiquidityView,
+} from '@/lib/liquidity-api'
 import { chartBars } from '@/lib/liquidity-bars'
 import type { LiquidityViewData, SourceChoice, ViewTimeframe } from '@/lib/liquidity-contracts'
 import { dateTimeUtc } from '@/lib/format'
@@ -168,6 +176,7 @@ function LiveLiquidity() {
     )
   // Las fuentes las manda el motor; sin ellas (gateway anterior) solo existe la del CFD.
   const sources = catalog.data.sources ?? []
+  const names = catalogNames(catalog)
   const futuresSel = isFutures(sel?.source)
   const controls = sel && (
     <div className="flex min-w-0 flex-wrap gap-2">
@@ -175,6 +184,7 @@ function LiveLiquidity() {
         <Segmented
           label="Instrumento"
           options={catalog.data.instruments.map((i) => i.id)}
+          format={(id) => instrumentName(names, id)}
           value={sel.instrument}
           onChange={(instrument) => setPicked({ ...sel, instrument })}
         />
@@ -215,13 +225,20 @@ function LiveLiquidity() {
     <Shell controls={controls}>
       {state.status === 'loading' && <Waiting />}
       {state.status === 'error' && <Unreachable message={state.message} />}
-      {state.status === 'ok' && <LiquidityContent data={state.data} />}
+      {state.status === 'ok' && <LiquidityContent data={state.data} names={names} />}
     </Shell>
   )
 }
 
 /** Lo que muestra la vista con una respuesta del gateway (también la usan los tests). */
-export function LiquidityContent({ data }: { data: LiquidityViewData }) {
+export function LiquidityContent({
+  data,
+  names = {},
+}: {
+  data: LiquidityViewData
+  /** los nombres legibles del catálogo (#861) */
+  names?: InstrumentNames
+}) {
   const tf = data.timeframe ?? '15m'
   const source = data.source?.label ?? 'IG CFD'
   const futures = isFutures(data.source?.id)
@@ -229,8 +246,8 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
     return (
       <Note title="Sin datos todavía">
         <p className="text-[13px]">
-          El motor todavía no tiene {TF_TEXT[tf][1]} de {data.instrument_id} guardadas. Fuente:{' '}
-          {source}.{' '}
+          El motor todavía no tiene {TF_TEXT[tf][1]} de {instrumentLabel(names, data.instrument_id)}{' '}
+          guardadas. Fuente: {source}.{' '}
           {futures && tf === '1d'
             ? 'Los futuros no tienen velas diarias.'
             : 'La vista se llena sola cuando lleguen.'}
@@ -266,6 +283,7 @@ export function LiquidityContent({ data }: { data: LiquidityViewData }) {
           <LiquidityChart
             key={`${data.instrument_id}|${tf}`}
             instrument={data.instrument_id}
+            displayName={instrumentName(names, data.instrument_id)}
             timeframe={tf}
             bars={chartBars(data)}
             levels={data.levels}

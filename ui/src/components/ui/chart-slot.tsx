@@ -11,6 +11,7 @@ import type { DrawTool } from '@/lib/chart-drawings'
 import type { CursorSync } from '@/lib/cursor-sync'
 import { LiquidityChart } from '@/components/ui/liquidity-chart'
 import type { SlotData } from '@/lib/chart-slots'
+import { instrumentLabel, instrumentName, type InstrumentNames } from '@/lib/liquidity-api'
 import { CHART_SIGNALS } from '@/mocks'
 
 /** El gráfico de un lugar, o el aviso mientras se pide o si no hay velas. */
@@ -27,6 +28,7 @@ export function SlotChart({
   onDraw,
   syncCursor,
   ohlc,
+  names = {},
 }: {
   slot: SlotData
   height: number
@@ -45,8 +47,11 @@ export function SlotChart({
   syncCursor?: CursorSync
   /** OHLC de la vela bajo el cursor en la cabecera (#581): ver `LiquidityChart` */
   ohlc?: boolean
+  /** nombres legibles del catálogo (#861); sin nombre, el id */
+  names?: InstrumentNames
 }) {
   const { sel, view, ibkr } = slot
+  const label = instrumentLabel(names, sel.instrument)
   const ibkrSel = sel.feed === 'ibkr'
   if (slot.bars.length === 0)
     return (
@@ -56,18 +61,22 @@ export function SlotChart({
         style={{ minHeight: height }}
       >
         {slot.loading
-          ? `Pidiendo ${sel.instrument} (${sel.timeframe}) ${ibkrSel ? 'de IBKR' : 'al motor'}…`
+          ? `Pidiendo ${label} (${sel.timeframe}) ${ibkrSel ? 'de IBKR' : 'al motor'}…`
           : slot.offline
-            ? `Sin velas de ${sel.instrument} en ${sel.timeframe}: el gateway no respondió.`
+            ? `Sin velas de ${label} en ${sel.timeframe}: el gateway no respondió.`
             : ibkrSel
-              ? `IBKR todavía no tiene velas de ${sel.instrument} en ${sel.timeframe}.`
-              : `El motor todavía no tiene velas de ${sel.instrument} en ${sel.timeframe}.`}
+              ? `IBKR todavía no tiene velas de ${label} en ${sel.timeframe}.`
+              : `El motor todavía no tiene velas de ${label} en ${sel.timeframe}.`}
       </p>
     )
   const chart = (
     <LiquidityChart
       key={`${sel.feed ?? ''}|${sel.instrument}|${sel.timeframe}`}
       instrument={ibkr?.instrument_id ?? view?.instrument_id ?? sel.instrument}
+      displayName={instrumentName(
+        names,
+        ibkr?.instrument_id ?? view?.instrument_id ?? sel.instrument,
+      )}
       timeframe={ibkr?.timeframe ?? view?.timeframe ?? sel.timeframe}
       caption={ibkr?.series ? `IBKR · ${ibkr.series.contract} · solo datos` : undefined}
       liquidity={!ibkrSel}

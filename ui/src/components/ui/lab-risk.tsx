@@ -12,6 +12,7 @@ import { useEffect, useId, useState } from 'react'
 import { Segmented } from '@/components/ui/segmented'
 import { dateTimeUtc, decimal } from '@/lib/format'
 import { previewRisk } from '@/lib/lab-api'
+import { instrumentLabel, useInstrumentNames } from '@/lib/liquidity-api'
 import type { RiskPreview, RiskPreviewRequest, StrategyCatalog } from '@/lib/lab-contracts'
 import { equityText, schemaOf } from '@/lib/lab-spec'
 import { REJECTION_LABEL } from '@/lib/paper-contracts'
@@ -122,6 +123,7 @@ function Result({ r }: { r: RiskPreview }) {
 
 export function RiskCalculator({ cat }: { cat: StrategyCatalog }) {
   const id = useId()
+  const names = useInstrumentNames()
   const atr = schemaOf(cat, 'atr')?.params
   const pick = (name: string) => {
     const p = atr?.find((x) => x.name === name)
@@ -190,7 +192,7 @@ export function RiskCalculator({ cat }: { cat: StrategyCatalog }) {
           >
             {cat.markets.map((m) => (
               <option key={m.instrument_id} value={m.instrument_id}>
-                {m.instrument_id}
+                {instrumentLabel(names, m.instrument_id)}
               </option>
             ))}
           </select>
