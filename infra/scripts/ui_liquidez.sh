@@ -51,4 +51,8 @@ cd "$ROOT/ui"
 if [ ! -f node_modules/.package-lock.json ] || [ package-lock.json -nt node_modules/.package-lock.json ]; then
   npm ci
 fi
+# CFDS_NO_OPEN=1 (arranque automático, #863): no abre el navegador.
+if [ -n "${CFDS_NO_OPEN:-}" ]; then
+  VITE_SKIP_SIGNIN=1 exec npx vite
+fi
 VITE_SKIP_SIGNIN=1 npx vite --open '/#liquidez'
