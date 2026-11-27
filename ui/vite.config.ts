@@ -30,6 +30,9 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   server: {
+    // Acceso remoto solo por la red privada de Tailscale (`tailscale serve`, #859): Vite
+    // rechaza cualquier otro nombre de host. Nada queda abierto a internet.
+    allowedHosts: ['.ts.net'],
     proxy: {
       '/api': {
         target: `http://${gatewayBind}`,
