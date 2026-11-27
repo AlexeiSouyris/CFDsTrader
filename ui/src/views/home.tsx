@@ -17,7 +17,6 @@ import { Watchlist } from '@/components/ui/watchlist'
 import { WorkspacePanel } from '@/components/ui/workspace-panel'
 import { useChartCatalog } from '@/lib/chart-slots'
 import { decimal } from '@/lib/format'
-import { useInstruments } from '@/lib/liquidity-api'
 import { ibkrSummaries, useMarketSummaries } from '@/lib/market-summary'
 import { focusInstrument } from '@/lib/terminal-focus'
 import { currencySign, useFund } from '@/lib/fund-api'
@@ -66,12 +65,7 @@ export function HomeView({ onOpen }: { onOpen: (view: string) => void }) {
   }
 
   // los mercados: la misma lista y las mismas fuentes que la Terminal (#552, #556)
-  const { instruments } = useChartCatalog()
-  const catalog = useInstruments()
-  const names: Record<string, string> =
-    catalog.status === 'ok'
-      ? Object.fromEntries(catalog.data.instruments.map((i) => [i.id, i.name]))
-      : {}
+  const { instruments, names } = useChartCatalog()
   const summaries = useMarketSummaries(instruments)
   const ibkr = useMarketSummaries([], ibkrSummaries)
   // elegir un mercado abre la Terminal con su gráfico (los de IBKR, que son solo datos, sin elegir)

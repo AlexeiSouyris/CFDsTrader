@@ -10,6 +10,7 @@ import { Check, Clock, OctagonAlert, ShieldCheck, X } from 'lucide-react'
 import { useId, useState, type FormEvent, type ReactNode } from 'react'
 
 import { AnimatedNumber } from '@/components/ui/animated-number'
+import { InstrumentName } from '@/components/ui/instrument-name'
 import { Term } from '@/components/ui/term'
 import {
   dateTimeUtc,
@@ -20,6 +21,7 @@ import {
   signed,
 } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { instrumentLabel, type InstrumentNames } from '@/lib/liquidity-api'
 import { GatewayError, newOrder } from '@/lib/paper-api'
 import {
   REJECTION_LABEL,
@@ -404,7 +406,8 @@ export function OrderTicket({
         >
           {instruments.map((i) => (
             <option key={i} value={i} disabled={unavailable.includes(i)}>
-              {[i, names[i]].filter(Boolean).join(' · ')}
+              {/* el nombre conocido primero y el id entre paréntesis (#861) */}
+              {instrumentLabel(names, i)}
               {unavailable.includes(i) ? ' (sin velas)' : ''}
             </option>
           ))}
@@ -502,7 +505,8 @@ export function OrderTicket({
           >
             <p>
               <strong>¿Enviar esta orden al broker simulado?</strong> {SIDE[draft.side]}{' '}
-              {draft.instrument_id} con stop {draft.stop}. Es SIMULACIÓN: no se envía nada real.
+              {instrumentLabel(names, draft.instrument_id)} con stop {draft.stop}. Es SIMULACIÓN: no
+              se envía nada real.
             </p>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -690,7 +694,14 @@ function Verdict({ verdict: v }: { verdict: TicketVerdict }) {
 }
 
 /** Posiciones abiertas de la simulación (`position.v1`), con el P/L que manda el motor. */
-export function PositionsTable({ positions }: { positions: Position[] }) {
+export function PositionsTable({
+  positions,
+  names = {},
+}: {
+  positions: Position[]
+  /** nombres legibles del catálogo (#861) */
+  names?: InstrumentNames
+}) {
   if (positions.length === 0)
     return (
       <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-[13px] text-muted-foreground">
@@ -744,7 +755,7 @@ export function PositionsTable({ positions }: { positions: Position[] }) {
               className="border-b border-border last:border-b-0 max-md:grid max-md:grid-cols-2 max-md:gap-x-4 max-md:gap-y-3 max-md:rounded-2xl max-md:border max-md:p-4 max-md:last:border-b"
             >
               <td className="px-2 py-3 whitespace-nowrap max-md:col-span-2 max-md:p-0">
-                <span className="font-extrabold">{p.instrument_id}</span>{' '}
+                <InstrumentName id={p.instrument_id} names={names} className="font-extrabold" />{' '}
                 <span
                   className={cn(
                     'ml-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-bold',

@@ -46,6 +46,7 @@ import {
   type BlockDraft,
   type Draft,
 } from '@/lib/lab-spec'
+import { instrumentLabel, useInstrumentNames } from '@/lib/liquidity-api'
 import { cn } from '@/lib/utils'
 
 const field =
@@ -335,6 +336,7 @@ function message(e: unknown) {
 }
 
 function Builder({ cat }: { cat: StrategyCatalog }) {
+  const names = useInstrumentNames()
   const [draft, setDraft] = useState<Draft>(() => initialDraft(cat))
   const [variants, setVariants] = useState<StrategySpec[]>([])
   const [validation, setValidation] = useState<SpecValidation | null>(null)
@@ -448,7 +450,7 @@ function Builder({ cat }: { cat: StrategyCatalog }) {
             >
               {cat.markets.map((m) => (
                 <option key={m.instrument_id} value={m.instrument_id}>
-                  {m.instrument_id} · velas de futuros
+                  {instrumentLabel(names, m.instrument_id)} · velas de futuros
                 </option>
               ))}
             </select>

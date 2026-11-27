@@ -17,7 +17,7 @@ import { TradeJournal } from '@/components/ui/trade-journal'
 import { Term } from '@/components/ui/term'
 import { dateTimeUtc, decimal, signed } from '@/lib/format'
 import { useFund } from '@/lib/fund-api'
-import { useInstruments } from '@/lib/liquidity-api'
+import { useInstrumentNames } from '@/lib/liquidity-api'
 import { cn } from '@/lib/utils'
 import { HEATMAP, INDEX_ROWS, KPIS, PROCESS_BADGES, TRADES, type Kpi } from '@/mocks'
 import { MultichartView } from '@/views/multichart'
@@ -62,14 +62,6 @@ function Card({
 
 /** Términos del glosario de cada indicador del panel. */
 const KPI_TERM: Record<string, string> = { nav: 'nav', pnl: 'pl', dd: 'drawdown' }
-
-/** Los nombres del catálogo del motor (`/api/v1/instruments`), o nada sin gateway. */
-function useInstrumentNames(): Record<string, string> {
-  const catalog = useInstruments()
-  return catalog.status === 'ok'
-    ? Object.fromEntries(catalog.data.instruments.map((i) => [i.id, i.name]))
-    : {}
-}
 
 export function OverviewView({ onOpen }: { onOpen: (view: string) => void }) {
   const fund = useFund()

@@ -14,6 +14,7 @@ import { Price } from '@/components/ui/run-detail'
 import { Segmented } from '@/components/ui/segmented'
 import { dateTimeUtc, isNegative, signed } from '@/lib/format'
 import { CAUSES, type Cause, type PaperComparison } from '@/lib/learning-api'
+import { instrumentName, useInstrumentNames } from '@/lib/liquidity-api'
 import { cn } from '@/lib/utils'
 
 const CAUSE_LABEL: Record<Cause, string> = {
@@ -224,6 +225,7 @@ function Comparison({ c }: { c: PaperComparison }) {
 export function PaperVsBacktest({ comparisons }: { comparisons: PaperComparison[] }) {
   const ids = comparisons.map((c) => c.instrument_id)
   const [picked, setPicked] = useState<string | null>(null)
+  const names = useInstrumentNames()
   const selected = picked && ids.includes(picked) ? picked : ids[0]
   const c = comparisons.find((x) => x.instrument_id === selected)
   if (!c) return null
@@ -233,6 +235,7 @@ export function PaperVsBacktest({ comparisons }: { comparisons: PaperComparison[
         <Segmented
           label="Instrumento de la comparación"
           options={ids}
+          format={(id) => instrumentName(names, id)}
           value={selected}
           onChange={setPicked}
         />

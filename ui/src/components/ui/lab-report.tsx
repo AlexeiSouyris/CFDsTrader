@@ -14,6 +14,7 @@ import { ToolLock } from '@/components/ui/tool-lock'
 import { decimal, percent } from '@/lib/format'
 import type { LabReport, Quantiles, Slice, Summary } from '@/lib/lab-contracts'
 import { useLabReports } from '@/lib/lab-api'
+import { instrumentLabel, useInstrumentNames, type InstrumentNames } from '@/lib/liquidity-api'
 import { dayYear, numOrDash, pctOrDash, signedPct, tone } from '@/lib/run-format'
 import { cn } from '@/lib/utils'
 
@@ -228,7 +229,14 @@ function SliceTable({ title, rows }: { title: string; rows: Slice[] }) {
   )
 }
 
-export function LabReportView({ report: x }: { report: LabReport }) {
+export function LabReportView({
+  report: x,
+  names = {},
+}: {
+  report: LabReport
+  /** nombres legibles del catálogo (#861) */
+  names?: InstrumentNames
+}) {
   const e = x.expectancy
   const mc = x.monte_carlo
   const ci = e?.mean_r_net_ci
@@ -244,9 +252,10 @@ export function LabReportView({ report: x }: { report: LabReport }) {
           {!x.votes && ' · ninguna cifra vota'}
         </p>
         <p className="text-[13px]">
-          <strong>{x.instrument_id}</strong> · {x.spec.market.timeframe} · {dayYear(x.period.from)}{' '}
-          – {dayYear(x.period.to)} · {x.trades.count} operaciones ({x.trades.long} largas,{' '}
-          {x.trades.short} cortas) · costos × {decimal(x.cost_multiplier, 2)}
+          <strong>{instrumentLabel(names, x.instrument_id)}</strong> · {x.spec.market.timeframe} ·{' '}
+          {dayYear(x.period.from)} – {dayYear(x.period.to)} · {x.trades.count} operaciones (
+          {x.trades.long} largas, {x.trades.short} cortas) · costos ×{' '}
+          {decimal(x.cost_multiplier, 2)}
         </p>
         <p className="text-[11.5px] text-muted-foreground">
           Fuera de muestra desde {dayYear(x.holdout_start)}: no se cargó ni se evaluó.
@@ -543,6 +552,7 @@ export function LabReports({
   header?: (reports: LabReport[]) => ReactNode
 }) {
   const reports = useLabReports(ids)
+  const names = useInstrumentNames()
   const [pick, setPick] = useState(0)
   if (reports.status === 'loading')
     return <p className="text-[13px] text-muted-foreground">Cargando el informe…</p>
@@ -568,7 +578,7 @@ export function LabReports({
           />
         </div>
       )}
-      <LabReportView report={list[at]} />
+      <LabReportView report={list[at]} names={names} />
     </div>
   )
 }

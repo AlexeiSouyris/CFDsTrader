@@ -10,6 +10,7 @@ import { ScrollRegion } from '@/components/ui/scroll-region'
 import type { WalkForwardReport, WfPeriod } from '@/lib/walk-forward-api'
 import { useWalkForward } from '@/lib/walk-forward-api'
 import { dateTimeUtc } from '@/lib/format'
+import { instrumentLabel, useInstrumentNames } from '@/lib/liquidity-api'
 import { dayYear, numOrDash, pctOrDash, signedPct, tone } from '@/lib/run-format'
 import { cn } from '@/lib/utils'
 
@@ -235,6 +236,7 @@ export function WalkForwardReportView({ report: r }: { report: WalkForwardReport
 /** El bloque en vivo: pide el último reporte del instrumento y lo muestra tal cual llega. */
 export function WalkForwardLive({ instrument }: { instrument: string }) {
   const wf = useWalkForward(instrument)
+  const label = instrumentLabel(useInstrumentNames(), instrument)
   if (wf.status === 'loading')
     return (
       <p
@@ -242,19 +244,19 @@ export function WalkForwardLive({ instrument }: { instrument: string }) {
         role="status"
         className="text-[12.5px] text-muted-foreground motion-safe:animate-pulse"
       >
-        Cargando el walk-forward de {instrument}…
+        Cargando el walk-forward de {label}…
       </p>
     )
   if (wf.status === 'error')
     return (
       <p data-walk-forward="pending" className="text-[12.5px] text-muted-foreground">
-        No se pudo leer el walk-forward de {instrument} ({wf.message}).
+        No se pudo leer el walk-forward de {label} ({wf.message}).
       </p>
     )
   if (wf.data === null)
     return (
       <p data-walk-forward="none" className="text-[12.5px] text-muted-foreground">
-        Todavía no hay un reporte de walk-forward para {instrument}: el motor todavía no lo calculó.
+        Todavía no hay un reporte de walk-forward para {label}: el motor todavía no lo calculó.
       </p>
     )
   return <WalkForwardReportView report={wf.data} />
