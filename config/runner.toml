@@ -4,8 +4,8 @@
 # La estrategia, el riesgo, los costos y las salidas usan su propia config sin cambios.
 
 [runner]
-# Apagado por defecto: el gateway lo corre solo si esto está en true.
-enabled = false
+# Prendido por decisión del dueño (24-11-2026, #380). Con false, el gateway no lo corre.
+enabled = true
 # Cada cuántos segundos mira si hay una vela nueva cerrada en la base.
 poll_secs = 30
 # Días de velas de 15m y 1h que lee hacia atrás (tienen que alcanzar para el calentamiento de

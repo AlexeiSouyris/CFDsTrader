@@ -35,9 +35,10 @@ fn candle(start: &str) -> Candle {
 }
 
 #[tokio::test]
-async fn the_repo_config_loads_and_the_runner_is_off_by_default() {
+async fn the_repo_config_loads_and_the_runner_is_on() {
+    // Prendido por decisión del dueño (24-11-2026, #380); antes venía apagado por defecto.
     let d = deps();
-    assert!(!d.runner.lock().await.config().enabled);
+    assert!(d.runner.lock().await.config().enabled);
     assert!(
         d.calendar
             .session_for(&"DE40".parse::<InstrumentId>().unwrap())
