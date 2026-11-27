@@ -125,12 +125,16 @@ export type SlotData = {
  * en 15 m; con IBKR, las de IBKR (sin ejemplo). Si el gateway responde sin velas, el lugar queda
  * vacío: nunca se muestra el ejemplo como si fuera del motor (#577). Con `enabled` en falso (un
  * lugar que la distribución no muestra) no se pide nada.
+ *
+ * Del motor se pide la fuente automática (#628, #865), como en la vista de liquidez: IG y, si IG
+ * no tiene velas recientes, la que elija el motor (IBKR o futuros), que viene en `view.fallback`.
+ * Las velas más viejas se piden a la misma fuente que se está viendo.
  */
 export function useChartSlot(sel: ChartSel, enabled = true): SlotData {
   const ibkrSel = sel.feed === 'ibkr'
   const remote = useLiquidityView(
     enabled && !ibkrSel
-      ? { instrument: sel.instrument, timeframe: sel.timeframe as ViewTimeframe }
+      ? { instrument: sel.instrument, timeframe: sel.timeframe as ViewTimeframe, source: 'auto' }
       : null,
   )
   const ibkrPick =
@@ -191,6 +195,7 @@ export function useChartSlot(sel: ChartSel, enabled = true): SlotData {
             live.instrument_id,
             live.timeframe ?? (sel.timeframe as ViewTimeframe),
             before,
+            live.source?.id ?? 'ig',
           )
       : undefined,
   }

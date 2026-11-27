@@ -11,9 +11,10 @@
 //!   pasado (#401, paginación por fecha). Un `before` futuro cuenta como ahora.
 //!   Con `source=ibkr` (#630), lo calculado con las barras de IBKR de los CFD con mapeo
 //!   (`[ibkr]` de `config/candle_sources.toml`). Con `source=auto` (#628), las velas de IG y,
-//!   si en la ventana no hay suficientes, la primera
-//!   fuente de reemplazo de `[view.auto]` de `config/gateway.toml` que tenga velas: la respuesta
-//!   dice cuál usó (`source`) y por qué (`fallback`).
+//!   si en la ventana no hay suficientes o son viejas (#865), la primera fuente de reemplazo de
+//!   `[view.auto]` de `config/gateway.toml` con velas recientes (ver [`auto_view`]): la respuesta
+//!   dice cuál usó (`source`) y por qué (`fallback`). En 1d, las diarias de `daily_candles`: las
+//!   del CFD con IG y las del instrumento derivado con futuros o IBKR (`US100.FUT`, #282, #865).
 //! - `GET /api/v1/instruments` → `contracts/gateway_instruments.v1`: los instrumentos del
 //!   catálogo, los timeframes y los valores por defecto de la vista.
 //!
@@ -95,11 +96,14 @@ pub struct GatewayConfig {
 }
 
 /// La fuente automática de la vista (#628): IG y, si en la ventana hay menos de `min_candles`
-/// velas, la primera de `fallback` que tenga velas, con su motivo.
+/// velas o la última cerró hace más de `stale` (#865), la primera de `fallback` que tenga velas
+/// recientes, con su motivo. Ver [`auto_view`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AutoSource {
     pub label: String,
     pub min_candles: usize,
+    /// Una vista cuya última vela cerró hace más que esto cuenta como vieja (#865).
+    pub stale: TimeDelta,
     /// Fuentes de reemplazo en orden, cada una con el motivo que muestra la UI.
     pub fallback: Vec<(CandleSource, String)>,
 }
@@ -109,6 +113,7 @@ impl AutoSource {
         let RawAuto {
             label,
             min_candles,
+            stale_days,
             fallback,
             mut notes,
         } = raw;
@@ -143,6 +148,7 @@ impl AutoSource {
         Ok(Self {
             label,
             min_candles: min_candles.get() as usize,
+            stale: TimeDelta::days(i64::from(stale_days.get())),
             fallback: out,
         })
     }
@@ -216,6 +222,7 @@ struct RawView {
 struct RawAuto {
     label: String,
     min_candles: NonZeroU32,
+    stale_days: NonZeroU32,
     fallback: Vec<String>,
     notes: std::collections::BTreeMap<String, String>,
 }
@@ -536,19 +543,17 @@ impl PgSource {
             let first = candles.first().map_or(as_of, |c| c.start);
             return Ok(Some((Bars::Intraday(candles), as_of, first)));
         }
-        // Los futuros (#259) e IBKR (#630) no tienen diarias: en 1d esas fuentes quedan "sin datos".
-        if source != CandleSource::Ig {
-            return Ok(None);
-        }
         // 1d: `as_of` es el fin de la última diaria **terminada** de `daily_candles`, aunque sea
-        // vieja, y la ventana se mide desde ahí (no desde ahora).
-        let Some(as_of) = self.store.last_daily_end(id, now).await? else {
+        // vieja, y la ventana se mide desde ahí (no desde ahora). Las diarias de los futuros
+        // (#282) e IBKR se guardan bajo el instrumento derivado (`US100.FUT`), como lo demás que
+        // se calcula con esas velas (#865); las de IG, bajo el CFD (`out` es el mismo id).
+        let Some(as_of) = self.store.last_daily_end(out, now).await? else {
             return Ok(None);
         };
         let from = (as_of - w.candles).date_naive();
         let daily: Vec<DailyCandle> = self
             .store
-            .daily_candles(id, from, as_of.date_naive() + TimeDelta::days(1))
+            .daily_candles(out, from, as_of.date_naive() + TimeDelta::days(1))
             .await?
             .into_iter()
             .filter(|d| d.end <= as_of)
@@ -826,8 +831,17 @@ pub async fn respond<S: LiquiditySource>(
     }
 }
 
-/// La vista con `source=auto` (#628): la de IG si tiene al menos `min_candles` velas; si no, la
-/// de la primera fuente de reemplazo con alguna vela, con su motivo; si ninguna tiene, la de IG.
+/// La vista con `source=auto` (#628, #865). "Reciente" = la última vela cerró hace a lo sumo
+/// `stale` antes de `at`.
+///
+/// ```text
+/// 1. IG, si tiene al menos `min_candles` velas y es reciente;
+/// 2. si no, la primera fuente de reemplazo con velas recientes, con su motivo;
+/// 3. si no, IG si tiene alguna vela reciente (pocas velas de hoy antes que una fuente vieja);
+/// 4. si no, la que tenga la última vela más nueva entre IG y los reemplazos con velas
+///    (empate: la primera en ese orden), con su motivo si es un reemplazo;
+/// 5. sin velas en ninguna, la de IG ("sin datos").
+/// ```
 /// Cada fuente se lee con sus propias velas cerradas hasta `at`: no se mezclan. En el motivo,
 /// `{symbol}` es el instrumento de IBKR del CFD (#630), si tiene.
 pub async fn auto_view<S: LiquiditySource>(
@@ -839,23 +853,54 @@ pub async fn auto_view<S: LiquiditySource>(
     at: DateTime<Utc>,
 ) -> Result<LiquidityView, StorageError> {
     let ig = source.view(id, CandleSource::Ig, tf, at).await?;
-    if ig.candles.len() >= auto.min_candles {
+    let last = |v: &LiquidityView| {
+        v.as_of
+            .as_deref()
+            .filter(|_| !v.candles.is_empty())
+            .and_then(|s| s.parse::<DateTime<Utc>>().ok())
+    };
+    let recent = |v: &LiquidityView| last(v).is_some_and(|t| t >= at - auto.stale);
+    if ig.candles.len() >= auto.min_candles && recent(&ig) {
         return Ok(ig);
     }
+    let with_note = |mut v: LiquidityView, note: &str| {
+        v.fallback = Some(Fallback {
+            from: CandleSource::Ig.as_str(),
+            note: match sources.ibkr_instrument(id) {
+                Some(symbol) => note.replace("{symbol}", symbol),
+                None => note.to_owned(),
+            },
+        });
+        v
+    };
+    let mut stale: Vec<(LiquidityView, &str)> = Vec::new();
     for (other, note) in &auto.fallback {
-        let mut v = source.view(id, *other, tf, at).await?;
+        let v = source.view(id, *other, tf, at).await?;
+        if recent(&v) {
+            return Ok(with_note(v, note));
+        }
         if !v.candles.is_empty() {
-            v.fallback = Some(Fallback {
-                from: CandleSource::Ig.as_str(),
-                note: match sources.ibkr_instrument(id) {
-                    Some(symbol) => note.replace("{symbol}", symbol),
-                    None => note.clone(),
-                },
-            });
-            return Ok(v);
+            stale.push((v, note));
         }
     }
-    Ok(ig)
+    if recent(&ig) {
+        return Ok(ig);
+    }
+    // La más nueva; `max_by_key` se queda con la última de las iguales, así que se recorre al
+    // revés para que en un empate gane la primera (IG antes que los reemplazos).
+    let newest = stale
+        .iter()
+        .enumerate()
+        .rev()
+        .max_by_key(|(_, (v, _))| last(v))
+        .map(|(i, (v, _))| (i, last(v)));
+    match newest {
+        Some((i, t)) if t > last(&ig) => {
+            let (v, note) = stale.swap_remove(i);
+            Ok(with_note(v, note))
+        }
+        _ => Ok(ig),
+    }
 }
 
 #[cfg(test)]
@@ -1045,7 +1090,7 @@ mod tests {
         assert_eq!(
             v["sources"],
             serde_json::json!([
-                {"id": "auto", "label": "automática (IG; sin velas de IG, futuros)"},
+                {"id": "auto", "label": "automática (IG; sin velas recientes de IG, IBKR o futuros)"},
                 {"id": "ig", "label": "IG CFD"},
                 {"id": "futures", "label": "futuros CME/Eurex (base distinta al CFD)"},
                 {"id": "ibkr", "label": "futuros micro CME de IBKR (~10 min de atraso; base distinta al CFD)"}
@@ -1146,11 +1191,13 @@ mod tests {
     }
 
     /// Una fuente con `ig` velas de IG y `futures` velas de futuros (de 1h, cerradas antes de
-    /// `at`), para ver qué elige `source=auto` (#628) sin base de datos.
+    /// `at`), para ver qué elige `source=auto` (#628) sin base de datos. `age`: horas entre el
+    /// cierre de la última vela y `at`, por fuente (IG, futuros, IBKR; #865).
     struct Stocked {
         ig: usize,
         futures: usize,
         ibkr: usize,
+        age: [i64; 3],
     }
 
     impl LiquiditySource for Stocked {
@@ -1161,11 +1208,12 @@ mod tests {
             tf: StatsTimeframe,
             at: DateTime<Utc>,
         ) -> Result<LiquidityView, StorageError> {
-            let n = match source {
-                CandleSource::Ig => self.ig,
-                CandleSource::Futures => self.futures,
-                CandleSource::Ibkr => self.ibkr,
+            let (n, age) = match source {
+                CandleSource::Ig => (self.ig, self.age[0]),
+                CandleSource::Futures => (self.futures, self.age[1]),
+                CandleSource::Ibkr => (self.ibkr, self.age[2]),
             };
+            let at = at - TimeDelta::hours(age - 1);
             let mut v =
                 LiquidityView::empty(id.clone(), ViewSource::new(source, &sources()), tf, at);
             if n == 0 {
@@ -1195,8 +1243,23 @@ mod tests {
     }
 
     async fn stocked3(ig: usize, futures: usize, ibkr: usize, q: &str) -> serde_json::Value {
+        aged(ig, futures, ibkr, [1, 1, 1], q).await
+    }
+
+    async fn aged(
+        ig: usize,
+        futures: usize,
+        ibkr: usize,
+        age: [i64; 3],
+        q: &str,
+    ) -> serde_json::Value {
         let r = respond(
-            &Stocked { ig, futures, ibkr },
+            &Stocked {
+                ig,
+                futures,
+                ibkr,
+                age,
+            },
             &config(),
             &sources(),
             &catalog(),
@@ -1224,7 +1287,7 @@ mod tests {
             );
             assert_eq!(v["fallback"]["from"], "ig");
             let note = v["fallback"]["note"].as_str().unwrap();
-            assert!(note.starts_with("IG todavía no tiene velas"), "{note}");
+            assert!(note.starts_with("IG no tiene velas recientes"), "{note}");
             assert!(note.contains("Base distinta al CFD"), "{note}");
             assert_eq!(v["candles"].as_array().unwrap().len(), 50);
         }
@@ -1274,8 +1337,8 @@ mod tests {
         assert_eq!(v["source"]["id"], "ibkr");
         assert_eq!(
             v["fallback"]["note"],
-            "IG todavía no tiene velas: se muestran futuros de CME (MNQ, IBKR, ~10 min de atraso). \
-             Base distinta al CFD."
+            "IG no tiene velas recientes: se muestran futuros de CME (MNQ, IBKR, ~10 min de \
+             atraso). Base distinta al CFD."
         );
         assert_eq!(v["candles"].as_array().unwrap().len(), 30);
         let v = stocked3(0, 50, 0, q).await;
@@ -1287,6 +1350,46 @@ mod tests {
         assert!(v.get("fallback").is_none());
     }
 
+    /// #865: IG con velas pero viejas (las diarias de 2024) no tapa una fuente reciente; con
+    /// todas viejas, la más nueva; pocas velas de IG de hoy antes que un reemplazo viejo.
+    #[tokio::test]
+    async fn auto_skips_a_stale_source() {
+        let min = config().auto.min_candles;
+        let stale = config().auto.stale.num_hours();
+        assert_eq!(stale, 4 * 24);
+        let q = "instrument=US100&timeframe=1h&source=auto";
+        let years = 2 * 365 * 24;
+        // IG lleno pero de hace dos años; IBKR al día: IBKR.
+        let v = aged(min + 50, 50, 30, [years, 1, 1], q).await;
+        assert_eq!(v["source"]["id"], "ibkr");
+        assert!(v["fallback"]["note"].as_str().unwrap().contains("MNQ"));
+        // Justo en el límite todavía cuenta como reciente; una hora más, ya no.
+        let v = aged(min, 50, 0, [stale, 1, 1], q).await;
+        assert_eq!(v["source"]["id"], "ig");
+        let v = aged(min, 50, 0, [stale + 1, 1, 1], q).await;
+        assert_eq!(v["source"]["id"], "futures");
+        // Todas viejas: la de la vela más nueva (futuros de hace una semana antes que IG de 2024),
+        // con su motivo.
+        let week = 7 * 24;
+        let v = aged(min + 50, 50, 0, [years, week, 1], q).await;
+        assert_eq!(v["source"]["id"], "futures");
+        assert_eq!(v["fallback"]["from"], "ig");
+        // Todas viejas y la más nueva es IG: IG, sin motivo.
+        let v = aged(min, 50, 30, [week, years, years], q).await;
+        assert_eq!(v["source"]["id"], "ig");
+        assert!(v.get("fallback").is_none());
+        // Empate entre reemplazos viejos: el primero (IBKR).
+        let v = aged(0, 50, 30, [1, week, week], q).await;
+        assert_eq!(v["source"]["id"], "ibkr");
+        // Pocas velas de IG de hoy y un reemplazo viejo: IG.
+        let v = aged(3, 50, 0, [1, week, 1], q).await;
+        assert_eq!(v["source"]["id"], "ig");
+        assert_eq!(v["candles"].as_array().unwrap().len(), 3);
+        // Pocas velas de IG de hoy y un reemplazo reciente: el reemplazo (como en #628).
+        let v = aged(3, 50, 0, [1, 1, 1], q).await;
+        assert_eq!(v["source"]["id"], "futures");
+    }
+
     #[test]
     fn the_auto_source_is_validated() {
         let auto = config().auto;
@@ -1295,6 +1398,8 @@ mod tests {
         assert_eq!(auto.fallback[1].0, CandleSource::Futures);
         for (from, to) in [
             ("min_candles = 20", "min_candles = 0"),
+            ("stale_days = 4", "stale_days = 0"),
+            ("stale_days = 4", "stale_days = -1"),
             ("fallback = [\"ibkr\", \"futures\"]", "fallback = []"),
             ("fallback = [\"ibkr\", \"futures\"]", "fallback = [\"ig\"]"),
             ("fallback = [\"ibkr\", \"futures\"]", "fallback = [\"cfd\"]"),
@@ -1315,8 +1420,8 @@ mod tests {
             assert!(GatewayConfig::from_toml(&bad).is_err(), "{to}");
         }
         let long = CONFIG.replacen(
-            "futures = \"IG todavía",
-            &format!("futures = \"{}IG todavía", "x".repeat(300)),
+            "futures = \"IG no tiene",
+            &format!("futures = \"{}IG no tiene", "x".repeat(300)),
             1,
         );
         assert!(GatewayConfig::from_toml(&long).is_err());
