@@ -207,13 +207,16 @@ fn first_proposal(m15: &[Candle]) -> usize {
 }
 
 #[test]
-fn the_repo_config_is_valid_and_off_by_default() {
+fn the_repo_config_is_valid_and_on() {
     let c = RunnerConfig::from_toml(cfg!("runner.toml")).unwrap();
-    assert!(!c.enabled, "el runner arranca apagado");
+    assert!(
+        c.enabled,
+        "prendido por decisión del dueño (24-11-2026, #380)"
+    );
     assert_eq!(c.probability, None, "sin corrida: datos insuficientes");
     let with = cfg!("runner.toml").replacen(
-        "enabled = false",
-        "enabled = false\nprobability_run_id = \"bt-1\"\nprobability_until = \"2025-11-01T00:00:00Z\"",
+        "enabled = true",
+        "enabled = true\nprobability_run_id = \"bt-1\"\nprobability_until = \"2025-11-01T00:00:00Z\"",
         1,
     );
     assert_eq!(
@@ -225,19 +228,19 @@ fn the_repo_config_is_valid_and_off_by_default() {
         ("lookback_days = 15", "lookback_days = 0"),
         ("stale_after_minutes = 45", "stale_after_minutes = 5"),
         ("order_prefix = \"run\"", "order_prefix = \"a b\""),
-        ("enabled = false", "enabled = false\nlive = true"),
+        ("enabled = true", "enabled = true\nlive = true"),
         // #333: la corrida de la probabilidad y su fecha van juntas y bien formadas.
         (
-            "enabled = false",
-            "enabled = false\nprobability_run_id = \"bt-1\"",
+            "enabled = true",
+            "enabled = true\nprobability_run_id = \"bt-1\"",
         ),
         (
-            "enabled = false",
-            "enabled = false\nprobability_run_id = \"a b\"\nprobability_until = \"2025-11-01T00:00:00Z\"",
+            "enabled = true",
+            "enabled = true\nprobability_run_id = \"a b\"\nprobability_until = \"2025-11-01T00:00:00Z\"",
         ),
         (
-            "enabled = false",
-            "enabled = false\nprobability_run_id = \"bt-1\"\nprobability_until = \"ayer\"",
+            "enabled = true",
+            "enabled = true\nprobability_run_id = \"bt-1\"\nprobability_until = \"ayer\"",
         ),
     ] {
         let bad = cfg!("runner.toml").replacen(old, new, 1);
