@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/AlexeiSouyris/CFDsTrader/contracts/liquidity_view.v1.schema.json",
   "title": "Liquidity view v1",
-  "description": "Respuesta de GET /api/v1/liquidity?instrument=<id>[&timeframe=15m|1h|1d][&source=ig|futures|ibkr|auto][&before=<UTC>] del gateway (#231): lo que la vista de liquidez de la UI necesita de un instrumento y timeframe, tal como está guardado en PostgreSQL al cierre de la última vela de ese timeframe. Con before (RFC 3339 en UTC, agregado sin romper v1, #401), la misma vista tal como se conocía en ese momento (solo velas cerradas a más tardar en before): la UI la usa para pedir velas más viejas al desplazarse al pasado. La forma de la respuesta no cambia. No agrega cálculos: junta mensajes de otros contratos, cada uno sin cambios. La UI solo lo muestra (CLAUDE.md §1). Con source=auto (agregado sin romper v1, #628), el gateway usa las velas de IG y, si en la ventana no hay suficientes, la primera fuente de reemplazo con velas (config/gateway.toml [view.auto]); 'source' dice cuál usó y 'fallback' por qué. Sin velas guardadas, as_of es null y las listas van vacías ('sin datos todavía').",
+  "description": "Respuesta de GET /api/v1/liquidity?instrument=<id>[&timeframe=15m|1h|1d][&source=ig|futures|ibkr|auto][&before=<UTC>] del gateway (#231): lo que la vista de liquidez de la UI necesita de un instrumento y timeframe, tal como está guardado en PostgreSQL al cierre de la última vela de ese timeframe. Con before (RFC 3339 en UTC, agregado sin romper v1, #401), la misma vista tal como se conocía en ese momento (solo velas cerradas a más tardar en before): la UI la usa para pedir velas más viejas al desplazarse al pasado. La forma de la respuesta no cambia. No agrega cálculos: junta mensajes de otros contratos, cada uno sin cambios. La UI solo lo muestra (CLAUDE.md §1). Con source=auto (agregado sin romper v1, #628), el gateway usa las velas de IG y, si en la ventana no hay suficientes o son viejas (#865), la primera fuente de reemplazo con velas recientes (config/gateway.toml [view.auto]); 'source' dice cuál usó y 'fallback' por qué. En 1d con source=futures o ibkr, las diarias del instrumento derivado (#865). Sin velas guardadas, as_of es null y las listas van vacías ('sin datos todavía').",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -53,7 +53,7 @@
       }
     },
     "fallback": {
-      "description": "Opcional (agregado sin romper v1, #628): solo con ?source=auto cuando la vista no sale de las velas de IG porque IG no tiene suficientes en la ventana. 'from' es la fuente que se pidió primero ('ig'); 'note' es el motivo que muestra la UI tal cual (config/gateway.toml [view.auto.notes]). 'source' es la fuente que sí se usó. Ausente = la vista sale de la fuente pedida (o de IG con auto).",
+      "description": "Opcional (agregado sin romper v1, #628): solo con ?source=auto cuando la vista no sale de las velas de IG porque IG no tiene suficientes en la ventana o son viejas (#865). 'from' es la fuente que se pidió primero ('ig'); 'note' es el motivo que muestra la UI tal cual (config/gateway.toml [view.auto.notes]). 'source' es la fuente que sí se usó. Ausente = la vista sale de la fuente pedida (o de IG con auto).",
       "type": "object",
       "additionalProperties": false,
       "required": [

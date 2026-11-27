@@ -78,7 +78,14 @@ export function SlotChart({
         ibkr?.instrument_id ?? view?.instrument_id ?? sel.instrument,
       )}
       timeframe={ibkr?.timeframe ?? view?.timeframe ?? sel.timeframe}
-      caption={ibkr?.series ? `IBKR · ${ibkr.series.contract} · solo datos` : undefined}
+      // con la fuente automática fuera de IG (#865), su nombre: "futuros … (base distinta al CFD)"
+      caption={
+        ibkr?.series
+          ? `IBKR · ${ibkr.series.contract} · solo datos`
+          : view?.fallback && view.source
+            ? view.source.label
+            : undefined
+      }
       liquidity={!ibkrSel}
       bars={slot.bars}
       forming={slot.forming ?? undefined}

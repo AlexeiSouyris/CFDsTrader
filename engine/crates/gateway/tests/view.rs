@@ -479,10 +479,45 @@ async fn the_futures_source_reads_futures_candles_and_the_derived_instrument() {
     assert_eq!(v["candles"][0]["close"], "150.5");
     assert_eq!(v["candles"][0]["instrument_id"], derived.as_str());
     assert_valid(&v);
-    // Los futuros no tienen diarias: en 1d, "sin datos".
+    // Sin diarias del futuro: en 1d, "sin datos" (las del CFD no cuentan).
+    src.store
+        .insert_daily(&[daily(&id, "2026-11-19")])
+        .await
+        .unwrap();
     let d1 = src.view(&id, CandleSource::Futures, D1, now).await.unwrap();
     assert_eq!(d1.as_of, None);
     assert_valid(&serde_json::to_value(&d1).unwrap());
+    // Con las diarias del futuro guardadas bajo el derivado (#282), 1d las sirve (#865), y las
+    // de IG siguen siendo las del CFD.
+    src.store
+        .upsert_instrument(&Instrument {
+            id: derived.clone(),
+            name: "Test gateway (futuros)".into(),
+            asset_class: AssetClass::Index,
+            currency: Currency::USD,
+            exchange_timezone: "America/New_York".into(),
+        })
+        .await
+        .unwrap();
+    let fut_days: Vec<DailyCandle> = ["2026-11-18", "2026-11-19"]
+        .iter()
+        .map(|d| DailyCandle {
+            close: dec!(151.0),
+            high: dec!(152.0),
+            ..daily(&derived, d)
+        })
+        .collect();
+    src.store.insert_daily(&fut_days).await.unwrap();
+    let d1 = src.view(&id, CandleSource::Futures, D1, now).await.unwrap();
+    assert_eq!(d1.source.id, "futures");
+    assert_eq!(d1.candles.len(), 2);
+    assert_eq!(d1.as_of.as_deref(), Some("2026-11-19T23:00:00Z"));
+    let v = serde_json::to_value(&d1).unwrap();
+    assert_eq!(v["candles"][1]["close"], "151.0");
+    assert_eq!(v["candles"][1]["instrument_id"], derived.as_str());
+    assert_valid(&v);
+    let ig_d1 = src.view(&id, CandleSource::Ig, D1, now).await.unwrap();
+    assert_eq!(ig_d1.candles.len(), 1);
 }
 
 /// Una vista de 15m con el bloque `analysis` (#501) que arma `cfds_backtest::analysis` valida

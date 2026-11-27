@@ -12,16 +12,21 @@ default_timeframe = "1d"
 levels_days = 14
 
 # Fuente automática de la vista de liquidez (#628; decisión del dueño del 25-11-2026, «1 sí»).
-# Con ?source=auto (lo que abre la UI), el gateway usa las velas del CFD de IG; si en la ventana
-# del timeframe hay menos de `min_candles` velas cerradas, prueba en orden las fuentes de
-# `fallback` y usa la primera que tenga alguna vela, y la respuesta dice cuál usó y por qué
+# Con ?source=auto (lo que abren la vista de liquidez, la Terminal y el Multigráfico, #865), el
+# gateway usa las velas del CFD de IG; si en la ventana del timeframe hay menos de `min_candles`
+# velas cerradas, o la última cerró hace más de `stale_days` (#865), prueba en orden las fuentes
+# de `fallback` y usa la primera con velas recientes. Si ninguna es reciente: IG si tiene alguna
+# vela reciente; si no, la que tenga la vela más nueva. La respuesta dice cuál usó y por qué
 # (`fallback` de liquidity_view.v1). Si ninguna tiene velas, la vista de IG vacía ("sin datos").
 # Con ?source=ig, futures o ibkr, esa fuente y nada más (la elección manual de la UI).
 [view.auto]
-label = "automática (IG; sin velas de IG, futuros)"
+label = "automática (IG; sin velas recientes de IG, IBKR o futuros)"
 # Menos de esto en la ventana cuenta como "IG todavía no tiene velas": con una o dos velas sueltas
 # no hay niveles ni FVG que mostrar. Un valor para ajustar con el uso.
 min_candles = 20
+# Una fuente cuya última vela cerró hace más de estos días cuenta como vieja (#865). Más que un
+# fin de semana largo con feriado (viernes a martes), para no saltar de fuente cada lunes.
+stale_days = 4
 # IBKR primero (#630): al día, con ~10 min de atraso, pero solo de los CFD con mapeo
 # (config/candle_sources.toml [ibkr.instruments]); los demás pasan a Databento.
 fallback = ["ibkr", "futures"]
@@ -29,8 +34,8 @@ fallback = ["ibkr", "futures"]
 # El motivo que muestra la UI tal cual, por fuente de reemplazo (1 a 300 caracteres). En la de
 # IBKR, `{symbol}` es el instrumento de IBKR del CFD (MNQ para US100, MES para US500).
 [view.auto.notes]
-ibkr = "IG todavía no tiene velas: se muestran futuros de CME ({symbol}, IBKR, ~10 min de atraso). Base distinta al CFD."
-futures = "IG todavía no tiene velas de este instrumento y timeframe: se muestran futuros de CME/Eurex (Databento). Base distinta al CFD: los niveles no son precios del CFD."
+ibkr = "IG no tiene velas recientes: se muestran futuros de CME ({symbol}, IBKR, ~10 min de atraso). Base distinta al CFD."
+futures = "IG no tiene velas recientes de este instrumento y timeframe: se muestran futuros de CME/Eurex (Databento). Base distinta al CFD: los niveles no son precios del CFD."
 
 # Ventana de cada timeframe, en días hacia atrás desde as_of (el cierre de la última vela):
 # velas (y desequilibrio) que se mandan, y FVG creados en ese lapso.
